@@ -5,6 +5,8 @@ import { Routes, Route, Outlet, NavLink } from "react-router-dom";
 import Home from "./pages/Home";
 import Debugger from "./pages/Debugger.tsx";
 
+import EmployerDashboard from "./pages/EmployerDashboard";
+
 const AppLayout: React.FC = () => (
   <main>
     <Layout.Header
@@ -12,7 +14,23 @@ const AppLayout: React.FC = () => (
       projectTitle="My App"
       contentRight={
         <>
-          <nav>
+          <nav style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <NavLink
+              to="/dashboard"
+              style={{
+                textDecoration: "none",
+              }}
+            >
+              {({ isActive }) => (
+                <Button
+                  variant="tertiary"
+                  size="md"
+                  disabled={isActive}
+                >
+                  Dashboard
+                </Button>
+              )}
+            </NavLink>
             <NavLink
               to="/debug"
               style={{
@@ -58,6 +76,7 @@ function App() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
+        <Route path="/dashboard" element={<EmployerDashboard />} />
         <Route path="/debug" element={<Debugger />} />
         <Route path="/debug/:contractName" element={<Debugger />} />
       </Route>
