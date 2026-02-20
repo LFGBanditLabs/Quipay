@@ -3,52 +3,61 @@ import { Routes, Route, Outlet, NavLink } from "react-router-dom";
 import styles from "./App.module.css";
 
 import Home from "./pages/Home";
-const Debugger = lazy(() => import("./pages/Debugger.tsx"));
-const EmployerDashboard = lazy(() => import("./pages/EmployerDashboard"));
-const WalletLayout = lazy(() => import("./components/layout/WalletLayout"));
-
-const RouteLoader: FC = () => (
-  <div className={styles.routeLoaderWrap}>
-    <div className={styles.routeLoader} aria-label="Loading page" />
-  </div>
-);
+import Debugger from "./pages/Debugger.tsx";
+import OnboardingTour from "./components/OnboardingTour";
 
 const RouteSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense fallback={<RouteLoader />}>{children}</Suspense>
 );
 
-const PublicLayout: FC = () => (
-  <main className={styles.publicShell}>
-    <header className={styles.publicHeader}>
-      <div className={styles.publicBrand}>Quipay</div>
-      <nav className={styles.headerNav}>
-        <NavLink
-          to="/"
-          className={({ isActive }) =>
-            `${styles.publicNavButton} ${isActive ? styles.publicNavButtonActive : ""}`
-          }
-          end
-        >
-          Home
-        </NavLink>
-        <NavLink
-          to="/dashboard"
-          className={({ isActive }) =>
-            `${styles.publicNavButton} ${isActive ? styles.publicNavButtonActive : ""}`
-          }
-        >
-          Dashboard
-        </NavLink>
-        <NavLink
-          to="/debug"
-          className={({ isActive }) =>
-            `${styles.publicNavButton} ${isActive ? styles.publicNavButtonActive : ""}`
-          }
-        >
-          Debugger
-        </NavLink>
-      </nav>
-    </header>
+const AppLayout: React.FC = () => (
+  <main>
+    <Layout.Header
+      projectId="My App"
+      projectTitle="My App"
+      contentRight={
+        <>
+          <nav style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <NavLink
+              to="/dashboard"
+              style={{
+                textDecoration: "none",
+              }}
+            >
+              {({ isActive }) => (
+                <Button
+                  variant="tertiary"
+                  size="md"
+                  disabled={isActive}
+                >
+                  Dashboard
+                </Button>
+              )}
+            </NavLink>
+            <NavLink
+              to="/debug"
+              style={{
+                textDecoration: "none",
+              }}
+            >
+              {({ isActive }) => (
+                <Button
+                  variant="tertiary"
+                  size="md"
+                  onClick={() => (window.location.href = "/debug")}
+                  disabled={isActive}
+                >
+                  <Icon.Code02 size="md" />
+                  Debugger
+                </Button>
+              )}
+            </NavLink>
+          </nav>
+          <ConnectAccount />
+        </>
+      }
+    />
+    <OnboardingTour />
     <Outlet />
     <footer className={styles.publicFooter}>
       <p>
