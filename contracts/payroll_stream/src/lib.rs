@@ -254,3 +254,6 @@ impl PayrollStream {
 }
 
 mod test;
+
+#[cfg(test)]
+mod proptest;
