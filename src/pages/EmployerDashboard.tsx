@@ -35,7 +35,7 @@ const EmployerDashboard: React.FC = () => {
 
                 <div className={styles.dashboardGrid}>
                     {/* Treasury Balance */}
-                    <div className={styles.card}>
+                    <div className={styles.card} id="tour-treasury-balance">
                         <Text as="h2" size="md" weight="semi-bold" className={styles.cardHeader}>
                             Treasury Balance
                         </Text>
@@ -50,6 +50,7 @@ const EmployerDashboard: React.FC = () => {
                             <Button
                                 variant="secondary"
                                 size="sm"
+                                id="tour-manage-treasury"
                                 onClick={() => navigate("/treasury-management")}
                                 aria-label="Manage Treasury Balances"
                             >
@@ -59,20 +60,20 @@ const EmployerDashboard: React.FC = () => {
                     </div>
 
                     {/* Total Liabilities */}
-                    <div className={styles.card}>
+                    <div className={styles.card} id="tour-liabilities">
                         <Text as="h2" size="md" weight="semi-bold" className={styles.cardHeader}>
                             Total Liabilities
                         </Text>
                         <Text as="div" size="lg" className={styles.metricValue}>
                             {totalLiabilities}
                         </Text>
-                        <Text as="p" size="sm" variant="secondary">
+                        <Text as="p" size="sm">
                             Estimated monthly
                         </Text>
                     </div>
 
                     {/* Active Streams Count */}
-                    <div className={styles.card}>
+                    <div className={styles.card} id="tour-active-streams">
                         <Text as="h2" size="md" weight="semi-bold" className={styles.cardHeader}>
                             Active Streams
                         </Text>
@@ -90,6 +91,7 @@ const EmployerDashboard: React.FC = () => {
                         <Button
                             variant="primary"
                             size="md"
+                            id="tour-create-stream"
                             onClick={() => navigate("/create-stream")}
                             aria-label="Create a New Payment Stream"
                         >
@@ -98,21 +100,21 @@ const EmployerDashboard: React.FC = () => {
                     </div>
 
                     {activeStreams.length === 0 ? (
-                        <Text as="p">No active streams found.</Text>
+                        <Text as="p" size="md">No active streams found.</Text>
                     ) : (
-                        <div className={styles.streamsList}>
+                        <div className={styles.streamsList} id="tour-streams-list">
                             {activeStreams.map((stream) => (
                                 <div key={stream.id} className={styles.streamItem}>
                                     <div>
-                                        <Text as="div" weight="bold">{stream.employeeName}</Text>
-                                        <Text as="div" size="sm" variant="secondary">{stream.employeeAddress}</Text>
+                                        <Text as="div" size="md" weight="bold">{stream.employeeName}</Text>
+                                        <Text as="div" size="sm">{stream.employeeAddress}</Text>
                                     </div>
                                     <div>
-                                        <Text as="div">Flow Rate: {stream.flowRate} {stream.tokenSymbol}/sec</Text>
-                                        <Text as="div" size="sm" variant="secondary">Start: {stream.startDate}</Text>
+                                        <Text as="div" size="md">Flow Rate: {stream.flowRate} {stream.tokenSymbol}/sec</Text>
+                                        <Text as="div" size="sm">Start: {stream.startDate}</Text>
                                     </div>
                                     <div>
-                                        <Text as="div" weight="bold">Total: {stream.totalStreamed} {stream.tokenSymbol}</Text>
+                                        <Text as="div" size="md" weight="bold">Total: {stream.totalStreamed} {stream.tokenSymbol}</Text>
                                     </div>
                                 </div>
                             ))}

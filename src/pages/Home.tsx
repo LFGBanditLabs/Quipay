@@ -1,6 +1,6 @@
 import React from "react";
 import { Code, Layout, Text } from "@stellar/design-system";
-import { GuessTheNumber } from "../components/GuessTheNumber";
+// import { GuessTheNumber } from "../components/GuessTheNumber";
 
 const Home: React.FC = () => (
   <Layout.Content>
@@ -56,7 +56,7 @@ const Home: React.FC = () => (
       <Text as="h2" size="lg">
         &lt;GuessTheNumber /&gt;
       </Text>
-      <GuessTheNumber />
+      {/* <GuessTheNumber /> */}
       <Text as="h2" size="lg">
         Interact with wallets
       </Text>

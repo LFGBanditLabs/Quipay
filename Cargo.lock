@@ -166,7 +166,6 @@ checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 name = "automation_gateway"
 version = "0.0.1"
 dependencies = [
- "quipay_common",
  "soroban-sdk",
 ]
 
@@ -898,7 +897,6 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 name = "payroll_stream"
 version = "0.0.1"
 dependencies = [
- "quipay_common",
  "soroban-sdk",
 ]
 
@@ -906,7 +904,6 @@ dependencies = [
 name = "payroll_vault"
 version = "0.0.1"
 dependencies = [
- "quipay_common",
  "soroban-sdk",
 ]
 
@@ -961,13 +958,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "02b3e5e68a3a1a02aad3ec490a98007cbc13c37cbe84a3cd7b8e406d76e7f778"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "quipay_common"
-version = "0.0.1"
-dependencies = [
- "soroban-sdk",
 ]
 
 [[package]]
