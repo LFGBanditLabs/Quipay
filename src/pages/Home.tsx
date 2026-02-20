@@ -5,7 +5,7 @@ import { GuessTheNumber } from "../components/GuessTheNumber";
 const Home: React.FC = () => (
   <Layout.Content>
     <Layout.Inset>
-      <Text as="h1" size="xl">
+      <Text as="h1" size="xl" weight="medium">
         Welcome to your app!
       </Text>
       <Text as="p" size="md">

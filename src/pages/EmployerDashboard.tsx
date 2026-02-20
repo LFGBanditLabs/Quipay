@@ -36,7 +36,7 @@ const EmployerDashboard: React.FC = () => {
                 <div className={styles.dashboardGrid}>
                     {/* Treasury Balance */}
                     <div className={styles.card}>
-                        <Text as="span" size="md" weight="semi-bold" className={styles.cardHeader}>
+                        <Text as="h2" size="md" weight="semi-bold" className={styles.cardHeader}>
                             Treasury Balance
                         </Text>
                         {treasuryBalances.map((balance) => (
@@ -51,6 +51,7 @@ const EmployerDashboard: React.FC = () => {
                                 variant="secondary"
                                 size="sm"
                                 onClick={() => navigate("/treasury-management")}
+                                aria-label="Manage Treasury Balances"
                             >
                                 Manage Treasury
                             </Button>
@@ -59,7 +60,7 @@ const EmployerDashboard: React.FC = () => {
 
                     {/* Total Liabilities */}
                     <div className={styles.card}>
-                        <Text as="span" size="md" weight="semi-bold" className={styles.cardHeader}>
+                        <Text as="h2" size="md" weight="semi-bold" className={styles.cardHeader}>
                             Total Liabilities
                         </Text>
                         <Text as="div" size="lg" className={styles.metricValue}>
@@ -72,7 +73,7 @@ const EmployerDashboard: React.FC = () => {
 
                     {/* Active Streams Count */}
                     <div className={styles.card}>
-                        <Text as="span" size="md" weight="semi-bold" className={styles.cardHeader}>
+                        <Text as="h2" size="md" weight="semi-bold" className={styles.cardHeader}>
                             Active Streams
                         </Text>
                         <Text as="div" size="lg" className={styles.metricValue}>
@@ -90,6 +91,7 @@ const EmployerDashboard: React.FC = () => {
                             variant="primary"
                             size="md"
                             onClick={() => navigate("/create-stream")}
+                            aria-label="Create a New Payment Stream"
                         >
                             Create New Stream
                         </Button>
