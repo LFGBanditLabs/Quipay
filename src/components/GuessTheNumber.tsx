@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Button, Code, Input, Text } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
-// @ts-ignore: contract bindings may not be locally generated yet
-import game from "../contracts/guess_the_number";
+// // @ts-ignore: contract bindings may not be locally generated yet
+// import game from "../contracts/guess_the_number";
 import { Box } from "../components/layout/Box";
 
 export const GuessTheNumber = () => {
@@ -22,6 +22,7 @@ export const GuessTheNumber = () => {
     if (!theGuess || !address) return;
     const tx = await game.guess(
       { a_number: BigInt(theGuess), guesser: address },
+      // @ts-expect-error js-stellar-sdk has bad typings; publicKey is, in fact, allowed
       { publicKey: address },
     );
     const { result } = await tx.signAndSend({ signTransaction });
