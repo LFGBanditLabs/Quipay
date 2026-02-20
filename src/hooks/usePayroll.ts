@@ -59,7 +59,7 @@ export const usePayroll = () => {
       setIsLoading(false);
     };
 
-    fetchData();
+    void fetchData();
   }, []);
 
   return {

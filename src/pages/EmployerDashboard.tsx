@@ -51,7 +51,7 @@ const EmployerDashboard: React.FC = () => {
                                 variant="secondary"
                                 size="sm"
                                 id="tour-manage-treasury"
-                                onClick={() => navigate("/treasury-management")}
+                                onClick={() => { void navigate("/treasury-management"); }}
                             >
                                 Manage Treasury
                             </Button>
@@ -91,7 +91,7 @@ const EmployerDashboard: React.FC = () => {
                             variant="primary"
                             size="md"
                             id="tour-create-stream"
-                            onClick={() => navigate("/create-stream")}
+                            onClick={() => { void navigate("/create-stream"); }}
                         >
                             Create New Stream
                         </Button>
