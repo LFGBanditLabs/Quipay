@@ -14,10 +14,16 @@ pub enum StateKey {
     // Persistent storage - survives upgrades
     Admin,
     Version,
+    AuthorizedContract, // Contract authorized to modify liabilities (e.g., PayrollStream)
     // Additional state that should persist across upgrades
     TreasuryBalance, // Total funds held for payroll
     TotalLiability,  // Total amount owed to recipients
 }
+
+/// Key for per-token liability tracking
+#[contracttype]
+#[derive(Clone)]
+pub struct LiabilityKey(pub Address); // token address -> liability amount
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -58,6 +64,7 @@ impl PayrollVault {
         // Initialize state
         e.storage().persistent().set(&StateKey::TreasuryBalance, &0i128);
         e.storage().persistent().set(&StateKey::TotalLiability, &0i128);
+        // Authorized contract starts as None - must be set by admin later
     }
 
     /// Upgrade the contract to a new WASM code
@@ -148,6 +155,75 @@ impl PayrollVault {
     pub fn get_balance(e: Env, token: Address) -> i128 {
         let token_client = token::Client::new(&e, &token);
         token_client.balance(&e.current_contract_address())
+    }
+
+    /// Set the authorized contract that can modify liabilities
+    /// Only the admin can call this function
+    pub fn set_authorized_contract(e: Env, contract: Address) {
+        let admin: Address = e.storage().persistent().get(&StateKey::Admin).expect("not initialized");
+        admin.require_auth();
+        
+        e.storage().persistent().set(&StateKey::AuthorizedContract, &contract);
+    }
+
+    /// Get the authorized contract address (if set)
+    pub fn get_authorized_contract(e: Env) -> Option<Address> {
+        e.storage().persistent().get(&StateKey::AuthorizedContract)
+    }
+
+    /// Add liability for a specific token
+    /// Only the authorized contract (e.g., PayrollStream) can call this
+    pub fn add_liability(e: Env, token: Address, amount: i128) {
+        // Require authorization from the authorized contract
+        let authorized: Address = e.storage().persistent().get(&StateKey::AuthorizedContract)
+            .expect("authorized contract not set");
+        authorized.require_auth();
+        
+        if amount <= 0 {
+            panic!("liability amount must be positive");
+        }
+        
+        // Update per-token liability
+        let key = LiabilityKey(token.clone());
+        let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
+        e.storage().persistent().set(&key, &(current + amount));
+        
+        // Also update total liability
+        let total: i128 = e.storage().persistent().get(&StateKey::TotalLiability).unwrap_or(0);
+        e.storage().persistent().set(&StateKey::TotalLiability, &(total + amount));
+    }
+
+    /// Remove liability for a specific token
+    /// Only the authorized contract (e.g., PayrollStream) can call this
+    pub fn remove_liability(e: Env, token: Address, amount: i128) {
+        // Require authorization from the authorized contract
+        let authorized: Address = e.storage().persistent().get(&StateKey::AuthorizedContract)
+            .expect("authorized contract not set");
+        authorized.require_auth();
+        
+        if amount <= 0 {
+            panic!("removal amount must be positive");
+        }
+        
+        // Update per-token liability
+        let key = LiabilityKey(token.clone());
+        let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
+        
+        if amount > current {
+            panic!("cannot remove more liability than exists");
+        }
+        
+        e.storage().persistent().set(&key, &(current - amount));
+        
+        // Also update total liability
+        let total: i128 = e.storage().persistent().get(&StateKey::TotalLiability).unwrap_or(0);
+        e.storage().persistent().set(&StateKey::TotalLiability, &(total - amount));
+    }
+
+    /// Get the liability for a specific token
+    pub fn get_liability(e: Env, token: Address) -> i128 {
+        let key = LiabilityKey(token);
+        e.storage().persistent().get(&key).unwrap_or(0)
     }
 
     /// Get the tracked treasury balance from state
