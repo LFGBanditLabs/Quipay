@@ -8,6 +8,7 @@ pub enum DataKey {
     Paused,
     NextStreamId,
     RetentionSecs,
+    Vault,
 }
 
 #[contracttype]
@@ -24,6 +25,8 @@ pub enum StreamStatus {
 pub struct Stream {
     pub employer: Address,
     pub worker: Address,
+    pub token: Address,
+    pub rate: i128,
     pub total_amount: i128,
     pub withdrawn_amount: i128,
     pub start_ts: u64,
@@ -79,18 +82,42 @@ impl PayrollStream {
         env.storage().instance().set(&DataKey::RetentionSecs, &retention_secs);
     }
 
+    pub fn set_vault(env: Env, vault: Address) {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("not initialized");
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Vault, &vault);
+    }
+
     /// Create a new payroll stream.
     /// Fails if the contract is paused.
-    pub fn create_stream(env: Env, employer: Address, worker: Address, amount: i128, start_ts: u64, end_ts: u64) -> u64 {
+    pub fn create_stream(env: Env, employer: Address, worker: Address, token: Address, rate: i128, start_ts: u64, end_ts: u64) -> u64 {
         Self::require_not_paused(&env);
         employer.require_auth();
 
-        if amount <= 0 {
-            panic!("amount must be positive");
+        if rate <= 0 {
+            panic!("rate must be positive");
         }
         if end_ts <= start_ts {
             panic!("invalid time range");
         }
+        
+        let now = env.ledger().timestamp();
+        if start_ts < now {
+            panic!("start_time must be >= current time");
+        }
+
+        let duration = end_ts - start_ts;
+        let total_amount = rate.checked_mul(i128::from(duration as i64)).expect("amount overflow");
+
+        // Verify solvency by calling Vault's add_liability
+        let vault: Address = env.storage().instance().get(&DataKey::Vault).expect("vault not configured");
+        // employer auth is required by vault logic too, which is already authenticated here
+        use soroban_sdk::{Symbol, vec, IntoVal};
+        env.invoke_contract::<()>(&vault, &Symbol::new(&env, "add_liability"), vec![&env, total_amount.into_val(&env)]);
 
         let mut next_id: u64 = env.storage().instance().get(&DataKey::NextStreamId).unwrap_or(1u64);
         let stream_id = next_id;
@@ -98,15 +125,22 @@ impl PayrollStream {
         env.storage().instance().set(&DataKey::NextStreamId, &next_id);
 
         let stream = Stream {
-            employer,
-            worker,
-            total_amount: amount,
+            employer: employer.clone(),
+            worker: worker.clone(),
+            token: token.clone(),
+            rate,
+            total_amount,
             withdrawn_amount: 0,
             start_ts,
             end_ts,
             status_bits: 1u32 << (StreamStatus::Active as u32),
             closed_at: 0,
         };
+
+        env.events().publish(
+            (Symbol::new(&env, "stream"), Symbol::new(&env, "created")),
+            (stream_id, employer, worker, token, rate, start_ts, end_ts)
+        );
 
         env.storage()
             .persistent()
