@@ -30,11 +30,38 @@ const attemptDelivery = async (sub: WebhookSubscription, eventType: string, payl
     try {
         const startTime = Date.now();
 
-        await axios.post(sub.url, {
+        // Dynamically override payloads resolving Webhook destinations formatting chat bot payloads automatically
+        let outgoingPayload: any = {
             event: eventType,
             data: payload,
             timestamp: new Date().toISOString()
-        }, {
+        };
+
+        if (sub.url.includes('discord.com/api/webhooks')) {
+            outgoingPayload = {
+                embeds: [{
+                    title: `Quipay Notification: ${eventType.toUpperCase()}`,
+                    description: `\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``,
+                    color: 0x5865F2,
+                    timestamp: new Date().toISOString()
+                }]
+            };
+        } else if (sub.url.includes('hooks.slack.com')) {
+            outgoingPayload = {
+                blocks: [
+                    {
+                        type: "header",
+                        text: { type: "plain_text", text: `Quipay Notification: ${eventType.toUpperCase()}` }
+                    },
+                    {
+                        type: "section",
+                        text: { type: "mrkdwn", text: "```" + JSON.stringify(payload, null, 2) + "```" }
+                    }
+                ]
+            };
+        }
+
+        await axios.post(sub.url, outgoingPayload, {
             timeout: 5000 // 5 seconds timeout
         });
 
