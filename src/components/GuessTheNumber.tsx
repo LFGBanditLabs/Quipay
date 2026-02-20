@@ -21,7 +21,6 @@ export const GuessTheNumber = () => {
     if (!theGuess || !address) return;
     const tx = await game.guess(
       { a_number: BigInt(theGuess), guesser: address },
-      // @ts-expect-error js-stellar-sdk has bad typings; publicKey is, in fact, allowed
       { publicKey: address },
     );
     const { result } = await tx.signAndSend({ signTransaction });
