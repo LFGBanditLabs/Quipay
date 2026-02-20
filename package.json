@@ -7,6 +7,9 @@
     "dev": "npm start",
     "start": "concurrently --kill-others-on-fail --names stellar,vite -c gray,green --pad-prefix \"stellar scaffold watch --build-clients\" \"vite\"",
     "build": "tsc -b && vite build",
+    "build:fast": "vite build",
+    "social:generate": "node scripts/generate-social-previews.mjs",
+    "lighthouse": "lighthouse http://127.0.0.1:4173 --quiet --chrome-flags='--headless --no-sandbox' --only-categories=performance,seo --preset=desktop --output html --output json --output-path ./lighthouse-report",
     "install:contracts": "npm install --workspace=packages && npm run build --workspace=packages",
     "preview": "vite preview",
     "lint": "eslint .",
@@ -25,11 +28,13 @@
     "lossless-json": "^4.3.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-helmet": "^6.1.0",
     "react-router-dom": "^7.9.6",
     "zod": "^4.1.13"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@resvg/resvg-js": "^2.6.2",
     "@types/lodash": "^4.17.21",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",

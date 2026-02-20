@@ -5,7 +5,6 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
-import { Notification as StellarNotification } from "@stellar/design-system";
 import "./NotificationProvider.css"; // Import CSS for sliding effect
 
 type NotificationType =
@@ -64,12 +63,9 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
         {notifications.map((notification) => (
           <div
             key={notification.id}
-            className={`notification ${notification.isVisible ? "slide-in" : "slide-out"}`}
+            className={`notification ${notification.type} ${notification.isVisible ? "slide-in" : "slide-out"}`}
           >
-            <StellarNotification
-              title={notification.message}
-              variant={notification.type}
-            />
+            <p>{notification.message}</p>
           </div>
         ))}
       </div>

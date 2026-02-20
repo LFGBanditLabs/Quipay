@@ -1,0 +1,174 @@
+.publicShell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.publicHeader {
+  width: min(1100px, calc(100% - 2rem));
+  margin: 1rem auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid rgba(16, 35, 60, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(8px);
+  padding: 0.6rem 0.8rem;
+}
+
+.publicBrand {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #114566;
+  text-transform: uppercase;
+}
+
+.publicFooter {
+  width: min(1100px, calc(100% - 2rem));
+  margin: auto auto 1rem;
+  color: #4c6682;
+  font-size: 0.9rem;
+}
+
+.publicFooter p {
+  margin: 0;
+}
+
+.routeLoaderWrap {
+  display: grid;
+  place-items: center;
+  min-height: 34vh;
+}
+
+.routeLoader {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 3px solid rgba(17, 84, 114, 0.2);
+  border-top-color: #0f7193;
+  animation: route-spin 850ms linear infinite;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.headerNav {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.navLink {
+  text-decoration: none;
+}
+
+.navButton {
+  min-width: 108px;
+}
+
+.publicNavButton {
+  min-width: 108px;
+  height: 2.25rem;
+  border: 1px solid rgba(16, 35, 60, 0.15);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #1a3d5b;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.93rem;
+  font-weight: 600;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease;
+}
+
+.publicNavButton:hover {
+  background: #ffffff;
+  border-color: rgba(16, 35, 60, 0.24);
+}
+
+.publicNavButtonActive {
+  background: rgba(17, 123, 158, 0.14);
+  border-color: rgba(15, 122, 153, 0.36);
+  color: #0c5577;
+  pointer-events: none;
+}
+
+.connectArea {
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 960px) {
+  .headerRight {
+    width: min(100%, 720px);
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  .publicHeader {
+    flex-direction: column;
+    align-items: stretch;
+    width: calc(100% - 1.2rem);
+    margin-top: 0.6rem;
+  }
+
+  .headerRight {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .headerNav {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .navButton {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .publicNavButton {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .connectArea {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
+  .publicHeader {
+    width: calc(100% - 1rem);
+    padding: 0.55rem;
+  }
+
+  .publicFooter {
+    width: calc(100% - 1rem);
+    font-size: 0.84rem;
+  }
+
+  .headerNav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@keyframes route-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

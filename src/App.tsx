@@ -1,84 +1,108 @@
-import { Button, Icon, Layout } from "@stellar/design-system";
-import "./App.module.css";
-import ConnectAccount from "./components/ConnectAccount.tsx";
+import { lazy, Suspense, type FC, type ReactNode } from "react";
 import { Routes, Route, Outlet, NavLink } from "react-router-dom";
+import styles from "./App.module.css";
+
 import Home from "./pages/Home";
-import Debugger from "./pages/Debugger.tsx";
+const Debugger = lazy(() => import("./pages/Debugger.tsx"));
+const EmployerDashboard = lazy(() => import("./pages/EmployerDashboard"));
+const WalletLayout = lazy(() => import("./components/layout/WalletLayout"));
 
-import EmployerDashboard from "./pages/EmployerDashboard";
+const RouteLoader: FC = () => (
+  <div className={styles.routeLoaderWrap}>
+    <div className={styles.routeLoader} aria-label="Loading page" />
+  </div>
+);
 
-const AppLayout: React.FC = () => (
-  <main>
-    <Layout.Header
-      projectId="My App"
-      projectTitle="My App"
-      contentRight={
-        <>
-          <nav style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-            <NavLink
-              to="/dashboard"
-              style={{
-                textDecoration: "none",
-              }}
-            >
-              {({ isActive }) => (
-                <Button
-                  variant="tertiary"
-                  size="md"
-                  disabled={isActive}
-                >
-                  Dashboard
-                </Button>
-              )}
-            </NavLink>
-            <NavLink
-              to="/debug"
-              style={{
-                textDecoration: "none",
-              }}
-            >
-              {({ isActive }) => (
-                <Button
-                  variant="tertiary"
-                  size="md"
-                  onClick={() => (window.location.href = "/debug")}
-                  disabled={isActive}
-                >
-                  <Icon.Code02 size="md" />
-                  Debugger
-                </Button>
-              )}
-            </NavLink>
-          </nav>
-          <ConnectAccount />
-        </>
-      }
-    />
+const RouteSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense fallback={<RouteLoader />}>{children}</Suspense>
+);
+
+const PublicLayout: FC = () => (
+  <main className={styles.publicShell}>
+    <header className={styles.publicHeader}>
+      <div className={styles.publicBrand}>Quipay</div>
+      <nav className={styles.headerNav}>
+        <NavLink
+          to="/"
+          className={({ isActive }) =>
+            `${styles.publicNavButton} ${isActive ? styles.publicNavButtonActive : ""}`
+          }
+          end
+        >
+          Home
+        </NavLink>
+        <NavLink
+          to="/dashboard"
+          className={({ isActive }) =>
+            `${styles.publicNavButton} ${isActive ? styles.publicNavButtonActive : ""}`
+          }
+        >
+          Dashboard
+        </NavLink>
+        <NavLink
+          to="/debug"
+          className={({ isActive }) =>
+            `${styles.publicNavButton} ${isActive ? styles.publicNavButtonActive : ""}`
+          }
+        >
+          Debugger
+        </NavLink>
+      </nav>
+    </header>
     <Outlet />
-    <Layout.Footer>
-      <span>
-        © {new Date().getFullYear()} My App. Licensed under the{" "}
+    <footer className={styles.publicFooter}>
+      <p>
+        © {new Date().getFullYear()} Quipay. Licensed under the{" "}
         <a
-          href="http://www.apache.org/licenses/LICENSE-2.0"
+          href="https://opensource.org/license/mit"
           target="_blank"
           rel="noopener noreferrer"
         >
-          Apache License, Version 2.0
+          MIT License
         </a>
         .
-      </span>
-    </Layout.Footer>
+      </p>
+    </footer>
   </main>
 );
 
 function App() {
   return (
     <Routes>
-      <Route element={<AppLayout />}>
+      <Route element={<PublicLayout />}>
         <Route path="/" element={<Home />} />
-        <Route path="/dashboard" element={<EmployerDashboard />} />
-        <Route path="/debug" element={<Debugger />} />
-        <Route path="/debug/:contractName" element={<Debugger />} />
+      </Route>
+      <Route
+        element={
+          <RouteSuspense>
+            <WalletLayout />
+          </RouteSuspense>
+        }
+      >
+        <Route
+          path="/dashboard"
+          element={
+            <RouteSuspense>
+              <EmployerDashboard />
+            </RouteSuspense>
+          }
+        />
+        <Route
+          path="/debug"
+          element={
+            <RouteSuspense>
+              <Debugger />
+            </RouteSuspense>
+          }
+        />
+        <Route
+          path="/debug/:contractName"
+          element={
+            <RouteSuspense>
+              <Debugger />
+            </RouteSuspense>
+          }
+        />
       </Route>
     </Routes>
   );
