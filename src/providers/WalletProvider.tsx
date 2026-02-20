@@ -44,6 +44,8 @@ export interface WalletContextType {
   networkPassphrase?: string;
   signTransaction: typeof wallet.signTransaction;
   updateBalances: () => Promise<void>;
+  connectionError?: string;
+  clearError: () => void;
 }
 
 const POLL_INTERVAL = 1000;
@@ -54,6 +56,7 @@ export const WalletContext = // eslint-disable-line react-refresh/only-export-co
     balances: {},
     updateBalances: async () => {},
     signTransaction,
+    clearError: () => {},
   });
 
 export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
@@ -62,7 +65,10 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
   const [network, setNetwork] = useState<string>();
   const [networkPassphrase, setNetworkPassphrase] = useState<string>();
   const [isPending, startTransition] = useTransition();
+  const [connectionError, setConnectionError] = useState<string | undefined>();
   const popupLock = useRef(false);
+
+  const clearError = useCallback(() => setConnectionError(undefined), []);
 
   const nullify = () => {
     setAddress(undefined);
@@ -142,6 +148,9 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       } catch (e) {
         // If `getNetwork` or `getAddress` throw errors... sign the user out???
         nullify();
+        const msg =
+          e instanceof Error ? e.message : "Failed to connect wallet";
+        setConnectionError(msg);
         // then log the error (instead of throwing) so we have visibility
         // into the error while working on Scaffold Stellar but we do not
         // crash the app process
@@ -193,8 +202,10 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       updateBalances,
       isPending,
       signTransaction,
+      connectionError,
+      clearError,
     }),
-    [address, network, networkPassphrase, balances, updateBalances, isPending],
+    [address, network, networkPassphrase, balances, updateBalances, isPending, connectionError, clearError],
   );
 
   return <WalletContext value={contextValue}>{children}</WalletContext>;
