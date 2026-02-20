@@ -1,6 +1,7 @@
 #![cfg(test)]
 use super::*;
 use soroban_sdk::{testutils::Address as _, Address, Env};
+use quipay_common::QuipayError;
 
 #[test]
 fn test_pause_mechanism() {
@@ -11,7 +12,7 @@ fn test_pause_mechanism() {
     let employer = Address::generate(&env);
     let worker = Address::generate(&env);
 
-    let contract_id = env.register_contract(None, PayrollStream);
+    let contract_id = env.register(PayrollStream, ());
     let client = PayrollStreamClient::new(&env, &contract_id);
 
     client.init(&admin);
@@ -23,55 +24,65 @@ fn test_pause_mechanism() {
     // 2. Admin pauses the protocol
     client.set_paused(&true);
     assert!(client.is_paused());
-
-    // 3. Operations should panic when paused
 }
 
 #[test]
-#[should_panic(expected = "protocol is paused")]
 fn test_create_stream_paused() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);
     let employer = Address::generate(&env);
     let worker = Address::generate(&env);
-    let contract_id = env.register_contract(None, PayrollStream);
+    let contract_id = env.register(PayrollStream, ());
     let client = PayrollStreamClient::new(&env, &contract_id);
 
     client.init(&admin);
     client.set_paused(&true);
-    client.create_stream(&employer, &worker, &1000);
+    let result = client.try_create_stream(&employer, &worker, &1000);
+    
+    assert_eq!(
+        result,
+        Err(Ok(QuipayError::ProtocolPaused))
+    );
 }
 
 #[test]
-#[should_panic(expected = "protocol is paused")]
 fn test_withdraw_paused() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);
     let worker = Address::generate(&env);
-    let contract_id = env.register_contract(None, PayrollStream);
+    let contract_id = env.register(PayrollStream, ());
     let client = PayrollStreamClient::new(&env, &contract_id);
 
     client.init(&admin);
     client.set_paused(&true);
-    client.withdraw(&worker);
+    let result = client.try_withdraw(&worker);
+    
+    assert_eq!(
+        result,
+        Err(Ok(QuipayError::ProtocolPaused))
+    );
 }
 
 #[test]
-#[should_panic(expected = "protocol is paused")]
 fn test_cancel_stream_paused() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);
     let employer = Address::generate(&env);
     let worker = Address::generate(&env);
-    let contract_id = env.register_contract(None, PayrollStream);
+    let contract_id = env.register(PayrollStream, ());
     let client = PayrollStreamClient::new(&env, &contract_id);
 
     client.init(&admin);
     client.set_paused(&true);
-    client.cancel_stream(&employer, &worker);
+    let result = client.try_cancel_stream(&employer, &worker);
+    
+    assert_eq!(
+        result,
+        Err(Ok(QuipayError::ProtocolPaused))
+    );
 }
 
 #[test]
@@ -81,7 +92,7 @@ fn test_unpause_resumes_operations() {
     let admin = Address::generate(&env);
     let employer = Address::generate(&env);
     let worker = Address::generate(&env);
-    let contract_id = env.register_contract(None, PayrollStream);
+    let contract_id = env.register(PayrollStream, ());
     let client = PayrollStreamClient::new(&env, &contract_id);
 
     client.init(&admin);
