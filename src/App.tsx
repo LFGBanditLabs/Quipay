@@ -4,6 +4,7 @@ import ConnectAccount from "./components/ConnectAccount.tsx";
 import { Routes, Route, Outlet, NavLink } from "react-router-dom";
 import Home from "./pages/Home";
 import Debugger from "./pages/Debugger.tsx";
+import OnboardingTour from "./components/OnboardingTour";
 
 import EmployerDashboard from "./pages/EmployerDashboard";
 
@@ -54,6 +55,7 @@ const AppLayout: React.FC = () => (
         </>
       }
     />
+    <OnboardingTour />
     <Outlet />
     <Layout.Footer>
       <span>
