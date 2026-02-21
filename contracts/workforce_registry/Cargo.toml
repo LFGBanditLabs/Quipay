@@ -1,5 +1,5 @@
 [package]
-name = "payroll_vault"
+name = "workforce_registry"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -12,8 +12,6 @@ doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
-quipay_common = { path = "../common" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
-proptest = "1.5.0"

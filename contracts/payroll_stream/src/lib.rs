@@ -1,6 +1,6 @@
 #![no_std]
-use soroban_sdk::{Address, Env, contract, contractimpl, contracttype};
 use quipay_common::{QuipayError, require};
+use soroban_sdk::{Address, Env, contract, contractimpl, contracttype};
 
 #[contracttype]
 #[derive(Clone)]
@@ -9,6 +9,7 @@ pub enum DataKey {
     Paused,
     NextStreamId,
     RetentionSecs,
+    Vault,
 }
 
 #[contracttype]
@@ -25,6 +26,8 @@ pub enum StreamStatus {
 pub struct Stream {
     pub employer: Address,
     pub worker: Address,
+    pub token: Address,
+    pub rate: i128,
     pub total_amount: i128,
     pub withdrawn_amount: i128,
     pub start_ts: u64,
@@ -117,9 +120,11 @@ impl PayrollStream {
         env.storage().instance().set(&DataKey::NextStreamId, &next_id);
 
         let stream = Stream {
-            employer,
-            worker,
-            total_amount: amount,
+            employer: employer.clone(),
+            worker: worker.clone(),
+            token: token.clone(),
+            rate,
+            total_amount,
             withdrawn_amount: 0,
             start_ts,
             end_ts,
@@ -131,11 +136,14 @@ impl PayrollStream {
             .persistent()
             .set(&StreamKey::Stream(stream_id), &stream);
 
+        stream_id
         Ok(stream_id)
     }
 
     /// Withdraw funds from a stream.
     /// Fails if the contract is paused.
+    pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> i128 {
+        Self::require_not_paused(&env);
     pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> Result<i128, QuipayError> {
         Self::require_not_paused(&env)?;
         worker.require_auth();
@@ -168,11 +176,14 @@ impl PayrollStream {
         }
 
         env.storage().persistent().set(&key, &stream);
+        available
         Ok(available)
     }
 
     /// Cancel a payroll stream.
     /// Fails if the contract is paused.
+    pub fn cancel_stream(env: Env, stream_id: u64, employer: Address) {
+        Self::require_not_paused(&env);
     pub fn cancel_stream(env: Env, stream_id: u64, employer: Address) -> Result<(), QuipayError> {
         Self::require_not_paused(&env)?;
         employer.require_auth();
@@ -196,7 +207,9 @@ impl PayrollStream {
     }
 
     pub fn get_stream(env: Env, stream_id: u64) -> Option<Stream> {
-        env.storage().persistent().get(&StreamKey::Stream(stream_id))
+        env.storage()
+            .persistent()
+            .get(&StreamKey::Stream(stream_id))
     }
 
     pub fn cleanup_stream(env: Env, stream_id: u64) -> Result<(), QuipayError> {
@@ -226,16 +239,15 @@ impl PayrollStream {
     }
 
     /// Internal helper to ensure the contract is not paused.
-    fn require_not_paused(env: &Env) -> Result<(), QuipayError> {
+    fn require_not_paused(env: &Env) {
         if env
             .storage()
             .instance()
             .get(&DataKey::Paused)
             .unwrap_or(false)
         {
-            return Err(QuipayError::ProtocolPaused);
+            panic!("protocol paused");
         }
-        Ok(())
     }
 
     fn is_closed(stream: &Stream) -> bool {
@@ -272,3 +284,6 @@ impl PayrollStream {
 }
 
 mod test;
+
+#[cfg(test)]
+mod proptest;
