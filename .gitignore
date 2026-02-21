@@ -43,3 +43,4 @@ packages/*
 # generated contract client imports
 src/contracts/*
 !src/contracts/util.ts
+!src/contracts/payroll_stream.ts
