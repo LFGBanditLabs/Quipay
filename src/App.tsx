@@ -11,6 +11,7 @@ import CreateStream from "./pages/CreateStream";
 import HelpPage from "./pages/HelpPage.tsx";
 import PayrollDashboard from "./pages/PayrollDashboard.tsx";
 import TreasuryManager from "./pages/TreasuryManager";
+import GovernanceOverview from "./pages/GovernanceOverview";
 
 const AppLayout: React.FC = () => (
   <>
@@ -36,6 +37,14 @@ const AppLayout: React.FC = () => (
               {({ isActive }) => (
                 <Button variant="tertiary" size="md" disabled={isActive}>
                   Dashboard
+                </Button>
+              )}
+            </NavLink>
+            <NavLink to="/governance" style={{ textDecoration: "none" }}>
+              {({ isActive }) => (
+                <Button variant="tertiary" size="md" disabled={isActive}>
+                  <Icon.Gavel size="md" />
+                  Governance
                 </Button>
               )}
             </NavLink>
@@ -92,6 +101,7 @@ function App() {
         <Route path="/payroll" element={<PayrollDashboard />} />
         <Route path="/dashboard" element={<EmployerDashboard />} />
         <Route path="/treasury-management" element={<TreasuryManager />} />
+        <Route path="/governance" element={<GovernanceOverview />} />
         <Route path="/create-stream" element={<CreateStream />} />
         <Route path="/help" element={<HelpPage />} />
         <Route path="/debug" element={<Debugger />} />
