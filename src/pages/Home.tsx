@@ -14,21 +14,43 @@ const Home: React.FC = () => (
         adding your own contracts, components, and styles.
       </Text>
 
-      <Text as="h2" size="lg">
-        Develop your contracts
-      </Text>
-      <Text as="p" size="md">
-        Take a look in the <Code size="md">contracts/</Code> directory. Compare
-        that to what you see in the <Code size="md">npm run dev</Code> output
-        (which itself is running <Code size="md">stellar scaffold watch</Code>).
-        Also compare it to what you see when you click{" "}
-        <Code size="md">&lt;/&gt; Debugger</Code> up in the top right. See?
-      </Text>
-      <Text as="p" size="md">
-        As you update your contracts,{" "}
-        <Code size="md">stellar scaffold watch</Code> command will automatically
-        recompile them and update the dapp with the latest changes.
-      </Text>
+    <div className={styles.page}>
+      <section className={styles.hero}>
+        <p className={styles.kicker}>Quipay</p>
+        <h1 className={styles.heroTitle}>
+          Real-time payment streaming for modern teams.
+        </h1>
+        <p className={styles.heroDescription}>
+          Launch programmable payouts, recurring subscriptions, and treasury
+          automation on Stellar with a wallet-first experience.
+        </p>
+
+        <div className={styles.ctaRow}>
+          <Link
+            to="/dashboard"
+            className={`${styles.ctaButton} ${styles.primary}`}
+          >
+            Open Dashboard
+          </Link>
+          <a
+            href="https://stellar.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${styles.ctaButton} ${styles.secondary}`}
+          >
+            Learn Stellar
+          </a>
+        </div>
+      </section>
+
+      <section className={styles.metrics} aria-label="Platform metrics">
+        {METRICS.map((metric) => (
+          <article key={metric.label} className={styles.metricCard}>
+            <span>{metric.label}</span>
+            <strong>{metric.value}</strong>
+          </article>
+        ))}
+      </section>
 
       <Text as="h2" size="lg">
         Interact with contracts from the frontend

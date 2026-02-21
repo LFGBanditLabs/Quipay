@@ -1,0 +1,42 @@
+<svg
+  viewBox="0 0 1200 630"
+  preserveAspectRatio="xMidYMid meet"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4F9FF" />
+      <stop offset="1" stop-color="#E8F3FF" />
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" />
+      <stop offset="1" stop-color="#F7FBFF" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)" />
+  <circle cx="180" cy="96" r="205" fill="#D2ECFF" fill-opacity="0.65" />
+  <circle cx="1090" cy="122" r="180" fill="#FFD8B7" fill-opacity="0.68" />
+
+  <rect x="72" y="56" width="184" height="52" rx="26" fill="#0E5E84" fill-opacity="0.12" stroke="#0F6C92" stroke-opacity="0.35" />
+  <text x="108" y="89" fill="#0E4A69" font-family="Inter, Avenir Next, Segoe UI, sans-serif" font-size="29" font-weight="700">QUIPAY</text>
+
+  <text x="72" y="178" fill="#13263D" font-family="Inter, Avenir Next, Segoe UI, sans-serif" font-size="62" font-weight="700">Dashboard Overview</text>
+  <text x="72" y="224" fill="#43627F" font-family="Inter, Avenir Next, Segoe UI, sans-serif" font-size="34" font-weight="500">Track TVL, active streams, and treasury health in one place.</text>
+
+  <rect x="72" y="286" width="340" height="206" rx="20" fill="url(#card)" stroke="#D4E3F3" />
+  <text x="100" y="334" fill="#4A6682" font-family="Inter, Avenir Next, Segoe UI, sans-serif" font-size="24" font-weight="600">Total Sent</text>
+  <text x="100" y="412" fill="#13263D" font-family="Inter, Avenir Next, Segoe UI, sans-serif" font-size="62" font-weight="700">$12,850</text>
+  <text x="100" y="452" fill="#6482A1" font-family="Inter, Avenir Next, Segoe UI, sans-serif" font-size="22" font-weight="500">Lifetime outgoing volume</text>
+
+  <rect x="430" y="286" width="340" height="206" rx="20" fill="url(#card)" stroke="#D4E3F3" />
+  <text x="458" y="334" fill="#4A6682" font-family="Inter, Avenir Next, Segoe UI, sans-serif" font-size="24" font-weight="600">Total Received</text>
+  <text x="458" y="412" fill="#13263D" font-family="Inter, Avenir Next, Segoe UI, sans-serif" font-size="62" font-weight="700">$4,720</text>
+  <text x="458" y="452" fill="#6482A1" font-family="Inter, Avenir Next, Segoe UI, sans-serif" font-size="22" font-weight="500">Lifetime incoming volume</text>
+
+  <rect x="788" y="286" width="340" height="206" rx="20" fill="url(#card)" stroke="#D4E3F3" />
+  <text x="816" y="334" fill="#4A6682" font-family="Inter, Avenir Next, Segoe UI, sans-serif" font-size="24" font-weight="600">Active Streams</text>
+  <text x="816" y="412" fill="#13263D" font-family="Inter, Avenir Next, Segoe UI, sans-serif" font-size="62" font-weight="700">2</text>
+  <text x="816" y="452" fill="#6482A1" font-family="Inter, Avenir Next, Segoe UI, sans-serif" font-size="22" font-weight="500">Currently running payouts</text>
+</svg>
