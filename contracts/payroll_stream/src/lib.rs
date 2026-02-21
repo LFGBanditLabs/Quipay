@@ -94,16 +94,17 @@ impl PayrollStream {
             .unwrap_or(false)
     }
 
-    pub fn set_retention_secs(env: Env, retention_secs: u64) {
+    pub fn set_retention_secs(env: Env, retention_secs: u64) -> Result<(), QuipayError> {
         let admin: Address = env
             .storage()
             .instance()
             .get(&DataKey::Admin)
-            .expect("not initialized");
+            .ok_or(QuipayError::NotInitialized)?;
         admin.require_auth();
         env.storage()
             .instance()
             .set(&DataKey::RetentionSecs, &retention_secs);
+        Ok(())
     }
 
     pub fn set_vault(env: Env, vault: Address) {
@@ -125,8 +126,8 @@ impl PayrollStream {
         cliff_ts: u64,
         start_ts: u64,
         end_ts: u64,
-    ) -> u64 {
-        Self::require_not_paused(&env);
+    ) -> Result<u64, QuipayError> {
+        Self::require_not_paused(&env)?;
         employer.require_auth();
 
         if rate <= 0 {
@@ -160,7 +161,7 @@ impl PayrollStream {
         env.invoke_contract::<()>(
             &vault,
             &Symbol::new(&env, "add_liability"),
-            vec![&env, total_amount.into_val(&env)],
+            vec![&env, token.clone().into_val(&env), total_amount.into_val(&env)],
         );
 
         let mut next_id: u64 = env
@@ -217,11 +218,11 @@ impl PayrollStream {
             (stream_id, employer, worker, token, rate, start_ts, end_ts),
         );
 
-        stream_id
+        Ok(stream_id)
     }
 
-    pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> i128 {
-        Self::require_not_paused(&env);
+    pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> Result<i128, QuipayError> {
+        Self::require_not_paused(&env)?;
         worker.require_auth();
 
         let key = StreamKey::Stream(stream_id);
@@ -232,10 +233,10 @@ impl PayrollStream {
             .expect("stream not found");
 
         if stream.worker != worker {
-            panic!("not stream worker");
+            panic!("not worker");
         }
         if Self::is_closed(&stream) {
-            panic!("stream is closed");
+            panic!("stream closed");
         }
 
         let now = env.ledger().timestamp();
@@ -243,7 +244,7 @@ impl PayrollStream {
         let available = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
 
         if available <= 0 {
-            return 0;
+            return Ok(0);
         }
 
         stream.withdrawn_amount = stream
@@ -257,7 +258,7 @@ impl PayrollStream {
         }
 
         env.storage().persistent().set(&key, &stream);
-        available
+        Ok(available)
     }
 
     pub fn batch_withdraw(env: Env, stream_ids: Vec<u64>, caller: Address) -> Vec<WithdrawResult> {
@@ -343,8 +344,8 @@ impl PayrollStream {
         results
     }
 
-    pub fn cancel_stream(env: Env, stream_id: u64, employer: Address) {
-        Self::require_not_paused(&env);
+    pub fn cancel_stream(env: Env, stream_id: u64, employer: Address) -> Result<(), QuipayError> {
+        Self::require_not_paused(&env)?;
         employer.require_auth();
 
         let key = StreamKey::Stream(stream_id);
@@ -355,15 +356,16 @@ impl PayrollStream {
             .expect("stream not found");
 
         if stream.employer != employer {
-            panic!("not stream employer");
+            panic!("not employer");
         }
         if Self::is_closed(&stream) {
-            return;
+            return Ok(());
         }
 
         let now = env.ledger().timestamp();
         Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
         env.storage().persistent().set(&key, &stream);
+        Ok(())
     }
 
     pub fn get_stream(env: Env, stream_id: u64) -> Option<Stream> {
@@ -372,6 +374,26 @@ impl PayrollStream {
             .get(&StreamKey::Stream(stream_id))
     }
 
+    /// Calculate how much salary has accrued (earned but not yet withdrawn) at a given timestamp.
+    ///
+    /// - Active streams accrue linearly between `start_ts` and `end_ts`.
+    /// - Completed streams accrue up to `total_amount`.
+    /// - Canceled streams accrue only up to `closed_at` (the cancellation time).
+    /// - If `timestamp` is before `start_ts`, accrued is 0.
+    /// - Returned value is net of `withdrawn_amount` and is never negative.
+    pub fn calculate_accrued(env: Env, stream_id: u64, timestamp: u64) -> i128 {
+        let key = StreamKey::Stream(stream_id);
+        let stream: Stream = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .expect("stream not found");
+
+        let vested = Self::vested_amount_at(&stream, timestamp);
+        vested.checked_sub(stream.withdrawn_amount).unwrap_or(0).max(0)
+    }
+
+    pub fn cleanup_stream(env: Env, stream_id: u64) {
     pub fn get_employer_streams(env: Env, employer: Address) -> Vec<u64> {
         env.storage()
             .persistent()
@@ -386,17 +408,15 @@ impl PayrollStream {
             .unwrap_or_else(|| Vec::new(&env))
     }
 
-    pub fn cleanup_stream(env: Env, stream_id: u64) {
+    pub fn cleanup_stream(env: Env, stream_id: u64) -> Result<(), QuipayError> {
         let key = StreamKey::Stream(stream_id);
         let stream: Stream = env
             .storage()
             .persistent()
             .get(&key)
-            .expect("stream not found");
+            .ok_or(QuipayError::StreamNotFound)?;
 
-        if !Self::is_closed(&stream) {
-            panic!("stream not closed");
-        }
+        require!(Self::is_closed(&stream), QuipayError::StreamNotClosed);
 
         let retention: u64 = env
             .storage()
@@ -413,6 +433,7 @@ impl PayrollStream {
         Self::remove_from_index(&env, StreamKey::WorkerStreams(stream.worker), stream_id);
 
         env.storage().persistent().remove(&key);
+        Ok(())
     }
 
     fn require_not_paused(env: &Env) -> Result<(), QuipayError> {
@@ -422,7 +443,7 @@ impl PayrollStream {
             .get(&DataKey::Paused)
             .unwrap_or(false)
         {
-            return Err(QuipayError::ProtocolPaused);
+            panic!("protocol paused");
         }
         Ok(())
     }
@@ -458,27 +479,47 @@ impl PayrollStream {
     }
 
     fn vested_amount(stream: &Stream, now: u64) -> i128 {
+        Self::vested_amount_at(stream, now)
+    }
+
+    fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
+        let is_canceled = (stream.status_bits & (1u32 << (StreamStatus::Canceled as u32))) != 0;
+        let is_completed = (stream.status_bits & (1u32 << (StreamStatus::Completed as u32))) != 0;
+        let is_closed = is_canceled || is_completed;
+
+        let effective_ts = if is_closed {
+            core::cmp::min(timestamp, stream.closed_at)
+        } else {
+            timestamp
+        };
+
+        if effective_ts <= stream.start_ts {
         if now < stream.cliff_ts {
             return 0;
         }
         if now <= stream.start_ts {
             return 0;
         }
-        if now >= stream.end_ts {
+
+        if effective_ts >= stream.end_ts || (is_completed && effective_ts >= stream.closed_at) {
             return stream.total_amount;
         }
 
-        let elapsed = now - stream.start_ts;
-        let duration = stream.end_ts - stream.start_ts;
+        let elapsed: u64 = effective_ts - stream.start_ts;
+        let duration: u64 = stream.end_ts - stream.start_ts;
+        if duration == 0 {
+            return stream.total_amount;
+        }
 
-        let elapsed_i = i128::from(elapsed as i64);
-        let duration_i = i128::from(duration as i64);
+        let elapsed_i: i128 = elapsed as i128;
+        let duration_i: i128 = duration as i128;
+
         stream
             .total_amount
             .checked_mul(elapsed_i)
-            .expect("mul overflow")
+            .expect("accrued mul overflow")
             .checked_div(duration_i)
-            .expect("div overflow")
+            .expect("accrued div overflow")
     }
 }
 

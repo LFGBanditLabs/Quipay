@@ -10,7 +10,12 @@ export const WalletButton = () => {
 
   if (!address) {
     return (
-      <Button variant="primary" size="md" onClick={() => void connectWallet()}>
+      <Button
+        variant="primary"
+        size="md"
+        onClick={() => void connectWallet()}
+        aria-label="Connect Wallet"
+      >
         {buttonLabel}
       </Button>
     );
@@ -71,6 +76,9 @@ export const WalletButton = () => {
         size="md"
         isShort
         onClick={() => setShowDisconnectModal(true)}
+        aria-label={`View wallet details for ${address}`}
+        aria-expanded={showDisconnectModal}
+        aria-haspopup="dialog"
       />
     </div>
   );

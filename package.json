@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "npm start",
-    "start": "vite",
+    "start": "concurrently --kill-others-on-fail --names stellar,vite -c gray,green --pad-prefix \"stellar scaffold watch --build-clients\" \"vite\"",
     "build": "tsc -b && vite build",
     "install:contracts": "npm install --workspaces --legacy-peer-deps && npm run build --workspaces",
     "preview": "vite preview",
@@ -22,11 +22,13 @@
     "@stellar/stellar-sdk": "^14.5.0",
     "@stellar/stellar-xdr-json": "^23.0.0",
     "@tanstack/react-query": "^5.90.11",
+    "binaryen": "^125.0.0",
     "lossless-json": "^4.3.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-joyride": "^2.9.3",
     "react-router-dom": "^7.9.6",
+    "recharts": "^3.7.0",
     "zod": "^4.1.13"
   },
   "devDependencies": {

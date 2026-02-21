@@ -24,6 +24,10 @@ pub enum QuipayError {
     InvalidToken = 1014,
     TransferFailed = 1015,
     UpgradeFailed = 1016,
+    NotWorker = 1017,
+    StreamClosed = 1018,
+    NotEmployer = 1019,
+    StreamNotClosed = 1020,
     Custom = 1999,
 }
 
@@ -73,6 +77,7 @@ impl QuipayHelpers {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use soroban_sdk::Error;
 
     #[test]
     fn test_error_conversion() {
@@ -80,8 +85,8 @@ mod tests {
         let code: u32 = error as u32;
         assert_eq!(code, 1006);
 
-        let soroban_error: SorobanError = error.into();
-        assert_eq!(soroban_error, SorobanError::from_contract_error(1006));
+        let soroban_error: Error = error.into();
+        assert_eq!(soroban_error, Error::from_contract_error(1006));
     }
 
     #[test]

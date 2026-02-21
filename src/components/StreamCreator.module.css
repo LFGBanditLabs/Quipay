@@ -36,7 +36,10 @@
 
 .subtitle {
   font-size: 0.875rem;
-  color: var(--sds-color-content-secondary, #64748b);
+  color: var(
+    --sds-color-content-secondary,
+    #4b5563
+  ); /* Increased contrast from #64748b */
   margin: 0;
 }
 
