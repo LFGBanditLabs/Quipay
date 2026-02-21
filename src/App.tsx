@@ -6,6 +6,7 @@ import Home from "./pages/Home";
 import Debugger from "./pages/Debugger.tsx";
 
 import EmployerDashboard from "./pages/EmployerDashboard";
+import WorkerDashboard from "./pages/WorkerDashboard";
 import CreateStream from "./pages/CreateStream";
 
 const AppLayout: React.FC = () => (
@@ -25,6 +26,18 @@ const AppLayout: React.FC = () => (
               {({ isActive }) => (
                 <Button variant="tertiary" size="md" disabled={isActive}>
                   Dashboard
+                </Button>
+              )}
+            </NavLink>
+            <NavLink
+              to="/worker"
+              style={{
+                textDecoration: "none",
+              }}
+            >
+              {({ isActive }) => (
+                <Button variant="tertiary" size="md" disabled={isActive}>
+                  Worker
                 </Button>
               )}
             </NavLink>
@@ -74,6 +87,7 @@ function App() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<EmployerDashboard />} />
+        <Route path="/worker" element={<WorkerDashboard />} />
         <Route path="/create-stream" element={<CreateStream />} />
         <Route path="/debug" element={<Debugger />} />
         <Route path="/debug/:contractName" element={<Debugger />} />
