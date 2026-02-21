@@ -8,6 +8,7 @@ import OnboardingTour from "./components/OnboardingTour";
 
 import EmployerDashboard from "./pages/EmployerDashboard";
 import HelpPage from "./pages/HelpPage.tsx";
+import PayrollDashboard from "./pages/PayrollDashboard.tsx";
 
 const AppLayout: React.FC = () => (
   <main>
@@ -75,6 +76,8 @@ function App() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
+        <Route path="/dashboard" element={<EmployerDashboard />} />
+        <Route path="/payroll" element={<PayrollDashboard />} />
         <Route path="/dashboard" element={<EmployerDashboard />} />
         <Route path="/help" element={<HelpPage />} />
         <Route path="/debug" element={<Debugger />} />
