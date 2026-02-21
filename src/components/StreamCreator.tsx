@@ -429,10 +429,19 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               onChange={handleChange}
               disabled={isBusy}
               spellCheck={false}
+              aria-describedby={
+                errors.workerAddress ? id("workerAddress-error") : undefined
+              }
+              aria-invalid={!!errors.workerAddress}
             />
-            {errors.workerAddress && (
-              <p className={styles.errorText}>⚠ {errors.workerAddress}</p>
-            )}
+            <div aria-live="assertive">
+              {errors.workerAddress && (
+                <p id={id("workerAddress-error")} className={styles.errorText}>
+                  ⚠ <span className="sr-only">Error: </span>
+                  {errors.workerAddress}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className={styles.fieldGroup}>
@@ -472,10 +481,17 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               value={values.rate}
               onChange={handleChange}
               disabled={isBusy}
+              aria-describedby={errors.rate ? id("rate-error") : undefined}
+              aria-invalid={!!errors.rate}
             />
-            {errors.rate && (
-              <p className={styles.errorText}>⚠ {errors.rate}</p>
-            )}
+            <div aria-live="assertive">
+              {errors.rate && (
+                <p id={id("rate-error")} className={styles.errorText}>
+                  ⚠ <span className="sr-only">Error: </span>
+                  {errors.rate}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className={styles.fieldRow}>
@@ -602,13 +618,21 @@ function TxStatusBox({ phase }: { phase: TxPhase }) {
   if (phase.kind === "idle") return null;
   if (phase.kind === "success")
     return (
-      <div className={`${styles.statusBox} ${styles.statusSuccess}`}>
+      <div
+        className={`${styles.statusBox} ${styles.statusSuccess}`}
+        role="alert"
+        aria-live="polite"
+      >
         Success! Hash: {shortHash(phase.hash)}
       </div>
     );
   if (phase.kind === "error")
     return (
-      <div className={`${styles.statusBox} ${styles.statusError}`}>
+      <div
+        className={`${styles.statusBox} ${styles.statusError}`}
+        role="alert"
+        aria-live="assertive"
+      >
         {phase.message}
       </div>
     );

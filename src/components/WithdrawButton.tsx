@@ -52,6 +52,7 @@ const IconArrowUp = () => (
     strokeWidth="2.5"
     strokeLinecap="round"
     strokeLinejoin="round"
+    aria-hidden="true"
   >
     <line x1="12" y1="19" x2="12" y2="5" />
     <polyline points="5 12 12 5 19 12" />
@@ -68,6 +69,7 @@ const IconCheck = () => (
     strokeWidth="2.5"
     strokeLinecap="round"
     strokeLinejoin="round"
+    aria-hidden="true"
   >
     <polyline points="20 6 9 17 4 12" />
   </svg>
@@ -83,6 +85,7 @@ const IconX = () => (
     strokeWidth="2.5"
     strokeLinecap="round"
     strokeLinejoin="round"
+    aria-hidden="true"
   >
     <line x1="18" y1="6" x2="6" y2="18" />
     <line x1="6" y1="6" x2="18" y2="18" />
@@ -99,6 +102,7 @@ const IconRefresh = () => (
     strokeWidth="2.5"
     strokeLinecap="round"
     strokeLinejoin="round"
+    aria-hidden="true"
   >
     <polyline points="23 4 23 10 17 10" />
     <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
@@ -117,6 +121,7 @@ const Spinner = ({ size = 18 }: { size?: number }) => (
     strokeWidth="2.5"
     strokeLinecap="round"
     style={{ animation: "wbSpin 0.8s linear infinite" }}
+    aria-hidden="true"
   >
     <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
     <path d="M12 2a10 10 0 0 1 10 10" />
@@ -248,7 +253,7 @@ export default function WithdrawButton({
           --clr-accent:     #00e5a0;
           --clr-accent-dim: rgba(0,229,160,0.12);
           --clr-text:       #e8eaf0;
-          --clr-muted:      #5a607a;
+          --clr-muted:      #9ca3af; /* Increased contrast from #5a607a to meet 4.5:1 */
           --clr-danger:     #ff5f5f;
           --clr-danger-dim: rgba(255,95,95,0.12);
           --clr-success:    #00e5a0;
@@ -492,7 +497,7 @@ export default function WithdrawButton({
         <div className="wb-card">
           {/* Header */}
           <div className="wb-header">
-            <span className="wb-title">Salary Withdrawal</span>
+            <h2 className="wb-title">Salary Withdrawal</h2>
             <span className="wb-badge">PayrollStream</span>
           </div>
 

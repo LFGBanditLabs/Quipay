@@ -15,13 +15,12 @@ const AppLayout: React.FC = () => (
     <a href="#main-content" className="skip-link">
       Skip to main content
     </a>
-    <main>
     <Layout.Header
-      projectId="My App"
-      projectTitle="My App"
+      projectId="Quipay"
+      projectTitle="Quipay"
       contentRight={
         <>
-          <nav 
+          <nav
             aria-label="Main Navigation"
             style={{ display: "flex", gap: "8px", alignItems: "center" }}
           >
@@ -62,13 +61,13 @@ const AppLayout: React.FC = () => (
         </>
       }
     />
-    <OnboardingTour />
-    <div id="main-content" tabIndex={-1}>
+    <main id="main-content" tabIndex={-1} style={{ outline: "none" }}>
+      <OnboardingTour />
       <Outlet />
-    </div>
+    </main>
     <Layout.Footer>
       <span>
-        © {new Date().getFullYear()} My App. Licensed under the{" "}
+        © {new Date().getFullYear()} Quipay. Licensed under the{" "}
         <a
           href="http://www.apache.org/licenses/LICENSE-2.0"
           target="_blank"
@@ -79,7 +78,6 @@ const AppLayout: React.FC = () => (
         .
       </span>
     </Layout.Footer>
-  </main>
   </>
 );
 

@@ -3,32 +3,39 @@
 /* Skip Link */
 .skip-link {
   position: absolute;
-  top: -40px;
-  left: 0;
-  background: var(--sds-color-primary-60);
-  color: white;
-  padding: 8px;
-  z-index: 100;
-  transition: top 0.2s;
+  top: -60px; /* Hide further up */
+  left: 1rem;
+  background: var(--sds-color-primary-60, #2563eb);
+  color: white !important;
+  padding: 0.75rem 1.25rem;
+  z-index: 9999;
+  transition: top 0.2s ease;
   text-decoration: none;
   font-family: inherit;
-  border-radius: 0 0 4px 4px;
+  font-weight: 600;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .skip-link:focus {
   top: 0;
-  outline: 2px solid var(--sds-color-primary-60);
+  outline: 3px solid var(--sds-color-primary-40, #60a5fa);
   outline-offset: 2px;
 }
 
 /* Enhanced Focus Indicators */
-/* Ensure we don't break design system focus but provide a fallback if needed */
+/* Focus-visible for modern browsers */
 :focus-visible {
-  outline: 3px solid var(--sds-color-primary-60) !important;
-  outline-offset: 2px !important;
+  outline: 3px solid var(--sds-color-primary-60, #2563eb) !important;
+  outline-offset: 3px !important;
 }
 
-/* Screen Reader Only (for labels that should be hidden visually) */
+/* Fallback for older browsers or elements that don't support focus-visible well */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Screen Reader Only (for labels that should be hidden visually but available to SR) */
 .sr-only {
   position: absolute;
   width: 1px;
