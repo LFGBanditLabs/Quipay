@@ -5,6 +5,7 @@ use soroban_sdk::{contract, contractimpl, contracttype, Address, Env};
 #[derive(Clone)]
 pub enum DataKey {
     Admin,
+    Vault,
     Paused,
     NextStreamId,
     RetentionSecs,
@@ -24,6 +25,7 @@ pub enum StreamStatus {
 pub struct Stream {
     pub employer: Address,
     pub worker: Address,
+    pub token: Address,
     pub total_amount: i128,
     pub withdrawn_amount: i128,
     pub start_ts: u64,
@@ -79,11 +81,29 @@ impl PayrollStream {
         env.storage().instance().set(&DataKey::RetentionSecs, &retention_secs);
     }
 
+    pub fn set_vault(env: Env, vault: Address) {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("not initialized");
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Vault, &vault);
+    }
+
+    pub fn get_vault(env: Env) -> Address {
+        env.storage().instance().get(&DataKey::Vault).expect("vault not set")
+    }
+
     /// Create a new payroll stream.
     /// Fails if the contract is paused.
-    pub fn create_stream(env: Env, employer: Address, worker: Address, amount: i128, start_ts: u64, end_ts: u64) -> u64 {
+    pub fn create_stream(env: Env, employer: Address, worker: Address, token: Address, amount: i128, start_ts: u64, end_ts: u64) -> u64 {
         Self::require_not_paused(&env);
         employer.require_auth();
+
+        let vault_addr: Address = env.storage().instance().get(&DataKey::Vault).expect("vault not set");
+        let vault_client = payroll_vault::PayrollVaultClient::new(&env, &vault_addr);
+        vault_client.allocate_funds(&token, &amount);
 
         if amount <= 0 {
             panic!("amount must be positive");
@@ -100,6 +120,7 @@ impl PayrollStream {
         let stream = Stream {
             employer,
             worker,
+            token,
             total_amount: amount,
             withdrawn_amount: 0,
             start_ts,
@@ -145,6 +166,10 @@ impl PayrollStream {
             return 0;
         }
 
+        let vault_addr: Address = env.storage().instance().get(&DataKey::Vault).expect("vault not set");
+        let vault_client = payroll_vault::PayrollVaultClient::new(&env, &vault_addr);
+        vault_client.payout(&worker, &stream.token, &available);
+
         stream.withdrawn_amount = stream
             .withdrawn_amount
             .checked_add(available)
@@ -179,6 +204,14 @@ impl PayrollStream {
         }
 
         let now = env.ledger().timestamp();
+
+        let remaining = stream.total_amount - stream.withdrawn_amount;
+        if remaining > 0 {
+             let vault_addr: Address = env.storage().instance().get(&DataKey::Vault).expect("vault not set");
+             let vault_client = payroll_vault::PayrollVaultClient::new(&env, &vault_addr);
+             vault_client.release_funds(&stream.token, &remaining);
+        }
+
         Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
         env.storage().persistent().set(&key, &stream);
     }

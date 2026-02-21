@@ -1,5 +1,5 @@
 [package]
-name = "payroll_stream"
+name = "workforce_registry"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -12,7 +12,6 @@ doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
-payroll_vault = { path = "../payroll_vault" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

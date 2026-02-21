@@ -15,8 +15,8 @@ pub enum StateKey {
     Admin,
     Version,
     // Additional state that should persist across upgrades
-    TreasuryBalance, // Total funds held for payroll
-    TotalLiability,  // Total amount owed to recipients
+    TreasuryBalance(Address), // Funds held for payroll (Token -> Amount)
+    TotalLiability(Address),  // Amount owed to recipients (Token -> Amount)
 }
 
 #[contracttype]
@@ -33,6 +33,7 @@ pub struct PayrollVault;
 
 // Event symbols
 const UPGRADED: Symbol = symbol_short!("upgrd");
+#[allow(dead_code)]
 const VERSION: Symbol = symbol_short!("version");
 
 #[contractimpl]
@@ -55,9 +56,7 @@ impl PayrollVault {
         };
         e.storage().persistent().set(&StateKey::Version, &initial_version);
         
-        // Initialize state
-        e.storage().persistent().set(&StateKey::TreasuryBalance, &0i128);
-        e.storage().persistent().set(&StateKey::TotalLiability, &0i128);
+        // No need to initialize balances/liabilities as they are maps
     }
 
     /// Upgrade the contract to a new WASM code
@@ -85,6 +84,7 @@ impl PayrollVault {
         e.storage().persistent().set(&StateKey::Version, &version_info);
         
         // Emit upgrade event
+        #[allow(deprecated)]
         e.events().publish(
             (UPGRADED, admin.clone()),
             (current_version.major, current_version.minor, current_version.patch, major, minor, patch),
@@ -116,11 +116,54 @@ impl PayrollVault {
         }
         
         // Update treasury balance
-        let current_balance: i128 = e.storage().persistent().get(&StateKey::TreasuryBalance).unwrap_or(0);
-        e.storage().persistent().set(&StateKey::TreasuryBalance, &(current_balance + amount));
+        let key = StateKey::TreasuryBalance(token.clone());
+        let current_balance: i128 = e.storage().persistent().get(&key).unwrap_or(0);
+        e.storage().persistent().set(&key, &(current_balance + amount));
         
         let token_client = token::Client::new(&e, &token);
         token_client.transfer(&from, &e.current_contract_address(), &amount);
+    }
+
+    /// Adds liability to the vault (e.g., when a stream is created)
+    /// Checks if there are enough funds (solvency check)
+    pub fn allocate_funds(e: Env, token: Address, amount: i128) {
+        let admin: Address = e.storage().persistent().get(&StateKey::Admin).expect("not initialized");
+        admin.require_auth();
+        
+        if amount <= 0 {
+            panic!("allocation amount must be positive");
+        }
+
+        let balance_key = StateKey::TreasuryBalance(token.clone());
+        let liability_key = StateKey::TotalLiability(token.clone());
+        
+        let balance: i128 = e.storage().persistent().get(&balance_key).unwrap_or(0);
+        let liability: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
+        
+        if balance < liability + amount {
+            panic!("insufficient funds for allocation");
+        }
+        
+        e.storage().persistent().set(&liability_key, &(liability + amount));
+    }
+
+    /// Removes liability (e.g., when a stream is cancelled)
+    pub fn release_funds(e: Env, token: Address, amount: i128) {
+        let admin: Address = e.storage().persistent().get(&StateKey::Admin).expect("not initialized");
+        admin.require_auth();
+
+        if amount <= 0 {
+            panic!("release amount must be positive");
+        }
+
+        let liability_key = StateKey::TotalLiability(token.clone());
+        let liability: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
+        
+        if amount > liability {
+            panic!("release amount exceeds liability");
+        }
+        
+        e.storage().persistent().set(&liability_key, &(liability - amount));
     }
 
     pub fn payout(e: Env, to: Address, token: Address, amount: i128) {
@@ -131,15 +174,28 @@ impl PayrollVault {
             panic!("payout amount must be positive");
         }
         
-        // Update liability and treasury
-        let liability: i128 = e.storage().persistent().get(&StateKey::TotalLiability).unwrap_or(0);
-        e.storage().persistent().set(&StateKey::TotalLiability, &(liability + amount));
+        let balance_key = StateKey::TreasuryBalance(token.clone());
+        let liability_key = StateKey::TotalLiability(token.clone());
         
-        let treasury: i128 = e.storage().persistent().get(&StateKey::TreasuryBalance).unwrap_or(0);
-        if amount > treasury {
+        let balance: i128 = e.storage().persistent().get(&balance_key).unwrap_or(0);
+        let liability: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
+        
+        if amount > balance {
             panic!("insufficient treasury balance");
         }
-        e.storage().persistent().set(&StateKey::TreasuryBalance, &(treasury - amount));
+        
+        // Payout reduces liability AND balance
+        // We assume liability was allocated before.
+        // If not allocated, liability could go negative if we subtract blindly.
+        // But here we check if liability >= amount?
+        // Or maybe payout implies liability reduction.
+        // Let's assume payout reduces liability as debt is paid.
+        if amount > liability {
+             panic!("payout exceeds liability");
+        }
+        
+        e.storage().persistent().set(&liability_key, &(liability - amount));
+        e.storage().persistent().set(&balance_key, &(balance - amount));
 
         let token_client = token::Client::new(&e, &token);
         token_client.transfer(&e.current_contract_address(), &to, &amount);
@@ -151,13 +207,13 @@ impl PayrollVault {
     }
 
     /// Get the tracked treasury balance from state
-    pub fn get_treasury_balance(e: Env) -> i128 {
-        e.storage().persistent().get(&StateKey::TreasuryBalance).unwrap_or(0)
+    pub fn get_treasury_balance(e: Env, token: Address) -> i128 {
+        e.storage().persistent().get(&StateKey::TreasuryBalance(token)).unwrap_or(0)
     }
 
     /// Get the total liability from state  
-    pub fn get_total_liability(e: Env) -> i128 {
-        e.storage().persistent().get(&StateKey::TotalLiability).unwrap_or(0)
+    pub fn get_total_liability(e: Env, token: Address) -> i128 {
+        e.storage().persistent().get(&StateKey::TotalLiability(token)).unwrap_or(0)
     }
 
     /// Get the current contract address

@@ -9,9 +9,9 @@ fn test_registration_and_auth() {
 
     let admin = Address::generate(&env);
     let agent = Address::generate(&env);
-    let other = Address::generate(&env);
+    let _other = Address::generate(&env);
 
-    let contract_id = env.register_contract(None, AutomationGateway);
+    let contract_id = env.register(AutomationGateway, ());
     let client = AutomationGatewayClient::new(&env, &contract_id);
 
     client.init(&admin);
@@ -44,7 +44,7 @@ fn test_registration_and_auth() {
 fn test_already_initialized() {
     let env = Env::default();
     let admin = Address::generate(&env);
-    let contract_id = env.register_contract(None, AutomationGateway);
+    let contract_id = env.register(AutomationGateway, ());
     let client = AutomationGatewayClient::new(&env, &contract_id);
 
     client.init(&admin);
@@ -59,7 +59,7 @@ fn test_execute_automation_auth() {
     let admin = Address::generate(&env);
     let agent = Address::generate(&env);
 
-    let contract_id = env.register_contract(None, AutomationGateway);
+    let contract_id = env.register(AutomationGateway, ());
     let client = AutomationGatewayClient::new(&env, &contract_id);
 
     client.init(&admin);
@@ -78,7 +78,7 @@ fn test_execute_automation_unauthorized() {
     let admin = Address::generate(&env);
     let agent = Address::generate(&env);
 
-    let contract_id = env.register_contract(None, AutomationGateway);
+    let contract_id = env.register(AutomationGateway, ());
     let client = AutomationGatewayClient::new(&env, &contract_id);
 
     client.init(&admin);
