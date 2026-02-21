@@ -187,6 +187,25 @@ impl PayrollStream {
         env.storage().persistent().get(&StreamKey::Stream(stream_id))
     }
 
+    /// Calculate how much salary has accrued (earned but not yet withdrawn) at a given timestamp.
+    ///
+    /// - Active streams accrue linearly between `start_ts` and `end_ts`.
+    /// - Completed streams accrue up to `total_amount`.
+    /// - Canceled streams accrue only up to `closed_at` (the cancellation time).
+    /// - If `timestamp` is before `start_ts`, accrued is 0.
+    /// - Returned value is net of `withdrawn_amount` and is never negative.
+    pub fn calculate_accrued(env: Env, stream_id: u64, timestamp: u64) -> i128 {
+        let key = StreamKey::Stream(stream_id);
+        let stream: Stream = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .expect("stream not found");
+
+        let vested = Self::vested_amount_at(&stream, timestamp);
+        vested.checked_sub(stream.withdrawn_amount).unwrap_or(0).max(0)
+    }
+
     pub fn cleanup_stream(env: Env, stream_id: u64) {
         let key = StreamKey::Stream(stream_id);
         let stream: Stream = env
@@ -232,24 +251,43 @@ impl PayrollStream {
     }
 
     fn vested_amount(stream: &Stream, now: u64) -> i128 {
-        if now <= stream.start_ts {
+        Self::vested_amount_at(stream, now)
+    }
+
+    fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
+        let is_canceled = (stream.status_bits & (1u32 << (StreamStatus::Canceled as u32))) != 0;
+        let is_completed = (stream.status_bits & (1u32 << (StreamStatus::Completed as u32))) != 0;
+        let is_closed = is_canceled || is_completed;
+
+        let effective_ts = if is_closed {
+            core::cmp::min(timestamp, stream.closed_at)
+        } else {
+            timestamp
+        };
+
+        if effective_ts <= stream.start_ts {
             return 0;
         }
-        if now >= stream.end_ts {
+
+        if effective_ts >= stream.end_ts || (is_completed && effective_ts >= stream.closed_at) {
             return stream.total_amount;
         }
 
-        let elapsed = now - stream.start_ts;
-        let duration = stream.end_ts - stream.start_ts;
+        let elapsed: u64 = effective_ts - stream.start_ts;
+        let duration: u64 = stream.end_ts - stream.start_ts;
+        if duration == 0 {
+            return stream.total_amount;
+        }
 
-        let elapsed_i = i128::from(elapsed as i64);
-        let duration_i = i128::from(duration as i64);
+        let elapsed_i: i128 = elapsed as i128;
+        let duration_i: i128 = duration as i128;
+
         stream
             .total_amount
             .checked_mul(elapsed_i)
-            .expect("mul overflow")
+            .expect("accrued mul overflow")
             .checked_div(duration_i)
-            .expect("div overflow")
+            .expect("accrued div overflow")
     }
 }
 
