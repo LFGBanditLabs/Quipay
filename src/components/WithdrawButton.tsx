@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface WithdrawButtonProps {
@@ -518,7 +517,8 @@ export default function WithdrawButton({
 
           {/* CTA Button */}
           <button
-            className={`wb-btn ${isLoading
+            className={`wb-btn ${
+              isLoading
                 ? "wb-btn-loading"
                 : status === "success"
                   ? "wb-btn-success"
@@ -527,7 +527,7 @@ export default function WithdrawButton({
                     : isDisabled
                       ? "wb-btn-disabled"
                       : "wb-btn-default"
-              }`}
+            }`}
             onClick={status === "error" ? reset : handleWithdraw}
             // disabled={isDisabled && status !== "error"}
             aria-label={buttonLabel()}

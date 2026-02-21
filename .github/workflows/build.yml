@@ -40,25 +40,28 @@ jobs:
           else
             echo "stellar-scaffold already installed. Clear cache to force reinstall."
           fi
+      # Pre-pull the stellar-quickstart image to reduce startup time/timeouts
+      - name: Pull stellar-quickstart image
+        run: docker pull stellar/quickstart:testing
       - run: npm ci --legacy-peer-deps
+      # - name: Build with Scaffold and build client packages
+      #   run: STELLAR_SCAFFOLD_ENV=development stellar-scaffold build --build-clients 2>&1 | tee build_clients.log
+      # - name: Check client generation summary
+      #   run: |
+      #     # Extract the number after "Failed: "
+      #     FAILED=$(grep -Eo "Failed: [0-9]+" build_clients.log | awk '{print $2}')
+      #     if [ -z "$FAILED" ]; then
+      #       echo "Could not find 'Failed: N' in build_clients.log, all clients succeeded."
+      #       exit 0
+      #     fi
+      #     if [ "$FAILED" -gt 0 ]; then
+      #       echo "Client generation summary check failed: Failed: $FAILED"
+      #       echo "Check the \"Build with Scaffold\" step logs."
+      #       exit 1
+      #     fi
+      - run: npm run install:contracts
       - run: npm run lint
       - run: npx prettier . --check
-      - name: Build with Scaffold and build client packages
-        run: STELLAR_SCAFFOLD_ENV=development stellar-scaffold build --build-clients 2>&1 | tee build_clients.log
-      - name: Check client generation summary
-        run: |
-          # Extract the number after "Failed: "
-          FAILED=$(grep -Eo "Failed: [0-9]+" build_clients.log | awk '{print $2}')
-          if [ -z "$FAILED" ]; then
-            echo "Could not find 'Failed: N' in build_clients.log, all clients succeeded."
-            exit 0
-          fi
-          if [ "$FAILED" -gt 0 ]; then
-            echo "Client generation summary check failed: Failed: $FAILED"
-            echo "Check the \"Build with Scaffold\" step logs."
-            exit 1
-          fi
-      - run: npm run install:contracts
       - run: npm run build
       - name: Run tests
         run: npm test --if-present

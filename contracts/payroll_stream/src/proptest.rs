@@ -5,6 +5,16 @@ use crate::{PayrollStream, PayrollStreamClient};
 use proptest::prelude::*;
 use soroban_sdk::{testutils::Address as _, testutils::Ledger, Address, Env};
 
+mod dummy_vault {
+    use soroban_sdk::{contract, contractimpl, Env};
+    #[contract]
+    pub struct DummyVault;
+    #[contractimpl]
+    impl DummyVault {
+        pub fn add_liability(_env: Env, _amount: i128) {}
+    }
+}
+
 fn time_leap_strategy() -> impl Strategy<Value = u64> {
     0u64..50_000_000u64
 }
@@ -17,7 +27,7 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(500))]
     #[test]
     fn fuzz_stream_invariant(
-        total_amount in 1i128..1_000_000_000_000i128,
+        rate in 1i128..1_000_000_000_000i128,
         start_offset in 10u64..10_000u64,
         duration in 1u64..31_536_000u64,
         time_leaps in prop::collection::vec(time_leap_strategy(), 1..50),
@@ -34,7 +44,10 @@ proptest! {
         let contract_id = env.register_contract(None, PayrollStream);
         let client = PayrollStreamClient::new(&env, &contract_id);
 
+        let vault_id = env.register_contract(None, dummy_vault::DummyVault);
+
         client.init(&admin);
+        client.set_vault(&vault_id);
 
         let initial_time = 1_000_000_000u64;
         env.ledger().set_timestamp(initial_time);
@@ -42,7 +55,7 @@ proptest! {
         let start_ts = initial_time.saturating_add(start_offset);
         let end_ts = start_ts.saturating_add(duration);
 
-        let stream_id = client.create_stream(&employer, &worker, &token, &total_amount, &start_ts, &end_ts);
+        let stream_id = client.create_stream(&employer, &worker, &token, &rate, &start_ts, &end_ts);
 
         let mut current_time = initial_time;
         let steps = std::cmp::min(time_leaps.len(), actions.len());
