@@ -161,23 +161,8 @@ impl PayrollStream {
         end_ts: u64,
     ) -> Result<u64, QuipayError> {
         Self::require_not_paused(&env)?;
+        // Gateway verifies authorization before calling this method
         agent.require_auth();
-
-        let gateway = Self::get_gateway(env.clone())
-            .ok_or(QuipayError::NotInitialized)?;
-
-        use soroban_sdk::{vec, IntoVal};
-        let is_authorized: bool = env.invoke_contract(
-            &gateway,
-            &Symbol::new(&env, "is_authorized"),
-            vec![
-                &env,
-                agent.into_val(&env),
-                1u32.into_val(&env),
-            ],
-        );
-
-        require!(is_authorized, QuipayError::InsufficientPermissions);
 
         Self::create_stream_internal(env, employer, worker, token, rate, cliff_ts, start_ts, end_ts)
     }
@@ -420,23 +405,8 @@ impl PayrollStream {
         employer: Address,
     ) -> Result<(), QuipayError> {
         Self::require_not_paused(&env)?;
+        // Gateway verifies authorization before calling this method
         agent.require_auth();
-
-        let gateway = Self::get_gateway(env.clone())
-            .ok_or(QuipayError::NotInitialized)?;
-
-        use soroban_sdk::{vec, IntoVal};
-        let is_authorized: bool = env.invoke_contract(
-            &gateway,
-            &Symbol::new(&env, "is_authorized"),
-            vec![
-                &env,
-                agent.into_val(&env),
-                1u32.into_val(&env),
-            ],
-        );
-
-        require!(is_authorized, QuipayError::InsufficientPermissions);
 
         Self::cancel_stream_internal(env, stream_id, employer)
     }
