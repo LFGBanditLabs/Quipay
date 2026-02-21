@@ -131,3 +131,133 @@ fn test_stream_withdraw_and_cleanup() {
     client.cleanup_stream(&stream_id);
     assert!(client.get_stream(&stream_id).is_none());
 }
+
+#[test]
+fn test_calculate_accrued_before_start_and_at_start() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    let stream_id = client.create_stream(&employer, &worker, &1000, &10u64, &20u64);
+
+    assert_eq!(client.calculate_accrued(&stream_id, &0u64), 0);
+    assert_eq!(client.calculate_accrued(&stream_id, &10u64), 0);
+}
+
+#[test]
+fn test_calculate_accrued_active_and_withdrawn_netting() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+    let stream_id = client.create_stream(&employer, &worker, &1000, &0u64, &10u64);
+
+    assert_eq!(client.calculate_accrued(&stream_id, &5u64), 500);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 5;
+    });
+    let w = client.withdraw(&stream_id, &worker);
+    assert_eq!(w, 500);
+
+    assert_eq!(client.calculate_accrued(&stream_id, &5u64), 0);
+    assert_eq!(client.calculate_accrued(&stream_id, &6u64), 100);
+}
+
+#[test]
+fn test_calculate_accrued_completed_stream() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+    let stream_id = client.create_stream(&employer, &worker, &1000, &0u64, &10u64);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 10;
+    });
+    let w = client.withdraw(&stream_id, &worker);
+    assert_eq!(w, 1000);
+
+    let stream = client.get_stream(&stream_id).unwrap();
+    assert!(stream.status_bits & (1u32 << (StreamStatus::Completed as u32)) != 0);
+    assert_eq!(client.calculate_accrued(&stream_id, &10u64), 0);
+    assert_eq!(client.calculate_accrued(&stream_id, &11u64), 0);
+}
+
+#[test]
+fn test_calculate_accrued_canceled_stream_caps_at_closed_at() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+    let stream_id = client.create_stream(&employer, &worker, &1000, &0u64, &10u64);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 2;
+    });
+    let w = client.withdraw(&stream_id, &worker);
+    assert_eq!(w, 200);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 4;
+    });
+    client.cancel_stream(&stream_id, &employer);
+
+    assert_eq!(client.calculate_accrued(&stream_id, &4u64), 200);
+    assert_eq!(client.calculate_accrued(&stream_id, &9u64), 200);
+}
+
+#[test]
+#[should_panic(expected = "accrued mul overflow")]
+fn test_calculate_accrued_overflow_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    let stream_id = client.create_stream(&employer, &worker, &i128::MAX, &0u64, &3u64);
+    client.calculate_accrued(&stream_id, &2u64);
+}
