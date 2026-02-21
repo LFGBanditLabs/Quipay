@@ -3,14 +3,16 @@ import { Code, Layout, Text } from "@stellar/design-system";
 // import { GuessTheNumber } from "../components/GuessTheNumber";
 
 const Home: React.FC = () => (
-  <>
-    <SeoHelmet
-      title="Stream Payments on Stellar"
-      description="Quipay is a real-time payment streaming platform for teams and subscriptions built on Stellar."
-      path="/"
-      imagePath="/social/landing-preview.png"
-      robots="index,follow"
-    />
+  <Layout.Content>
+    <Layout.Inset>
+      <Text as="h1" size="xl" weight="medium">
+        Welcome to your app!
+      </Text>
+      <Text as="p" size="md">
+        This is a basic template to get your dapp started with the Stellar
+        Design System and Stellar contracts. You can customize it further by
+        adding your own contracts, components, and styles.
+      </Text>
 
     <div className={styles.page}>
       <section className={styles.hero}>

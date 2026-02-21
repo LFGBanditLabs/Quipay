@@ -7,6 +7,7 @@ import NetworkPill from "./NetworkPill";
 const ConnectAccount: React.FC = () => {
   return (
     <div
+      aria-label="Account and Network Tools"
       style={{
         display: "flex",
         flexDirection: "row",

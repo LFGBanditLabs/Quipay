@@ -7,6 +7,9 @@
 
 .card {
   background-color: var(--sds-color-neutral-subtle);
+  background-color: var(
+    --sds-color-neutral-subtle
+  ); /* Assuming SDS variables or default */
   border: 1px solid var(--sds-color-neutral-border);
   border-radius: 8px;
   padding: 20px;

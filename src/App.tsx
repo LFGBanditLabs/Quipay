@@ -6,31 +6,54 @@ import Home from "./pages/Home";
 import Debugger from "./pages/Debugger.tsx";
 import OnboardingTour from "./components/OnboardingTour";
 
-const RouteSuspense = ({ children }: { children: ReactNode }) => (
-  <Suspense fallback={<RouteLoader />}>{children}</Suspense>
-);
+import EmployerDashboard from "./pages/EmployerDashboard";
+import CreateStream from "./pages/CreateStream";
+import TreasuryManagement from "./pages/TreasuryManagement";
 
 const AppLayout: React.FC = () => (
-  <main>
+  <>
+    <a href="#main-content" className="skip-link">
+      Skip to main content
+    </a>
     <Layout.Header
-      projectId="My App"
-      projectTitle="My App"
+      projectId="Quipay"
+      projectTitle="Quipay"
       contentRight={
         <>
-          <nav style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <nav
+            aria-label="Main Navigation"
+            style={{ display: "flex", gap: "8px", alignItems: "center" }}
+          >
             <NavLink
               to="/dashboard"
               style={{
                 textDecoration: "none",
               }}
+              aria-label="Go to Dashboard"
             >
               {({ isActive }) => (
-                <Button
-                  variant="tertiary"
-                  size="md"
-                  disabled={isActive}
-                >
+                <Button variant="tertiary" size="md" disabled={isActive}>
                   Dashboard
+                </Button>
+              )}
+            </NavLink>
+            <NavLink to="/governance" style={{ textDecoration: "none" }}>
+              {({ isActive }) => (
+                <Button variant="tertiary" size="md" disabled={isActive}>
+                  <Icon.Gavel size="md" />
+                  Governance
+                </Button>
+              )}
+            </NavLink>
+            <NavLink
+              to="/worker"
+              style={{
+                textDecoration: "none",
+              }}
+            >
+              {({ isActive }) => (
+                <Button variant="tertiary" size="md" disabled={isActive}>
+                  Worker
                 </Button>
               )}
             </NavLink>
@@ -39,6 +62,7 @@ const AppLayout: React.FC = () => (
               style={{
                 textDecoration: "none",
               }}
+              aria-label="Go to Debugger"
             >
               {({ isActive }) => (
                 <Button
@@ -57,10 +81,12 @@ const AppLayout: React.FC = () => (
         </>
       }
     />
-    <OnboardingTour />
-    <Outlet />
-    <footer className={styles.publicFooter}>
-      <p>
+    <main id="main-content" tabIndex={-1} style={{ outline: "none" }}>
+      <OnboardingTour />
+      <Outlet />
+    </main>
+    <Layout.Footer>
+      <span>
         © {new Date().getFullYear()} Quipay. Licensed under the{" "}
         <a
           href="https://opensource.org/license/mit"
@@ -70,9 +96,9 @@ const AppLayout: React.FC = () => (
           MIT License
         </a>
         .
-      </p>
-    </footer>
-  </main>
+      </span>
+    </Layout.Footer>
+  </>
 );
 
 function App() {
@@ -80,38 +106,11 @@ function App() {
     <Routes>
       <Route element={<PublicLayout />}>
         <Route path="/" element={<Home />} />
-      </Route>
-      <Route
-        element={
-          <RouteSuspense>
-            <WalletLayout />
-          </RouteSuspense>
-        }
-      >
-        <Route
-          path="/dashboard"
-          element={
-            <RouteSuspense>
-              <EmployerDashboard />
-            </RouteSuspense>
-          }
-        />
-        <Route
-          path="/debug"
-          element={
-            <RouteSuspense>
-              <Debugger />
-            </RouteSuspense>
-          }
-        />
-        <Route
-          path="/debug/:contractName"
-          element={
-            <RouteSuspense>
-              <Debugger />
-            </RouteSuspense>
-          }
-        />
+        <Route path="/dashboard" element={<EmployerDashboard />} />
+        <Route path="/create-stream" element={<CreateStream />} />
+        <Route path="/treasury-management" element={<TreasuryManagement />} />
+        <Route path="/debug" element={<Debugger />} />
+        <Route path="/debug/:contractName" element={<Debugger />} />
       </Route>
     </Routes>
   );

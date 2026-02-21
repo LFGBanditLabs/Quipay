@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { Button, Code, Input, Text } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
-// @ts-ignore: contract bindings may not be locally generated yet
+// @ts-expect-error: contract bindings may not be locally generated yet
 import game from "../contracts/guess_the_number";
+// // @ts-ignore: contract bindings may not be locally generated yet
+// import game from "../contracts/guess_the_number";
 import { Box } from "../components/layout/Box";
 
 export const GuessTheNumber = () => {
   const [guessedIt, setGuessedIt] = useState<boolean>();
   const [theGuess, setTheGuess] = useState<number>();
-  const { address, updateBalances, signTransaction } = useWallet();
+  const { address } = useWallet();
 
   if (!address) {
     return (
@@ -18,8 +20,10 @@ export const GuessTheNumber = () => {
     );
   }
 
-  const submitGuess = async () => {
+  const submitGuess = () => {
     if (!theGuess || !address) return;
+    console.log("Guessing game contract call removed in this example.");
+    /*
     const tx = await game.guess(
       { a_number: BigInt(theGuess), guesser: address },
       { publicKey: address },
@@ -31,7 +35,9 @@ export const GuessTheNumber = () => {
       setGuessedIt(result.unwrap());
       await updateBalances();
     }
+    */
   };
+  /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 
   return (
     <form
