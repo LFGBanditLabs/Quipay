@@ -16,6 +16,20 @@ const EmployerDashboard: React.FC = () => {
   } = usePayroll();
   const navigate = useNavigate();
 
+  const demoContract = {
+    // eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
+    withdrawableAmount: async (_address: string) => {
+      return BigInt("5000000"); // 5.00 USDC (6 decimals)
+    },
+    withdraw: async () => {
+      await new Promise((res) => setTimeout(res, 2000)); // simulate delay
+      return {
+        hash: "0xabc123def456abc123def456abc123def456abc123def456abc123def456abc1",
+        wait: async () => {},
+      };
+    },
+  };
+
   if (isLoading) {
     return (
       <Layout.Content>
@@ -27,7 +41,7 @@ const EmployerDashboard: React.FC = () => {
               padding: "50px",
             }}
           >
-            <Loader />
+            <Loader aria-label="Loading dashboard content" aria-busy="true" />
           </div>
         </Layout.Inset>
       </Layout.Content>
@@ -42,7 +56,7 @@ const EmployerDashboard: React.FC = () => {
       await new Promise((res) => setTimeout(res, 2000)); // simulate delay
       return {
         hash: "0xabc123def456abc123def456abc123def456abc123def456abc123def456abc1",
-        wait: async () => {},
+        wait: async () => { },
       };
     },
   };
@@ -64,18 +78,23 @@ const EmployerDashboard: React.FC = () => {
           {/* Treasury Balance */}
           <div className={styles.card} id="tour-treasury-balance">
             <Text
-              as="span"
+              as="h2"
               size="md"
               weight="semi-bold"
               className={styles.cardHeader}
             >
               Treasury Balance
             </Text>
-            {treasuryBalances.map((balance) => (
-              <div key={balance.tokenSymbol}>
-                <Text as="div" size="lg" className={styles.metricValue}>
-                  {balance.balance} {balance.tokenSymbol}
-                </Text>
+            {treasuryBalances.length === 0 ? (
+              <div style={{ marginTop: "1rem" }}>
+                <EmptyState
+                  variant="treasury"
+                  title="No Funds Yet"
+                  description="Your treasury is currently empty. Deposit funds to start paying your workers."
+                  icon="💰"
+                  actionLabel="Deposit Funds"
+                  onAction={() => navigate("/treasury-management")}
+                />
               </div>
             ))}
             <div style={{ marginTop: "10px" }}>

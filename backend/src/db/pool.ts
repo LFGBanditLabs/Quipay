@@ -1,6 +1,6 @@
-import { Pool, QueryResult, QueryResultRow } from 'pg';
-import fs from 'fs';
-import path from 'path';
+import { Pool, QueryResult, QueryResultRow } from "pg";
+import fs from "fs";
+import path from "path";
 
 let pool: Pool | null = null;
 
@@ -14,26 +14,28 @@ export const getPool = (): Pool | null => pool;
  * Safe to call multiple times — subsequent calls are no-ops.
  */
 export const initDb = async (): Promise<void> => {
-    const url = process.env.DATABASE_URL;
-    if (!url) {
-        console.warn('[DB] ⚠️  DATABASE_URL is not set. Analytics caching is disabled.');
-        return;
-    }
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    console.warn(
+      "[DB] ⚠️  DATABASE_URL is not set. Analytics caching is disabled.",
+    );
+    return;
+  }
 
-    if (pool) return; // already initialized
+  if (pool) return; // already initialized
 
-    pool = new Pool({ connectionString: url });
+  pool = new Pool({ connectionString: url });
 
-    pool.on('error', (err) => {
-        console.error('[DB] Unexpected pool error:', err.message);
-    });
+  pool.on("error", (err) => {
+    console.error("[DB] Unexpected pool error:", err.message);
+  });
 
-    // Run schema DDL (idempotent CREATE IF NOT EXISTS)
-    const schemaPath = path.join(__dirname, 'schema.sql');
-    const schemaSql = fs.readFileSync(schemaPath, 'utf-8');
-    await pool.query(schemaSql);
+  // Run schema DDL (idempotent CREATE IF NOT EXISTS)
+  const schemaPath = path.join(__dirname, "schema.sql");
+  const schemaSql = fs.readFileSync(schemaPath, "utf-8");
+  await pool.query(schemaSql);
 
-    console.log('[DB] ✅ Database initialized and schema verified.');
+  console.log("[DB] ✅ Database initialized and schema verified.");
 };
 
 /**
@@ -41,9 +43,9 @@ export const initDb = async (): Promise<void> => {
  * Callers that can run without DB should check getPool() first.
  */
 export const query = async <T extends QueryResultRow = QueryResultRow>(
-    text: string,
-    params?: unknown[]
+  text: string,
+  params?: unknown[],
 ): Promise<QueryResult<T>> => {
-    if (!pool) throw new Error('Database pool is not initialized');
-    return pool.query<T>(text, params);
+  if (!pool) throw new Error("Database pool is not initialized");
+  return pool.query<T>(text, params);
 };

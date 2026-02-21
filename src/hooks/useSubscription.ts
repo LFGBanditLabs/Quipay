@@ -39,7 +39,7 @@ export function useSubscription(
   paging[id] = paging[id] || {};
 
   React.useEffect(() => {
-    let timeoutId: NodeJS.Timeout | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let stop = false;
 
     async function pollEvents(): Promise<void> {
