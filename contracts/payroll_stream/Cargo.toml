@@ -12,6 +12,7 @@ doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
+quipay_common = { path = "../common" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

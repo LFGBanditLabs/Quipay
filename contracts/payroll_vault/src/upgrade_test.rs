@@ -2,11 +2,13 @@
 
 use super::*;
 use soroban_sdk::{testutils::Address as _, Address, Env};
+use quipay_common::QuipayError;
 
 // Version 2 contract for testing upgrades
 // This simulates a new contract version with additional functionality
 pub mod v2_contract {
     use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, Symbol, token};
+    use quipay_common::{QuipayError, QuipayHelpers, require_positive_amount};
     
     #[contracttype]
     #[derive(Clone, Debug, PartialEq)]
@@ -34,9 +36,9 @@ pub mod v2_contract {
     
     #[contractimpl]
     impl PayrollVaultV2 {
-        pub fn initialize(e: Env, admin: Address) {
+        pub fn initialize(e: Env, admin: Address) -> Result<(), QuipayError> {
             if e.storage().persistent().has(&StateKey::Admin) {
-                panic!("already initialized");
+                return Err(QuipayError::AlreadyInitialized);
             }
             e.storage().persistent().set(&StateKey::Admin, &admin);
             let initial_version = VersionInfo {
@@ -49,13 +51,14 @@ pub mod v2_contract {
             e.storage().persistent().set(&StateKey::TreasuryBalance, &0i128);
             e.storage().persistent().set(&StateKey::TotalLiability, &0i128);
             e.storage().persistent().set(&StateKey::TransactionCount, &0u64);
+            Ok(())
         }
 
-        pub fn upgrade(e: Env, new_wasm_hash: BytesN<32>, new_version: (u32, u32, u32)) {
-            let admin: Address = e.storage().persistent().get(&StateKey::Admin).expect("not initialized");
+        pub fn upgrade(e: Env, new_wasm_hash: BytesN<32>, new_version: (u32, u32, u32)) -> Result<(), QuipayError> {
+            let admin: Address = e.storage().persistent().get(&StateKey::Admin).ok_or(QuipayError::NotInitialized)?;
             admin.require_auth();
             
-            let current_version: VersionInfo = e.storage().persistent().get(&StateKey::Version).expect("version not set");
+            let current_version: VersionInfo = e.storage().persistent().get(&StateKey::Version).ok_or(QuipayError::VersionNotSet)?;
             
             e.deployer().update_current_contract_wasm(new_wasm_hash.clone());
             
@@ -72,27 +75,27 @@ pub mod v2_contract {
                 (UPGRADED, admin.clone()),
                 (current_version.major, current_version.minor, current_version.patch, major, minor, patch),
             );
+            Ok(())
         }
 
-        pub fn get_version(e: Env) -> VersionInfo {
-            e.storage().persistent().get(&StateKey::Version).expect("version not set")
+        pub fn get_version(e: Env) -> Result<VersionInfo, QuipayError> {
+            e.storage().persistent().get(&StateKey::Version).ok_or(QuipayError::VersionNotSet)
         }
 
-        pub fn get_admin(e: Env) -> Address {
-            e.storage().persistent().get(&StateKey::Admin).expect("not initialized")
+        pub fn get_admin(e: Env) -> Result<Address, QuipayError> {
+            e.storage().persistent().get(&StateKey::Admin).ok_or(QuipayError::NotInitialized)
         }
 
-        pub fn transfer_admin(e: Env, new_admin: Address) {
-            let admin: Address = e.storage().persistent().get(&StateKey::Admin).expect("not initialized");
+        pub fn transfer_admin(e: Env, new_admin: Address) -> Result<(), QuipayError> {
+            let admin: Address = e.storage().persistent().get(&StateKey::Admin).ok_or(QuipayError::NotInitialized)?;
             admin.require_auth();
             e.storage().persistent().set(&StateKey::Admin, &new_admin);
+            Ok(())
         }
 
-        pub fn deposit(e: Env, from: Address, token: Address, amount: i128) {
+        pub fn deposit(e: Env, from: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
             from.require_auth();
-            if amount <= 0 {
-                panic!("deposit amount must be positive");
-            }
+            require_positive_amount!(amount);
             
             let current_balance: i128 = e.storage().persistent().get(&StateKey::TreasuryBalance).unwrap_or(0);
             e.storage().persistent().set(&StateKey::TreasuryBalance, &(current_balance + amount));
@@ -102,6 +105,7 @@ pub mod v2_contract {
             
             let token_client = token::Client::new(&e, &token);
             token_client.transfer(&from, &e.current_contract_address(), &amount);
+            Ok(())
         }
 
         pub fn add_liability(e: Env, amount: i128) {
@@ -127,9 +131,7 @@ pub mod v2_contract {
             let admin: Address = e.storage().persistent().get(&StateKey::Admin).expect("not initialized");
             admin.require_auth();
             
-            if amount <= 0 {
-                panic!("payout amount must be positive");
-            }
+            require_positive_amount!(amount);
             
             let liability: i128 = e.storage().persistent().get(&StateKey::TotalLiability).unwrap_or(0);
             if amount > liability {
@@ -138,9 +140,8 @@ pub mod v2_contract {
             e.storage().persistent().set(&StateKey::TotalLiability, &(liability - amount));
             
             let treasury: i128 = e.storage().persistent().get(&StateKey::TreasuryBalance).unwrap_or(0);
-            if amount > treasury {
-                panic!("insufficient treasury balance");
-            }
+            QuipayHelpers::check_sufficient_balance(treasury, amount)?;
+            
             e.storage().persistent().set(&StateKey::TreasuryBalance, &(treasury - amount));
 
             let tx_count: u64 = e.storage().persistent().get(&StateKey::TransactionCount).unwrap_or(0);
@@ -148,6 +149,7 @@ pub mod v2_contract {
 
             let token_client = token::Client::new(&e, &token);
             token_client.transfer(&e.current_contract_address(), &to, &amount);
+            Ok(())
         }
 
         pub fn get_balance(e: Env, token: Address) -> i128 {
@@ -250,10 +252,6 @@ fn test_admin_transfer() {
     assert_eq!(client.get_admin(), new_admin);
 }
 
-/// This test verifies the structure needed for upgrades:
-/// 1. State is stored in persistent storage (survives upgrades)
-/// 2. Version tracking is in place
-/// 3. Both v1 and v2 contracts use the same storage keys for shared state
 #[test]
 fn test_upgrade_structure_verification() {
     let env = Env::default();
@@ -311,20 +309,10 @@ fn test_upgrade_structure_verification() {
     v2_client.deposit(&user, &token_id, &100);
     assert_eq!(v2_client.get_treasury_balance(), 100);
     assert_eq!(v2_client.get_transaction_count(), 1);
-    
-    // CRITICAL VERIFICATION: Both contracts use the same storage keys
-    // In persistent storage, meaning when v1 is upgraded to v2:
-    // - Admin stays the same
-    // - TreasuryBalance stays the same
-    // - TotalLiability stays the same
-    // - Version is updated
-    // This confirms the upgrade mechanism will work correctly
 }
 
 #[test]
 fn test_state_persistence_across_contract_instances() {
-    // This test verifies that when we re-register a contract at the same address,
-    // the persistent storage remains intact (simulating an upgrade)
     let env = Env::default();
     env.mock_all_auths();
 
@@ -360,14 +348,11 @@ fn test_state_persistence_across_contract_instances() {
     );
     assert_eq!(state_before, (500, 0, admin.clone(), 500, 1));
 
-    // Verify version can be updated (simulating what happens during upgrade)
-    // Note: In actual upgrade, the version is updated by the upgrade function
-    // Here we verify the version tracking mechanism works
     let v2_contract_id = env.register(v2_contract::PayrollVaultV2, ());
     let v2_client = v2_contract::PayrollVaultV2Client::new(&env, &v2_contract_id);
     v2_client.initialize(&admin);
     let v2_version = v2_client.get_version();
-    assert_eq!(v2_version.major, 1); // New contract starts at v1
+    assert_eq!(v2_version.major, 1);
 }
 
 #[test]
@@ -386,12 +371,10 @@ fn test_version_tracking() {
     assert_eq!(version.major, 1);
     assert_eq!(version.minor, 0);
     assert_eq!(version.patch, 0);
-    // upgraded_at may be 0 in test environment with default ledger
 }
 
 #[test]
-#[should_panic(expected = "already initialized")]
-fn test_double_initialize_panics() {
+fn test_double_initialize_errors() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -403,20 +386,29 @@ fn test_double_initialize_panics() {
     // First initialize should work
     client.initialize(&admin);
     
-    // Second should panic
+    // Second should return error
     let admin2 = Address::generate(&env);
-    client.initialize(&admin2);
+    let result = client.try_initialize(&admin2);
+    
+    assert_eq!(
+        result,
+        Err(Ok(QuipayError::AlreadyInitialized))
+    );
 }
 
 #[test]
-#[should_panic(expected = "not initialized")]
-fn test_operations_before_initialize_panics() {
+fn test_operations_before_initialize_errors() {
     let env = Env::default();
     env.mock_all_auths();
 
     let contract_id = env.register(PayrollVault, ());
     let client = PayrollVaultClient::new(&env, &contract_id);
 
-    // Should panic - not initialized
-    let _ = client.get_admin();
+    // Should return error - not initialized
+    let result = client.try_get_admin();
+    
+    assert_eq!(
+        result,
+        Err(Ok(QuipayError::NotInitialized))
+    );
 }

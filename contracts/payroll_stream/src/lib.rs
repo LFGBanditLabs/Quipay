@@ -1,5 +1,6 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env};
+use soroban_sdk::{Address, Env, contract, contractimpl, contracttype};
+use quipay_common::{QuipayError, require};
 
 #[contracttype]
 #[derive(Clone)]
@@ -49,10 +50,11 @@ pub struct PayrollStream;
 #[contractimpl]
 impl PayrollStream {
     /// Initialize the contract with an admin.
-    pub fn init(env: Env, admin: Address) {
-        if env.storage().instance().has(&DataKey::Admin) {
-            panic!("already initialized");
-        }
+    pub fn init(env: Env, admin: Address) -> Result<(), QuipayError> {
+        require!(
+            !env.storage().instance().has(&DataKey::Admin),
+            QuipayError::AlreadyInitialized
+        );
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Paused, &false);
         env.storage().instance().set(&DataKey::NextStreamId, &1u64);
@@ -61,15 +63,23 @@ impl PayrollStream {
 
     /// Set the paused status of the contract.
     /// Only the admin can call this.
-    pub fn set_paused(env: Env, paused: bool) {
-        let admin: Address = env.storage().instance().get(&DataKey::Admin).expect("not initialized");
+    pub fn set_paused(env: Env, paused: bool) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
         admin.require_auth();
         env.storage().instance().set(&DataKey::Paused, &paused);
+        Ok(())
     }
 
     /// Check if the contract is paused.
     pub fn is_paused(env: Env) -> bool {
-        env.storage().instance().get(&DataKey::Paused).unwrap_or(false)
+        env.storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
     }
 
     pub fn set_retention_secs(env: Env, retention_secs: u64) {
@@ -248,10 +258,16 @@ impl PayrollStream {
     }
 
     /// Internal helper to ensure the contract is not paused.
-    fn require_not_paused(env: &Env) {
-        if env.storage().instance().get(&DataKey::Paused).unwrap_or(false) {
-            panic!("protocol is paused");
+    fn require_not_paused(env: &Env) -> Result<(), QuipayError> {
+        if env
+            .storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+        {
+            return Err(QuipayError::ProtocolPaused);
         }
+        Ok(())
     }
 
     fn is_closed(stream: &Stream) -> bool {

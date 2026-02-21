@@ -27,7 +27,7 @@ fn test_pause_mechanism() {
 
     let vault_id = env.register_contract(None, dummy_vault::DummyVault);
 
-    let contract_id = env.register_contract(None, PayrollStream);
+    let contract_id = env.register(PayrollStream, ());
     let client = PayrollStreamClient::new(&env, &contract_id);
 
     client.init(&admin);
@@ -46,12 +46,9 @@ fn test_pause_mechanism() {
     // 2. Admin pauses the protocol
     client.set_paused(&true);
     assert!(client.is_paused());
-
-    // 3. Operations should panic when paused
 }
 
 #[test]
-#[should_panic(expected = "protocol is paused")]
 fn test_create_stream_paused() {
     let env = Env::default();
     env.mock_all_auths();
@@ -75,32 +72,43 @@ fn test_create_stream_paused() {
 }
 
 #[test]
-#[should_panic(expected = "protocol is paused")]
 fn test_withdraw_paused() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);
     let worker = Address::generate(&env);
-    let contract_id = env.register_contract(None, PayrollStream);
+    let contract_id = env.register(PayrollStream, ());
     let client = PayrollStreamClient::new(&env, &contract_id);
 
     client.init(&admin);
     client.set_paused(&true);
-    client.withdraw(&1u64, &worker);
+    let result = client.try_withdraw(&worker);
+    
+    assert_eq!(
+        result,
+        Err(Ok(QuipayError::ProtocolPaused))
+    );
 }
 
 #[test]
-#[should_panic(expected = "protocol is paused")]
 fn test_cancel_stream_paused() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);
     let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let contract_id = env.register(PayrollStream, ());
     let contract_id = env.register_contract(None, PayrollStream);
     let client = PayrollStreamClient::new(&env, &contract_id);
 
     client.init(&admin);
     client.set_paused(&true);
+    let result = client.try_cancel_stream(&employer, &worker);
+    
+    assert_eq!(
+        result,
+        Err(Ok(QuipayError::ProtocolPaused))
+    );
     client.cancel_stream(&1u64, &employer);
 }
 

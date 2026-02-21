@@ -1,5 +1,5 @@
 [package]
-name = "automation_gateway"
+name = "quipay_common"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -7,12 +7,11 @@ publish = false
 version.workspace = true
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["rlib"]
 doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
-quipay_common = { path = "../common" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
