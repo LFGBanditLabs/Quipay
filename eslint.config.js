@@ -15,6 +15,7 @@ export default tseslint.config(
     "target/packages",
     "src/contracts/*",
     "!src/contracts/util.ts",
+    "backend/**",
   ]),
   {
     extends: [

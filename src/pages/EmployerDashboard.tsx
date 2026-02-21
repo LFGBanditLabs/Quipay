@@ -16,6 +16,20 @@ const EmployerDashboard: React.FC = () => {
   } = usePayroll();
   const navigate = useNavigate();
 
+  const demoContract = {
+    // eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
+    withdrawableAmount: async (_address: string) => {
+      return BigInt("5000000"); // 5.00 USDC (6 decimals)
+    },
+    withdraw: async () => {
+      await new Promise((res) => setTimeout(res, 2000)); // simulate delay
+      return {
+        hash: "0xabc123def456abc123def456abc123def456abc123def456abc123def456abc1",
+        wait: async () => {},
+      };
+    },
+  };
+
   if (isLoading) {
     return (
       <Layout.Content>
