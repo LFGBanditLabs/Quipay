@@ -291,9 +291,10 @@ impl PayrollVault {
         let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
         e.storage().persistent().set(&key, &(current + amount));
         
-        // Also update total liability
-        let total: i128 = e.storage().persistent().get(&StateKey::TotalLiability).unwrap_or(0);
-        e.storage().persistent().set(&StateKey::TotalLiability, &(total + amount));
+        // Also update total liability for this token
+        let total_key = StateKey::TotalLiability(token.clone());
+        let total: i128 = e.storage().persistent().get(&total_key).unwrap_or(0);
+        e.storage().persistent().set(&total_key, &(total + amount));
     }
 
     /// Remove liability for a specific token
@@ -318,9 +319,10 @@ impl PayrollVault {
         
         e.storage().persistent().set(&key, &(current - amount));
         
-        // Also update total liability
-        let total: i128 = e.storage().persistent().get(&StateKey::TotalLiability).unwrap_or(0);
-        e.storage().persistent().set(&StateKey::TotalLiability, &(total - amount));
+        // Also update total liability for this token
+        let total_key = StateKey::TotalLiability(token.clone());
+        let total: i128 = e.storage().persistent().get(&total_key).unwrap_or(0);
+        e.storage().persistent().set(&total_key, &(total - amount));
     }
 
     /// Get the liability for a specific token
