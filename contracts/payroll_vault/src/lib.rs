@@ -18,6 +18,7 @@ pub enum StateKey {
     // Persistent storage - survives upgrades
     Admin,
     Version,
+    AuthorizedContract, // Contract authorized to modify liabilities (e.g., PayrollStream)
     // Additional state that should persist across upgrades
     TreasuryBalance(Address), // Funds held for payroll (Token -> Amount)
     TotalLiability(Address),  // Amount owed to recipients (Token -> Amount)
@@ -60,7 +61,8 @@ impl PayrollVault {
         };
         e.storage().persistent().set(&StateKey::Version, &initial_version);
         
-        // No need to initialize balances/liabilities as they are maps
+        // Authorized contract starts as None - must be set by admin later.
+        // Per-token balances/liabilities are stored lazily; no initialization needed.
         Ok(())
     }
 
@@ -127,6 +129,64 @@ impl PayrollVault {
         
         let token_client = token::Client::new(&e, &token);
         token_client.transfer(&from, &e.current_contract_address(), &amount);
+        Ok(())
+    }
+
+    /// Check if the treasury is solvent for a given token after adding `additional_liability`.
+    /// Returns true if balance >= current_liability + additional_liability.
+    pub fn check_solvency(e: Env, token: Address, additional_liability: i128) -> bool {
+        if additional_liability < 0 {
+            return false;
+        }
+
+        let balance: i128 = e
+            .storage()
+            .persistent()
+            .get(&StateKey::TreasuryBalance(token.clone()))
+            .unwrap_or(0);
+        let liability: i128 = e
+            .storage()
+            .persistent()
+            .get(&StateKey::TotalLiability(token))
+            .unwrap_or(0);
+
+        balance >= liability.saturating_add(additional_liability)
+    }
+
+    /// Returns the available balance for a token (balance - liability).
+    pub fn get_available_balance(e: Env, token: Address) -> i128 {
+        let balance: i128 = e
+            .storage()
+            .persistent()
+            .get(&StateKey::TreasuryBalance(token.clone()))
+            .unwrap_or(0);
+        let liability: i128 = e
+            .storage()
+            .persistent()
+            .get(&StateKey::TotalLiability(token))
+            .unwrap_or(0);
+        balance - liability
+    }
+
+    /// Withdraw free funds from the treasury.
+    /// Enforces `amount <= available_balance(token)`.
+    pub fn withdraw(e: Env, to: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
+        to.require_auth();
+        require_positive_amount!(amount);
+
+        let available = Self::get_available_balance(e.clone(), token.clone());
+        if amount > available {
+            return Err(QuipayError::InsufficientBalance);
+        }
+
+        let balance_key = StateKey::TreasuryBalance(token.clone());
+        let balance: i128 = e.storage().persistent().get(&balance_key).unwrap_or(0);
+
+        // If the invariant holds, this should never underflow.
+        e.storage().persistent().set(&balance_key, &(balance - amount));
+
+        let token_client = token::Client::new(&e, &token);
+        token_client.transfer(&e.current_contract_address(), &to, &amount);
         Ok(())
     }
 
@@ -217,6 +277,68 @@ impl PayrollVault {
     pub fn get_balance(e: Env, token: Address) -> i128 {
         let token_client = token::Client::new(&e, &token);
         token_client.balance(&e.current_contract_address())
+    }
+
+    /// Set the authorized contract that can modify liabilities
+    /// Only the admin can call this function
+    pub fn set_authorized_contract(e: Env, contract: Address) {
+        let admin: Address = e.storage().persistent().get(&StateKey::Admin).expect("not initialized");
+        admin.require_auth();
+        
+        e.storage().persistent().set(&StateKey::AuthorizedContract, &contract);
+    }
+
+    /// Get the authorized contract address (if set)
+    pub fn get_authorized_contract(e: Env) -> Option<Address> {
+        e.storage().persistent().get(&StateKey::AuthorizedContract)
+    }
+
+    /// Add liability for a specific token
+    /// Only the authorized contract (e.g., PayrollStream) can call this
+    pub fn add_liability(e: Env, token: Address, amount: i128) {
+        // Require authorization from the authorized contract
+        let authorized: Address = e.storage().persistent().get(&StateKey::AuthorizedContract)
+            .expect("authorized contract not set");
+        authorized.require_auth();
+        
+        if amount <= 0 {
+            panic!("liability amount must be positive");
+        }
+
+        if !Self::check_solvency(e.clone(), token.clone(), amount) {
+            panic!("insufficient funds for liability");
+        }
+        
+        let key = StateKey::TotalLiability(token);
+        let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
+        e.storage().persistent().set(&key, &(current + amount));
+    }
+
+    /// Remove liability for a specific token
+    /// Only the authorized contract (e.g., PayrollStream) can call this
+    pub fn remove_liability(e: Env, token: Address, amount: i128) {
+        // Require authorization from the authorized contract
+        let authorized: Address = e.storage().persistent().get(&StateKey::AuthorizedContract)
+            .expect("authorized contract not set");
+        authorized.require_auth();
+        
+        if amount <= 0 {
+            panic!("removal amount must be positive");
+        }
+        
+        let key = StateKey::TotalLiability(token);
+        let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
+        
+        if amount > current {
+            panic!("cannot remove more liability than exists");
+        }
+        
+        e.storage().persistent().set(&key, &(current - amount));
+    }
+
+    /// Get the liability for a specific token
+    pub fn get_liability(e: Env, token: Address) -> i128 {
+        e.storage().persistent().get(&StateKey::TotalLiability(token)).unwrap_or(0)
     }
 
     /// Get the tracked treasury balance from state

@@ -41,7 +41,7 @@ const EmployerDashboard: React.FC = () => {
               padding: "50px",
             }}
           >
-            <Loader />
+            <Loader aria-label="Loading dashboard content" aria-busy="true" />
           </div>
         </Layout.Inset>
       </Layout.Content>
@@ -78,7 +78,7 @@ const EmployerDashboard: React.FC = () => {
           {/* Treasury Balance */}
           <div className={styles.card} id="tour-treasury-balance">
             <Text
-              as="span"
+              as="h2"
               size="md"
               weight="semi-bold"
               className={styles.cardHeader}
