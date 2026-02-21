@@ -124,7 +124,7 @@ analyticsRouter.get(
   "/employers/:address",
   async (req: Request, res: Response) => {
     try {
-      const { address } = req.params;
+      const address = req.params.address as string;
       const { data, ms } = await timed(() => getAddressStats(address));
       res.set("X-Query-Time-Ms", String(ms)).json({
         ok: true,
@@ -149,7 +149,7 @@ analyticsRouter.get(
   "/workers/:address",
   async (req: Request, res: Response) => {
     try {
-      const { address } = req.params;
+      const address = req.params.address as string;
       const { data, ms } = await timed(() => getAddressStats(address));
       res.set("X-Query-Time-Ms", String(ms)).json({
         ok: true,
