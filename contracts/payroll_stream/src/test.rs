@@ -80,7 +80,6 @@ fn test_pause_mechanism() {
     // 1. Initial state: not paused
     assert!(!client.is_paused());
     client.create_stream(&setup.employer, &setup.worker, &setup.token_address, &1000, &0u64, &10u64); 
-
     // 2. Admin pauses the protocol
     client.set_paused(&true);
     assert!(client.is_paused());

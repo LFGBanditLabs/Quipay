@@ -42,7 +42,7 @@ fn test_flow() {
     client.allocate_funds(&token_id, &200);
     assert_eq!(client.get_total_liability(&token_id), 200);
 
-    // Admin payouts 200 to recipient
+    // Admin adds liability and payouts 200 to recipient
     client.payout(&recipient, &token_id, &200);
 
     // Check balances

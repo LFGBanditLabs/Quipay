@@ -105,6 +105,27 @@ pub mod v2_contract {
             token_client.transfer(&from, &e.current_contract_address(), &amount);
         }
 
+        pub fn allocate_funds(e: Env, token: Address, amount: i128) {
+            let admin: Address = e.storage().persistent().get(&StateKey::Admin).expect("not initialized");
+            admin.require_auth();
+            
+            if amount <= 0 {
+                panic!("allocation amount must be positive");
+            }
+
+            let balance_key = StateKey::TreasuryBalance(token.clone());
+            let liability_key = StateKey::TotalLiability(token.clone());
+            
+            let balance: i128 = e.storage().persistent().get(&balance_key).unwrap_or(0);
+            let liability: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
+            
+            if balance < liability + amount {
+                panic!("insufficient funds for allocation");
+            }
+            
+            e.storage().persistent().set(&liability_key, &(liability + amount));
+        }
+
         pub fn payout(e: Env, to: Address, token: Address, amount: i128) {
             let admin: Address = e.storage().persistent().get(&StateKey::Admin).expect("not initialized");
             admin.require_auth();
@@ -115,7 +136,12 @@ pub mod v2_contract {
             
             let liability_key = StateKey::TotalLiability(token.clone());
             let liability: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
-            e.storage().persistent().set(&liability_key, &(liability + amount));
+            
+            if amount > liability {
+                 panic!("payout exceeds liability");
+            }
+
+            e.storage().persistent().set(&liability_key, &(liability - amount));
             
             let balance_key = StateKey::TreasuryBalance(token.clone());
             let treasury: i128 = e.storage().persistent().get(&balance_key).unwrap_or(0);
@@ -123,10 +149,10 @@ pub mod v2_contract {
                 panic!("insufficient treasury balance");
             }
             e.storage().persistent().set(&balance_key, &(treasury - amount));
-
+            
             let tx_count: u64 = e.storage().persistent().get(&StateKey::TransactionCount).unwrap_or(0);
             e.storage().persistent().set(&StateKey::TransactionCount, &(tx_count + 1));
-
+            
             let token_client = token::Client::new(&e, &token);
             token_client.transfer(&e.current_contract_address(), &to, &amount);
         }

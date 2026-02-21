@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol};
 
 #[contracttype]
 #[derive(Clone)]
@@ -111,6 +111,11 @@ impl PayrollStream {
         if end_ts <= start_ts {
             panic!("invalid time range");
         }
+        
+        let now = env.ledger().timestamp();
+        if start_ts < now {
+            panic!("start_time must be >= current time");
+        }
 
         let mut next_id: u64 = env.storage().instance().get(&DataKey::NextStreamId).unwrap_or(1u64);
         let stream_id = next_id;
@@ -118,9 +123,9 @@ impl PayrollStream {
         env.storage().instance().set(&DataKey::NextStreamId, &next_id);
 
         let stream = Stream {
-            employer,
-            worker,
-            token,
+            employer: employer.clone(),
+            worker: worker.clone(),
+            token: token.clone(),
             total_amount: amount,
             withdrawn_amount: 0,
             start_ts,
@@ -128,6 +133,11 @@ impl PayrollStream {
             status_bits: 1u32 << (StreamStatus::Active as u32),
             closed_at: 0,
         };
+
+        env.events().publish(
+            (Symbol::new(&env, "stream"), Symbol::new(&env, "created")),
+            (stream_id, employer, worker, token, amount, start_ts, end_ts)
+        );
 
         env.storage()
             .persistent()
