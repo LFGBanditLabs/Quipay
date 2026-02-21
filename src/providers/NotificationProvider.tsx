@@ -58,7 +58,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
   const contextValue = useMemo(() => ({ addNotification }), [addNotification]);
 
   return (
-    <NotificationContext value={contextValue}>
+    <NotificationContext.Provider value={contextValue}>
       {children}
       <div className="notification-container">
         {notifications.map((notification) => (
@@ -73,7 +73,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
           </div>
         ))}
       </div>
-    </NotificationContext>
+    </NotificationContext.Provider>
   );
 };
 

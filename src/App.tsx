@@ -7,6 +7,8 @@ import Debugger from "./pages/Debugger.tsx";
 import OnboardingTour from "./components/OnboardingTour";
 
 import EmployerDashboard from "./pages/EmployerDashboard";
+import CreateStream from "./pages/CreateStream";
+import TreasuryManagement from "./pages/TreasuryManagement";
 
 const AppLayout: React.FC = () => (
   <main>
@@ -23,11 +25,7 @@ const AppLayout: React.FC = () => (
               }}
             >
               {({ isActive }) => (
-                <Button
-                  variant="tertiary"
-                  size="md"
-                  disabled={isActive}
-                >
+                <Button variant="tertiary" size="md" disabled={isActive}>
                   Dashboard
                 </Button>
               )}
@@ -79,6 +77,8 @@ function App() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<EmployerDashboard />} />
+        <Route path="/create-stream" element={<CreateStream />} />
+        <Route path="/treasury-management" element={<TreasuryManagement />} />
         <Route path="/debug" element={<Debugger />} />
         <Route path="/debug/:contractName" element={<Debugger />} />
       </Route>
