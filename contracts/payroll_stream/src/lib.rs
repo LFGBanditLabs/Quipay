@@ -1,15 +1,15 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol};
-use quipay_common::{QuipayError, require};
+use quipay_common::{require, QuipayError};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol, Vec};
 
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
     Admin,
-    Vault,
     Paused,
     NextStreamId,
     RetentionSecs,
+    Vault,
 }
 
 #[contracttype]
@@ -27,12 +27,21 @@ pub struct Stream {
     pub employer: Address,
     pub worker: Address,
     pub token: Address,
+    pub rate: i128,
     pub total_amount: i128,
     pub withdrawn_amount: i128,
     pub start_ts: u64,
     pub end_ts: u64,
     pub status_bits: u32,
     pub closed_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct WithdrawResult {
+    pub stream_id: u64,
+    pub amount: i128,
+    pub success: bool,
 }
 
 #[contracttype]
@@ -57,7 +66,9 @@ impl PayrollStream {
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Paused, &false);
         env.storage().instance().set(&DataKey::NextStreamId, &1u64);
-        env.storage().instance().set(&DataKey::RetentionSecs, &DEFAULT_RETENTION_SECS);
+        env.storage()
+            .instance()
+            .set(&DataKey::RetentionSecs, &DEFAULT_RETENTION_SECS);
         Ok(())
     }
 
@@ -89,7 +100,9 @@ impl PayrollStream {
             .get(&DataKey::Admin)
             .expect("not initialized");
         admin.require_auth();
-        env.storage().instance().set(&DataKey::RetentionSecs, &retention_secs);
+        env.storage()
+            .instance()
+            .set(&DataKey::RetentionSecs, &retention_secs);
     }
 
     pub fn set_vault(env: Env, vault: Address) {
@@ -102,43 +115,68 @@ impl PayrollStream {
         env.storage().instance().set(&DataKey::Vault, &vault);
     }
 
-    pub fn get_vault(env: Env) -> Address {
-        env.storage().instance().get(&DataKey::Vault).expect("vault not set")
-    }
-
     /// Create a new payroll stream.
     /// Fails if the contract is paused.
-    pub fn create_stream(env: Env, employer: Address, worker: Address, token: Address, amount: i128, start_ts: u64, end_ts: u64) -> Result<u64, QuipayError> {
-        Self::require_not_paused(&env)?;
-        
+    pub fn create_stream(
+        env: Env,
+        employer: Address,
+        worker: Address,
+        token: Address,
+        rate: i128,
+        start_ts: u64,
+        end_ts: u64,
+    ) -> u64 {
+        Self::require_not_paused(&env);
         employer.require_auth();
 
-        let vault_addr: Address = env.storage().instance().get(&DataKey::Vault).expect("vault not set");
-        let vault_client = payroll_vault::PayrollVaultClient::new(&env, &vault_addr);
-        vault_client.allocate_funds(&token, &amount);
-
-        if amount <= 0 {
-            return Err(QuipayError::InvalidAmount);
+        if rate <= 0 {
+            panic!("rate must be positive");
         }
         if end_ts <= start_ts {
-            return Err(QuipayError::InvalidAmount);
-        }
-        
-        let now = env.ledger().timestamp();
-        if start_ts < now {
-            return Err(QuipayError::InvalidAmount);
+            panic!("invalid time range");
         }
 
-        let mut next_id: u64 = env.storage().instance().get(&DataKey::NextStreamId).unwrap_or(1u64);
+        let now = env.ledger().timestamp();
+        if start_ts < now {
+            panic!("start_time must be >= current time");
+        }
+
+        let duration = end_ts - start_ts;
+        let total_amount = rate
+            .checked_mul(i128::from(duration as i64))
+            .expect("amount overflow");
+
+        // Verify solvency by calling Vault's add_liability
+        let vault: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Vault)
+            .expect("vault not configured");
+        // employer auth is required by vault logic too, which is already authenticated here
+        use soroban_sdk::{vec, IntoVal, Symbol};
+        env.invoke_contract::<()>(
+            &vault,
+            &Symbol::new(&env, "add_liability"),
+            vec![&env, total_amount.into_val(&env)],
+        );
+
+        let mut next_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::NextStreamId)
+            .unwrap_or(1u64);
         let stream_id = next_id;
         next_id = next_id.checked_add(1).expect("stream id overflow");
-        env.storage().instance().set(&DataKey::NextStreamId, &next_id);
+        env.storage()
+            .instance()
+            .set(&DataKey::NextStreamId, &next_id);
 
         let stream = Stream {
             employer: employer.clone(),
             worker: worker.clone(),
             token: token.clone(),
-            total_amount: amount,
+            rate,
+            total_amount,
             withdrawn_amount: 0,
             start_ts,
             end_ts,
@@ -148,20 +186,20 @@ impl PayrollStream {
 
         env.events().publish(
             (Symbol::new(&env, "stream"), Symbol::new(&env, "created")),
-            (stream_id, employer, worker, token, amount, start_ts, end_ts)
+            (stream_id, employer, worker, token, rate, start_ts, end_ts),
         );
 
         env.storage()
             .persistent()
             .set(&StreamKey::Stream(stream_id), &stream);
 
-        Ok(stream_id)
+        stream_id
     }
 
     /// Withdraw funds from a stream.
     /// Fails if the contract is paused.
-    pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> Result<i128, QuipayError> {
-        Self::require_not_paused(&env)?;
+    pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> i128 {
+        Self::require_not_paused(&env);
         worker.require_auth();
 
         let key = StreamKey::Stream(stream_id);
@@ -169,28 +207,22 @@ impl PayrollStream {
             .storage()
             .persistent()
             .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+            .expect("stream not found");
 
         if stream.worker != worker {
-            return Err(QuipayError::Unauthorized);
+            panic!("not stream worker");
         }
         if Self::is_closed(&stream) {
-            return Err(QuipayError::StreamExpired);
+            panic!("stream is closed");
         }
 
         let now = env.ledger().timestamp();
         let vested = Self::vested_amount(&stream, now);
-        let available = vested
-            .checked_sub(stream.withdrawn_amount)
-            .unwrap_or(0);
+        let available = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
 
         if available <= 0 {
-            return Ok(0);
+            return 0;
         }
-
-        let vault_addr: Address = env.storage().instance().get(&DataKey::Vault).expect("vault not set");
-        let vault_client = payroll_vault::PayrollVaultClient::new(&env, &vault_addr);
-        vault_client.payout(&worker, &stream.token, &available);
 
         stream.withdrawn_amount = stream
             .withdrawn_amount
@@ -202,13 +234,98 @@ impl PayrollStream {
         }
 
         env.storage().persistent().set(&key, &stream);
-        Ok(available)
+        available
+    }
+
+    /// Batch withdraw funds from multiple streams.
+    /// Processes all withdrawals - returns results for each stream indicating success/failure.
+    /// Returns a vector of WithdrawResult for each stream in the input.
+    pub fn batch_withdraw(env: Env, stream_ids: Vec<u64>, caller: Address) -> Vec<WithdrawResult> {
+        Self::require_not_paused(&env).unwrap();
+        caller.require_auth();
+
+        let now = env.ledger().timestamp();
+        let mut results: Vec<WithdrawResult> = Vec::new(&env);
+
+        let mut idx = 0u32;
+        while idx < stream_ids.len() {
+            let stream_id = stream_ids.get(idx).unwrap();
+            let key = StreamKey::Stream(stream_id);
+
+            let result = match env.storage().persistent().get::<StreamKey, Stream>(&key) {
+                Some(mut stream) => {
+                    if stream.worker != caller {
+                        WithdrawResult {
+                            stream_id,
+                            amount: 0,
+                            success: false,
+                        }
+                    } else if Self::is_closed(&stream) {
+                        WithdrawResult {
+                            stream_id,
+                            amount: 0,
+                            success: false,
+                        }
+                    } else {
+                        let vested = Self::vested_amount(&stream, now);
+                        let available = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
+
+                        if available <= 0 {
+                            WithdrawResult {
+                                stream_id,
+                                amount: 0,
+                                success: true,
+                            }
+                        } else {
+                            stream.withdrawn_amount = stream
+                                .withdrawn_amount
+                                .checked_add(available)
+                                .expect("withdrawn overflow");
+
+                            if stream.withdrawn_amount >= stream.total_amount {
+                                Self::close_stream_internal(
+                                    &mut stream,
+                                    now,
+                                    StreamStatus::Completed,
+                                );
+                            }
+
+                            env.storage().persistent().set(&key, &stream);
+
+                            env.events().publish(
+                                (
+                                    Symbol::new(&env, "batch_withdraw"),
+                                    Symbol::new(&env, "withdrawn"),
+                                ),
+                                (stream_id, caller.clone(), available),
+                            );
+
+                            WithdrawResult {
+                                stream_id,
+                                amount: available,
+                                success: true,
+                            }
+                        }
+                    }
+                }
+                None => WithdrawResult {
+                    stream_id,
+                    amount: 0,
+                    success: false,
+                },
+            };
+
+            results.push_back(result);
+            idx += 1;
+        }
+
+        results
     }
 
     /// Cancel a payroll stream.
     /// Fails if the contract is paused.
-    pub fn cancel_stream(env: Env, stream_id: u64, employer: Address) -> Result<(), QuipayError> {
-        Self::require_not_paused(&env)?;
+    pub fn cancel_stream(env: Env, stream_id: u64, employer: Address) {
+        Self::require_not_paused(&env);
         employer.require_auth();
 
         let key = StreamKey::Stream(stream_id);
@@ -216,31 +333,24 @@ impl PayrollStream {
             .storage()
             .persistent()
             .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+            .expect("stream not found");
 
         if stream.employer != employer {
-            return Err(QuipayError::Unauthorized);
+            panic!("not stream employer");
         }
         if Self::is_closed(&stream) {
-            return Ok(());
+            return;
         }
 
         let now = env.ledger().timestamp();
-
-        let remaining = stream.total_amount - stream.withdrawn_amount;
-        if remaining > 0 {
-             let vault_addr: Address = env.storage().instance().get(&DataKey::Vault).expect("vault not set");
-             let vault_client = payroll_vault::PayrollVaultClient::new(&env, &vault_addr);
-             vault_client.release_funds(&stream.token, &remaining);
-        }
-
         Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
         env.storage().persistent().set(&key, &stream);
-        Ok(())
     }
 
     pub fn get_stream(env: Env, stream_id: u64) -> Option<Stream> {
-        env.storage().persistent().get(&StreamKey::Stream(stream_id))
+        env.storage()
+            .persistent()
+            .get(&StreamKey::Stream(stream_id))
     }
 
     pub fn cleanup_stream(env: Env, stream_id: u64) {

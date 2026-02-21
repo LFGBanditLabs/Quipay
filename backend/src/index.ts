@@ -6,6 +6,7 @@ import { webhookRouter } from "./webhooks";
 import { slackRouter } from "./slack";
 import { discordRouter } from "./discord";
 import { startStellarListener } from "./stellarListener";
+import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
 
 dotenv.config();
 
@@ -61,9 +62,23 @@ app.post("/test/simulate-tx", (req, res) => {
   res.json({ message: "Transaction tracked" });
 });
 
+/**
+ * @api {get} /scheduler/status Scheduler status endpoint
+ * @apiDescription Returns the status of the payroll scheduler including active jobs.
+ */
+app.get("/scheduler/status", (req, res) => {
+  const status = getSchedulerStatus();
+  res.json({
+    status: "ok",
+    ...status,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.listen(port, () => {
   console.log(
     `🚀 Quipay Automation Engine Status API listening at http://localhost:${port}`,
   );
   startStellarListener();
+  startScheduler();
 });

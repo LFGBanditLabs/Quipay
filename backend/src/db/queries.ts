@@ -50,8 +50,34 @@ export interface OverallStats {
   active_streams: number;
   completed_streams: number;
   cancelled_streams: number;
-  total_volume: string; // sum of total_amount across all streams
+  total_volume: string;
   total_withdrawn: string;
+}
+
+export interface PayrollSchedule {
+  id: number;
+  employer: string;
+  worker: string;
+  token: string;
+  rate: string;
+  cron_expression: string;
+  duration_days: number;
+  enabled: boolean;
+  last_run_at: Date | null;
+  next_run_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface SchedulerLog {
+  id: number;
+  schedule_id: number;
+  action: string;
+  status: "success" | "failed" | "skipped";
+  stream_id: number | null;
+  error_message: string | null;
+  execution_time: number | null;
+  created_at: Date;
 }
 
 // ─── Cursor helpers (for sync worker) ───────────────────────────────────────
@@ -309,4 +335,139 @@ export const getAddressStats = async (
     asWorker: toStats(wrkRes.rows[0]),
     recentWithdrawals: wdRes.rows,
   };
+};
+
+// ─── Scheduler queries ────────────────────────────────────────────────────────
+
+export const getActivePayrollSchedules = async (): Promise<
+  PayrollSchedule[]
+> => {
+  if (!getPool()) return [];
+  const res = await query<PayrollSchedule>(
+    `SELECT * FROM payroll_schedules WHERE enabled = true ORDER BY next_run_at ASC`,
+  );
+  return res.rows;
+};
+
+export const getPayrollSchedulesByEmployer = async (
+  employer: string,
+): Promise<PayrollSchedule[]> => {
+  if (!getPool()) return [];
+  const res = await query<PayrollSchedule>(
+    `SELECT * FROM payroll_schedules WHERE employer = $1 ORDER BY created_at DESC`,
+    [employer],
+  );
+  return res.rows;
+};
+
+export const createPayrollSchedule = async (params: {
+  employer: string;
+  worker: string;
+  token: string;
+  rate: bigint;
+  cronExpression: string;
+  durationDays: number;
+  nextRunAt?: Date;
+}): Promise<number> => {
+  if (!getPool()) throw new Error("Database not configured");
+  const res = await query<{ id: string }>(
+    `INSERT INTO payroll_schedules
+            (employer, worker, token, rate, cron_expression, duration_days, next_run_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id`,
+    [
+      params.employer,
+      params.worker,
+      params.token,
+      params.rate.toString(),
+      params.cronExpression,
+      params.durationDays,
+      params.nextRunAt ?? null,
+    ],
+  );
+  return parseInt(res.rows[0].id, 10);
+};
+
+export const updatePayrollSchedule = async (params: {
+  id: number;
+  enabled?: boolean;
+  nextRunAt?: Date;
+  lastRunAt?: Date;
+}): Promise<void> => {
+  if (!getPool()) return;
+  const updates: string[] = [];
+  const values: unknown[] = [];
+  let paramIdx = 1;
+
+  if (params.enabled !== undefined) {
+    updates.push(`enabled = $${paramIdx++}`);
+    values.push(params.enabled);
+  }
+  if (params.nextRunAt !== undefined) {
+    updates.push(`next_run_at = $${paramIdx++}`);
+    values.push(params.nextRunAt);
+  }
+  if (params.lastRunAt !== undefined) {
+    updates.push(`last_run_at = $${paramIdx++}`);
+    values.push(params.lastRunAt);
+  }
+
+  if (updates.length === 0) return;
+
+  updates.push(`updated_at = NOW()`);
+  values.push(params.id);
+
+  await query(
+    `UPDATE payroll_schedules SET ${updates.join(", ")} WHERE id = $${paramIdx}`,
+    values,
+  );
+};
+
+export const deletePayrollSchedule = async (id: number): Promise<void> => {
+  if (!getPool()) return;
+  await query(`DELETE FROM payroll_schedules WHERE id = $1`, [id]);
+};
+
+export const logSchedulerAction = async (params: {
+  scheduleId: number;
+  action: string;
+  status: "success" | "failed" | "skipped";
+  streamId?: number;
+  errorMessage?: string;
+  executionTime?: number;
+}): Promise<void> => {
+  if (!getPool()) return;
+  await query(
+    `INSERT INTO scheduler_logs
+            (schedule_id, action, status, stream_id, error_message, execution_time)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+    [
+      params.scheduleId,
+      params.action,
+      params.status,
+      params.streamId ?? null,
+      params.errorMessage ?? null,
+      params.executionTime ?? null,
+    ],
+  );
+};
+
+export const getSchedulerLogs = async (
+  scheduleId?: number,
+  limit = 100,
+): Promise<SchedulerLog[]> => {
+  if (!getPool()) return [];
+  if (scheduleId) {
+    const res = await query<SchedulerLog>(
+      `SELECT * FROM scheduler_logs WHERE schedule_id = $1
+             ORDER BY created_at DESC LIMIT $2`,
+      [scheduleId, limit],
+    );
+    return res.rows;
+  }
+  const res = await query<SchedulerLog>(
+    `SELECT * FROM scheduler_logs ORDER BY created_at DESC LIMIT $1`,
+    [limit],
+  );
+  return res.rows;
 };
