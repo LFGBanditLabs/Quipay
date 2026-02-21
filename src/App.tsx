@@ -9,6 +9,7 @@ import OnboardingTour from "./components/OnboardingTour";
 import EmployerDashboard from "./pages/EmployerDashboard";
 import CreateStream from "./pages/CreateStream";
 import HelpPage from "./pages/HelpPage.tsx";
+import TreasuryManager from "./pages/TreasuryManager";
 
 const AppLayout: React.FC = () => (
   <main>
@@ -77,6 +78,7 @@ function App() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<EmployerDashboard />} />
+        <Route path="/treasury-management" element={<TreasuryManager />} />
         <Route path="/create-stream" element={<CreateStream />} />
         <Route path="/help" element={<HelpPage />} />
         <Route path="/debug" element={<Debugger />} />
