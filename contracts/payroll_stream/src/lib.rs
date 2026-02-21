@@ -409,6 +409,9 @@ impl PayrollStream {
             panic!("retention period not met");
         }
 
+        Self::remove_from_index(&env, StreamKey::EmployerStreams(stream.employer), stream_id);
+        Self::remove_from_index(&env, StreamKey::WorkerStreams(stream.worker), stream_id);
+
         env.storage().persistent().remove(&key);
     }
 
@@ -431,6 +434,27 @@ impl PayrollStream {
     fn close_stream_internal(stream: &mut Stream, now: u64, status: StreamStatus) {
         stream.status = status;
         stream.closed_at = now;
+    }
+
+    fn remove_from_index(env: &Env, key: StreamKey, stream_id: u64) {
+        let ids: Vec<u64> = match env.storage().persistent().get(&key) {
+            Some(v) => v,
+            None => return,
+        };
+        let mut new_ids: Vec<u64> = Vec::new(env);
+        let mut i = 0u32;
+        while i < ids.len() {
+            let id = ids.get(i).unwrap();
+            if id != stream_id {
+                new_ids.push_back(id);
+            }
+            i += 1;
+        }
+        if new_ids.len() == 0 {
+            env.storage().persistent().remove(&key);
+        } else {
+            env.storage().persistent().set(&key, &new_ids);
+        }
     }
 
     fn vested_amount(stream: &Stream, now: u64) -> i128 {

@@ -515,6 +515,46 @@ fn test_cliff_blocks_early_withdrawal() {
 }
 
 #[test]
+fn test_cleanup_removes_from_indexes() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let vault_id = env.register_contract(None, dummy_vault::DummyVault);
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    client.init(&admin);
+    client.set_vault(&vault_id);
+    client.set_retention_secs(&0u64);
+
+    env.ledger().with_mut(|li| { li.timestamp = 0; });
+
+    let id1 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
+    let id2 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &20u64);
+
+    assert_eq!(client.get_employer_streams(&employer).len(), 2);
+    assert_eq!(client.get_worker_streams(&worker).len(), 2);
+
+    env.ledger().with_mut(|li| { li.timestamp = 10; });
+    client.withdraw(&id1, &worker);
+
+    client.cleanup_stream(&id1);
+
+    let emp_ids = client.get_employer_streams(&employer);
+    assert_eq!(emp_ids.len(), 1);
+    assert_eq!(emp_ids.get(0).unwrap(), id2);
+
+    let wrk_ids = client.get_worker_streams(&worker);
+    assert_eq!(wrk_ids.len(), 1);
+    assert_eq!(wrk_ids.get(0).unwrap(), id2);
+}
+
+#[test]
 fn test_audit_fields_set_on_create() {
     let env = Env::default();
     env.mock_all_auths();
