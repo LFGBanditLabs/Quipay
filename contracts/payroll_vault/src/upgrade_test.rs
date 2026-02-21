@@ -104,6 +104,25 @@ pub mod v2_contract {
             token_client.transfer(&from, &e.current_contract_address(), &amount);
         }
 
+        pub fn add_liability(e: Env, amount: i128) {
+            let admin: Address = e.storage().persistent().get(&StateKey::Admin).expect("not initialized");
+            admin.require_auth();
+            
+            if amount <= 0 {
+                panic!("liability amount must be positive");
+            }
+            
+            let liability: i128 = e.storage().persistent().get(&StateKey::TotalLiability).unwrap_or(0);
+            let treasury: i128 = e.storage().persistent().get(&StateKey::TreasuryBalance).unwrap_or(0);
+            
+            let new_liability = liability.checked_add(amount).expect("liability overflow");
+            if new_liability > treasury {
+                panic!("insufficient treasury balance for new liability");
+            }
+            
+            e.storage().persistent().set(&StateKey::TotalLiability, &new_liability);
+        }
+
         pub fn payout(e: Env, to: Address, token: Address, amount: i128) {
             let admin: Address = e.storage().persistent().get(&StateKey::Admin).expect("not initialized");
             admin.require_auth();
@@ -113,7 +132,10 @@ pub mod v2_contract {
             }
             
             let liability: i128 = e.storage().persistent().get(&StateKey::TotalLiability).unwrap_or(0);
-            e.storage().persistent().set(&StateKey::TotalLiability, &(liability + amount));
+            if amount > liability {
+                panic!("payout amount exceeds total liability");
+            }
+            e.storage().persistent().set(&StateKey::TotalLiability, &(liability - amount));
             
             let treasury: i128 = e.storage().persistent().get(&StateKey::TreasuryBalance).unwrap_or(0);
             if amount > treasury {
@@ -197,6 +219,7 @@ fn test_basic_flow() {
     assert_eq!(client.get_treasury_balance(), 500);
 
     // Admin payouts 200 to recipient
+    client.add_liability(&200);
     client.payout(&recipient, &token_id, &200);
 
     // Check balances
@@ -204,7 +227,7 @@ fn test_basic_flow() {
     assert_eq!(token_client.balance(&recipient), 200);
     assert_eq!(client.get_balance(&token_id), 300);
     assert_eq!(client.get_treasury_balance(), 300);
-    assert_eq!(client.get_total_liability(), 200);
+    assert_eq!(client.get_total_liability(), 0);
 }
 
 #[test]
@@ -257,6 +280,7 @@ fn test_upgrade_structure_verification() {
     // Create state in v1
     token_admin_client.mint(&user, &1000);
     v1_client.deposit(&user, &token_id, &500);
+    v1_client.add_liability(&200);
     v1_client.payout(&recipient, &token_id, &200);
 
     // Record v1 state
@@ -267,7 +291,7 @@ fn test_upgrade_structure_verification() {
 
     // Verify v1 state
     assert_eq!(v1_treasury, 300);
-    assert_eq!(v1_liability, 200);
+    assert_eq!(v1_liability, 0); // it was added and removed
     assert_eq!(v1_admin, admin);
     assert_eq!(v1_version.major, 1);
 
@@ -323,6 +347,7 @@ fn test_state_persistence_across_contract_instances() {
     // Create initial state
     token_admin_client.mint(&user, &10000);
     client.deposit(&user, &token_id, &1000);
+    client.add_liability(&500);
     client.payout(&recipient, &token_id, &500);
 
     // Record state
@@ -333,7 +358,7 @@ fn test_state_persistence_across_contract_instances() {
         client.get_balance(&token_id),
         client.get_version().major,
     );
-    assert_eq!(state_before, (500, 500, admin.clone(), 500, 1));
+    assert_eq!(state_before, (500, 0, admin.clone(), 500, 1));
 
     // Verify version can be updated (simulating what happens during upgrade)
     // Note: In actual upgrade, the version is updated by the upgrade function

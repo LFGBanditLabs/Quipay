@@ -123,6 +123,26 @@ impl PayrollVault {
         token_client.transfer(&from, &e.current_contract_address(), &amount);
     }
 
+    pub fn add_liability(e: Env, amount: i128) {
+        let admin: Address = e.storage().persistent().get(&StateKey::Admin).expect("not initialized");
+        admin.require_auth();
+        
+        if amount <= 0 {
+            panic!("liability amount must be positive");
+        }
+        
+        // Check solvency
+        let liability: i128 = e.storage().persistent().get(&StateKey::TotalLiability).unwrap_or(0);
+        let treasury: i128 = e.storage().persistent().get(&StateKey::TreasuryBalance).unwrap_or(0);
+        
+        let new_liability = liability.checked_add(amount).expect("liability overflow");
+        if new_liability > treasury {
+            panic!("insufficient treasury balance for new liability");
+        }
+        
+        e.storage().persistent().set(&StateKey::TotalLiability, &new_liability);
+    }
+
     pub fn payout(e: Env, to: Address, token: Address, amount: i128) {
         let admin: Address = e.storage().persistent().get(&StateKey::Admin).expect("not initialized");
         admin.require_auth();
@@ -133,7 +153,10 @@ impl PayrollVault {
         
         // Update liability and treasury
         let liability: i128 = e.storage().persistent().get(&StateKey::TotalLiability).unwrap_or(0);
-        e.storage().persistent().set(&StateKey::TotalLiability, &(liability + amount));
+        if amount > liability {
+            panic!("payout amount exceeds total liability");
+        }
+        e.storage().persistent().set(&StateKey::TotalLiability, &(liability - amount));
         
         let treasury: i128 = e.storage().persistent().get(&StateKey::TreasuryBalance).unwrap_or(0);
         if amount > treasury {
