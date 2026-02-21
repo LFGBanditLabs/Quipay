@@ -26,10 +26,15 @@ app.use("/discord", discordRouter);
 const startTime = Date.now();
 
 // Default testing account (Note: in production, each employer/caller would have their own or share a global treasury sequence pool)
-const HOT_WALLET_ACCOUNT = process.env.HOT_WALLET_ACCOUNT || 'GAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
-export const nonceManager = new NonceManager(HOT_WALLET_ACCOUNT, 'https://horizon-testnet.stellar.org');
+const HOT_WALLET_ACCOUNT =
+  process.env.HOT_WALLET_ACCOUNT ||
+  "GAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+export const nonceManager = new NonceManager(
+  HOT_WALLET_ACCOUNT,
+  "https://horizon-testnet.stellar.org",
+);
 
-// We intentionally do not await initialization here so as not to block express startup, 
+// We intentionally do not await initialization here so as not to block express startup,
 // the nonceManager natively awaits itself inside getNonce if not initialized.
 
 /**
@@ -87,28 +92,30 @@ app.get("/scheduler/status", (req, res) => {
  * @api {post} /test/concurrent-tx Simulated high-throughput endpoint
  * @apiDescription Requests 50 concurrent nonces to demonstrate the Nonce Manager bottleneck fix.
  */
-app.post('/test/concurrent-tx', async (req, res) => {
-    try {
-        const start = Date.now();
-        // Fire 50 simultaneous requests
-        const promises = Array.from({ length: 50 }).map(() => nonceManager.getNonce());
-        
-        // Await them all concurrently
-        const nonces = await Promise.all(promises);
-        const durationMs = Date.now() - start;
+app.post("/test/concurrent-tx", async (req, res) => {
+  try {
+    const start = Date.now();
+    // Fire 50 simultaneous requests
+    const promises = Array.from({ length: 50 }).map(() =>
+      nonceManager.getNonce(),
+    );
 
-        metricsManager.trackTransaction('success', durationMs / 1000);
+    // Await them all concurrently
+    const nonces = await Promise.all(promises);
+    const durationMs = Date.now() - start;
 
-        res.json({
-            status: 'success',
-            message: 'Successfully generated 50 concurrent sequence numbers.',
-            durationMs,
-            nonces
-        });
-    } catch (ex: any) {
-        metricsManager.trackTransaction('failure', 0);
-        res.status(500).json({ error: ex.message });
-    }
+    metricsManager.trackTransaction("success", durationMs / 1000);
+
+    res.json({
+      status: "success",
+      message: "Successfully generated 50 concurrent sequence numbers.",
+      durationMs,
+      nonces,
+    });
+  } catch (ex: any) {
+    metricsManager.trackTransaction("failure", 0);
+    res.status(500).json({ error: ex.message });
+  }
 });
 
 app.listen(port, () => {

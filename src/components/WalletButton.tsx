@@ -10,9 +10,9 @@ export const WalletButton = () => {
 
   if (!address) {
     return (
-      <Button 
-        variant="primary" 
-        size="md" 
+      <Button
+        variant="primary"
+        size="md"
         onClick={() => void connectWallet()}
         aria-label="Connect Wallet"
       >
