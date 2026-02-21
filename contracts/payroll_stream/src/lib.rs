@@ -94,12 +94,12 @@ impl PayrollStream {
             .unwrap_or(false)
     }
 
-    pub fn set_retention_secs(env: Env, retention_secs: u64) {
+    pub fn set_retention_secs(env: Env, retention_secs: u64) -> Result<(), QuipayError> {
         let admin: Address = env
             .storage()
             .instance()
             .get(&DataKey::Admin)
-            .expect("not initialized");
+            .ok_or(QuipayError::NotInitialized)?;
         admin.require_auth();
         env.storage()
             .instance()
@@ -218,10 +218,13 @@ impl PayrollStream {
         );
 
         stream_id
+        Ok(stream_id)
     }
 
     pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> i128 {
         Self::require_not_paused(&env);
+    pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> Result<i128, QuipayError> {
+        Self::require_not_paused(&env)?;
         worker.require_auth();
 
         let key = StreamKey::Stream(stream_id);
@@ -229,21 +232,17 @@ impl PayrollStream {
             .storage()
             .persistent()
             .get(&key)
-            .expect("stream not found");
+            .ok_or(QuipayError::StreamNotFound)?;
 
-        if stream.worker != worker {
-            panic!("not stream worker");
-        }
-        if Self::is_closed(&stream) {
-            panic!("stream is closed");
-        }
+        require!(stream.worker == worker, QuipayError::NotWorker);
+        require!(!Self::is_closed(&stream), QuipayError::StreamClosed);
 
         let now = env.ledger().timestamp();
         let vested = Self::vested_amount(&stream, now);
         let available = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
 
         if available <= 0 {
-            return 0;
+            return Ok(0);
         }
 
         stream.withdrawn_amount = stream
@@ -345,6 +344,8 @@ impl PayrollStream {
 
     pub fn cancel_stream(env: Env, stream_id: u64, employer: Address) {
         Self::require_not_paused(&env);
+    pub fn cancel_stream(env: Env, stream_id: u64, employer: Address) -> Result<(), QuipayError> {
+        Self::require_not_paused(&env)?;
         employer.require_auth();
 
         let key = StreamKey::Stream(stream_id);
@@ -352,18 +353,17 @@ impl PayrollStream {
             .storage()
             .persistent()
             .get(&key)
-            .expect("stream not found");
+            .ok_or(QuipayError::StreamNotFound)?;
 
-        if stream.employer != employer {
-            panic!("not stream employer");
-        }
+        require!(stream.employer == employer, QuipayError::NotEmployer);
         if Self::is_closed(&stream) {
-            return;
+            return Ok(());
         }
 
         let now = env.ledger().timestamp();
         Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
         env.storage().persistent().set(&key, &stream);
+        Ok(())
     }
 
     pub fn get_stream(env: Env, stream_id: u64) -> Option<Stream> {
@@ -386,17 +386,15 @@ impl PayrollStream {
             .unwrap_or_else(|| Vec::new(&env))
     }
 
-    pub fn cleanup_stream(env: Env, stream_id: u64) {
+    pub fn cleanup_stream(env: Env, stream_id: u64) -> Result<(), QuipayError> {
         let key = StreamKey::Stream(stream_id);
         let stream: Stream = env
             .storage()
             .persistent()
             .get(&key)
-            .expect("stream not found");
+            .ok_or(QuipayError::StreamNotFound)?;
 
-        if !Self::is_closed(&stream) {
-            panic!("stream not closed");
-        }
+        require!(Self::is_closed(&stream), QuipayError::StreamNotClosed);
 
         let retention: u64 = env
             .storage()
@@ -413,6 +411,7 @@ impl PayrollStream {
         Self::remove_from_index(&env, StreamKey::WorkerStreams(stream.worker), stream_id);
 
         env.storage().persistent().remove(&key);
+        Ok(())
     }
 
     fn require_not_paused(env: &Env) -> Result<(), QuipayError> {
@@ -422,9 +421,8 @@ impl PayrollStream {
             .get(&DataKey::Paused)
             .unwrap_or(false)
         {
-            return Err(QuipayError::ProtocolPaused);
+            panic!("protocol paused");
         }
-        Ok(())
     }
 
     fn is_closed(stream: &Stream) -> bool {

@@ -12,18 +12,25 @@ import HelpPage from "./pages/HelpPage.tsx";
 import TreasuryManager from "./pages/TreasuryManager";
 
 const AppLayout: React.FC = () => (
-  <main>
+  <>
+    <a href="#main-content" className="skip-link">
+      Skip to main content
+    </a>
     <Layout.Header
-      projectId="My App"
-      projectTitle="My App"
+      projectId="Quipay"
+      projectTitle="Quipay"
       contentRight={
         <>
-          <nav style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <nav
+            aria-label="Main Navigation"
+            style={{ display: "flex", gap: "8px", alignItems: "center" }}
+          >
             <NavLink
               to="/dashboard"
               style={{
                 textDecoration: "none",
               }}
+              aria-label="Go to Dashboard"
             >
               {({ isActive }) => (
                 <Button variant="tertiary" size="md" disabled={isActive}>
@@ -36,6 +43,7 @@ const AppLayout: React.FC = () => (
               style={{
                 textDecoration: "none",
               }}
+              aria-label="Go to Debugger"
             >
               {({ isActive }) => (
                 <Button
@@ -54,11 +62,13 @@ const AppLayout: React.FC = () => (
         </>
       }
     />
-    <OnboardingTour />
-    <Outlet />
+    <main id="main-content" tabIndex={-1} style={{ outline: "none" }}>
+      <OnboardingTour />
+      <Outlet />
+    </main>
     <Layout.Footer>
       <span>
-        © {new Date().getFullYear()} My App. Licensed under the{" "}
+        © {new Date().getFullYear()} Quipay. Licensed under the{" "}
         <a
           href="http://www.apache.org/licenses/LICENSE-2.0"
           target="_blank"
@@ -69,7 +79,7 @@ const AppLayout: React.FC = () => (
         .
       </span>
     </Layout.Footer>
-  </main>
+  </>
 );
 
 function App() {

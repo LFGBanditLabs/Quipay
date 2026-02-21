@@ -230,7 +230,7 @@ interface StreamCreatorProps {
 const StreamCreator: React.FC<StreamCreatorProps> = ({
   onSuccess,
   onCancel,
-}) => {
+}: StreamCreatorProps) => {
   const { address, signTransaction, networkPassphrase } = useWallet();
   const { addNotification } = useNotification();
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
@@ -274,17 +274,25 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
         const tokenContractId =
           tokenValue === "native" ? "" : (tokenValue.split(":")[1] ?? "");
 
-        const ok = await checkTreasurySolvency(
+        const result = (await checkTreasurySolvency(
           PAYROLL_VAULT_CONTRACT_ID,
           tokenContractId,
           stroops,
-        );
+        )) as unknown as boolean;
+        const ok = typeof result === "boolean" ? result : !!result;
 
         dispatch({
           type: "SET_SOLVENCY",
           solvency: ok ? { kind: "ok" } : { kind: "insufficient" },
         });
-      } catch {
+      } catch (err: unknown) {
+        let message = "An unknown error occurred.";
+        if (typeof err === "string") {
+          message = err;
+        } else if (err instanceof Error) {
+          message = err.message;
+        }
+        console.error("Solvency check failed:", message);
         dispatch({ type: "SET_SOLVENCY", solvency: { kind: "error" } });
       }
     },
@@ -358,24 +366,49 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
         endTs,
       };
 
-      const { preparedXdr } = await buildCreateStreamTx(params);
+      const buildResult = (await buildCreateStreamTx(params)) as unknown as {
+        preparedXdr: string;
+      };
+      if (
+        !buildResult ||
+        typeof buildResult !== "object" ||
+        !("preparedXdr" in buildResult)
+      ) {
+        throw new Error("Invalid response from buildCreateStreamTx");
+      }
+      const { preparedXdr } = buildResult as { preparedXdr: string };
 
       dispatch({ type: "SET_TX_PHASE", phase: { kind: "signing" } });
-      const { signedTxXdr } = await signTransaction(preparedXdr, {
+      const signResult = await signTransaction(preparedXdr, {
         networkPassphrase,
       });
+      if (
+        !signResult ||
+        typeof signResult !== "object" ||
+        !("signedTxXdr" in signResult)
+      ) {
+        throw new Error("Invalid response from signTransaction");
+      }
+      const { signedTxXdr } = signResult as { signedTxXdr: string };
 
       dispatch({ type: "SET_TX_PHASE", phase: { kind: "submitting" } });
-      const hash = await submitAndAwaitTx(signedTxXdr);
+      const hash = (await submitAndAwaitTx(signedTxXdr)) as unknown as string;
 
-      dispatch({ type: "SET_TX_PHASE", phase: { kind: "success", hash } });
+      dispatch({
+        type: "SET_TX_PHASE",
+        phase: { kind: "success", hash: String(hash) },
+      });
       addNotification("Stream created successfully!", "success");
-      onSuccess?.(hash);
+      onSuccess?.(String(hash));
 
       setTimeout(() => dispatch({ type: "RESET" }), 3500);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "An unknown error occurred.";
+    } catch (err: unknown) {
+      let message = "An unknown error occurred.";
+      if (typeof err === "string") {
+        message = err;
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
       dispatch({ type: "SET_TX_PHASE", phase: { kind: "error", message } });
       addNotification(`Stream failed: ${message}`, "error");
     }
@@ -429,10 +462,19 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               onChange={handleChange}
               disabled={isBusy}
               spellCheck={false}
+              aria-describedby={
+                errors.workerAddress ? id("workerAddress-error") : undefined
+              }
+              aria-invalid={!!errors.workerAddress}
             />
-            {errors.workerAddress && (
-              <p className={styles.errorText}>⚠ {errors.workerAddress}</p>
-            )}
+            <div aria-live="assertive">
+              {errors.workerAddress && (
+                <p id={id("workerAddress-error")} className={styles.errorText}>
+                  ⚠ <span className="sr-only">Error: </span>
+                  {errors.workerAddress}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className={styles.fieldGroup}>
@@ -472,10 +514,17 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               value={values.rate}
               onChange={handleChange}
               disabled={isBusy}
+              aria-describedby={errors.rate ? id("rate-error") : undefined}
+              aria-invalid={!!errors.rate}
             />
-            {errors.rate && (
-              <p className={styles.errorText}>⚠ {errors.rate}</p>
-            )}
+            <div aria-live="assertive">
+              {errors.rate && (
+                <p id={id("rate-error")} className={styles.errorText}>
+                  ⚠ <span className="sr-only">Error: </span>
+                  {errors.rate}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className={styles.fieldRow}>
@@ -602,13 +651,21 @@ function TxStatusBox({ phase }: { phase: TxPhase }) {
   if (phase.kind === "idle") return null;
   if (phase.kind === "success")
     return (
-      <div className={`${styles.statusBox} ${styles.statusSuccess}`}>
+      <div
+        className={`${styles.statusBox} ${styles.statusSuccess}`}
+        role="alert"
+        aria-live="polite"
+      >
         Success! Hash: {shortHash(phase.hash)}
       </div>
     );
   if (phase.kind === "error")
     return (
-      <div className={`${styles.statusBox} ${styles.statusError}`}>
+      <div
+        className={`${styles.statusBox} ${styles.statusError}`}
+        role="alert"
+        aria-live="assertive"
+      >
         {phase.message}
       </div>
     );
