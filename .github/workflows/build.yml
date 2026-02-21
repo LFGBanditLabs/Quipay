@@ -40,6 +40,7 @@ jobs:
           else
             echo "stellar-scaffold already installed. Clear cache to force reinstall."
           fi
+      - run: npm ci --legacy-peer-deps
       # Pre-pull the stellar-quickstart image to reduce startup time/timeouts
       - name: Pull stellar-quickstart image
         run: docker pull stellar/quickstart:testing
