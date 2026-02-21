@@ -10,6 +10,7 @@ pub enum DataKey {
     NextStreamId,
     RetentionSecs,
     Vault,
+    Gateway,
 }
 
 #[contracttype]
@@ -117,6 +118,21 @@ impl PayrollStream {
         env.storage().instance().set(&DataKey::Vault, &vault);
     }
 
+    pub fn set_gateway(env: Env, gateway: Address) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Gateway, &gateway);
+        Ok(())
+    }
+
+    pub fn get_gateway(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::Gateway)
+    }
+
     pub fn create_stream(
         env: Env,
         employer: Address,
@@ -130,6 +146,52 @@ impl PayrollStream {
         Self::require_not_paused(&env)?;
         employer.require_auth();
 
+        Self::create_stream_internal(env, employer, worker, token, rate, cliff_ts, start_ts, end_ts)
+    }
+
+    pub fn create_stream_via_gateway(
+        env: Env,
+        agent: Address,
+        employer: Address,
+        worker: Address,
+        token: Address,
+        rate: i128,
+        cliff_ts: u64,
+        start_ts: u64,
+        end_ts: u64,
+    ) -> Result<u64, QuipayError> {
+        Self::require_not_paused(&env)?;
+        agent.require_auth();
+
+        let gateway = Self::get_gateway(env.clone())
+            .ok_or(QuipayError::NotInitialized)?;
+
+        use soroban_sdk::{vec, IntoVal};
+        let is_authorized: bool = env.invoke_contract(
+            &gateway,
+            &Symbol::new(&env, "is_authorized"),
+            vec![
+                &env,
+                agent.into_val(&env),
+                1u32.into_val(&env),
+            ],
+        );
+
+        require!(is_authorized, QuipayError::InsufficientPermissions);
+
+        Self::create_stream_internal(env, employer, worker, token, rate, cliff_ts, start_ts, end_ts)
+    }
+
+    fn create_stream_internal(
+        env: Env,
+        employer: Address,
+        worker: Address,
+        token: Address,
+        rate: i128,
+        cliff_ts: u64,
+        start_ts: u64,
+        end_ts: u64,
+    ) -> Result<u64, QuipayError> {
         if rate <= 0 {
             panic!("rate must be positive");
         }
@@ -348,6 +410,38 @@ impl PayrollStream {
         Self::require_not_paused(&env)?;
         employer.require_auth();
 
+        Self::cancel_stream_internal(env, stream_id, employer)
+    }
+
+    pub fn cancel_stream_via_gateway(
+        env: Env,
+        agent: Address,
+        stream_id: u64,
+        employer: Address,
+    ) -> Result<(), QuipayError> {
+        Self::require_not_paused(&env)?;
+        agent.require_auth();
+
+        let gateway = Self::get_gateway(env.clone())
+            .ok_or(QuipayError::NotInitialized)?;
+
+        use soroban_sdk::{vec, IntoVal};
+        let is_authorized: bool = env.invoke_contract(
+            &gateway,
+            &Symbol::new(&env, "is_authorized"),
+            vec![
+                &env,
+                agent.into_val(&env),
+                1u32.into_val(&env),
+            ],
+        );
+
+        require!(is_authorized, QuipayError::InsufficientPermissions);
+
+        Self::cancel_stream_internal(env, stream_id, employer)
+    }
+
+    fn cancel_stream_internal(env: Env, stream_id: u64, employer: Address) -> Result<(), QuipayError> {
         let key = StreamKey::Stream(stream_id);
         let mut stream: Stream = env
             .storage()

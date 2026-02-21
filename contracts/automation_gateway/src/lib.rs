@@ -95,6 +95,76 @@ impl AutomationGateway {
         Ok(())
     }
 
+    /// Create a stream on behalf of an employer via an authorized agent.
+    pub fn create_stream(
+        env: Env,
+        agent: Address,
+        payroll_stream: Address,
+        employer: Address,
+        worker: Address,
+        token: Address,
+        rate: i128,
+        cliff_ts: u64,
+        start_ts: u64,
+        end_ts: u64,
+    ) -> Result<u64, QuipayError> {
+        agent.require_auth();
+
+        require!(
+            Self::is_authorized(env.clone(), agent.clone(), Permission::ExecutePayroll),
+            QuipayError::InsufficientPermissions
+        );
+
+        use soroban_sdk::{vec, IntoVal, Symbol};
+        let stream_id: u64 = env.invoke_contract(
+            &payroll_stream,
+            &Symbol::new(&env, "create_stream_via_gateway"),
+            vec![
+                &env,
+                agent.into_val(&env),
+                employer.into_val(&env),
+                worker.into_val(&env),
+                token.into_val(&env),
+                rate.into_val(&env),
+                cliff_ts.into_val(&env),
+                start_ts.into_val(&env),
+                end_ts.into_val(&env),
+            ],
+        );
+
+        Ok(stream_id)
+    }
+
+    /// Cancel a stream on behalf of an employer via an authorized agent.
+    pub fn cancel_stream(
+        env: Env,
+        agent: Address,
+        payroll_stream: Address,
+        stream_id: u64,
+        employer: Address,
+    ) -> Result<(), QuipayError> {
+        agent.require_auth();
+
+        require!(
+            Self::is_authorized(env.clone(), agent.clone(), Permission::ExecutePayroll),
+            QuipayError::InsufficientPermissions
+        );
+
+        use soroban_sdk::{vec, IntoVal, Symbol};
+        env.invoke_contract::<()>(
+            &payroll_stream,
+            &Symbol::new(&env, "cancel_stream_via_gateway"),
+            vec![
+                &env,
+                agent.into_val(&env),
+                stream_id.into_val(&env),
+                employer.into_val(&env),
+            ],
+        );
+
+        Ok(())
+    }
+
     // Helper to get admin
     pub fn get_admin(env: Env) -> Result<Address, QuipayError> {
         env.storage()
