@@ -33,6 +33,46 @@ const EmployerDashboard: React.FC = () => {
     );
   }
 
+  return (
+    <Layout.Content>
+      <Layout.Inset>
+        <Text as="h1" size="xl" weight="medium">
+          Employer Dashboard
+        </Text>
+
+        <div className={styles.dashboardGrid}>
+          {/* Treasury Balance */}
+          <div className={styles.card}>
+            <Text
+              as="span"
+              size="md"
+              weight="semi-bold"
+              className={styles.cardHeader}
+            >
+              Treasury Balance
+            </Text>
+            {treasuryBalances.map((balance) => (
+              <div key={balance.tokenSymbol}>
+                <Text as="div" size="lg" className={styles.metricValue}>
+                  {balance.balance} {balance.tokenSymbol}
+                </Text>
+              </div>
+            ))}
+            <div style={{ marginTop: "10px" }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  void navigate("/treasury-management");
+                }}
+              >
+                Manage Treasury
+              </Button>
+            </div>
+          </div>
+
+          {/* Total Liabilities */}
+          <div className={styles.card}>
   const demoContract = {
     // eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
     withdrawableAmount: async (address: string) => {
@@ -105,6 +145,43 @@ const EmployerDashboard: React.FC = () => {
 
           {/* Active Streams Count */}
           <div className={styles.card}>
+            <Text
+              as="span"
+              size="md"
+              weight="semi-bold"
+              className={styles.cardHeader}
+            >
+              Active Streams
+            </Text>
+            <Text as="div" size="lg" className={styles.metricValue}>
+              {activeStreamsCount}
+            </Text>
+          </div>
+        </div>
+
+        <div className={styles.streamsSection}>
+          <div className={styles.streamsHeader}>
+            <Text as="h2" size="lg">
+              Active Streams
+            </Text>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => {
+                void navigate("/create-stream");
+              }}
+            >
+              Create New Stream
+            </Button>
+          </div>
+
+          {activeStreams.length === 0 ? (
+            <Text as="p" size="md">
+              No active streams found.
+            </Text>
+
+          {/* Active Streams Count */}
+          <div className={styles.card}>
             <Text as="span" size="md" weight="semi-bold" className={styles.cardHeader}>
               Active Streams
             </Text>
@@ -136,6 +213,25 @@ const EmployerDashboard: React.FC = () => {
               {activeStreams.map((stream) => (
                 <div key={stream.id} className={styles.streamItem}>
                   <div>
+                    <Text as="div" size="sm" weight="bold">
+                      {stream.employeeName}
+                    </Text>
+                    <Text as="div" size="sm">
+                      {stream.employeeAddress}
+                    </Text>
+                  </div>
+                  <div>
+                    <Text as="div" size="sm">
+                      Flow Rate: {stream.flowRate} {stream.tokenSymbol}/sec
+                    </Text>
+                    <Text as="div" size="sm">
+                      Start: {stream.startDate}
+                    </Text>
+                  </div>
+                  <div>
+                    <Text as="div" size="sm" weight="bold">
+                      Total: {stream.totalStreamed} {stream.tokenSymbol}
+                    </Text>
                     <Text as="div" size="md" weight="bold">{stream.employeeName}</Text>
                     <Text as="div" size="sm">{stream.employeeAddress}</Text>
                   </div>
