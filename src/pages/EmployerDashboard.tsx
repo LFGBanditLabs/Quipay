@@ -3,6 +3,7 @@ import { Layout, Text, Button, Loader } from "@stellar/design-system";
 import { usePayroll } from "../hooks/usePayroll";
 import styles from "./EmployerDashboard.module.css";
 import { useNavigate } from "react-router-dom";
+import WithdrawButton from "../components/WithdrawButton";
 
 const EmployerDashboard: React.FC = () => {
   const {
@@ -13,6 +14,20 @@ const EmployerDashboard: React.FC = () => {
     isLoading,
   } = usePayroll();
   const navigate = useNavigate();
+
+  const demoContract = {
+    // eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
+    withdrawableAmount: async (_address: string) => {
+      return BigInt("5000000"); // 5.00 USDC (6 decimals)
+    },
+    withdraw: async () => {
+      await new Promise((res) => setTimeout(res, 2000)); // simulate delay
+      return {
+        hash: "0xabc123def456abc123def456abc123def456abc123def456abc123def456abc1",
+        wait: async () => {},
+      };
+    },
+  };
 
   if (isLoading) {
     return (
@@ -40,8 +55,14 @@ const EmployerDashboard: React.FC = () => {
         </Text>
 
         <div className={styles.dashboardGrid}>
+          <WithdrawButton
+            walletAddress="0xYourWalletAddress"
+            contract={demoContract}
+            tokenSymbol="USDC"
+            tokenDecimals={6}
+          />
           {/* Treasury Balance */}
-          <div className={styles.card}>
+          <div className={styles.card} id="tour-treasury-balance">
             <Text
               as="span"
               size="md"
@@ -61,6 +82,7 @@ const EmployerDashboard: React.FC = () => {
               <Button
                 variant="secondary"
                 size="sm"
+                id="tour-manage-treasury"
                 onClick={() => {
                   void navigate("/treasury-management");
                 }}
@@ -112,6 +134,7 @@ const EmployerDashboard: React.FC = () => {
             <Button
               variant="primary"
               size="md"
+              id="tour-create-stream"
               onClick={() => {
                 void navigate("/create-stream");
               }}
@@ -145,7 +168,7 @@ const EmployerDashboard: React.FC = () => {
                     </Text>
                   </div>
                   <div>
-                    <Text as="div" size="sm" weight="bold">
+                    <Text as="div" size="md" weight="bold">
                       Total: {stream.totalStreamed} {stream.tokenSymbol}
                     </Text>
                   </div>

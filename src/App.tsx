@@ -4,10 +4,13 @@ import ConnectAccount from "./components/ConnectAccount.tsx";
 import { Routes, Route, Outlet, NavLink } from "react-router-dom";
 import Home from "./pages/Home";
 import Debugger from "./pages/Debugger.tsx";
+import OnboardingTour from "./components/OnboardingTour";
 
 import EmployerDashboard from "./pages/EmployerDashboard";
 import WorkerDashboard from "./pages/WorkerDashboard";
 import CreateStream from "./pages/CreateStream";
+import HelpPage from "./pages/HelpPage.tsx";
+import TreasuryManager from "./pages/TreasuryManager";
 
 const AppLayout: React.FC = () => (
   <main>
@@ -64,6 +67,7 @@ const AppLayout: React.FC = () => (
         </>
       }
     />
+    <OnboardingTour />
     <Outlet />
     <Layout.Footer>
       <span>
@@ -89,6 +93,7 @@ function App() {
         <Route path="/dashboard" element={<EmployerDashboard />} />
         <Route path="/worker" element={<WorkerDashboard />} />
         <Route path="/create-stream" element={<CreateStream />} />
+        <Route path="/help" element={<HelpPage />} />
         <Route path="/debug" element={<Debugger />} />
         <Route path="/debug/:contractName" element={<Debugger />} />
       </Route>
