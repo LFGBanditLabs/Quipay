@@ -1,8 +1,9 @@
 # Research Summary
 
 ## 1. Drips Wave
+
 - **Eligibility**: Open to individuals 18+ who are not in sanctioned jurisdictions.
-- **Rewards**: 
+- **Rewards**:
   - Based on a "Points" system.
   - Exchange rate to tokens/fiat is determined by the Association.
   - KYC/KYB is required to claim rewards.
@@ -12,6 +13,7 @@
   - Creating multiple accounts to manipulate points.
 
 ## 2. Stellar Community Fund (SCF) v7
+
 - **Tracks**:
   1.  **Integration Track**: For integrating existing building blocks (wallets, anchors).
   2.  **Open Track**: For financial protocols and novel use cases. **Quipay fits here.**
@@ -24,6 +26,7 @@
 - **Requirement**: "Mainnet deployment alone is no longer sufficient — funded projects must be usable, discoverable, and positioned for adoption."
 
 ## 3. Soroban Development
+
 - **Setup**: Requires `rustup`, `stellar-cli`.
 - **Project Structure**:
   - Standard Rust project layout for contracts (`Cargo.toml`, `src/lib.rs`).
@@ -33,5 +36,6 @@
   - We should ensure `smart_contract` is a valid Rust workspace.
 
 ## 4. Next Steps
+
 - Validate `smart_contract` folder setup.
 - Define specific "Verification" steps for AI-generated code to comply with Drips Wave rules.

@@ -34,6 +34,8 @@ const NetworkPill: React.FC = () => {
 
   return (
     <div
+      role="status"
+      aria-label={`Network: ${appNetwork}${isNetworkMismatch ? `. Mismatch: wallet is on ${walletNetwork}` : ""}`}
       style={{
         backgroundColor: bgColor,
         color: textColor,
