@@ -17,9 +17,9 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(500))]
     #[test]
     fn fuzz_stream_invariant(
-        total_amount in 1i128..1_000_000_000_000i128, 
-        start_offset in 10u64..10_000u64, 
-        duration in 1u64..31_536_000u64, // Streams up to 1 year
+        total_amount in 1i128..1_000_000_000_000i128,
+        start_offset in 10u64..10_000u64,
+        duration in 1u64..31_536_000u64,
         time_leaps in prop::collection::vec(time_leap_strategy(), 1..50),
         actions in prop::collection::vec(action_strategy(), 1..50)
     ) {
@@ -29,20 +29,21 @@ proptest! {
         let admin = Address::generate(&env);
         let employer = Address::generate(&env);
         let worker = Address::generate(&env);
-        
+        let token = Address::generate(&env);
+
         let contract_id = env.register_contract(None, PayrollStream);
         let client = PayrollStreamClient::new(&env, &contract_id);
-        
+
         client.init(&admin);
-        
+
         let initial_time = 1_000_000_000u64;
         env.ledger().set_timestamp(initial_time);
-        
+
         let start_ts = initial_time.saturating_add(start_offset);
         let end_ts = start_ts.saturating_add(duration);
 
-        let stream_id = client.create_stream(&employer, &worker, &total_amount, &start_ts, &end_ts);
-        
+        let stream_id = client.create_stream(&employer, &worker, &token, &total_amount, &start_ts, &end_ts);
+
         let mut current_time = initial_time;
         let steps = std::cmp::min(time_leaps.len(), actions.len());
 
@@ -63,10 +64,10 @@ proptest! {
             if let Some(stream) = client.get_stream(&stream_id) {
                 let withdrawn = stream.withdrawn_amount;
                 let total = stream.total_amount;
-                
+
                 let is_closed = (stream.status_bits & 2) != 0 || (stream.status_bits & 4) != 0;
                 let effective_now = if is_closed { stream.closed_at } else { current_time };
-                
+
                 let accrued = if effective_now <= stream.start_ts {
                     0
                 } else if effective_now >= stream.end_ts {
@@ -77,7 +78,6 @@ proptest! {
                     (total * (elapsed as i128)) / (duration as i128)
                 };
 
-                // STREAM INVARIANT: Withdrawn <= Accrued <= Total Stream Value
                 assert!(withdrawn <= accrued, "INVARIANT VIOLATION: Withdrawn ({}) > Accrued ({})", withdrawn, accrued);
                 assert!(accrued <= total, "INVARIANT VIOLATION: Accrued ({}) > Total ({})", accrued, total);
                 assert!(withdrawn >= 0, "Withdrawn is negative: {}", withdrawn);
