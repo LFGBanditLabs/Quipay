@@ -7,6 +7,7 @@ import Debugger from "./pages/Debugger.tsx";
 import OnboardingTour from "./components/OnboardingTour";
 
 import EmployerDashboard from "./pages/EmployerDashboard";
+import WorkerDashboard from "./pages/WorkerDashboard";
 import CreateStream from "./pages/CreateStream";
 import HelpPage from "./pages/HelpPage.tsx";
 import PayrollDashboard from "./pages/PayrollDashboard.tsx";
@@ -36,6 +37,18 @@ const AppLayout: React.FC = () => (
               {({ isActive }) => (
                 <Button variant="tertiary" size="md" disabled={isActive}>
                   Dashboard
+                </Button>
+              )}
+            </NavLink>
+            <NavLink
+              to="/worker"
+              style={{
+                textDecoration: "none",
+              }}
+            >
+              {({ isActive }) => (
+                <Button variant="tertiary" size="md" disabled={isActive}>
+                  Worker
                 </Button>
               )}
             </NavLink>
@@ -89,8 +102,9 @@ function App() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<EmployerDashboard />} />
+        <Route path="/worker" element={<WorkerDashboard />} />
         <Route path="/payroll" element={<PayrollDashboard />} />
-        <Route path="/dashboard" element={<EmployerDashboard />} />
+
         <Route path="/treasury-management" element={<TreasuryManager />} />
         <Route path="/create-stream" element={<CreateStream />} />
         <Route path="/help" element={<HelpPage />} />
