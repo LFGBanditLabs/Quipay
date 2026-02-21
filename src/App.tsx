@@ -7,27 +7,57 @@ import Debugger from "./pages/Debugger.tsx";
 import OnboardingTour from "./components/OnboardingTour";
 
 import EmployerDashboard from "./pages/EmployerDashboard";
+import WorkerDashboard from "./pages/WorkerDashboard";
 import CreateStream from "./pages/CreateStream";
 import HelpPage from "./pages/HelpPage.tsx";
+import PayrollDashboard from "./pages/PayrollDashboard.tsx";
 import TreasuryManager from "./pages/TreasuryManager";
+import GovernanceOverview from "./pages/GovernanceOverview";
 
 const AppLayout: React.FC = () => (
-  <main>
+  <>
+    <a href="#main-content" className="skip-link">
+      Skip to main content
+    </a>
     <Layout.Header
-      projectId="My App"
-      projectTitle="My App"
+      projectId="Quipay"
+      projectTitle="Quipay"
       contentRight={
         <>
-          <nav style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <nav
+            aria-label="Main Navigation"
+            style={{ display: "flex", gap: "8px", alignItems: "center" }}
+          >
             <NavLink
               to="/dashboard"
+              style={{
+                textDecoration: "none",
+              }}
+              aria-label="Go to Dashboard"
+            >
+              {({ isActive }) => (
+                <Button variant="tertiary" size="md" disabled={isActive}>
+                  Dashboard
+                </Button>
+              )}
+            </NavLink>
+            <NavLink to="/governance" style={{ textDecoration: "none" }}>
+              {({ isActive }) => (
+                <Button variant="tertiary" size="md" disabled={isActive}>
+                  <Icon.Gavel size="md" />
+                  Governance
+                </Button>
+              )}
+            </NavLink>
+            <NavLink
+              to="/worker"
               style={{
                 textDecoration: "none",
               }}
             >
               {({ isActive }) => (
                 <Button variant="tertiary" size="md" disabled={isActive}>
-                  Dashboard
+                  Worker
                 </Button>
               )}
             </NavLink>
@@ -36,6 +66,7 @@ const AppLayout: React.FC = () => (
               style={{
                 textDecoration: "none",
               }}
+              aria-label="Go to Debugger"
             >
               {({ isActive }) => (
                 <Button
@@ -54,11 +85,13 @@ const AppLayout: React.FC = () => (
         </>
       }
     />
-    <OnboardingTour />
-    <Outlet />
+    <main id="main-content" tabIndex={-1} style={{ outline: "none" }}>
+      <OnboardingTour />
+      <Outlet />
+    </main>
     <Layout.Footer>
       <span>
-        © {new Date().getFullYear()} My App. Licensed under the{" "}
+        © {new Date().getFullYear()} Quipay. Licensed under the{" "}
         <a
           href="http://www.apache.org/licenses/LICENSE-2.0"
           target="_blank"
@@ -69,7 +102,7 @@ const AppLayout: React.FC = () => (
         .
       </span>
     </Layout.Footer>
-  </main>
+  </>
 );
 
 function App() {
@@ -78,7 +111,11 @@ function App() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<EmployerDashboard />} />
+        <Route path="/worker" element={<WorkerDashboard />} />
+        <Route path="/payroll" element={<PayrollDashboard />} />
+
         <Route path="/treasury-management" element={<TreasuryManager />} />
+        <Route path="/governance" element={<GovernanceOverview />} />
         <Route path="/create-stream" element={<CreateStream />} />
         <Route path="/help" element={<HelpPage />} />
         <Route path="/debug" element={<Debugger />} />

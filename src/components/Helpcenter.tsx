@@ -257,12 +257,16 @@ function Highlight({ text, query }: { text: string; query: string }) {
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const regex = new RegExp(`(${escaped})`, "gi");
   const parts = text.split(regex);
+  // Build character-offset keys so we never use array index as key
+  let charOffset = 0;
   return (
     <>
-      {parts.map((part, i) =>
-        part.toLowerCase() === query.toLowerCase() ? (
+      {parts.map((part) => {
+        const key = `${charOffset}-${part.length}`;
+        charOffset += part.length;
+        return part.toLowerCase() === query.toLowerCase() ? (
           <mark
-            key={i}
+            key={key}
             style={{
               background: "rgba(110,86,207,0.18)",
               color: "inherit",
@@ -273,9 +277,9 @@ function Highlight({ text, query }: { text: string; query: string }) {
             {part}
           </mark>
         ) : (
-          <span key={i}>{part}</span>
-        ),
-      )}
+          <span key={key}>{part}</span>
+        );
+      })}
     </>
   );
 }
@@ -298,7 +302,7 @@ function FAQItem({
       <button
         className="hc-faq-q"
         onClick={() => {
-          setOpen((o) => !o);
+          setOpen((o: boolean) => !o);
         }}
         aria-expanded={open}
       >
@@ -329,7 +333,7 @@ export default function HelpCenter() {
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
-    return FAQS.filter((f) => {
+    return FAQS.filter((f: FAQ) => {
       const matchesCategory =
         activeCategory === "All" || f.category === activeCategory;
       const matchesQuery =
@@ -347,7 +351,7 @@ export default function HelpCenter() {
       return { [key]: filtered };
     }
     return CATEGORIES.slice(1).reduce<Record<string, FAQ[]>>((acc, cat) => {
-      const items = filtered.filter((f) => f.category === cat);
+      const items = filtered.filter((f: FAQ) => f.category === cat);
       if (items.length) acc[cat] = items;
       return acc;
     }, {});
@@ -736,7 +740,7 @@ export default function HelpCenter() {
                   {cat}
                   <span className="hc-section-count">{items.length}</span>
                 </div>
-                {items.map((faq) => (
+                {items.map((faq: FAQ) => (
                   <FAQItem
                     key={faq.id}
                     faq={faq}

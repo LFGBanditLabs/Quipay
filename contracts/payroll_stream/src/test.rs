@@ -3,22 +3,22 @@ use super::*;
 use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, Address, Env};
 
 mod dummy_vault {
-    use soroban_sdk::{contract, contractimpl, Env};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct DummyVault;
     #[contractimpl]
     impl DummyVault {
-        pub fn add_liability(_env: Env, _amount: i128) {}
+        pub fn add_liability(_env: Env, _token: Address, _amount: i128) {}
     }
 }
 
 mod rejecting_vault {
-    use soroban_sdk::{contract, contractimpl, Env};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct RejectingVault;
     #[contractimpl]
     impl RejectingVault {
-        pub fn add_liability(_env: Env, _amount: i128) {
+        pub fn add_liability(_env: Env, _token: Address, _amount: i128) {
             panic!("vault rejected liability");
         }
     }
@@ -87,7 +87,8 @@ fn test_create_stream_paused() {
     env.ledger().with_mut(|li| {
         li.timestamp = 0;
     });
-    client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
+    let res = client.try_create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
+    assert!(res.is_err());
 }
 
 #[test]

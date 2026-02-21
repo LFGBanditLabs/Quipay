@@ -1,0 +1,49 @@
+/* Accessibility Styles */
+
+/* Skip Link */
+.skip-link {
+  position: absolute;
+  top: -60px; /* Hide further up */
+  left: 1rem;
+  background: var(--sds-color-primary-60, #2563eb);
+  color: white !important;
+  padding: 0.75rem 1.25rem;
+  z-index: 9999;
+  transition: top 0.2s ease;
+  text-decoration: none;
+  font-family: inherit;
+  font-weight: 600;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.skip-link:focus {
+  top: 0;
+  outline: 3px solid var(--sds-color-primary-40, #60a5fa);
+  outline-offset: 2px;
+}
+
+/* Enhanced Focus Indicators */
+/* Focus-visible for modern browsers */
+:focus-visible {
+  outline: 3px solid var(--sds-color-primary-60, #2563eb) !important;
+  outline-offset: 3px !important;
+}
+
+/* Fallback for older browsers or elements that don't support focus-visible well */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Screen Reader Only (for labels that should be hidden visually but available to SR) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
