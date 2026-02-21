@@ -126,8 +126,8 @@ impl PayrollStream {
         cliff_ts: u64,
         start_ts: u64,
         end_ts: u64,
-    ) -> u64 {
-        Self::require_not_paused(&env).unwrap();
+    ) -> Result<u64, QuipayError> {
+        Self::require_not_paused(&env)?;
         employer.require_auth();
 
         if rate <= 0 {
@@ -218,11 +218,11 @@ impl PayrollStream {
             (stream_id, employer, worker, token, rate, start_ts, end_ts),
         );
 
-        stream_id
+        Ok(stream_id)
     }
 
-    pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> i128 {
-        Self::require_not_paused(&env).unwrap();
+    pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> Result<i128, QuipayError> {
+        Self::require_not_paused(&env)?;
         worker.require_auth();
 
         let key = StreamKey::Stream(stream_id);
@@ -244,7 +244,7 @@ impl PayrollStream {
         let available = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
 
         if available <= 0 {
-            return 0;
+            return Ok(0);
         }
 
         stream.withdrawn_amount = stream
@@ -258,7 +258,7 @@ impl PayrollStream {
         }
 
         env.storage().persistent().set(&key, &stream);
-        available
+        Ok(available)
     }
 
     pub fn batch_withdraw(env: Env, stream_ids: Vec<u64>, caller: Address) -> Vec<WithdrawResult> {
@@ -344,8 +344,8 @@ impl PayrollStream {
         results
     }
 
-    pub fn cancel_stream(env: Env, stream_id: u64, employer: Address) {
-        Self::require_not_paused(&env).unwrap();
+    pub fn cancel_stream(env: Env, stream_id: u64, employer: Address) -> Result<(), QuipayError> {
+        Self::require_not_paused(&env)?;
         employer.require_auth();
 
         let key = StreamKey::Stream(stream_id);
@@ -359,12 +359,13 @@ impl PayrollStream {
             panic!("not employer");
         }
         if Self::is_closed(&stream) {
-            return;
+            return Ok(());
         }
 
         let now = env.ledger().timestamp();
         Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
         env.storage().persistent().set(&key, &stream);
+        Ok(())
     }
 
     pub fn get_stream(env: Env, stream_id: u64) -> Option<Stream> {

@@ -20,14 +20,14 @@ pub enum QuipayError {
     InvalidAddress = 1010,
     StreamNotFound = 1011,
     StreamExpired = 1012,
-    NotWorker = 1017,
-    NotEmployer = 1018,
-    StreamClosed = 1019,
-    StreamNotClosed = 1020,
     AgentNotFound = 1013,
     InvalidToken = 1014,
     TransferFailed = 1015,
     UpgradeFailed = 1016,
+    NotWorker = 1017,
+    StreamClosed = 1018,
+    NotEmployer = 1019,
+    StreamNotClosed = 1020,
     Custom = 1999,
 }
 
