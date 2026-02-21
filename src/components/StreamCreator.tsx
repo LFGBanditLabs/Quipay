@@ -274,11 +274,11 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
         const tokenContractId =
           tokenValue === "native" ? "" : (tokenValue.split(":")[1] ?? "");
 
-        const result = await checkTreasurySolvency(
+        const result = (await checkTreasurySolvency(
           PAYROLL_VAULT_CONTRACT_ID,
           tokenContractId,
           stroops,
-        );
+        )) as unknown as boolean;
         const ok = typeof result === "boolean" ? result : !!result;
 
         dispatch({
@@ -366,7 +366,9 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
         endTs,
       };
 
-      const buildResult = await buildCreateStreamTx(params);
+      const buildResult = (await buildCreateStreamTx(params)) as unknown as {
+        preparedXdr: string;
+      };
       if (
         !buildResult ||
         typeof buildResult !== "object" ||
@@ -390,7 +392,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
       const { signedTxXdr } = signResult as { signedTxXdr: string };
 
       dispatch({ type: "SET_TX_PHASE", phase: { kind: "submitting" } });
-      const hash = await submitAndAwaitTx(signedTxXdr);
+      const hash = (await submitAndAwaitTx(signedTxXdr)) as unknown as string;
 
       dispatch({
         type: "SET_TX_PHASE",
