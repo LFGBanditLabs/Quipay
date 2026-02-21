@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Button, Code, Input, Text } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
+// @ts-expect-error: contract bindings may not be locally generated yet
+import game from "../contracts/guess_the_number";
 // // @ts-ignore: contract bindings may not be locally generated yet
 // import game from "../contracts/guess_the_number";
 import { Box } from "../components/layout/Box";
@@ -18,6 +20,7 @@ export const GuessTheNumber = () => {
     );
   }
 
+  /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
   const submitGuess = async () => {
     if (!theGuess || !address) return;
     const tx = await game.guess(
@@ -33,6 +36,7 @@ export const GuessTheNumber = () => {
       await updateBalances();
     }
   };
+  /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 
   return (
     <form

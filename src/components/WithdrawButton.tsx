@@ -154,7 +154,7 @@ export default function WithdrawButton({
   }, [contract, walletAddress]);
 
   useEffect(() => {
-    fetchAmount();
+    void fetchAmount();
   }, [fetchAmount]);
 
   // ── Withdraw flow ──────────────────────────────────────────────────────────
@@ -193,7 +193,7 @@ export default function WithdrawButton({
     setStatus("idle");
     setErrorMsg("");
     setTxHash(null);
-    fetchAmount();
+    void fetchAmount();
   };
 
   // ── Derived UI values ──────────────────────────────────────────────────────
@@ -518,8 +518,7 @@ export default function WithdrawButton({
 
           {/* CTA Button */}
           <button
-            className={`wb-btn ${
-              isLoading
+            className={`wb-btn ${isLoading
                 ? "wb-btn-loading"
                 : status === "success"
                   ? "wb-btn-success"
@@ -528,7 +527,7 @@ export default function WithdrawButton({
                     : isDisabled
                       ? "wb-btn-disabled"
                       : "wb-btn-default"
-            }`}
+              }`}
             onClick={status === "error" ? reset : handleWithdraw}
             // disabled={isDisabled && status !== "error"}
             aria-label={buttonLabel()}

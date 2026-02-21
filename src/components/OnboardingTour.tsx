@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import Joyride, { Step } from "react-joyride";
+import Joyride, { Step, CallBackProps } from "react-joyride";
 
 const OnboardingTour: React.FC = () => {
   const [run, setRun] = useState(false);
@@ -12,7 +12,7 @@ const OnboardingTour: React.FC = () => {
     }
   }, []);
 
-  const handleJoyrideCallback = (data: any) => {
+  const handleJoyrideCallback = (data: CallBackProps) => {
     const { status } = data;
     const finishedStatuses: string[] = ["finished", "skipped"];
 
