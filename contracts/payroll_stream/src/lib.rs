@@ -1,5 +1,6 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol};
+use quipay_common::{QuipayError, require};
 
 #[contracttype]
 #[derive(Clone)]
@@ -48,27 +49,37 @@ pub struct PayrollStream;
 #[contractimpl]
 impl PayrollStream {
     /// Initialize the contract with an admin.
-    pub fn init(env: Env, admin: Address) {
-        if env.storage().instance().has(&DataKey::Admin) {
-            panic!("already initialized");
-        }
+    pub fn init(env: Env, admin: Address) -> Result<(), QuipayError> {
+        require!(
+            !env.storage().instance().has(&DataKey::Admin),
+            QuipayError::AlreadyInitialized
+        );
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Paused, &false);
         env.storage().instance().set(&DataKey::NextStreamId, &1u64);
         env.storage().instance().set(&DataKey::RetentionSecs, &DEFAULT_RETENTION_SECS);
+        Ok(())
     }
 
     /// Set the paused status of the contract.
     /// Only the admin can call this.
-    pub fn set_paused(env: Env, paused: bool) {
-        let admin: Address = env.storage().instance().get(&DataKey::Admin).expect("not initialized");
+    pub fn set_paused(env: Env, paused: bool) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
         admin.require_auth();
         env.storage().instance().set(&DataKey::Paused, &paused);
+        Ok(())
     }
 
     /// Check if the contract is paused.
     pub fn is_paused(env: Env) -> bool {
-        env.storage().instance().get(&DataKey::Paused).unwrap_or(false)
+        env.storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
     }
 
     pub fn set_retention_secs(env: Env, retention_secs: u64) {
@@ -97,8 +108,9 @@ impl PayrollStream {
 
     /// Create a new payroll stream.
     /// Fails if the contract is paused.
-    pub fn create_stream(env: Env, employer: Address, worker: Address, token: Address, amount: i128, start_ts: u64, end_ts: u64) -> u64 {
-        Self::require_not_paused(&env);
+    pub fn create_stream(env: Env, employer: Address, worker: Address, token: Address, amount: i128, start_ts: u64, end_ts: u64) -> Result<u64, QuipayError> {
+        Self::require_not_paused(&env)?;
+        
         employer.require_auth();
 
         let vault_addr: Address = env.storage().instance().get(&DataKey::Vault).expect("vault not set");
@@ -106,15 +118,15 @@ impl PayrollStream {
         vault_client.allocate_funds(&token, &amount);
 
         if amount <= 0 {
-            panic!("amount must be positive");
+            return Err(QuipayError::InvalidAmount);
         }
         if end_ts <= start_ts {
-            panic!("invalid time range");
+            return Err(QuipayError::InvalidAmount);
         }
         
         let now = env.ledger().timestamp();
         if start_ts < now {
-            panic!("start_time must be >= current time");
+            return Err(QuipayError::InvalidAmount);
         }
 
         let mut next_id: u64 = env.storage().instance().get(&DataKey::NextStreamId).unwrap_or(1u64);
@@ -143,13 +155,13 @@ impl PayrollStream {
             .persistent()
             .set(&StreamKey::Stream(stream_id), &stream);
 
-        stream_id
+        Ok(stream_id)
     }
 
     /// Withdraw funds from a stream.
     /// Fails if the contract is paused.
-    pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> i128 {
-        Self::require_not_paused(&env);
+    pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> Result<i128, QuipayError> {
+        Self::require_not_paused(&env)?;
         worker.require_auth();
 
         let key = StreamKey::Stream(stream_id);
@@ -157,13 +169,13 @@ impl PayrollStream {
             .storage()
             .persistent()
             .get(&key)
-            .expect("stream not found");
+            .ok_or(QuipayError::StreamNotFound)?;
 
         if stream.worker != worker {
-            panic!("not stream worker");
+            return Err(QuipayError::Unauthorized);
         }
         if Self::is_closed(&stream) {
-            panic!("stream is closed");
+            return Err(QuipayError::StreamExpired);
         }
 
         let now = env.ledger().timestamp();
@@ -173,7 +185,7 @@ impl PayrollStream {
             .unwrap_or(0);
 
         if available <= 0 {
-            return 0;
+            return Ok(0);
         }
 
         let vault_addr: Address = env.storage().instance().get(&DataKey::Vault).expect("vault not set");
@@ -190,13 +202,13 @@ impl PayrollStream {
         }
 
         env.storage().persistent().set(&key, &stream);
-        available
+        Ok(available)
     }
 
     /// Cancel a payroll stream.
     /// Fails if the contract is paused.
-    pub fn cancel_stream(env: Env, stream_id: u64, employer: Address) {
-        Self::require_not_paused(&env);
+    pub fn cancel_stream(env: Env, stream_id: u64, employer: Address) -> Result<(), QuipayError> {
+        Self::require_not_paused(&env)?;
         employer.require_auth();
 
         let key = StreamKey::Stream(stream_id);
@@ -204,13 +216,13 @@ impl PayrollStream {
             .storage()
             .persistent()
             .get(&key)
-            .expect("stream not found");
+            .ok_or(QuipayError::StreamNotFound)?;
 
         if stream.employer != employer {
-            panic!("not stream employer");
+            return Err(QuipayError::Unauthorized);
         }
         if Self::is_closed(&stream) {
-            return;
+            return Ok(());
         }
 
         let now = env.ledger().timestamp();
@@ -224,6 +236,7 @@ impl PayrollStream {
 
         Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
         env.storage().persistent().set(&key, &stream);
+        Ok(())
     }
 
     pub fn get_stream(env: Env, stream_id: u64) -> Option<Stream> {
@@ -257,10 +270,16 @@ impl PayrollStream {
     }
 
     /// Internal helper to ensure the contract is not paused.
-    fn require_not_paused(env: &Env) {
-        if env.storage().instance().get(&DataKey::Paused).unwrap_or(false) {
-            panic!("protocol is paused");
+    fn require_not_paused(env: &Env) -> Result<(), QuipayError> {
+        if env
+            .storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+        {
+            return Err(QuipayError::ProtocolPaused);
         }
+        Ok(())
     }
 
     fn is_closed(stream: &Stream) -> bool {
@@ -297,3 +316,6 @@ impl PayrollStream {
 }
 
 mod test;
+
+#[cfg(test)]
+mod proptest;

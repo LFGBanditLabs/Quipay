@@ -1,87 +1,85 @@
 #![cfg(test)]
+
 use super::*;
-use soroban_sdk::{testutils::Address as _, Address, Bytes, Env};
+use soroban_sdk::{Env, Address, testutils::Address as _};
 
 #[test]
 fn test_register_and_get_worker() {
-    let env = Env::default();
-    env.mock_all_auths();
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
 
-    let contract_id = env.register(WorkforceRegistry, ());
-    let client = WorkforceRegistryClient::new(&env, &contract_id);
+    let worker = Address::generate(&e);
+    let preferred_token = Address::generate(&e);
+    let metadata_hash = String::from_str(&e, "QmHash123");
 
-    let admin = Address::generate(&env);
-    client.initialize(&admin);
+    // Test initial state
+    assert_eq!(client.is_registered(&worker), false);
+    assert_eq!(client.get_worker(&worker), None);
 
-    let worker = Address::generate(&env);
-    let name = Bytes::from_slice(&env, b"John Doe");
-    let email = Bytes::from_slice(&env, b"john@example.com");
+    // Register worker
+    client.register_worker(&worker, &preferred_token, &metadata_hash);
 
-    client.register_worker(&worker, &name, &email);
-
+    // Verify registration
+    assert_eq!(client.is_registered(&worker), true);
+    
     let profile = client.get_worker(&worker).unwrap();
-    assert_eq!(profile.name, name);
-    assert_eq!(profile.email, email);
-    assert!(profile.active);
+    assert_eq!(profile.wallet, worker);
+    assert_eq!(profile.preferred_token, preferred_token);
+    assert_eq!(profile.metadata_hash, metadata_hash);
 }
 
 #[test]
 fn test_update_worker() {
-    let env = Env::default();
-    env.mock_all_auths();
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
 
-    let contract_id = env.register(WorkforceRegistry, ());
-    let client = WorkforceRegistryClient::new(&env, &contract_id);
+    let worker = Address::generate(&e);
+    let token1 = Address::generate(&e);
+    let token2 = Address::generate(&e);
+    let hash1 = String::from_str(&e, "QmHash1");
+    let hash2 = String::from_str(&e, "QmHash2");
 
-    let admin = Address::generate(&env);
-    client.initialize(&admin);
-
-    let worker = Address::generate(&env);
-    let name = Bytes::from_slice(&env, b"John Doe");
-    let email = Bytes::from_slice(&env, b"john@example.com");
-
-    client.register_worker(&worker, &name, &email);
-
-    let new_name = Bytes::from_slice(&env, b"Jane Doe");
-    let new_email = Bytes::from_slice(&env, b"jane@example.com");
-
-    client.update_worker(&worker, &new_name, &new_email, &false);
+    client.register_worker(&worker, &token1, &hash1);
+    
+    // Update profile
+    client.update_worker(&worker, &token2, &hash2);
 
     let profile = client.get_worker(&worker).unwrap();
-    assert_eq!(profile.name, new_name);
-    assert_eq!(profile.email, new_email);
-    assert!(!profile.active);
+    assert_eq!(profile.preferred_token, token2);
+    assert_eq!(profile.metadata_hash, hash2);
 }
 
 #[test]
-#[should_panic(expected = "already initialized")]
-fn test_double_initialize() {
-    let env = Env::default();
-    env.mock_all_auths();
+#[should_panic(expected = "Worker already registered")]
+fn test_duplicate_registration() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
 
-    let contract_id = env.register(WorkforceRegistry, ());
-    let client = WorkforceRegistryClient::new(&env, &contract_id);
+    let worker = Address::generate(&e);
+    let token = Address::generate(&e);
+    let hash = String::from_str(&e, "QmHash");
 
-    let admin = Address::generate(&env);
-    client.initialize(&admin);
-    client.initialize(&admin);
+    client.register_worker(&worker, &token, &hash);
+    client.register_worker(&worker, &token, &hash);
 }
 
 #[test]
-#[should_panic(expected = "worker not found")]
+#[should_panic(expected = "Worker not registered")]
 fn test_update_nonexistent_worker() {
-    let env = Env::default();
-    env.mock_all_auths();
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
 
-    let contract_id = env.register(WorkforceRegistry, ());
-    let client = WorkforceRegistryClient::new(&env, &contract_id);
+    let worker = Address::generate(&e);
+    let token = Address::generate(&e);
+    let hash = String::from_str(&e, "QmHash");
 
-    let admin = Address::generate(&env);
-    client.initialize(&admin);
-
-    let worker = Address::generate(&env);
-    let name = Bytes::from_slice(&env, b"John Doe");
-    let email = Bytes::from_slice(&env, b"john@example.com");
-
-    client.update_worker(&worker, &name, &email, &true);
+    client.update_worker(&worker, &token, &hash);
 }

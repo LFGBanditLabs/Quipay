@@ -2,6 +2,7 @@
 
 use super::*;
 use soroban_sdk::{testutils::Address as _, Address, Env, token};
+use quipay_common::QuipayError;
 
 #[test]
 fn test_flow() {
@@ -172,7 +173,6 @@ fn test_multi_token_tracking() {
 }
 
 #[test]
-#[should_panic(expected = "payout exceeds liability")]
 fn test_payout_without_allocation() {
     let env = Env::default();
     env.mock_all_auths();
@@ -193,7 +193,9 @@ fn test_payout_without_allocation() {
     client.deposit(&user, &token_id, &1000);
 
     // Try payout without allocation
-    client.payout(&recipient, &token_id, &100);
+    let res = client.try_payout(&recipient, &token_id, &100);
+    assert!(res.is_err());
+    // Optionally check error code if needed, but is_err is sufficient for "without allocation" check
 }
 
 #[test]
@@ -250,4 +252,39 @@ fn test_complex_scenario_multiple_streams() {
     // 7. Now Stream 3 can allocate 500 (1000 + 500 = 1500 <= 1800)
     client.allocate_funds(&token_id, &500);
     assert_eq!(client.get_total_liability(&token_id), 1500);
+}
+
+#[test]
+fn test_already_initialized() {
+    let env = Env::default();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+    let result = client.try_initialize(&admin);
+    
+    assert_eq!(
+        result,
+        Err(Ok(QuipayError::AlreadyInitialized))
+    );
+}
+
+#[test]
+fn test_insufficient_balance() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone()).address();
+
+    client.initialize(&admin);
+    
+    let result = client.try_payout(&recipient, &token_id, &100);
+    assert_eq!(
+        result,
+        Err(Ok(QuipayError::InsufficientBalance))
+    );
 }

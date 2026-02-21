@@ -1,68 +1,108 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Bytes, Env};
-
-#[contracttype]
-#[derive(Clone)]
-pub enum DataKey {
-    Admin,
-    Worker(Address),
-}
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String};
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub struct WorkerProfile {
-    pub name: Bytes,
-    pub email: Bytes,
-    pub active: bool,
-    pub registered_at: u64,
+    pub wallet: Address,
+    pub preferred_token: Address,
+    pub metadata_hash: String,
+}
+
+#[derive(Clone)]
+#[contracttype]
+pub enum DataKey {
+    Worker(Address),
 }
 
 #[contract]
-pub struct WorkforceRegistry;
+pub struct WorkforceRegistryContract;
 
 #[contractimpl]
-impl WorkforceRegistry {
-    pub fn initialize(e: Env, admin: Address) {
-        if e.storage().instance().has(&DataKey::Admin) {
-            panic!("already initialized");
+impl WorkforceRegistryContract {
+    /// Registers a new worker profile.
+    /// 
+    /// # Arguments
+    /// * `e` - The environment.
+    /// * `worker` - The address of the worker registering.
+    /// * `preferred_token` - The address of the preferred payment token.
+    /// * `metadata_hash` - A hash string pointing to metadata (e.g., IPFS/Arweave).
+    pub fn register_worker(
+        e: Env,
+        worker: Address,
+        preferred_token: Address,
+        metadata_hash: String,
+    ) {
+        worker.require_auth();
+        
+        let key = DataKey::Worker(worker.clone());
+        if e.storage().persistent().has(&key) {
+            panic!("Worker already registered");
         }
-        e.storage().instance().set(&DataKey::Admin, &admin);
-    }
-
-    pub fn register_worker(e: Env, worker: Address, name: Bytes, email: Bytes) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).expect("not initialized");
-        admin.require_auth();
-
+        
         let profile = WorkerProfile {
-            name,
-            email,
-            active: true,
-            registered_at: e.ledger().timestamp(),
+            wallet: worker.clone(),
+            preferred_token,
+            metadata_hash,
         };
         
-        e.storage().persistent().set(&DataKey::Worker(worker), &profile);
+        e.storage().persistent().set(&key, &profile);
     }
 
-    pub fn update_worker(e: Env, worker: Address, name: Bytes, email: Bytes, active: bool) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).expect("not initialized");
-        admin.require_auth();
-
-        let mut profile: WorkerProfile = e.storage().persistent().get(&DataKey::Worker(worker.clone())).expect("worker not found");
-        profile.name = name;
-        profile.email = email;
-        profile.active = active;
+    /// Updates an existing worker profile.
+    /// 
+    /// # Arguments
+    /// * `e` - The environment.
+    /// * `worker` - The address of the worker updating their profile.
+    /// * `preferred_token` - The new preferred payment token address.
+    /// * `metadata_hash` - The new metadata hash string.
+    pub fn update_worker(
+        e: Env,
+        worker: Address,
+        preferred_token: Address,
+        metadata_hash: String,
+    ) {
+        worker.require_auth();
         
-        e.storage().persistent().set(&DataKey::Worker(worker), &profile);
+        let key = DataKey::Worker(worker.clone());
+        if !e.storage().persistent().has(&key) {
+            panic!("Worker not registered");
+        }
+        
+        let profile = WorkerProfile {
+            wallet: worker.clone(),
+            preferred_token,
+            metadata_hash,
+        };
+        
+        e.storage().persistent().set(&key, &profile);
     }
 
+    /// Retrieves a worker's profile.
+    /// 
+    /// # Arguments
+    /// * `e` - The environment.
+    /// * `worker` - The address of the worker to look up.
+    /// 
+    /// # Returns
+    /// * `Option<WorkerProfile>` - The worker profile if found, None otherwise.
     pub fn get_worker(e: Env, worker: Address) -> Option<WorkerProfile> {
-        e.storage().persistent().get(&DataKey::Worker(worker))
+        let key = DataKey::Worker(worker);
+        e.storage().persistent().get(&key)
     }
-    
-    pub fn get_admin(e: Env) -> Address {
-        e.storage().instance().get(&DataKey::Admin).expect("not initialized")
+
+    /// Checks if a worker is registered.
+    /// 
+    /// # Arguments
+    /// * `e` - The environment.
+    /// * `worker` - The address of the worker to check.
+    /// 
+    /// # Returns
+    /// * `bool` - True if registered, False otherwise.
+    pub fn is_registered(e: Env, worker: Address) -> bool {
+        let key = DataKey::Worker(worker);
+        e.storage().persistent().has(&key)
     }
 }
 
-#[cfg(test)]
 mod test;

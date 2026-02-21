@@ -86,17 +86,19 @@ fn test_pause_mechanism() {
 }
 
 #[test]
-#[should_panic(expected = "protocol is paused")]
 fn test_create_stream_paused() {
     let setup = setup_test();
     let client = setup.stream_client;
 
     client.set_paused(&true);
-    client.create_stream(&setup.employer, &setup.worker, &setup.token_address, &1000, &0u64, &10u64);
+    let result = client.try_create_stream(&setup.employer, &setup.worker, &setup.token_address, &1000, &0u64, &10u64);
+    assert_eq!(
+        result,
+        Err(Ok(QuipayError::ProtocolPaused))
+    );
 }
 
 #[test]
-#[should_panic(expected = "protocol is paused")]
 fn test_withdraw_paused() {
     let setup = setup_test();
     let client = setup.stream_client;
@@ -105,11 +107,15 @@ fn test_withdraw_paused() {
     let stream_id = client.create_stream(&setup.employer, &setup.worker, &setup.token_address, &1000, &0u64, &10u64);
 
     client.set_paused(&true);
-    client.withdraw(&stream_id, &setup.worker);
+    let result = client.try_withdraw(&stream_id, &setup.worker);
+    
+    assert_eq!(
+        result,
+        Err(Ok(QuipayError::ProtocolPaused))
+    );
 }
 
 #[test]
-#[should_panic(expected = "protocol is paused")]
 fn test_cancel_stream_paused() {
     let setup = setup_test();
     let client = setup.stream_client;
@@ -118,7 +124,12 @@ fn test_cancel_stream_paused() {
     let stream_id = client.create_stream(&setup.employer, &setup.worker, &setup.token_address, &1000, &0u64, &10u64);
 
     client.set_paused(&true);
-    client.cancel_stream(&stream_id, &setup.employer);
+    let result = client.try_cancel_stream(&stream_id, &setup.employer);
+    
+    assert_eq!(
+        result,
+        Err(Ok(QuipayError::ProtocolPaused))
+    );
 }
 
 #[test]
