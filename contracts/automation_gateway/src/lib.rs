@@ -1,5 +1,6 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, vec, Address, Bytes, Env, Vec};
+use soroban_sdk::{Address, Bytes, Env, Vec, contract, contractimpl, contracttype};
+use quipay_common::{QuipayError, require};
 
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -30,17 +31,19 @@ pub struct AutomationGateway;
 #[contractimpl]
 impl AutomationGateway {
     /// Initialize the contract with an admin (employer).
-    pub fn init(env: Env, admin: Address) {
-        if env.storage().instance().has(&DataKey::Admin) {
-            panic!("Already initialized");
-        }
+    pub fn init(env: Env, admin: Address) -> Result<(), QuipayError> {
+        require!(
+            !env.storage().instance().has(&DataKey::Admin),
+            QuipayError::AlreadyInitialized
+        );
         env.storage().instance().set(&DataKey::Admin, &admin);
+        Ok(())
     }
 
     /// Register a new AI agent with specific permissions.
     /// Only the admin can call this.
-    pub fn register_agent(env: Env, agent_address: Address, permissions: Vec<Permission>) {
-        let admin: Address = env.storage().instance().get(&DataKey::Admin).expect("Not initialized");
+    pub fn register_agent(env: Env, agent_address: Address, permissions: Vec<Permission>) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(env.clone())?;
         admin.require_auth();
 
         let agent = Agent {
@@ -49,22 +52,29 @@ impl AutomationGateway {
             registered_at: env.ledger().timestamp(),
         };
 
-        env.storage().instance().set(&DataKey::Agent(agent_address), &agent);
+        env.storage()
+            .instance()
+            .set(&DataKey::Agent(agent_address), &agent);
+        Ok(())
     }
 
     /// Revoke an AI agent's authorization.
     /// Only the admin can call this.
-    pub fn revoke_agent(env: Env, agent_address: Address) {
-        let admin: Address = env.storage().instance().get(&DataKey::Admin).expect("Not initialized");
+    pub fn revoke_agent(env: Env, agent_address: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(env.clone())?;
         admin.require_auth();
 
-        env.storage().instance().remove(&DataKey::Agent(agent_address));
+        env.storage()
+            .instance()
+            .remove(&DataKey::Agent(agent_address));
+        Ok(())
     }
 
     /// Check if an agent is authorized to perform a specific action.
     pub fn is_authorized(env: Env, agent_address: Address, action: Permission) -> bool {
-        let agent_data: Option<Agent> = env.storage().instance().get(&DataKey::Agent(agent_address));
-        
+        let agent_data: Option<Agent> =
+            env.storage().instance().get(&DataKey::Agent(agent_address));
+
         match agent_data {
             Some(agent) => agent.permissions.contains(action),
             None => false,
@@ -73,19 +83,24 @@ impl AutomationGateway {
 
     /// Route an automated action.
     /// For now, this is a placeholder that verifies authorization.
-    pub fn execute_automation(env: Env, agent: Address, action: Permission, _data: Bytes) {
+    pub fn execute_automation(env: Env, agent: Address, action: Permission, _data: Bytes) -> Result<(), QuipayError> {
         agent.require_auth();
 
-        if !Self::is_authorized(env.clone(), agent, action) {
-            panic!("Agent not authorized for this action");
-        }
+        require!(
+            Self::is_authorized(env.clone(), agent, action),
+            QuipayError::InsufficientPermissions
+        );
 
         // TODO: Implement actual routing/integration with other contracts
+        Ok(())
     }
 
     // Helper to get admin
-    pub fn get_admin(env: Env) -> Address {
-        env.storage().instance().get(&DataKey::Admin).expect("Not initialized")
+    pub fn get_admin(env: Env) -> Result<Address, QuipayError> {
+        env.storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)
     }
 }
 

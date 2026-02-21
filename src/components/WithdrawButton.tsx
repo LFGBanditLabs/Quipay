@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface WithdrawButtonProps {
@@ -154,7 +153,7 @@ export default function WithdrawButton({
   }, [contract, walletAddress]);
 
   useEffect(() => {
-    fetchAmount();
+    void fetchAmount();
   }, [fetchAmount]);
 
   // ── Withdraw flow ──────────────────────────────────────────────────────────
@@ -193,7 +192,7 @@ export default function WithdrawButton({
     setStatus("idle");
     setErrorMsg("");
     setTxHash(null);
-    fetchAmount();
+    void fetchAmount();
   };
 
   // ── Derived UI values ──────────────────────────────────────────────────────

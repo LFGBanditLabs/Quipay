@@ -151,15 +151,8 @@ export const renderPrimitivesType = ({
       return (
         <>
           <Input
-            {...sharedProps}
-            onChange={(e) => {
-              handleChange(e, schemaType);
-              handleValidate(e, schemaType, [
-                validate.getPublicKeyError,
-                validate.getContractIdError,
-              ]);
-            }}
             key={path.join(".")}
+            {...sharedProps}
             infoText={description || ""}
             leftElement={<Icon.User03 />}
             note={<>{description}</>}
@@ -170,8 +163,8 @@ export const renderPrimitivesType = ({
     case "U32":
       return (
         <PositiveIntPicker
-          {...sharedProps}
           key={path.join(".")}
+          {...sharedProps}
           onChange={(e) => {
             handleChange(e, schemaType);
             handleValidate(e, schemaType, validate.getU32Error);
@@ -181,8 +174,8 @@ export const renderPrimitivesType = ({
     case "U64":
       return (
         <PositiveIntPicker
-          {...sharedProps}
           key={path.join(".")}
+          {...sharedProps}
           onChange={(e) => {
             handleChange(e, schemaType);
             handleValidate(e, schemaType, validate.getU64Error);
@@ -192,8 +185,8 @@ export const renderPrimitivesType = ({
     case "U128":
       return (
         <PositiveIntPicker
-          {...sharedProps}
           key={path.join(".")}
+          {...sharedProps}
           onChange={(e) => {
             handleChange(e, schemaType);
             handleValidate(e, schemaType, validate.getU128Error);
@@ -203,8 +196,8 @@ export const renderPrimitivesType = ({
     case "U256":
       return (
         <PositiveIntPicker
-          {...sharedProps}
           key={path.join(".")}
+          {...sharedProps}
           onChange={(e) => {
             handleChange(e, schemaType);
             handleValidate(e, schemaType, validate.getU256Error);
@@ -214,8 +207,8 @@ export const renderPrimitivesType = ({
     case "I32":
       return (
         <Input
-          {...sharedProps}
           key={path.join(".")}
+          {...sharedProps}
           onChange={(e) => {
             handleChange(e, schemaType);
             handleValidate(e, schemaType, validate.getI32Error);
@@ -226,8 +219,8 @@ export const renderPrimitivesType = ({
     case "I64":
       return (
         <Input
-          {...sharedProps}
           key={path.join(".")}
+          {...sharedProps}
           onChange={(e) => {
             handleChange(e, schemaType);
             handleValidate(e, schemaType, validate.getI64Error);
@@ -238,8 +231,8 @@ export const renderPrimitivesType = ({
     case "I128":
       return (
         <Input
-          {...sharedProps}
           key={path.join(".")}
+          {...sharedProps}
           onChange={(e) => {
             handleChange(e, schemaType);
             handleValidate(e, schemaType, validate.getI128Error);
@@ -250,8 +243,8 @@ export const renderPrimitivesType = ({
     case "I256":
       return (
         <Input
-          {...sharedProps}
           key={path.join(".")}
+          {...sharedProps}
           onChange={(e) => {
             handleChange(e, schemaType);
             handleValidate(e, schemaType, validate.getI256Error);
@@ -279,8 +272,8 @@ export const renderPrimitivesType = ({
     case "ScSymbol":
       return (
         <Input
-          {...sharedProps}
           key={path.join(".")}
+          {...sharedProps}
           onChange={(e) => {
             handleChange(e, schemaType);
             handleValidate(e, schemaType);
@@ -292,8 +285,8 @@ export const renderPrimitivesType = ({
     case "DataUrl":
       return (
         <Input
-          {...sharedProps}
           key={path.join(".")}
+          {...sharedProps}
           onChange={(e) => {
             handleChange(e, schemaType);
             handleValidate(e, schemaType, validate.getDataUrlError);
