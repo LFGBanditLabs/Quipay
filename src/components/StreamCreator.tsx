@@ -274,17 +274,25 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
         const tokenContractId =
           tokenValue === "native" ? "" : (tokenValue.split(":")[1] ?? "");
 
-        const ok = await checkTreasurySolvency(
+        const result = await checkTreasurySolvency(
           PAYROLL_VAULT_CONTRACT_ID,
           tokenContractId,
           stroops,
         );
+        const ok = typeof result === "boolean" ? result : !!result;
 
         dispatch({
           type: "SET_SOLVENCY",
           solvency: ok ? { kind: "ok" } : { kind: "insufficient" },
         });
-      } catch {
+      } catch (err: unknown) {
+        let message = "An unknown error occurred.";
+        if (typeof err === "string") {
+          message = err;
+        } else if (err instanceof Error) {
+          message = err.message;
+        }
+        console.error("Solvency check failed:", message);
         dispatch({ type: "SET_SOLVENCY", solvency: { kind: "error" } });
       }
     },
@@ -358,14 +366,28 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
         endTs,
       };
 
-      const { preparedXdr } = (await buildCreateStreamTx(params)) as {
-        preparedXdr: string;
-      };
+      const buildResult = await buildCreateStreamTx(params);
+      if (
+        !buildResult ||
+        typeof buildResult !== "object" ||
+        !("preparedXdr" in buildResult)
+      ) {
+        throw new Error("Invalid response from buildCreateStreamTx");
+      }
+      const { preparedXdr } = buildResult as { preparedXdr: string };
 
       dispatch({ type: "SET_TX_PHASE", phase: { kind: "signing" } });
-      const { signedTxXdr } = (await signTransaction(preparedXdr, {
+      const signResult = await signTransaction(preparedXdr, {
         networkPassphrase,
-      })) as { signedTxXdr: string };
+      });
+      if (
+        !signResult ||
+        typeof signResult !== "object" ||
+        !("signedTxXdr" in signResult)
+      ) {
+        throw new Error("Invalid response from signTransaction");
+      }
+      const { signedTxXdr } = signResult as { signedTxXdr: string };
 
       dispatch({ type: "SET_TX_PHASE", phase: { kind: "submitting" } });
       const hash = await submitAndAwaitTx(signedTxXdr);
@@ -378,13 +400,13 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
       onSuccess?.(String(hash));
 
       setTimeout(() => dispatch({ type: "RESET" }), 3500);
-    } catch (err) {
-      const message =
-        typeof err === "string"
-          ? err
-          : err instanceof Error
-            ? err.message
-            : "An unknown error occurred.";
+    } catch (err: unknown) {
+      let message = "An unknown error occurred.";
+      if (typeof err === "string") {
+        message = err;
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
       dispatch({ type: "SET_TX_PHASE", phase: { kind: "error", message } });
       addNotification(`Stream failed: ${message}`, "error");
     }
