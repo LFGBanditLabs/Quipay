@@ -66,11 +66,9 @@ impl PayrollVault {
         };
         e.storage().persistent().set(&StateKey::Version, &initial_version);
         
-        // Initialize state
-        e.storage().persistent().set(&StateKey::TreasuryBalance, &0i128);
-        e.storage().persistent().set(&StateKey::TotalLiability, &0i128);
         // Authorized contract starts as None - must be set by admin later
-        // No need to initialize balances/liabilities as they are maps
+        // Treasury balances and liabilities are per-token and initialized on first use
+        // No need to initialize them here as they default to 0 when first accessed
         Ok(())
     }
 
