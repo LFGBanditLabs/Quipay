@@ -6,7 +6,9 @@
 }
 
 .card {
-  background-color: var(--sds-color-neutral-subtle); /* Assuming SDS variables or default */
+  background-color: var(
+    --sds-color-neutral-subtle
+  ); /* Assuming SDS variables or default */
   border: 1px solid var(--sds-color-neutral-border);
   border-radius: 8px;
   padding: 20px;
@@ -31,7 +33,7 @@
 
 .streamsHeader {
   display: flex;
-  justify_content: space-between;
+  justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
 }

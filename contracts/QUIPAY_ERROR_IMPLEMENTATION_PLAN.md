@@ -1,24 +1,29 @@
 # QuipayError Implementation Plan
 
 ## Overview
+
 This document outlines the implementation plan for replacing generic panics and asserts with a robust custom error enum across all Quipay smart contracts. This will provide off-chain clients (frontend and AI agent) with machine-readable error codes to handle failures gracefully.
 
 ## Current State Analysis
 
 ### Existing Error Patterns
+
 After analyzing the three contracts, I identified the following error patterns:
 
 #### Automation Gateway Contract
+
 - `panic!("Already initialized")` - Line 35
 - `panic!("Agent not authorized for this action")` - Line 80
 - `.expect("Not initialized")` - Lines 43, 58, 88
 
 #### Payroll Stream Contract
+
 - `panic!("already initialized")` - Line 19
 - `panic!("protocol is paused")` - Line 62
 - `.expect("not initialized")` - Line 28
 
 #### Payroll Vault Contract
+
 - `panic!("already initialized")` - Line 43
 - `panic!("deposit amount must be positive")` - Line 115
 - `panic!("payout amount must be positive")` - Line 131
@@ -27,6 +32,7 @@ After analyzing the three contracts, I identified the following error patterns:
 - `.expect("version not set")` - Line 71
 
 ### Error Categories Identified
+
 1. **Initialization Errors**: Already initialized, not initialized
 2. **Authorization Errors**: Unauthorized access, insufficient permissions
 3. **Validation Errors**: Invalid amounts, invalid parameters
@@ -38,6 +44,7 @@ After analyzing the three contracts, I identified the following error patterns:
 ### Phase 1: Create Shared Error Infrastructure
 
 #### 1.1 Create Common Contracts Directory Structure
+
 ```
 contracts/
 ├── common/
@@ -51,7 +58,9 @@ contracts/
 ```
 
 #### 1.2 Define QuipayError Enum
+
 The error enum will include:
+
 - `AlreadyInitialized` - Contract already initialized
 - `NotInitialized` - Contract not initialized
 - `Unauthorized` - Caller not authorized
@@ -67,7 +76,9 @@ The error enum will include:
 - `Custom(String)` - For custom error messages
 
 #### 1.3 Error Code Mapping
+
 Each error variant will have a corresponding error code for frontend consumption:
+
 ```rust
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -92,6 +103,7 @@ pub enum QuipayErrorCode {
 ### Phase 2: Contract Updates
 
 #### 2.1 Automation Gateway Contract Updates
+
 - Update `init()` to return `Result<(), QuipayError>`
 - Update `register_agent()` to return `Result<(), QuipayError>`
 - Update `revoke_agent()` to return `Result<(), QuipayError>`
@@ -99,6 +111,7 @@ pub enum QuipayErrorCode {
 - Update `get_admin()` to return `Result<Address, QuipayError>`
 
 #### 2.2 Payroll Stream Contract Updates
+
 - Update `init()` to return `Result<(), QuipayError>`
 - Update `set_paused()` to return `Result<(), QuipayError>`
 - Update `create_stream()` to return `Result<(), QuipayError>`
@@ -107,6 +120,7 @@ pub enum QuipayErrorCode {
 - Update `require_not_paused()` to return `Result<(), QuipayError>`
 
 #### 2.3 Payroll Vault Contract Updates
+
 - Update `initialize()` to return `Result<(), QuipayError>`
 - Update `upgrade()` to return `Result<(), QuipayError>`
 - Update `get_version()` to return `Result<VersionInfo, QuipayError>`
@@ -118,11 +132,13 @@ pub enum QuipayErrorCode {
 ### Phase 3: Testing Strategy
 
 #### 3.1 Unit Test Updates
+
 - Update existing `#[should_panic]` tests to verify `Result::Err` variants
 - Add new tests for each error variant
 - Test error code extraction and frontend compatibility
 
 #### 3.2 Integration Tests
+
 - Create tests that simulate frontend error handling
 - Verify error codes are machine-readable
 - Test error propagation across contract calls
@@ -130,7 +146,9 @@ pub enum QuipayErrorCode {
 ### Phase 4: Frontend Integration
 
 #### 4.1 Error Code Mapping
+
 Create a frontend error mapping utility:
+
 ```typescript
 export const QUIPAY_ERROR_CODES = {
   ALREADY_INITIALIZED: 1001,
@@ -150,6 +168,7 @@ export const QUIPAY_ERROR_CODES = {
 ```
 
 #### 4.2 Error Handling Components
+
 - Update `ErrorResponse.tsx` to handle QuipayError codes
 - Create user-friendly error messages for each error code
 - Implement retry logic where appropriate
@@ -157,6 +176,7 @@ export const QUIPAY_ERROR_CODES = {
 ## Implementation Details
 
 ### Error Conversion Traits
+
 ```rust
 impl From<QuipayError> for soroban_sdk::Error {
     fn from(error: QuipayError) -> Self {
@@ -172,6 +192,7 @@ impl From<QuipayError> for u32 {
 ```
 
 ### Helper Macros
+
 ```rust
 macro_rules! require {
     ($condition:expr, $error:expr) => {
@@ -183,6 +204,7 @@ macro_rules! require {
 ```
 
 ### Storage Helper Functions
+
 ```rust
 fn get_admin<T: soroban_sdk::storage::Storage>(storage: &T) -> Result<Address, QuipayError> {
     storage.get(&DataKey::Admin).ok_or(QuipayError::NotInitialized)
@@ -192,17 +214,21 @@ fn get_admin<T: soroban_sdk::storage::Storage>(storage: &T) -> Result<Address, Q
 ## Acceptance Criteria Verification
 
 ### ✅ Frontend Error Distinction
+
 The implementation will enable the frontend to distinguish between:
+
 - "Insufficient Balance" (Error code 1006)
 - "Unauthorized" (Error code 1003)
 - "Stream Expired" (Error code 1012)
 
 ### ✅ Code Readability and Standardization
+
 - All contracts will use consistent error handling patterns
 - Error variants will be self-documenting
 - Helper functions will reduce code duplication
 
 ### ✅ Unit Test Coverage
+
 - Each error variant will have corresponding unit tests
 - Tests will verify correct error code propagation
 - Integration tests will validate frontend error handling
@@ -210,11 +236,13 @@ The implementation will enable the frontend to distinguish between:
 ## Migration Strategy
 
 ### Backward Compatibility
+
 - Error codes will be stable and versioned
 - Existing panic messages will be preserved in error descriptions
 - Gradual migration approach allows incremental updates
 
 ### Rollout Plan
+
 1. Deploy common error module
 2. Update contracts one by one
 3. Update frontend error handling
@@ -223,12 +251,15 @@ The implementation will enable the frontend to distinguish between:
 ## Risks and Mitigations
 
 ### Risk: Contract Size Increase
+
 **Mitigation**: Use efficient error representation and minimize error variant count
 
 ### Risk: Breaking Changes
+
 **Mitigation**: Maintain backward compatibility during transition period
 
 ### Risk: Testing Complexity
+
 **Mitigation**: Comprehensive test suite with automated error verification
 
 ## Timeline Estimate

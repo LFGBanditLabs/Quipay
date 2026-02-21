@@ -35,7 +35,7 @@ proptest! {
         env.mock_all_auths_allowing_non_root_auth();
 
         let admin = Address::generate(&env);
-        let contract_id = env.register_contract(None, PayrollVault);
+        let contract_id = env.register(PayrollVault, ());
         let client = PayrollVaultClient::new(&env, &contract_id);
         
         client.initialize(&admin);
@@ -63,8 +63,8 @@ proptest! {
             }
 
             // CORE INVARIANT: Total Treasury Balance >= Total System Liability
-            let treasury = client.get_treasury_balance();
-            let liability = client.get_total_liability();
+            let treasury = client.get_treasury_balance(&token_id);
+            let liability = client.get_total_liability(&token_id);
             
             assert!(treasury >= liability, "INVARIANT VIOLATION: Treasury Balance ({}) is less than Total System Liability ({})", treasury, liability);
             assert!(treasury >= 0, "Treasury balance fell below zero: {}", treasury);
