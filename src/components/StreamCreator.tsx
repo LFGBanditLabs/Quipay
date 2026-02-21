@@ -274,11 +274,16 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
         const tokenContractId =
           tokenValue === "native" ? "" : (tokenValue.split(":")[1] ?? "");
 
-        const result = (await checkTreasurySolvency(
+        const solvencyFn = checkTreasurySolvency as (
+          vaultId: string,
+          tokenId: string,
+          amount: bigint,
+        ) => Promise<boolean>;
+        const result = await solvencyFn(
           PAYROLL_VAULT_CONTRACT_ID,
           tokenContractId,
           stroops,
-        )) as unknown as boolean;
+        );
         const ok = typeof result === "boolean" ? result : !!result;
 
         dispatch({
@@ -366,9 +371,10 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
         endTs,
       };
 
-      const buildResult = (await buildCreateStreamTx(params)) as unknown as {
-        preparedXdr: string;
-      };
+      const buildFn = buildCreateStreamTx as (
+        p: CreateStreamParams,
+      ) => Promise<{ preparedXdr: string }>;
+      const buildResult = await buildFn(params);
       if (
         !buildResult ||
         typeof buildResult !== "object" ||
@@ -376,7 +382,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
       ) {
         throw new Error("Invalid response from buildCreateStreamTx");
       }
-      const { preparedXdr } = buildResult as { preparedXdr: string };
+      const { preparedXdr } = buildResult;
 
       dispatch({ type: "SET_TX_PHASE", phase: { kind: "signing" } });
       const signResult = await signTransaction(preparedXdr, {
@@ -392,7 +398,8 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
       const { signedTxXdr } = signResult as { signedTxXdr: string };
 
       dispatch({ type: "SET_TX_PHASE", phase: { kind: "submitting" } });
-      const hash = (await submitAndAwaitTx(signedTxXdr)) as unknown as string;
+      const submitFn = submitAndAwaitTx as (xdr: string) => Promise<string>;
+      const hash = await submitFn(signedTxXdr);
 
       dispatch({
         type: "SET_TX_PHASE",

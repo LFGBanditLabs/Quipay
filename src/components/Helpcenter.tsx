@@ -257,12 +257,16 @@ function Highlight({ text, query }: { text: string; query: string }) {
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const regex = new RegExp(`(${escaped})`, "gi");
   const parts = text.split(regex);
+  // Build character-offset keys so we never use array index as key
+  let charOffset = 0;
   return (
     <>
-      {parts.map((part, i) =>
-        part.toLowerCase() === query.toLowerCase() ? (
+      {parts.map((part) => {
+        const key = `${charOffset}-${part.length}`;
+        charOffset += part.length;
+        return part.toLowerCase() === query.toLowerCase() ? (
           <mark
-            key={`mark-${i}`}
+            key={key}
             style={{
               background: "rgba(110,86,207,0.18)",
               color: "inherit",
@@ -273,9 +277,9 @@ function Highlight({ text, query }: { text: string; query: string }) {
             {part}
           </mark>
         ) : (
-          <span key={`text-${i}`}>{part}</span>
-        ),
-      )}
+          <span key={key}>{part}</span>
+        );
+      })}
     </>
   );
 }
