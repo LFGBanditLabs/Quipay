@@ -1,7 +1,7 @@
-import { Button, Icon, Layout } from "@stellar/design-system";
-import "./App.module.css";
-import ConnectAccount from "./components/ConnectAccount.tsx";
+import { lazy, Suspense, type FC, type ReactNode } from "react";
 import { Routes, Route, Outlet, NavLink } from "react-router-dom";
+import styles from "./App.module.css";
+
 import Home from "./pages/Home";
 import Debugger from "./pages/Debugger.tsx";
 import OnboardingTour from "./components/OnboardingTour";
@@ -89,11 +89,11 @@ const AppLayout: React.FC = () => (
       <span>
         © {new Date().getFullYear()} Quipay. Licensed under the{" "}
         <a
-          href="http://www.apache.org/licenses/LICENSE-2.0"
+          href="https://opensource.org/license/mit"
           target="_blank"
           rel="noopener noreferrer"
         >
-          Apache License, Version 2.0
+          MIT License
         </a>
         .
       </span>
@@ -104,7 +104,7 @@ const AppLayout: React.FC = () => (
 function App() {
   return (
     <Routes>
-      <Route element={<AppLayout />}>
+      <Route element={<PublicLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<EmployerDashboard />} />
         <Route path="/create-stream" element={<CreateStream />} />

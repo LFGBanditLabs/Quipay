@@ -10,10 +10,38 @@
 }
 
 .notification {
+  max-width: min(92vw, 540px);
+  border-radius: 12px;
+  border: 1px solid rgba(15, 54, 82, 0.14);
+  background: rgba(255, 255, 255, 0.95);
+  color: #163957;
+  box-shadow: 0 10px 24px rgba(15, 53, 88, 0.18);
+  padding: 0.72rem 0.92rem;
   transition:
     transform 0.3s ease,
     opacity 0.3s ease;
   opacity: 1;
+}
+
+.notification p {
+  margin: 0;
+  font-size: 0.93rem;
+  line-height: 1.35;
+}
+
+.notification.success {
+  border-color: rgba(20, 128, 89, 0.32);
+  background: rgba(239, 253, 247, 0.95);
+}
+
+.notification.error {
+  border-color: rgba(190, 41, 68, 0.32);
+  background: rgba(255, 241, 244, 0.96);
+}
+
+.notification.warning {
+  border-color: rgba(179, 109, 0, 0.32);
+  background: rgba(255, 249, 236, 0.96);
 }
 
 .notification.slide-in {
