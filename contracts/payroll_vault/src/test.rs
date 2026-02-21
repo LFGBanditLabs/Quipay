@@ -37,7 +37,8 @@ fn test_flow() {
     assert_eq!(token_client.balance(&contract_id), 500);
     assert_eq!(client.get_balance(&token_id), 500);
 
-    // Admin payouts 200 to recipient
+    // Admin adds liability and payouts 200 to recipient
+    client.add_liability(&200);
     client.payout(&recipient, &token_id, &200);
 
     // Check balances
