@@ -230,7 +230,7 @@ interface StreamCreatorProps {
 const StreamCreator: React.FC<StreamCreatorProps> = ({
   onSuccess,
   onCancel,
-}) => {
+}: StreamCreatorProps) => {
   const { address, signTransaction, networkPassphrase } = useWallet();
   const { addNotification } = useNotification();
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
@@ -358,24 +358,33 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
         endTs,
       };
 
-      const { preparedXdr } = await buildCreateStreamTx(params);
+      const { preparedXdr } = (await buildCreateStreamTx(params)) as {
+        preparedXdr: string;
+      };
 
       dispatch({ type: "SET_TX_PHASE", phase: { kind: "signing" } });
-      const { signedTxXdr } = await signTransaction(preparedXdr, {
+      const { signedTxXdr } = (await signTransaction(preparedXdr, {
         networkPassphrase,
-      });
+      })) as { signedTxXdr: string };
 
       dispatch({ type: "SET_TX_PHASE", phase: { kind: "submitting" } });
       const hash = await submitAndAwaitTx(signedTxXdr);
 
-      dispatch({ type: "SET_TX_PHASE", phase: { kind: "success", hash } });
+      dispatch({
+        type: "SET_TX_PHASE",
+        phase: { kind: "success", hash: String(hash) },
+      });
       addNotification("Stream created successfully!", "success");
-      onSuccess?.(hash);
+      onSuccess?.(String(hash));
 
       setTimeout(() => dispatch({ type: "RESET" }), 3500);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "An unknown error occurred.";
+        typeof err === "string"
+          ? err
+          : err instanceof Error
+            ? err.message
+            : "An unknown error occurred.";
       dispatch({ type: "SET_TX_PHASE", phase: { kind: "error", message } });
       addNotification(`Stream failed: ${message}`, "error");
     }
