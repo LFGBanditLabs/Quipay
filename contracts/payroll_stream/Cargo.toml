@@ -12,6 +12,9 @@ doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
+payroll_vault = { path = "../payroll_vault" }
+quipay_common = { path = "../common" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
+proptest = "1.5.0"

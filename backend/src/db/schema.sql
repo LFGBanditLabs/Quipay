@@ -61,3 +61,39 @@ CREATE TABLE IF NOT EXISTS vault_events (
 CREATE INDEX IF NOT EXISTS idx_vault_address    ON vault_events (address);
 CREATE INDEX IF NOT EXISTS idx_vault_event_type ON vault_events (event_type);
 CREATE INDEX IF NOT EXISTS idx_vault_day        ON vault_events (date_trunc('day', created_at));
+
+-- Payroll schedules for automated stream creation
+CREATE TABLE IF NOT EXISTS payroll_schedules (
+    id              BIGSERIAL   PRIMARY KEY,
+    employer        TEXT        NOT NULL,
+    worker          TEXT        NOT NULL,
+    token           TEXT        NOT NULL,
+    rate            NUMERIC     NOT NULL,
+    cron_expression TEXT        NOT NULL,
+    duration_days   INTEGER     NOT NULL DEFAULT 30,
+    enabled         BOOLEAN     NOT NULL DEFAULT true,
+    last_run_at     TIMESTAMPTZ,
+    next_run_at     TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_schedules_employer    ON payroll_schedules (employer);
+CREATE INDEX IF NOT EXISTS idx_schedules_enabled     ON payroll_schedules (enabled);
+CREATE INDEX IF NOT EXISTS idx_schedules_next_run    ON payroll_schedules (next_run_at);
+
+-- Scheduler execution logs
+CREATE TABLE IF NOT EXISTS scheduler_logs (
+    id              BIGSERIAL   PRIMARY KEY,
+    schedule_id     BIGINT      NOT NULL REFERENCES payroll_schedules (id),
+    action          TEXT        NOT NULL,
+    status          TEXT        NOT NULL,
+    stream_id       BIGINT,
+    error_message   TEXT,
+    execution_time  INTEGER,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_scheduler_logs_schedule ON scheduler_logs (schedule_id);
+CREATE INDEX IF NOT EXISTS idx_scheduler_logs_status  ON scheduler_logs (status);
+CREATE INDEX IF NOT EXISTS idx_scheduler_logs_day     ON scheduler_logs (date_trunc('day', created_at));

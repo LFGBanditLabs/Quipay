@@ -148,8 +148,7 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       } catch (e) {
         // If `getNetwork` or `getAddress` throw errors... sign the user out???
         nullify();
-        const msg =
-          e instanceof Error ? e.message : "Failed to connect wallet";
+        const msg = e instanceof Error ? e.message : "Failed to connect wallet";
         setConnectionError(msg);
         // then log the error (instead of throwing) so we have visibility
         // into the error while working on Scaffold Stellar but we do not
@@ -162,7 +161,7 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setTimeout>;
     let isMounted = true;
 
     // Create recursive polling function to check wallet state continuously
@@ -205,7 +204,16 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       connectionError,
       clearError,
     }),
-    [address, network, networkPassphrase, balances, updateBalances, isPending, connectionError, clearError],
+    [
+      address,
+      network,
+      networkPassphrase,
+      balances,
+      updateBalances,
+      isPending,
+      connectionError,
+      clearError,
+    ],
   );
 
   return <WalletContext value={contextValue}>{children}</WalletContext>;
