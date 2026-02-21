@@ -49,8 +49,8 @@ const EmployerDashboard: React.FC = () => {
   }
 
   const demoContract = {
-    withdrawableAmount: async (address: string) => {
-      return BigInt("5000000"); // 5.00 USDC (6 decimals)
+    withdrawableAmount: () => {
+      return Promise.resolve(BigInt("5000000")); // 5.00 USDC (6 decimals)
     },
     withdraw: async () => {
       await new Promise((res) => setTimeout(res, 2000)); // simulate delay
@@ -96,45 +96,47 @@ const EmployerDashboard: React.FC = () => {
                   onAction={() => navigate("/treasury-management")}
                 />
               </div>
-            ) : (
-              <>
-                {treasuryBalances.map((balance) => (
-                  <div key={balance.tokenSymbol}>
-                    <Text as="div" size="lg" className={styles.metricValue}>
-                      {balance.balance} {balance.tokenSymbol}
-                    </Text>
-                  </div>
-                ))}
-                <div style={{ marginTop: "10px" }}>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    id="tour-manage-treasury"
-                    onClick={() => navigate("/treasury-management")}
-                  >
-                    Manage Treasury
-                  </Button>
-                </div>
-              </>
-            )}
+            ))}
+            <div style={{ marginTop: "10px" }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                id="tour-manage-treasury"
+                onClick={() => {
+                  void navigate("/treasury-management");
+                }}
+              >
+                Manage Treasury
+              </Button>
+            </div>
           </div>
 
           {/* Total Liabilities */}
           <div className={styles.card}>
-            <Text as="span" size="md" weight="semi-bold" className={styles.cardHeader}>
+            <Text
+              as="span"
+              size="md"
+              weight="semi-bold"
+              className={styles.cardHeader}
+            >
               Total Liabilities
             </Text>
             <Text as="div" size="lg" className={styles.metricValue}>
               {totalLiabilities}
             </Text>
-            <Text as="p" size="sm" variant="secondary">
-              Estimated monthly
+            <Text as="p" size="sm" style={{ color: "var(--gray-500)" }}>
+              You are projected to pay {totalLiabilities} in the next 30 days.
             </Text>
           </div>
 
           {/* Active Streams Count */}
           <div className={styles.card}>
-            <Text as="span" size="md" weight="semi-bold" className={styles.cardHeader}>
+            <Text
+              as="span"
+              size="md"
+              weight="semi-bold"
+              className={styles.cardHeader}
+            >
               Active Streams
             </Text>
             <Text as="div" size="lg" className={styles.metricValue}>
@@ -151,7 +153,9 @@ const EmployerDashboard: React.FC = () => {
             <Button
               variant="primary"
               size="md"
-              onClick={() => navigate("/create-stream")}
+              onClick={() => {
+                void navigate("/create-stream");
+              }}
             >
               Create New Stream
             </Button>
@@ -159,27 +163,53 @@ const EmployerDashboard: React.FC = () => {
 
           {activeStreams.length === 0 ? (
             <EmptyState
+              title="No active streams"
+              description="You haven't created any payment streams yet. Start by adding your first worker."
               variant="streams"
-              title="No Active Streams"
-              description="You haven't set up any payment streams yet. Start by creating a new stream for your first worker."
-              icon="🌊"
               actionLabel="Create New Stream"
-              onAction={() => navigate("/create-stream")}
+              onAction={() => {
+                void navigate("/create-stream");
+              }}
             />
           ) : (
             <div className={styles.streamsList}>
               {activeStreams.map((stream) => (
-                <div key={stream.id} className={styles.streamItem}>
+                <div
+                  key={stream.id}
+                  className={styles.streamItem}
+                  onClick={() => {
+                    void navigate(`/stream/${stream.id}`);
+                  }}
+                  style={{ cursor: "pointer" }}
+                >
                   <div>
-                    <Text as="div" weight="bold">{stream.employeeName}</Text>
-                    <Text as="div" size="sm" variant="secondary">{stream.employeeAddress}</Text>
+                    <Text as="div" size="md" weight="bold">
+                      {stream.employeeName}
+                    </Text>
+                    <Text
+                      as="div"
+                      size="sm"
+                      style={{ color: "var(--gray-500)" }}
+                    >
+                      {stream.employeeAddress}
+                    </Text>
                   </div>
                   <div>
-                    <Text as="div">Flow Rate: {stream.flowRate} {stream.tokenSymbol}/sec</Text>
-                    <Text as="div" size="sm" variant="secondary">Start: {stream.startDate}</Text>
+                    <Text as="div" size="sm">
+                      Flow Rate: {stream.flowRate} {stream.tokenSymbol}/sec
+                    </Text>
+                    <Text
+                      as="div"
+                      size="sm"
+                      style={{ color: "var(--gray-500)" }}
+                    >
+                      Start: {stream.startDate}
+                    </Text>
                   </div>
                   <div>
-                    <Text as="div" weight="bold">Total: {stream.totalStreamed} {stream.tokenSymbol}</Text>
+                    <Text as="div" size="md" weight="bold">
+                      Total: {stream.totalStreamed} {stream.tokenSymbol}
+                    </Text>
                   </div>
                 </div>
               ))}

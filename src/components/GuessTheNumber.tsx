@@ -10,7 +10,7 @@ import { Box } from "../components/layout/Box";
 export const GuessTheNumber = () => {
   const [guessedIt, setGuessedIt] = useState<boolean>();
   const [theGuess, setTheGuess] = useState<number>();
-  const { address, updateBalances, signTransaction } = useWallet();
+  const { address } = useWallet();
 
   if (!address) {
     return (
@@ -20,9 +20,10 @@ export const GuessTheNumber = () => {
     );
   }
 
-  /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
-  const submitGuess = async () => {
+  const submitGuess = () => {
     if (!theGuess || !address) return;
+    console.log("Guessing game contract call removed in this example.");
+    /*
     const tx = await game.guess(
       { a_number: BigInt(theGuess), guesser: address },
       { publicKey: address },
@@ -34,6 +35,7 @@ export const GuessTheNumber = () => {
       setGuessedIt(result.unwrap());
       await updateBalances();
     }
+    */
   };
   /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 

@@ -7,12 +7,8 @@ import Debugger from "./pages/Debugger.tsx";
 import OnboardingTour from "./components/OnboardingTour";
 
 import EmployerDashboard from "./pages/EmployerDashboard";
-import WorkerDashboard from "./pages/WorkerDashboard";
 import CreateStream from "./pages/CreateStream";
-import HelpPage from "./pages/HelpPage.tsx";
-import PayrollDashboard from "./pages/PayrollDashboard.tsx";
-import TreasuryManager from "./pages/TreasuryManager";
-import GovernanceOverview from "./pages/GovernanceOverview";
+import TreasuryManagement from "./pages/TreasuryManagement";
 
 const AppLayout: React.FC = () => (
   <>
@@ -111,13 +107,8 @@ function App() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<EmployerDashboard />} />
-        <Route path="/worker" element={<WorkerDashboard />} />
-        <Route path="/payroll" element={<PayrollDashboard />} />
-
-        <Route path="/treasury-management" element={<TreasuryManager />} />
-        <Route path="/governance" element={<GovernanceOverview />} />
         <Route path="/create-stream" element={<CreateStream />} />
-        <Route path="/help" element={<HelpPage />} />
+        <Route path="/treasury-management" element={<TreasuryManagement />} />
         <Route path="/debug" element={<Debugger />} />
         <Route path="/debug/:contractName" element={<Debugger />} />
       </Route>

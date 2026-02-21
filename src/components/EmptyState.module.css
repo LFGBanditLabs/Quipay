@@ -3,61 +3,46 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 3rem 1.5rem;
   text-align: center;
-  border: 1px dashed var(--gray-300);
-  border-radius: 0.75rem;
+  padding: 3rem 2rem;
   background-color: var(--gray-50);
+  border: 2px dashed var(--gray-200);
+  border-radius: 1rem;
   margin: 1.5rem 0;
-  transition: all 0.2s ease-in-out;
-}
-
-.emptyState:hover {
-  border-color: var(--blue-400);
-  background-color: var(--blue-25);
 }
 
 .iconContainer {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 64px;
-  height: 64px;
-  margin-bottom: 1.5rem;
-  background: linear-gradient(135deg, var(--blue-500), var(--blue-700));
-  border-radius: 50%;
-  color: white;
-  box-shadow: 0 4px 12px rgba(0, 112, 243, 0.2);
-}
-
-.icon {
-  font-size: 2rem;
+  font-size: 3rem;
+  margin-bottom: 1rem;
 }
 
 .title {
-  color: var(--gray-900);
   margin-bottom: 0.5rem !important;
+  color: var(--gray-900);
 }
 
 .description {
-  color: var(--gray-600);
+  color: var(--gray-500);
   max-width: 400px;
   margin-bottom: 1.5rem !important;
 }
 
 .actionContainer {
-  margin-top: 0.5rem;
+  margin-top: 1rem;
 }
 
-/* Specific variants if needed */
-.streams .iconContainer {
-  background: linear-gradient(135deg, #00c6ff, #0072ff);
+/* Variants */
+.streams {
+  background-color: #f0f7ff;
+  border-color: #cce3ff;
 }
 
-.treasury .iconContainer {
-  background: linear-gradient(135deg, #f093fb, #f5576c);
+.workers {
+  background-color: #fdf2f8;
+  border-color: #fbcfe8;
 }
 
-.workers .iconContainer {
-  background: linear-gradient(135deg, #5ee7df, #b490ca);
+.treasury {
+  background-color: #f0fdf4;
+  border-color: #dcfce7;
 }

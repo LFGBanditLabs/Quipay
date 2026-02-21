@@ -27,7 +27,12 @@ const EmptyState: React.FC<EmptyStateProps> = ({
       <Text as="h3" size="lg" weight="bold" className={styles.title}>
         {title}
       </Text>
-      <Text as="p" size="md" className={styles.description}>
+      <Text
+        as="p"
+        size="md"
+        className={styles.description}
+        style={{ color: "var(--gray-500)" }}
+      >
         {description}
       </Text>
       {actionLabel && onAction && (
