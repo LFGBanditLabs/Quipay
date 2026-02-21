@@ -6,12 +6,12 @@ use proptest::prelude::*;
 use soroban_sdk::{testutils::Address as _, testutils::Ledger, Address, Env};
 
 mod dummy_vault {
-    use soroban_sdk::{contract, contractimpl, Env};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct DummyVault;
     #[contractimpl]
     impl DummyVault {
-        pub fn add_liability(_env: Env, _amount: i128) {}
+        pub fn add_liability(_env: Env, _token: Address, _amount: i128) {}
     }
 }
 

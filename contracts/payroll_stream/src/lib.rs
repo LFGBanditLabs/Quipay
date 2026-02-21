@@ -104,6 +104,7 @@ impl PayrollStream {
         env.storage()
             .instance()
             .set(&DataKey::RetentionSecs, &retention_secs);
+        Ok(())
     }
 
     pub fn set_vault(env: Env, vault: Address) {
@@ -126,7 +127,7 @@ impl PayrollStream {
         start_ts: u64,
         end_ts: u64,
     ) -> u64 {
-        Self::require_not_paused(&env);
+        Self::require_not_paused(&env).unwrap();
         employer.require_auth();
 
         if rate <= 0 {
@@ -160,7 +161,7 @@ impl PayrollStream {
         env.invoke_contract::<()>(
             &vault,
             &Symbol::new(&env, "add_liability"),
-            vec![&env, total_amount.into_val(&env)],
+            vec![&env, token.clone().into_val(&env), total_amount.into_val(&env)],
         );
 
         let mut next_id: u64 = env
@@ -218,13 +219,10 @@ impl PayrollStream {
         );
 
         stream_id
-        Ok(stream_id)
     }
 
     pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> i128 {
-        Self::require_not_paused(&env);
-    pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> Result<i128, QuipayError> {
-        Self::require_not_paused(&env)?;
+        Self::require_not_paused(&env).unwrap();
         worker.require_auth();
 
         let key = StreamKey::Stream(stream_id);
@@ -232,17 +230,21 @@ impl PayrollStream {
             .storage()
             .persistent()
             .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+            .expect("stream not found");
 
-        require!(stream.worker == worker, QuipayError::NotWorker);
-        require!(!Self::is_closed(&stream), QuipayError::StreamClosed);
+        if stream.worker != worker {
+            panic!("not worker");
+        }
+        if Self::is_closed(&stream) {
+            panic!("stream closed");
+        }
 
         let now = env.ledger().timestamp();
         let vested = Self::vested_amount(&stream, now);
         let available = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
 
         if available <= 0 {
-            return Ok(0);
+            return 0;
         }
 
         stream.withdrawn_amount = stream
@@ -343,9 +345,7 @@ impl PayrollStream {
     }
 
     pub fn cancel_stream(env: Env, stream_id: u64, employer: Address) {
-        Self::require_not_paused(&env);
-    pub fn cancel_stream(env: Env, stream_id: u64, employer: Address) -> Result<(), QuipayError> {
-        Self::require_not_paused(&env)?;
+        Self::require_not_paused(&env).unwrap();
         employer.require_auth();
 
         let key = StreamKey::Stream(stream_id);
@@ -353,17 +353,18 @@ impl PayrollStream {
             .storage()
             .persistent()
             .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+            .expect("stream not found");
 
-        require!(stream.employer == employer, QuipayError::NotEmployer);
+        if stream.employer != employer {
+            panic!("not employer");
+        }
         if Self::is_closed(&stream) {
-            return Ok(());
+            return;
         }
 
         let now = env.ledger().timestamp();
         Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
         env.storage().persistent().set(&key, &stream);
-        Ok(())
     }
 
     pub fn get_stream(env: Env, stream_id: u64) -> Option<Stream> {
@@ -423,6 +424,7 @@ impl PayrollStream {
         {
             panic!("protocol paused");
         }
+        Ok(())
     }
 
     fn is_closed(stream: &Stream) -> bool {
