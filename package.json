@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "npm start",
-    "start": "vite",
+    "start": "concurrently --kill-others-on-fail --names stellar,vite -c gray,green --pad-prefix \"stellar scaffold watch --build-clients\" \"vite\"",
     "build": "tsc -b && vite build",
     "install:contracts": "npm install --workspaces --legacy-peer-deps && npm run build --workspaces",
     "preview": "vite preview",
@@ -28,6 +28,7 @@
     "react-dom": "^19.2.0",
     "react-joyride": "^2.9.3",
     "react-router-dom": "^7.9.6",
+    "recharts": "^3.7.0",
     "zod": "^4.1.13"
   },
   "devDependencies": {

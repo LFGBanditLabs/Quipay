@@ -9,6 +9,7 @@ import OnboardingTour from "./components/OnboardingTour";
 import EmployerDashboard from "./pages/EmployerDashboard";
 import CreateStream from "./pages/CreateStream";
 import HelpPage from "./pages/HelpPage.tsx";
+import PayrollDashboard from "./pages/PayrollDashboard.tsx";
 import TreasuryManager from "./pages/TreasuryManager";
 
 const AppLayout: React.FC = () => (
@@ -87,6 +88,8 @@ function App() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
+        <Route path="/dashboard" element={<EmployerDashboard />} />
+        <Route path="/payroll" element={<PayrollDashboard />} />
         <Route path="/dashboard" element={<EmployerDashboard />} />
         <Route path="/treasury-management" element={<TreasuryManager />} />
         <Route path="/create-stream" element={<CreateStream />} />
