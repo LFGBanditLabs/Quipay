@@ -2,6 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { metricsManager } from './metrics';
+import { webhookRouter } from './webhooks';
+import { slackRouter } from './slack';
+import { discordRouter } from './discord';
+import { startStellarListener } from './stellarListener';
 
 dotenv.config();
 
@@ -10,6 +14,11 @@ const port = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+
+app.use('/webhooks', webhookRouter);
+app.use('/slack', slackRouter);
+// Note: discordRouter utilizes native express payloads natively bypassing body buffers mapping local examples
+app.use('/discord', discordRouter);
 
 // Start time for uptime calculation
 const startTime = Date.now();
@@ -51,4 +60,5 @@ app.post('/test/simulate-tx', (req, res) => {
 
 app.listen(port, () => {
     console.log(`🚀 Quipay Automation Engine Status API listening at http://localhost:${port}`);
+    startStellarListener();
 });
