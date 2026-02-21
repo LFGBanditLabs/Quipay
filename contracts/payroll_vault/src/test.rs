@@ -299,8 +299,17 @@ fn test_liability_tracking() {
 
     let admin = Address::generate(&env);
     let authorized_contract = Address::generate(&env);
-    let token = Address::generate(&env);
-    let another_token = Address::generate(&env);
+    let depositor = Address::generate(&env);
+
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token = token_contract.address();
+    let token_admin_client = token::StellarAssetClient::new(&env, &token);
+
+    let another_token_admin = Address::generate(&env);
+    let another_token_contract = env.register_stellar_asset_contract_v2(another_token_admin.clone());
+    let another_token = another_token_contract.address();
+    let another_token_admin_client = token::StellarAssetClient::new(&env, &another_token);
 
     // Initialize
     client.initialize(&admin);
@@ -309,26 +318,95 @@ fn test_liability_tracking() {
     client.set_authorized_contract(&authorized_contract);
     assert_eq!(client.get_authorized_contract(), Some(authorized_contract.clone()));
 
+    // Fund vault so solvency checks pass
+    token_admin_client.mint(&depositor, &10_000);
+    another_token_admin_client.mint(&depositor, &10_000);
+    client.deposit(&depositor, &token, &10_000);
+    client.deposit(&depositor, &another_token, &10_000);
+
     // Add liability for first token
     client.add_liability(&token, &500);
     assert_eq!(client.get_liability(&token), 500);
-    assert_eq!(client.get_total_liability(), 500);
+    assert_eq!(client.get_total_liability(&token), 500);
 
     // Add more liability for same token
     client.add_liability(&token, &300);
     assert_eq!(client.get_liability(&token), 800);
-    assert_eq!(client.get_total_liability(), 800);
+    assert_eq!(client.get_total_liability(&token), 800);
 
     // Add liability for another token
     client.add_liability(&another_token, &200);
     assert_eq!(client.get_liability(&another_token), 200);
     assert_eq!(client.get_liability(&token), 800); // Unchanged
-    assert_eq!(client.get_total_liability(), 1000);
+    assert_eq!(client.get_total_liability(&token), 800);
+    assert_eq!(client.get_total_liability(&another_token), 200);
 
     // Remove liability
     client.remove_liability(&token, &400);
     assert_eq!(client.get_liability(&token), 400);
-    assert_eq!(client.get_total_liability(), 600);
+    assert_eq!(client.get_total_liability(&token), 400);
+    assert_eq!(client.get_total_liability(&another_token), 200);
+}
+
+#[test]
+fn test_available_balance_and_withdraw_enforcement() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let employer = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_id = token_contract.address();
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+
+    token_admin_client.mint(&employer, &1000);
+    client.deposit(&employer, &token_id, &1000);
+
+    // Allocate liabilities (admin path)
+    client.allocate_funds(&token_id, &600);
+    assert_eq!(client.get_available_balance(&token_id), 400);
+
+    // Withdraw within available
+    client.withdraw(&employer, &token_id, &400);
+    assert_eq!(client.get_available_balance(&token_id), 0);
+
+    // Withdraw beyond available should fail
+    let res = client.try_withdraw(&employer, &token_id, &1);
+    assert_eq!(res, Err(Ok(QuipayError::InsufficientBalance)));
+}
+
+#[test]
+fn test_check_solvency_prevents_unfunded_liability() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_id = token_contract.address();
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+    let depositor = Address::generate(&env);
+
+    // Configure authorized contract and fund vault with 500
+    let authorized_contract = Address::generate(&env);
+    client.set_authorized_contract(&authorized_contract);
+    token_admin_client.mint(&depositor, &500);
+    client.deposit(&depositor, &token_id, &500);
+
+    // This would exceed balance (liability 0 + 501 > balance 500) and should panic
+    let res = client.try_add_liability(&token_id, &501);
+    assert!(res.is_err());
 }
 
 #[test]
@@ -361,11 +439,20 @@ fn test_remove_more_liability_than_exists_panics() {
 
     let admin = Address::generate(&env);
     let authorized_contract = Address::generate(&env);
-    let token = Address::generate(&env);
+    let depositor = Address::generate(&env);
+
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token = token_contract.address();
+    let token_admin_client = token::StellarAssetClient::new(&env, &token);
 
     // Initialize and set authorized contract
     client.initialize(&admin);
     client.set_authorized_contract(&authorized_contract);
+
+    // Fund vault so solvency checks pass
+    token_admin_client.mint(&depositor, &1_000);
+    client.deposit(&depositor, &token, &1_000);
 
     // Add some liability
     client.add_liability(&token, &500);
@@ -407,11 +494,20 @@ fn test_remove_zero_liability_panics() {
 
     let admin = Address::generate(&env);
     let authorized_contract = Address::generate(&env);
-    let token = Address::generate(&env);
+    let depositor = Address::generate(&env);
+
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token = token_contract.address();
+    let token_admin_client = token::StellarAssetClient::new(&env, &token);
 
     // Initialize and set authorized contract
     client.initialize(&admin);
     client.set_authorized_contract(&authorized_contract);
+
+    // Fund vault so solvency checks pass
+    token_admin_client.mint(&depositor, &1_000);
+    client.deposit(&depositor, &token, &1_000);
 
     // Add some liability first
     client.add_liability(&token, &500);
