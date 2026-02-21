@@ -1,7 +1,7 @@
 #![cfg(test)]
 extern crate std;
 
-use crate::{PayrollStream, PayrollStreamClient};
+use crate::{PayrollStream, PayrollStreamClient, StreamStatus};
 use proptest::prelude::*;
 use soroban_sdk::{testutils::Address as _, testutils::Ledger, Address, Env};
 
@@ -55,7 +55,7 @@ proptest! {
         let start_ts = initial_time.saturating_add(start_offset);
         let end_ts = start_ts.saturating_add(duration);
 
-        let stream_id = client.create_stream(&employer, &worker, &token, &rate, &start_ts, &end_ts);
+        let stream_id = client.create_stream(&employer, &worker, &token, &rate, &0u64, &start_ts, &end_ts);
 
         let mut current_time = initial_time;
         let steps = std::cmp::min(time_leaps.len(), actions.len());
@@ -78,7 +78,7 @@ proptest! {
                 let withdrawn = stream.withdrawn_amount;
                 let total = stream.total_amount;
 
-                let is_closed = (stream.status_bits & 2) != 0 || (stream.status_bits & 4) != 0;
+                let is_closed = stream.status == StreamStatus::Canceled || stream.status == StreamStatus::Completed;
                 let effective_now = if is_closed { stream.closed_at } else { current_time };
 
                 let accrued = if effective_now <= stream.start_ts {

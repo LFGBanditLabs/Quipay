@@ -22,17 +22,28 @@ pub enum StreamStatus {
 }
 
 #[contracttype]
+#[derive(Clone)]
+pub enum StreamKey {
+    Stream(u64),
+    EmployerStreams(Address),
+    WorkerStreams(Address),
+}
+
+#[contracttype]
 #[derive(Clone, Debug)]
 pub struct Stream {
     pub employer: Address,
     pub worker: Address,
     pub token: Address,
     pub rate: i128,
-    pub total_amount: i128,
-    pub withdrawn_amount: i128,
+    pub cliff_ts: u64,
     pub start_ts: u64,
     pub end_ts: u64,
-    pub status_bits: u32,
+    pub total_amount: i128,
+    pub withdrawn_amount: i128,
+    pub last_withdrawal_ts: u64,
+    pub status: StreamStatus,
+    pub created_at: u64,
     pub closed_at: u64,
 }
 
@@ -44,12 +55,6 @@ pub struct WithdrawResult {
     pub success: bool,
 }
 
-#[contracttype]
-#[derive(Clone)]
-pub enum StreamKey {
-    Stream(u64),
-}
-
 const DEFAULT_RETENTION_SECS: u64 = 30 * 24 * 60 * 60;
 
 #[contract]
@@ -57,7 +62,6 @@ pub struct PayrollStream;
 
 #[contractimpl]
 impl PayrollStream {
-    /// Initialize the contract with an admin.
     pub fn init(env: Env, admin: Address) -> Result<(), QuipayError> {
         require!(
             !env.storage().instance().has(&DataKey::Admin),
@@ -72,8 +76,6 @@ impl PayrollStream {
         Ok(())
     }
 
-    /// Set the paused status of the contract.
-    /// Only the admin can call this.
     pub fn set_paused(env: Env, paused: bool) -> Result<(), QuipayError> {
         let admin: Address = env
             .storage()
@@ -85,7 +87,6 @@ impl PayrollStream {
         Ok(())
     }
 
-    /// Check if the contract is paused.
     pub fn is_paused(env: Env) -> bool {
         env.storage()
             .instance()
@@ -115,14 +116,13 @@ impl PayrollStream {
         env.storage().instance().set(&DataKey::Vault, &vault);
     }
 
-    /// Create a new payroll stream.
-    /// Fails if the contract is paused.
     pub fn create_stream(
         env: Env,
         employer: Address,
         worker: Address,
         token: Address,
         rate: i128,
+        cliff_ts: u64,
         start_ts: u64,
         end_ts: u64,
     ) -> u64 {
@@ -136,6 +136,11 @@ impl PayrollStream {
             panic!("invalid time range");
         }
 
+        let effective_cliff = if cliff_ts == 0 { start_ts } else { cliff_ts };
+        if effective_cliff > end_ts {
+            panic!("cliff_ts must not exceed end_ts");
+        }
+
         let now = env.ledger().timestamp();
         if start_ts < now {
             panic!("start_time must be >= current time");
@@ -146,13 +151,11 @@ impl PayrollStream {
             .checked_mul(i128::from(duration as i64))
             .expect("amount overflow");
 
-        // Verify solvency by calling Vault's add_liability
         let vault: Address = env
             .storage()
             .instance()
             .get(&DataKey::Vault)
             .expect("vault not configured");
-        // employer auth is required by vault logic too, which is already authenticated here
         use soroban_sdk::{vec, IntoVal, Symbol};
         env.invoke_contract::<()>(
             &vault,
@@ -176,28 +179,47 @@ impl PayrollStream {
             worker: worker.clone(),
             token: token.clone(),
             rate,
-            total_amount,
-            withdrawn_amount: 0,
+            cliff_ts: effective_cliff,
             start_ts,
             end_ts,
-            status_bits: 1u32 << (StreamStatus::Active as u32),
+            total_amount,
+            withdrawn_amount: 0,
+            last_withdrawal_ts: 0,
+            status: StreamStatus::Active,
+            created_at: now,
             closed_at: 0,
         };
+
+        env.storage()
+            .persistent()
+            .set(&StreamKey::Stream(stream_id), &stream);
+
+        let emp_key = StreamKey::EmployerStreams(employer.clone());
+        let mut emp_ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&emp_key)
+            .unwrap_or_else(|| Vec::new(&env));
+        emp_ids.push_back(stream_id);
+        env.storage().persistent().set(&emp_key, &emp_ids);
+
+        let wrk_key = StreamKey::WorkerStreams(worker.clone());
+        let mut wrk_ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&wrk_key)
+            .unwrap_or_else(|| Vec::new(&env));
+        wrk_ids.push_back(stream_id);
+        env.storage().persistent().set(&wrk_key, &wrk_ids);
 
         env.events().publish(
             (Symbol::new(&env, "stream"), Symbol::new(&env, "created")),
             (stream_id, employer, worker, token, rate, start_ts, end_ts),
         );
 
-        env.storage()
-            .persistent()
-            .set(&StreamKey::Stream(stream_id), &stream);
-
         stream_id
     }
 
-    /// Withdraw funds from a stream.
-    /// Fails if the contract is paused.
     pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> i128 {
         Self::require_not_paused(&env);
         worker.require_auth();
@@ -228,6 +250,7 @@ impl PayrollStream {
             .withdrawn_amount
             .checked_add(available)
             .expect("withdrawn overflow");
+        stream.last_withdrawal_ts = now;
 
         if stream.withdrawn_amount >= stream.total_amount {
             Self::close_stream_internal(&mut stream, now, StreamStatus::Completed);
@@ -237,9 +260,6 @@ impl PayrollStream {
         available
     }
 
-    /// Batch withdraw funds from multiple streams.
-    /// Processes all withdrawals - returns results for each stream indicating success/failure.
-    /// Returns a vector of WithdrawResult for each stream in the input.
     pub fn batch_withdraw(env: Env, stream_ids: Vec<u64>, caller: Address) -> Vec<WithdrawResult> {
         Self::require_not_paused(&env).unwrap();
         caller.require_auth();
@@ -281,6 +301,7 @@ impl PayrollStream {
                                 .withdrawn_amount
                                 .checked_add(available)
                                 .expect("withdrawn overflow");
+                            stream.last_withdrawal_ts = now;
 
                             if stream.withdrawn_amount >= stream.total_amount {
                                 Self::close_stream_internal(
@@ -322,8 +343,6 @@ impl PayrollStream {
         results
     }
 
-    /// Cancel a payroll stream.
-    /// Fails if the contract is paused.
     pub fn cancel_stream(env: Env, stream_id: u64, employer: Address) {
         Self::require_not_paused(&env);
         employer.require_auth();
@@ -353,6 +372,20 @@ impl PayrollStream {
             .get(&StreamKey::Stream(stream_id))
     }
 
+    pub fn get_employer_streams(env: Env, employer: Address) -> Vec<u64> {
+        env.storage()
+            .persistent()
+            .get(&StreamKey::EmployerStreams(employer))
+            .unwrap_or_else(|| Vec::new(&env))
+    }
+
+    pub fn get_worker_streams(env: Env, worker: Address) -> Vec<u64> {
+        env.storage()
+            .persistent()
+            .get(&StreamKey::WorkerStreams(worker))
+            .unwrap_or_else(|| Vec::new(&env))
+    }
+
     pub fn cleanup_stream(env: Env, stream_id: u64) {
         let key = StreamKey::Stream(stream_id);
         let stream: Stream = env
@@ -379,7 +412,6 @@ impl PayrollStream {
         env.storage().persistent().remove(&key);
     }
 
-    /// Internal helper to ensure the contract is not paused.
     fn require_not_paused(env: &Env) -> Result<(), QuipayError> {
         if env
             .storage()
@@ -393,17 +425,18 @@ impl PayrollStream {
     }
 
     fn is_closed(stream: &Stream) -> bool {
-        (stream.status_bits & (1u32 << (StreamStatus::Canceled as u32))) != 0
-            || (stream.status_bits & (1u32 << (StreamStatus::Completed as u32))) != 0
+        stream.status == StreamStatus::Canceled || stream.status == StreamStatus::Completed
     }
 
     fn close_stream_internal(stream: &mut Stream, now: u64, status: StreamStatus) {
-        stream.status_bits &= !(1u32 << (StreamStatus::Active as u32));
-        stream.status_bits |= 1u32 << (status as u32);
+        stream.status = status;
         stream.closed_at = now;
     }
 
     fn vested_amount(stream: &Stream, now: u64) -> i128 {
+        if now < stream.cliff_ts {
+            return 0;
+        }
         if now <= stream.start_ts {
             return 0;
         }

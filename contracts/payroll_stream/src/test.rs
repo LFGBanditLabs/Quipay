@@ -30,17 +30,14 @@ fn test_pause_mechanism() {
     client.init(&admin);
     client.set_vault(&vault_id);
 
-    // 1. Initial state: not paused
     assert!(!client.is_paused());
 
     env.ledger().with_mut(|li| {
         li.timestamp = 0;
     });
 
-    // rate=100, start=0, end=10
-    client.create_stream(&employer, &worker, &token, &100, &0u64, &10u64); // Should not panic
+    client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
 
-    // 2. Admin pauses the protocol
     client.set_paused(&true);
     assert!(client.is_paused());
 }
@@ -65,7 +62,7 @@ fn test_create_stream_paused() {
     env.ledger().with_mut(|li| {
         li.timestamp = 0;
     });
-    client.create_stream(&employer, &worker, &token, &100, &0u64, &10u64);
+    client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
 }
 
 #[test]
@@ -124,7 +121,7 @@ fn test_unpause_resumes_operations() {
     env.ledger().with_mut(|li| {
         li.timestamp = 0;
     });
-    client.create_stream(&employer, &worker, &token, &100, &0u64, &10u64); // Should not panic
+    client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
 }
 
 #[test]
@@ -148,7 +145,7 @@ fn test_stream_withdraw_and_cleanup() {
     env.ledger().with_mut(|li| {
         li.timestamp = 0;
     });
-    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &10u64);
+    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
 
     env.ledger().with_mut(|li| {
         li.timestamp = 5;
@@ -189,7 +186,7 @@ fn test_batch_withdraw_single_stream() {
     env.ledger().with_mut(|li| {
         li.timestamp = 0;
     });
-    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &10u64);
+    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
 
     env.ledger().with_mut(|li| {
         li.timestamp = 5;
@@ -226,9 +223,9 @@ fn test_batch_withdraw_multiple_streams() {
         li.timestamp = 0;
     });
 
-    let stream1 = client.create_stream(&employer, &worker, &token, &100, &0u64, &10u64);
-    let stream2 = client.create_stream(&employer, &worker, &token, &200, &0u64, &20u64);
-    let stream3 = client.create_stream(&employer, &worker, &token, &50, &0u64, &5u64);
+    let stream1 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
+    let stream2 = client.create_stream(&employer, &worker, &token, &200, &0u64, &0u64, &20u64);
+    let stream3 = client.create_stream(&employer, &worker, &token, &50, &0u64, &0u64, &5u64);
 
     env.ledger().with_mut(|li| {
         li.timestamp = 10;
@@ -268,9 +265,9 @@ fn test_batch_withdraw_mixed_ownership() {
         li.timestamp = 0;
     });
 
-    let stream1 = client.create_stream(&employer, &worker1, &token, &100, &0u64, &10u64);
-    let stream2 = client.create_stream(&employer, &worker2, &token, &100, &0u64, &10u64);
-    let stream3 = client.create_stream(&employer, &worker1, &token, &100, &0u64, &10u64);
+    let stream1 = client.create_stream(&employer, &worker1, &token, &100, &0u64, &0u64, &10u64);
+    let stream2 = client.create_stream(&employer, &worker2, &token, &100, &0u64, &0u64, &10u64);
+    let stream3 = client.create_stream(&employer, &worker1, &token, &100, &0u64, &0u64, &10u64);
 
     env.ledger().with_mut(|li| {
         li.timestamp = 5;
@@ -312,7 +309,7 @@ fn test_batch_withdraw_nonexistent_stream() {
         li.timestamp = 0;
     });
 
-    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &10u64);
+    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
 
     env.ledger().with_mut(|li| {
         li.timestamp = 5;
@@ -351,8 +348,8 @@ fn test_batch_withdraw_closed_stream() {
         li.timestamp = 0;
     });
 
-    let stream1 = client.create_stream(&employer, &worker, &token, &100, &0u64, &10u64);
-    let stream2 = client.create_stream(&employer, &worker, &token, &100, &0u64, &10u64);
+    let stream1 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
+    let stream2 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
 
     client.cancel_stream(&stream1, &employer);
 
@@ -414,7 +411,7 @@ fn test_batch_withdraw_completes_stream() {
         li.timestamp = 0;
     });
 
-    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &10u64);
+    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
 
     env.ledger().with_mut(|li| {
         li.timestamp = 10;
@@ -428,5 +425,119 @@ fn test_batch_withdraw_completes_stream() {
     assert!(result.success);
 
     let stream = client.get_stream(&stream_id).unwrap();
-    assert!((stream.status_bits & (1u32 << (StreamStatus::Completed as u32))) != 0);
+    assert_eq!(stream.status, StreamStatus::Completed);
+}
+
+#[test]
+fn test_index_get_employer_streams() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let vault_id = env.register_contract(None, dummy_vault::DummyVault);
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    client.init(&admin);
+    client.set_vault(&vault_id);
+
+    env.ledger().with_mut(|li| { li.timestamp = 0; });
+
+    let id1 = client.create_stream(&employer, &worker, &token, &10, &0u64, &0u64, &100u64);
+    let id2 = client.create_stream(&employer, &worker, &token, &20, &0u64, &0u64, &200u64);
+
+    let ids = client.get_employer_streams(&employer);
+    assert_eq!(ids.len(), 2);
+    assert_eq!(ids.get(0).unwrap(), id1);
+    assert_eq!(ids.get(1).unwrap(), id2);
+}
+
+#[test]
+fn test_index_get_worker_streams() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let vault_id = env.register_contract(None, dummy_vault::DummyVault);
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    client.init(&admin);
+    client.set_vault(&vault_id);
+
+    env.ledger().with_mut(|li| { li.timestamp = 0; });
+
+    let id1 = client.create_stream(&employer, &worker, &token, &10, &0u64, &0u64, &100u64);
+    let id2 = client.create_stream(&employer, &worker, &token, &20, &0u64, &0u64, &200u64);
+
+    let ids = client.get_worker_streams(&worker);
+    assert_eq!(ids.len(), 2);
+    assert_eq!(ids.get(0).unwrap(), id1);
+    assert_eq!(ids.get(1).unwrap(), id2);
+}
+
+#[test]
+fn test_cliff_blocks_early_withdrawal() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let vault_id = env.register_contract(None, dummy_vault::DummyVault);
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    client.init(&admin);
+    client.set_vault(&vault_id);
+
+    env.ledger().with_mut(|li| { li.timestamp = 0; });
+
+    let stream_id = client.create_stream(&employer, &worker, &token, &100, &5u64, &0u64, &10u64);
+
+    env.ledger().with_mut(|li| { li.timestamp = 3; });
+    let amount = client.withdraw(&stream_id, &worker);
+    assert_eq!(amount, 0);
+
+    env.ledger().with_mut(|li| { li.timestamp = 7; });
+    let amount = client.withdraw(&stream_id, &worker);
+    assert!(amount > 0);
+}
+
+#[test]
+fn test_audit_fields_set_on_create() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let vault_id = env.register_contract(None, dummy_vault::DummyVault);
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    client.init(&admin);
+    client.set_vault(&vault_id);
+
+    env.ledger().with_mut(|li| { li.timestamp = 42; });
+
+    let stream_id = client.create_stream(&employer, &worker, &token, &10, &0u64, &42u64, &142u64);
+    let stream = client.get_stream(&stream_id).unwrap();
+
+    assert_eq!(stream.created_at, 42);
+    assert_eq!(stream.closed_at, 0);
+    assert_eq!(stream.last_withdrawal_ts, 0);
+    assert_eq!(stream.status, StreamStatus::Active);
 }
