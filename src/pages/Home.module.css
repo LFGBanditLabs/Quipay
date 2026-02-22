@@ -1,0 +1,199 @@
+.page {
+  width: min(1100px, calc(100% - 2rem));
+  margin: 1rem auto 1.2rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.hero {
+  border: 1px solid rgba(16, 35, 60, 0.12);
+  border-radius: 18px;
+  padding: clamp(1rem, 3vw, 2rem);
+  background:
+    radial-gradient(
+      circle at 14% 16%,
+      rgba(210, 236, 255, 0.72),
+      transparent 38%
+    ),
+    radial-gradient(
+      circle at 89% 14%,
+      rgba(255, 216, 183, 0.62),
+      transparent 35%
+    ),
+    rgba(255, 255, 255, 0.85);
+  box-shadow: 0 18px 38px rgba(14, 54, 92, 0.12);
+}
+
+.kicker {
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #135b79;
+  font-weight: 700;
+}
+
+.heroTitle {
+  margin-top: 0.7rem;
+  margin-bottom: 0;
+  max-width: 18ch;
+  font-size: clamp(1.9rem, 4.6vw, 3.2rem);
+  line-height: 1.06;
+}
+
+.heroDescription {
+  margin-top: 1rem;
+  margin-bottom: 0;
+  max-width: 64ch;
+  color: #3f5f7e;
+  font-size: clamp(0.96rem, 2.1vw, 1.08rem);
+  line-height: 1.62;
+}
+
+.ctaRow {
+  margin-top: 1.2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.72rem;
+}
+
+.ctaButton {
+  border-radius: 12px;
+  height: 44px;
+  padding: 0 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 160ms ease;
+}
+
+.ctaButton:hover {
+  transform: translateY(-1px);
+}
+
+.primary {
+  background: linear-gradient(90deg, #0d5378, #0f7a99);
+  color: #ffffff;
+}
+
+.secondary {
+  border: 1px solid rgba(16, 35, 60, 0.15);
+  background: rgba(255, 255, 255, 0.88);
+  color: #173857;
+}
+
+.metrics {
+  margin-top: 0.9rem;
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.metricCard {
+  border-radius: 14px;
+  border: 1px solid rgba(16, 35, 60, 0.12);
+  background: rgba(255, 255, 255, 0.84);
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.metricCard span {
+  color: #4a6682;
+  font-size: 0.84rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metricCard strong {
+  font-size: 1.3rem;
+}
+
+.features {
+  margin-top: 0.9rem;
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.featureCard {
+  border-radius: 14px;
+  border: 1px solid rgba(16, 35, 60, 0.12);
+  background: rgba(255, 255, 255, 0.83);
+  padding: 0.95rem;
+}
+
+.featureCard h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.25;
+  color: #1a3f5f;
+}
+
+.featureCard p {
+  margin-top: 0.55rem;
+  margin-bottom: 0;
+  color: #4a6682;
+}
+
+@media (max-width: 820px) {
+  .page {
+    width: calc(100% - 1.4rem);
+    margin-top: 0.75rem;
+  }
+
+  .hero {
+    border-radius: 14px;
+  }
+
+  .heroTitle {
+    max-width: 24ch;
+  }
+}
+
+@media (max-width: 700px) {
+  .ctaRow {
+    flex-direction: column;
+  }
+
+  .ctaButton {
+    width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .page {
+    width: calc(100% - 1rem);
+    margin-top: 0.65rem;
+  }
+
+  .hero {
+    padding: 0.95rem;
+  }
+
+  .heroDescription {
+    line-height: 1.55;
+  }
+
+  .metrics,
+  .features {
+    grid-template-columns: 1fr;
+  }
+
+  .heroTitle {
+    max-width: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .heroTitle {
+    font-size: clamp(1.6rem, 8.5vw, 2rem);
+  }
+
+  .metricCard strong {
+    font-size: 1.15rem;
+  }
+}

@@ -29,25 +29,26 @@ pub fn run_fuzz_iteration(
             // Deposit
             if amount > 0 && amount <= 1000000 {
                 env.mock_all_auths();
-                client.deposit(user, token_id, &amount);
+                let _ = client.deposit(user, token_id, &amount);
                 
                 // Invariant: Contract balance should reflect deposit
                 assert!(token_client.balance(&contract_id) >= amount);
-                assert_eq!(client.get_treasury_balance(), amount);
+                assert_eq!(client.get_treasury_balance(token_id), amount);
             }
         }
         1 => {
-            // Payout (Requires deposit first for this simple iteration)
+            // Payout (Requires deposit and allocation first)
             let deposit_amount = 1000;
             env.mock_all_auths();
-            client.deposit(user, token_id, &deposit_amount);
+            let _ = client.deposit(user, token_id, &deposit_amount);
+            let _ = client.allocate_funds(token_id, &deposit_amount);
 
             if amount > 0 && amount <= deposit_amount {
-                client.payout(recipient, token_id, &amount);
+                let _ = client.payout(recipient, token_id, &amount);
                 
                 // Invariants
-                assert_eq!(client.get_total_liability(), amount);
-                assert_eq!(client.get_treasury_balance(), deposit_amount - amount);
+                assert_eq!(client.get_total_liability(token_id), deposit_amount - amount);
+                assert_eq!(client.get_treasury_balance(token_id), deposit_amount - amount);
                 assert_eq!(token_client.balance(recipient), amount);
             }
         }
