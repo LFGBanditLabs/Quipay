@@ -144,6 +144,7 @@ const Home: React.FC = () => {
               <div className="w-14 h-14 flex items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 mb-6 transition-all duration-300 group-hover:bg-indigo-500 group-hover:text-white group-hover:scale-110 group-hover:rotate-6">
                 <svg
                   className="w-7 h-7"
+                  style={{ width: "28px", height: "28px" }}
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -167,6 +168,7 @@ const Home: React.FC = () => {
               <div className="w-14 h-14 flex items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 mb-6 transition-all duration-300 group-hover:bg-indigo-500 group-hover:text-white group-hover:scale-110 group-hover:rotate-6">
                 <svg
                   className="w-7 h-7"
+                  style={{ width: "28px", height: "28px" }}
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"

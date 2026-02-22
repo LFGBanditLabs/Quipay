@@ -1,6 +1,6 @@
-import { lazy, Suspense, type FC, type ReactNode } from "react";
 import { Routes, Route, Outlet, NavLink } from "react-router-dom";
-import styles from "./App.module.css";
+import { Layout, Button, Icon } from "@stellar/design-system";
+import ConnectAccount from "./components/ConnectAccount";
 
 import Home from "./pages/Home";
 import Debugger from "./pages/Debugger.tsx";
@@ -8,11 +8,9 @@ import OnboardingTour from "./components/OnboardingTour";
 
 import EmployerDashboard from "./pages/EmployerDashboard";
 import CreateStream from "./pages/CreateStream";
-import HelpPage from "./pages/HelpPage.tsx";
 import PayrollDashboard from "./pages/PayrollDashboard.tsx";
 import TreasuryManager from "./pages/TreasuryManager";
 import WithdrawPage from "./pages/withdrawPage.tsx";
-import TreasuryManagement from "./pages/TreasuryManagement";
 
 const AppLayout: React.FC = () => (
   <>
@@ -44,7 +42,6 @@ const AppLayout: React.FC = () => (
             <NavLink to="/governance" style={{ textDecoration: "none" }}>
               {({ isActive }) => (
                 <Button variant="tertiary" size="md" disabled={isActive}>
-                  <Icon.Gavel size="md" />
                   Governance
                 </Button>
               )}
@@ -108,7 +105,7 @@ const AppLayout: React.FC = () => (
 function App() {
   return (
     <Routes>
-      <Route element={<PublicLayout />}>
+      <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<EmployerDashboard />} />
         <Route path="/payroll" element={<PayrollDashboard />} />
@@ -116,7 +113,7 @@ function App() {
         <Route path="/withdraw" element={<WithdrawPage />} />
         <Route path="/treasury-management" element={<TreasuryManager />} />
         <Route path="/create-stream" element={<CreateStream />} />
-<!--         <Route path="/treasury-management" element={<TreasuryManagement />} /> -->
+        {/* <Route path="/treasury-management" element={<TreasuryManagement />} /> */}
         <Route path="/debug" element={<Debugger />} />
         <Route path="/debug/:contractName" element={<Debugger />} />
       </Route>
