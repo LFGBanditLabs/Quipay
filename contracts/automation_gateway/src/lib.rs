@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{Address, Bytes, Env, Vec, contract, contractimpl, contracttype};
+use soroban_sdk::{Address, Bytes, Env, Vec, contract, contractimpl, contracttype, symbol_short, Symbol};
 use quipay_common::{QuipayError, require};
 
 #[contracttype]
@@ -55,6 +55,17 @@ impl AutomationGateway {
         env.storage()
             .instance()
             .set(&DataKey::Agent(agent_address), &agent);
+
+        env.events().publish(
+            (
+                symbol_short!("gateway"),
+                symbol_short!("agent_reg"),
+                agent_address.clone(),
+                symbol_short!("admin"),
+            ),
+            (permissions),
+        );
+
         Ok(())
     }
 
@@ -67,6 +78,17 @@ impl AutomationGateway {
         env.storage()
             .instance()
             .remove(&DataKey::Agent(agent_address));
+
+        env.events().publish(
+            (
+                symbol_short!("gateway"),
+                symbol_short!("agent_rev"),
+                agent_address.clone(),
+                symbol_short!("admin"),
+            ),
+            (),
+        );
+
         Ok(())
     }
 
@@ -92,6 +114,16 @@ impl AutomationGateway {
         );
 
         // TODO: Implement actual routing/integration with other contracts
+        env.events().publish(
+            (
+                symbol_short!("gateway"),
+                symbol_short!("executed"),
+                agent.clone(),
+                Symbol::new(&env, "action"),
+            ),
+            (_data),
+        );
+
         Ok(())
     }
 

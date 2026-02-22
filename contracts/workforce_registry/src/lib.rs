@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, String};
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -42,11 +42,21 @@ impl WorkforceRegistryContract {
         
         let profile = WorkerProfile {
             wallet: worker.clone(),
-            preferred_token,
-            metadata_hash,
+            preferred_token: preferred_token.clone(),
+            metadata_hash: metadata_hash.clone(),
         };
         
         e.storage().persistent().set(&key, &profile);
+
+        e.events().publish(
+            (
+                symbol_short!("registry"),
+                symbol_short!("registered"),
+                worker.clone(),
+                preferred_token.clone(),
+            ),
+            (metadata_hash.clone()),
+        );
     }
 
     /// Updates an existing worker profile.
@@ -71,11 +81,21 @@ impl WorkforceRegistryContract {
         
         let profile = WorkerProfile {
             wallet: worker.clone(),
-            preferred_token,
-            metadata_hash,
+            preferred_token: preferred_token.clone(),
+            metadata_hash: metadata_hash.clone(),
         };
         
         e.storage().persistent().set(&key, &profile);
+
+        e.events().publish(
+            (
+                symbol_short!("registry"),
+                symbol_short!("updated"),
+                worker.clone(),
+                preferred_token.clone(),
+            ),
+            (metadata_hash),
+        );
     }
 
     /// Retrieves a worker's profile.
