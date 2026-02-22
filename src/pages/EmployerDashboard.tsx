@@ -1,11 +1,12 @@
 import React from "react";
-import { Layout, Text, Button, Loader } from "@stellar/design-system";
+import { Layout, Text, Button } from "@stellar/design-system";
 import { usePayroll } from "../hooks/usePayroll";
 import styles from "./EmployerDashboard.module.css";
 import { useNavigate } from "react-router-dom";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import WithdrawButton from "../components/WithdrawButton";
 import EmptyState from "../components/EmptyState";
+import { SkeletonCard, SkeletonRow } from "../components/Loading";
 
 const EmployerDashboard: React.FC = () => {
   const {
@@ -32,39 +33,29 @@ const EmployerDashboard: React.FC = () => {
           robots="noindex,nofollow"
         />
         <Layout.Content>
-            <Layout.Inset>
-                <Text as="h1" size="xl" weight="medium">
-                    Employer Dashboard
+          <Layout.Inset>
+            <Text as="h1" size="xl" weight="medium">
+              Employer Dashboard
+            </Text>
+            <div className={styles.dashboardGrid}>
+              <SkeletonCard lines={3} />
+              <SkeletonCard lines={2} />
+              <SkeletonCard lines={2} />
+            </div>
+            <div className={styles.streamsSection}>
+              <div className={styles.streamsHeader}>
+                <Text as="h2" size="lg">
+                  Active Streams
                 </Text>
-  const demoContract = {
-    // eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
-    withdrawableAmount: async (_address: string) => {
-      return BigInt("5000000"); // 5.00 USDC (6 decimals)
-    },
-    withdraw: async () => {
-      await new Promise((res) => setTimeout(res, 2000)); // simulate delay
-      return {
-        hash: "0xabc123def456abc123def456abc123def456abc123def456abc123def456abc1",
-        wait: async () => {},
-      };
-    },
-  };
-
-  if (isLoading) {
-    return (
-      <Layout.Content>
-        <Layout.Inset>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              padding: "50px",
-            }}
-          >
-            <Loader aria-label="Loading dashboard content" aria-busy="true" />
-          </div>
-        </Layout.Inset>
-      </Layout.Content>
+              </div>
+              <div className={styles.streamsList}>
+                <SkeletonRow />
+                <SkeletonRow />
+              </div>
+            </div>
+          </Layout.Inset>
+        </Layout.Content>
+      </>
     );
   }
 
@@ -76,7 +67,7 @@ const EmployerDashboard: React.FC = () => {
       await new Promise((res) => setTimeout(res, 2000)); // simulate delay
       return {
         hash: "0xabc123def456abc123def456abc123def456abc123def456abc123def456abc1",
-        wait: async () => { },
+        wait: async () => {},
       };
     },
   };
@@ -88,29 +79,6 @@ const EmployerDashboard: React.FC = () => {
           Employer Dashboard
         </Text>
 
-                    {/* Active Streams Count */}
-                    <div className={styles.card} id="tour-active-streams">
-                        <Text as="span" size="md" weight="semi-bold" className={styles.cardHeader}>
-                            Active Streams
-                        </Text>
-                        <Text as="div" size="lg" className={styles.metricValue}>
-                            {activeStreamsCount}
-                        </Text>
-                    </div>
-                </div>
-              ))}
-              <div style={{ marginTop: "10px" }}>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    void navigate("/treasury-management");
-                  }}
-                >
-                  Manage Treasury
-                </Button>
-              </div>
-            </div>
         <div className={styles.dashboardGrid}>
           <WithdrawButton
             walletAddress="0xYourWalletAddress"
@@ -131,11 +99,10 @@ const EmployerDashboard: React.FC = () => {
             </Text>
             {treasuryBalances.map((balance) => (
               <div key={balance.tokenSymbol}>
-                showSim
                 <Text as="div" size="lg" className={styles.metricValue}>
                   {balance.balance} {balance.tokenSymbol}
                 </Text>
-                 </div>
+              </div>
             ))}
             {treasuryBalances.length === 0 ? (
               <div style={{ marginTop: "1rem" }}>
@@ -145,10 +112,12 @@ const EmployerDashboard: React.FC = () => {
                   description="Your treasury is currently empty. Deposit funds to start paying your workers."
                   icon="💰"
                   actionLabel="Deposit Funds"
-                  onAction={() => navigate("/treasury-management")}
+                  onAction={() => {
+                    void navigate("/treasury-management");
+                  }}
                 />
               </div>
-            ))}
+            ) : null}
             <div style={{ marginTop: "10px" }}>
               <Button
                 variant="secondary"
