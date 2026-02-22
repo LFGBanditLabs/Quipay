@@ -2,11 +2,12 @@ import { Button, Icon, Layout } from "@stellar/design-system";
 import "./App.module.css";
 import ConnectAccount from "./components/ConnectAccount.tsx";
 import { Routes, Route, Outlet, NavLink } from "react-router-dom";
-import Home from "./pages/Home";
-import Debugger from "./pages/Debugger.tsx";
+import { lazy, Suspense } from "react";
 import OnboardingTour from "./components/OnboardingTour";
 
-import EmployerDashboard from "./pages/EmployerDashboard";
+const Home = lazy(() => import("./pages/Home"));
+const Debugger = lazy(() => import("./pages/Debugger.tsx"));
+const EmployerDashboard = lazy(() => import("./pages/EmployerDashboard"));
 
 const AppLayout: React.FC = () => (
   <main>
@@ -75,14 +76,16 @@ const AppLayout: React.FC = () => (
 
 function App() {
   return (
-    <Routes>
-      <Route element={<AppLayout />}>
-        <Route path="/" element={<Home />} />
-        <Route path="/dashboard" element={<EmployerDashboard />} />
-        <Route path="/debug" element={<Debugger />} />
-        <Route path="/debug/:contractName" element={<Debugger />} />
-      </Route>
-    </Routes>
+    <Suspense fallback={<div style={{ padding: "2rem", textAlign: "center" }}>Loading...</div>}>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/dashboard" element={<EmployerDashboard />} />
+          <Route path="/debug" element={<Debugger />} />
+          <Route path="/debug/:contractName" element={<Debugger />} />
+        </Route>
+      </Routes>
+    </Suspense>
   );
 }
 
