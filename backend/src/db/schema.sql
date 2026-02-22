@@ -97,3 +97,25 @@ CREATE TABLE IF NOT EXISTS scheduler_logs (
 CREATE INDEX IF NOT EXISTS idx_scheduler_logs_schedule ON scheduler_logs (schedule_id);
 CREATE INDEX IF NOT EXISTS idx_scheduler_logs_status  ON scheduler_logs (status);
 CREATE INDEX IF NOT EXISTS idx_scheduler_logs_day     ON scheduler_logs (date_trunc('day', created_at));
+
+-- Treasury balances (employer deposits)
+CREATE TABLE IF NOT EXISTS treasury_balances (
+    employer        TEXT        PRIMARY KEY,
+    balance         NUMERIC     NOT NULL DEFAULT 0,
+    token           TEXT        NOT NULL DEFAULT 'USDC',
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Treasury monitor logs
+CREATE TABLE IF NOT EXISTS treasury_monitor_log (
+    id              BIGSERIAL   PRIMARY KEY,
+    employer        TEXT        NOT NULL,
+    balance         NUMERIC     NOT NULL,
+    liabilities     NUMERIC     NOT NULL,
+    runway_days     NUMERIC,
+    alert_sent      BOOLEAN     NOT NULL DEFAULT false,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_monitor_log_employer ON treasury_monitor_log (employer);
+CREATE INDEX IF NOT EXISTS idx_monitor_log_created  ON treasury_monitor_log (created_at DESC);

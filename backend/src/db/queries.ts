@@ -471,3 +471,107 @@ export const getSchedulerLogs = async (
   );
   return res.rows;
 };
+
+// ─── Treasury monitoring queries ──────────────────────────────────────────────
+
+export interface TreasuryBalance {
+  employer: string;
+  balance: string;
+  token: string;
+  updated_at: Date;
+}
+
+export interface TreasuryLiability {
+  employer: string;
+  liabilities: string;
+}
+
+export interface MonitorLogEntry {
+  id: number;
+  employer: string;
+  balance: string;
+  liabilities: string;
+  runway_days: number | null;
+  alert_sent: boolean;
+  created_at: Date;
+}
+
+export const getTreasuryBalances = async (): Promise<TreasuryBalance[]> => {
+  if (!getPool()) return [];
+  const res = await query<TreasuryBalance>(
+    `SELECT employer, balance, token, updated_at FROM treasury_balances`,
+  );
+  return res.rows;
+};
+
+export const getActiveLiabilities = async (): Promise<TreasuryLiability[]> => {
+  if (!getPool()) return [];
+  const res = await query<TreasuryLiability>(
+    `SELECT 
+            employer,
+            SUM(total_amount - withdrawn_amount) AS liabilities
+         FROM payroll_streams
+         WHERE status = 'active'
+         GROUP BY employer`,
+  );
+  return res.rows;
+};
+
+export const logMonitorEvent = async (params: {
+  employer: string;
+  balance: number;
+  liabilities: number;
+  runwayDays: number | null;
+  alertSent: boolean;
+}): Promise<void> => {
+  if (!getPool()) return;
+  await query(
+    `INSERT INTO treasury_monitor_log
+            (employer, balance, liabilities, runway_days, alert_sent)
+         VALUES ($1, $2, $3, $4, $5)`,
+    [
+      params.employer,
+      params.balance,
+      params.liabilities,
+      params.runwayDays,
+      params.alertSent,
+    ],
+  );
+};
+
+export const updateTreasuryBalance = async (
+  employer: string,
+  balance: bigint,
+  token = "USDC",
+): Promise<void> => {
+  if (!getPool()) return;
+  await query(
+    `INSERT INTO treasury_balances (employer, balance, token, updated_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (employer) DO UPDATE
+           SET balance = EXCLUDED.balance,
+               token = EXCLUDED.token,
+               updated_at = NOW()`,
+    [employer, balance.toString(), token],
+  );
+};
+
+export const getMonitorLogs = async (
+  employer?: string,
+  limit = 100,
+): Promise<MonitorLogEntry[]> => {
+  if (!getPool()) return [];
+  if (employer) {
+    const res = await query<MonitorLogEntry>(
+      `SELECT * FROM treasury_monitor_log WHERE employer = $1
+             ORDER BY created_at DESC LIMIT $2`,
+      [employer, limit],
+    );
+    return res.rows;
+  }
+  const res = await query<MonitorLogEntry>(
+    `SELECT * FROM treasury_monitor_log ORDER BY created_at DESC LIMIT $1`,
+    [limit],
+  );
+  return res.rows;
+};

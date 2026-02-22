@@ -7,6 +7,7 @@ import { slackRouter } from "./slack";
 import { discordRouter } from "./discord";
 import { startStellarListener } from "./stellarListener";
 import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
+import { startMonitor, runMonitorCycle } from "./monitor/monitor";
 import { NonceManager } from "./services/nonceManager";
 
 dotenv.config();
@@ -89,6 +90,23 @@ app.get("/scheduler/status", (req, res) => {
 });
 
 /**
+ * @api {get} /monitor/status Treasury monitor status endpoint
+ * @apiDescription Returns the current treasury health status for all employers.
+ */
+app.get("/monitor/status", async (req, res) => {
+  try {
+    const statuses = await runMonitorCycle();
+    res.json({
+      status: "ok",
+      employers: statuses,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (ex: any) {
+    res.status(500).json({ error: ex.message });
+  }
+});
+
+/**
  * @api {post} /test/concurrent-tx Simulated high-throughput endpoint
  * @apiDescription Requests 50 concurrent nonces to demonstrate the Nonce Manager bottleneck fix.
  */
@@ -124,4 +142,5 @@ app.listen(port, () => {
   );
   startStellarListener();
   startScheduler();
+  startMonitor();
 });
