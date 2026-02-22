@@ -7,6 +7,7 @@ import { NavLink, useNavigate, useParams } from "react-router-dom";
 import { useContracts } from "../debug/hooks/useContracts.ts";
 import RenderContractMetadata from "../debug/components/RenderContractMetadata.tsx";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
+import { Spinner } from "../components/Loading";
 
 const Debugger: React.FC = () => {
   const { data, isLoading } = useContracts();
@@ -57,7 +58,15 @@ const Debugger: React.FC = () => {
         />
         <Layout.Content>
           <Layout.Inset>
-            <p>Loading contracts...</p>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                padding: "48px 0",
+              }}
+            >
+              <Spinner size="lg" label="Loading contracts…" />
+            </div>
           </Layout.Inset>
         </Layout.Content>
       </>

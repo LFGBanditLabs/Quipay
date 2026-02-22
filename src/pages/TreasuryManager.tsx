@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Layout, Loader, Text, Input } from "@stellar/design-system";
+import { Button, Layout, Text, Input } from "@stellar/design-system";
 import { useNavigate } from "react-router-dom";
 import styles from "./TreasuryManager.module.css";
 import { useWallet } from "../hooks/useWallet";
@@ -8,6 +8,7 @@ import {
   type TreasuryTokenState,
   type TreasuryTransaction,
 } from "../lib/payrollVaultClient";
+import { Skeleton, SkeletonCard } from "../components/Loading";
 
 interface TreasuryViewTokenState extends TreasuryTokenState {
   availableBalance: number;
@@ -127,15 +128,20 @@ const TreasuryManager: React.FC = () => {
     return (
       <Layout.Content>
         <Layout.Inset>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              padding: "48px 0",
-            }}
-          >
-            <Loader />
+          <div className={styles.headerRow}>
+            <Skeleton variant="rect" width="220px" height="28px" />
+            <Skeleton variant="rect" width="140px" height="32px" />
           </div>
+          <Skeleton variant="text" width="80%" height="14px" />
+          <div className={styles.balancesGrid} style={{ marginTop: "16px" }}>
+            <SkeletonCard lines={3} />
+            <SkeletonCard lines={3} />
+          </div>
+          <div className={styles.formsGrid} style={{ marginTop: "16px" }}>
+            <SkeletonCard lines={4} />
+            <SkeletonCard lines={4} />
+          </div>
+          <SkeletonCard lines={5} />
         </Layout.Inset>
       </Layout.Content>
     );

@@ -1,0 +1,78 @@
+/* ── Skeleton ────────────────────────────────────────────────────────────────── */
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--sds-color-neutral-subtle, #e5e7eb) 25%,
+    var(--sds-color-neutral-border, #d1d5db) 50%,
+    var(--sds-color-neutral-subtle, #e5e7eb) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.noAnimate {
+  animation: none;
+  background: var(--sds-color-neutral-subtle, #e5e7eb);
+}
+
+/* Variant: text */
+.text {
+  height: 14px;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.text:last-child {
+  width: 60%;
+}
+
+/* Variant: circle */
+.circle {
+  border-radius: 50%;
+}
+
+/* Variant: rect — uses width/height from inline style */
+
+/* ── SkeletonCard ────────────────────────────────────────────────────────────── */
+
+.card {
+  background-color: var(--sds-color-neutral-subtle, #f3f4f6);
+  border: 1px solid var(--sds-color-neutral-border, #e5e7eb);
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── SkeletonRow — horizontal layout for stream-like items ────────────────── */
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px;
+  border: 1px solid var(--sds-color-neutral-border, #e5e7eb);
+  border-radius: 6px;
+  background-color: var(--sds-color-background-primary, #fff);
+  gap: 16px;
+}
+
+.rowGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
