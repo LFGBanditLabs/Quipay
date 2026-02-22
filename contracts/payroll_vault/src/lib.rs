@@ -7,6 +7,12 @@ mod test;
 #[cfg(test)]
 mod upgrade_test;
 
+#[cfg(test)]
+mod fuzz_test;
+
+#[cfg(kani)]
+mod kani_test;
+
 // Storage keys - using separate enums for persistent vs instance storage
 #[contracttype]
 #[derive(Clone)]
