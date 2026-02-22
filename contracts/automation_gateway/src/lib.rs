@@ -9,6 +9,8 @@ pub enum Permission {
     ExecutePayroll = 1,
     ManageTreasury = 2,
     RegisterAgent = 3,
+    CreateStream = 4,
+    CancelStream = 5,
 }
 
 #[contracttype]
@@ -23,6 +25,7 @@ pub struct Agent {
 pub enum DataKey {
     Admin,
     Agent(Address),
+    PayrollStream,
 }
 
 #[contract]
@@ -133,6 +136,118 @@ impl AutomationGateway {
             .instance()
             .get(&DataKey::Admin)
             .ok_or(QuipayError::NotInitialized)
+    }
+
+    /// Set the PayrollStream contract address.
+    /// Only the admin can call this.
+    pub fn set_payroll_stream(env: Env, payroll_stream: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(env.clone())?;
+        admin.require_auth();
+        env.storage()
+            .instance()
+            .set(&DataKey::PayrollStream, &payroll_stream);
+        Ok(())
+    }
+
+    /// Get the PayrollStream contract address.
+    pub fn get_payroll_stream(env: Env) -> Option<Address> {
+        env.storage()
+            .instance()
+            .get(&DataKey::PayrollStream)
+    }
+
+    /// Create a stream on behalf of an employer through an authorized agent.
+    /// The agent must have CreateStream permission.
+    pub fn agent_create_stream(
+        env: Env,
+        agent: Address,
+        employer: Address,
+        worker: Address,
+        token: Address,
+        rate: i128,
+        cliff_ts: u64,
+        start_ts: u64,
+        end_ts: u64,
+    ) -> Result<u64, QuipayError> {
+        agent.require_auth();
+
+        require!(
+            Self::is_authorized(env.clone(), agent, Permission::CreateStream),
+            QuipayError::InsufficientPermissions
+        );
+
+        let payroll_stream = Self::get_payroll_stream(env.clone())
+            .ok_or(QuipayError::NotInitialized)?;
+
+        // Invoke create_stream_via_gateway on PayrollStream contract
+        let stream_id: u64 = env.invoke_contract(
+            &payroll_stream,
+            &Symbol::new(&env, "create_stream_via_gateway"),
+            vec![
+                &env,
+                employer.into_val(&env),
+                worker.clone().into_val(&env),
+                token.into_val(&env),
+                rate.into_val(&env),
+                cliff_ts.into_val(&env),
+                start_ts.into_val(&env),
+                end_ts.into_val(&env),
+            ],
+        );
+
+        env.events().publish(
+            (
+                symbol_short!("gateway"),
+                symbol_short!("stream_created"),
+                agent.clone(),
+                employer.clone(),
+            ),
+            (stream_id, worker, rate, start_ts, end_ts),
+        );
+
+        Ok(stream_id)
+    }
+
+    /// Cancel a stream on behalf of an employer through an authorized agent.
+    /// The agent must have CancelStream permission.
+    pub fn agent_cancel_stream(
+        env: Env,
+        agent: Address,
+        stream_id: u64,
+        employer: Address,
+    ) -> Result<(), QuipayError> {
+        agent.require_auth();
+
+        require!(
+            Self::is_authorized(env.clone(), agent, Permission::CancelStream),
+            QuipayError::InsufficientPermissions
+        );
+
+        let payroll_stream = Self::get_payroll_stream(env.clone())
+            .ok_or(QuipayError::NotInitialized)?;
+
+        // Invoke cancel_stream_via_gateway on PayrollStream contract
+        env.invoke_contract::<()>(
+            &payroll_stream,
+            &Symbol::new(&env, "cancel_stream_via_gateway"),
+            vec![
+                &env,
+                stream_id.into_val(&env),
+                employer.into_val(&env),
+            ],
+        );
+
+        env.events().publish(
+            (
+                symbol_short!("gateway"),
+                symbol_short!("stream_canceled"),
+                agent.clone(),
+                employer.clone(),
+            ),
+            (stream_id,),
+        );
+
+        Ok(())
     }
 }
 

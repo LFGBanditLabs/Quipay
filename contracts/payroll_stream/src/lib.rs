@@ -10,6 +10,7 @@ pub enum DataKey {
     NextStreamId,
     RetentionSecs,
     Vault,
+    Gateway,
 }
 
 #[contracttype]
@@ -130,95 +131,25 @@ impl PayrollStream {
         Self::require_not_paused(&env)?;
         employer.require_auth();
 
-        if rate <= 0 {
-            panic!("rate must be positive");
-        }
-        if end_ts <= start_ts {
-            panic!("invalid time range");
-        }
+        // Call the internal create stream logic
+        Self::create_stream_internal(
+            env, employer, worker, token, rate, cliff_ts, start_ts, end_ts,
+        )?;
 
-        let effective_cliff = if cliff_ts == 0 { start_ts } else { cliff_ts };
-        if effective_cliff > end_ts {
-            panic!("cliff_ts must not exceed end_ts");
-        }
-
-        let now = env.ledger().timestamp();
-        if start_ts < now {
-            panic!("start_time must be >= current time");
-        }
-
-        let duration = end_ts - start_ts;
-        let total_amount = rate
-            .checked_mul(i128::from(duration as i64))
-            .expect("amount overflow");
-
-        let vault: Address = env
+        // Publish the standard creation event
+        let stream_id = env
             .storage()
             .instance()
-            .get(&DataKey::Vault)
-            .expect("vault not configured");
-        use soroban_sdk::{vec, IntoVal, Symbol};
-        env.invoke_contract::<()>(
-            &vault,
-            &Symbol::new(&env, "add_liability"),
-            vec![&env, token.clone().into_val(&env), total_amount.into_val(&env)],
-        );
-
-        let mut next_id: u64 = env
-            .storage()
-            .instance()
-            .get(&DataKey::NextStreamId)
-            .unwrap_or(1u64);
-        let stream_id = next_id;
-        next_id = next_id.checked_add(1).expect("stream id overflow");
-        env.storage()
-            .instance()
-            .set(&DataKey::NextStreamId, &next_id);
-
-        let stream = Stream {
-            employer: employer.clone(),
-            worker: worker.clone(),
-            token: token.clone(),
-            rate,
-            cliff_ts: effective_cliff,
-            start_ts,
-            end_ts,
-            total_amount,
-            withdrawn_amount: 0,
-            last_withdrawal_ts: 0,
-            status: StreamStatus::Active,
-            created_at: now,
-            closed_at: 0,
-        };
-
-        env.storage()
-            .persistent()
-            .set(&StreamKey::Stream(stream_id), &stream);
-
-        let emp_key = StreamKey::EmployerStreams(employer.clone());
-        let mut emp_ids: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&emp_key)
-            .unwrap_or_else(|| Vec::new(&env));
-        emp_ids.push_back(stream_id);
-        env.storage().persistent().set(&emp_key, &emp_ids);
-
-        let wrk_key = StreamKey::WorkerStreams(worker.clone());
-        let mut wrk_ids: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&wrk_key)
-            .unwrap_or_else(|| Vec::new(&env));
-        wrk_ids.push_back(stream_id);
-        env.storage().persistent().set(&wrk_key, &wrk_ids);
+            .get::<DataKey, u64>(&DataKey::NextStreamId)
+            .unwrap_or(1u64)
+            .saturating_sub(1);
 
         env.events().publish(
             (
                 Symbol::new(&env, "stream"),
                 Symbol::new(&env, "created"),
-                worker.clone(),
-                employer.clone(),
+                worker,
+                employer,
             ),
             (stream_id, token, rate, start_ts, end_ts),
         );
@@ -397,6 +328,210 @@ impl PayrollStream {
         Ok(())
     }
 
+    /// Set the authorized AutomationGateway contract address.
+    /// Only the admin can call this.
+    pub fn set_gateway(env: Env, gateway: Address) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Gateway, &gateway);
+        Ok(())
+    }
+
+    /// Get the authorized AutomationGateway contract address.
+    pub fn get_gateway(env: Env) -> Option<Address> {
+        env.storage()
+            .instance()
+            .get(&DataKey::Gateway)
+    }
+
+    /// Create a stream via an authorized AutomationGateway on behalf of an employer.
+    /// Only the registered gateway can call this method.
+    pub fn create_stream_via_gateway(
+        env: Env,
+        employer: Address,
+        worker: Address,
+        token: Address,
+        rate: i128,
+        cliff_ts: u64,
+        start_ts: u64,
+        end_ts: u64,
+    ) -> Result<u64, QuipayError> {
+        Self::require_not_paused(&env)?;
+
+        // Verify the caller is the authorized gateway
+        let gateway: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Gateway)
+            .ok_or(QuipayError::NotInitialized)?;
+        gateway.require_auth();
+
+        // Call the internal create stream logic
+        Self::create_stream_internal(
+            env, employer, worker, token, rate, cliff_ts, start_ts, end_ts,
+        )
+    }
+
+    /// Cancel a stream via an authorized AutomationGateway on behalf of an employer.
+    /// Only the registered gateway can call this method.
+    pub fn cancel_stream_via_gateway(
+        env: Env,
+        stream_id: u64,
+        employer: Address,
+    ) -> Result<(), QuipayError> {
+        Self::require_not_paused(&env)?;
+
+        // Verify the caller is the authorized gateway
+        let gateway: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Gateway)
+            .ok_or(QuipayError::NotInitialized)?;
+        gateway.require_auth();
+
+        let key = StreamKey::Stream(stream_id);
+        let mut stream: Stream = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .ok_or(QuipayError::StreamNotFound)?;
+
+        if stream.employer != employer {
+            return Err(QuipayError::NotEmployer);
+        }
+        if Self::is_closed(&stream) {
+            return Ok(());
+        }
+
+        let now = env.ledger().timestamp();
+        Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
+        env.storage().persistent().set(&key, &stream);
+
+        env.events().publish(
+            (
+                Symbol::new(&env, "stream"),
+                Symbol::new(&env, "canceled_via_gateway"),
+                stream_id,
+                employer.clone(),
+            ),
+            (stream.worker.clone(), stream.token.clone()),
+        );
+
+        Ok(())
+    }
+
+    // Internal helper for creating streams (used by both create_stream and create_stream_via_gateway)
+    fn create_stream_internal(
+        env: Env,
+        employer: Address,
+        worker: Address,
+        token: Address,
+        rate: i128,
+        cliff_ts: u64,
+        start_ts: u64,
+        end_ts: u64,
+    ) -> Result<u64, QuipayError> {
+        if rate <= 0 {
+            return Err(QuipayError::InvalidAmount);
+        }
+        if end_ts <= start_ts {
+            return Err(QuipayError::Custom);
+        }
+
+        let effective_cliff = if cliff_ts == 0 { start_ts } else { cliff_ts };
+        if effective_cliff > end_ts {
+            return Err(QuipayError::Custom);
+        }
+
+        let now = env.ledger().timestamp();
+        if start_ts < now {
+            return Err(QuipayError::Custom);
+        }
+
+        let duration = end_ts - start_ts;
+        let total_amount = rate
+            .checked_mul(i128::from(duration as i64))
+            .ok_or(QuipayError::Custom)?;
+
+        let vault: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Vault)
+            .ok_or(QuipayError::NotInitialized)?;
+
+        use soroban_sdk::{vec, IntoVal, Symbol};
+        env.invoke_contract::<()>(
+            &vault,
+            &Symbol::new(&env, "add_liability"),
+            vec![&env, token.clone().into_val(&env), total_amount.into_val(&env)],
+        );
+
+        let mut next_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::NextStreamId)
+            .unwrap_or(1u64);
+        let stream_id = next_id;
+        next_id = next_id.checked_add(1).ok_or(QuipayError::Custom)?;
+        env.storage()
+            .instance()
+            .set(&DataKey::NextStreamId, &next_id);
+
+        let stream = Stream {
+            employer: employer.clone(),
+            worker: worker.clone(),
+            token: token.clone(),
+            rate,
+            cliff_ts: effective_cliff,
+            start_ts,
+            end_ts,
+            total_amount,
+            withdrawn_amount: 0,
+            last_withdrawal_ts: 0,
+            status: StreamStatus::Active,
+            created_at: now,
+            closed_at: 0,
+        };
+
+        env.storage()
+            .persistent()
+            .set(&StreamKey::Stream(stream_id), &stream);
+
+        let emp_key = StreamKey::EmployerStreams(employer.clone());
+        let mut emp_ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&emp_key)
+            .unwrap_or_else(|| Vec::new(&env));
+        emp_ids.push_back(stream_id);
+        env.storage().persistent().set(&emp_key, &emp_ids);
+
+        let wrk_key = StreamKey::WorkerStreams(worker.clone());
+        let mut wrk_ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&wrk_key)
+            .unwrap_or_else(|| Vec::new(&env));
+        wrk_ids.push_back(stream_id);
+        env.storage().persistent().set(&wrk_key, &wrk_ids);
+
+        env.events().publish(
+            (
+                Symbol::new(&env, "stream"),
+                Symbol::new(&env, "created_via_gateway"),
+                worker.clone(),
+                employer.clone(),
+            ),
+            (stream_id, token, rate, start_ts, end_ts),
+        );
+
+        Ok(stream_id)
+    }
+
     pub fn get_stream(env: Env, stream_id: u64) -> Option<Stream> {
         env.storage()
             .persistent()
@@ -422,7 +557,6 @@ impl PayrollStream {
         vested.checked_sub(stream.withdrawn_amount).unwrap_or(0).max(0)
     }
 
-    pub fn cleanup_stream(env: Env, stream_id: u64) {
     pub fn get_employer_streams(env: Env, employer: Address) -> Vec<u64> {
         env.storage()
             .persistent()
@@ -512,9 +646,7 @@ impl PayrollStream {
     }
 
     fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
-        let is_canceled = (stream.status_bits & (1u32 << (StreamStatus::Canceled as u32))) != 0;
-        let is_completed = (stream.status_bits & (1u32 << (StreamStatus::Completed as u32))) != 0;
-        let is_closed = is_canceled || is_completed;
+        let is_closed = stream.status == StreamStatus::Canceled || stream.status == StreamStatus::Completed;
 
         let effective_ts = if is_closed {
             core::cmp::min(timestamp, stream.closed_at)
@@ -522,15 +654,14 @@ impl PayrollStream {
             timestamp
         };
 
-        if effective_ts <= stream.start_ts {
-        if now < stream.cliff_ts {
+        if effective_ts < stream.cliff_ts {
             return 0;
         }
-        if now <= stream.start_ts {
+        if effective_ts <= stream.start_ts {
             return 0;
         }
 
-        if effective_ts >= stream.end_ts || (is_completed && effective_ts >= stream.closed_at) {
+        if effective_ts >= stream.end_ts || (stream.status == StreamStatus::Completed && effective_ts >= stream.closed_at) {
             return stream.total_amount;
         }
 
