@@ -214,8 +214,13 @@ impl PayrollStream {
         env.storage().persistent().set(&wrk_key, &wrk_ids);
 
         env.events().publish(
-            (Symbol::new(&env, "stream"), Symbol::new(&env, "created")),
-            (stream_id, employer, worker, token, rate, start_ts, end_ts),
+            (
+                Symbol::new(&env, "stream"),
+                Symbol::new(&env, "created"),
+                worker.clone(),
+                employer.clone(),
+            ),
+            (stream_id, token, rate, start_ts, end_ts),
         );
 
         Ok(stream_id)
@@ -258,6 +263,17 @@ impl PayrollStream {
         }
 
         env.storage().persistent().set(&key, &stream);
+
+        env.events().publish(
+            (
+                Symbol::new(&env, "stream"),
+                Symbol::new(&env, "withdrawn"),
+                stream_id,
+                worker.clone(),
+            ),
+            (available, stream.token.clone()),
+        );
+
         Ok(available)
     }
 
@@ -316,10 +332,12 @@ impl PayrollStream {
 
                             env.events().publish(
                                 (
-                                    Symbol::new(&env, "batch_withdraw"),
+                                    Symbol::new(&env, "stream"),
                                     Symbol::new(&env, "withdrawn"),
+                                    stream_id,
+                                    caller.clone(),
                                 ),
-                                (stream_id, caller.clone(), available),
+                                (available, stream.token.clone()),
                             );
 
                             WithdrawResult {
@@ -365,6 +383,17 @@ impl PayrollStream {
         let now = env.ledger().timestamp();
         Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
         env.storage().persistent().set(&key, &stream);
+
+        env.events().publish(
+            (
+                Symbol::new(&env, "stream"),
+                Symbol::new(&env, "canceled"),
+                stream_id,
+                employer.clone(),
+            ),
+            (stream.worker.clone(), stream.token.clone()),
+        );
+
         Ok(())
     }
 

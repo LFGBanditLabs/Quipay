@@ -142,6 +142,17 @@ impl PayrollVault {
         
         let token_client = token::Client::new(&e, &token);
         token_client.transfer(&from, &e.current_contract_address(), &amount);
+
+        e.events().publish(
+            (
+                symbol_short!("vault"),
+                symbol_short!("deposited"),
+                from.clone(),
+                token.clone(),
+            ),
+            (amount),
+        );
+
         Ok(())
     }
 
@@ -200,6 +211,17 @@ impl PayrollVault {
 
         let token_client = token::Client::new(&e, &token);
         token_client.transfer(&e.current_contract_address(), &to, &amount);
+
+        e.events().publish(
+            (
+                symbol_short!("vault"),
+                symbol_short!("withdrawn"),
+                to.clone(),
+                token.clone(),
+            ),
+            (amount),
+        );
+
         Ok(())
     }
 
@@ -230,6 +252,17 @@ impl PayrollVault {
         }
         
         e.storage().persistent().set(&liability_key, &(liability + amount));
+
+        e.events().publish(
+            (
+                symbol_short!("vault"),
+                symbol_short!("allocated"),
+                token.clone(),
+                symbol_short!("admin"),
+            ),
+            (amount),
+        );
+
         Ok(())
     }
 
@@ -256,6 +289,17 @@ impl PayrollVault {
         }
         
         e.storage().persistent().set(&liability_key, &(liability - amount));
+
+        e.events().publish(
+            (
+                symbol_short!("vault"),
+                symbol_short!("released"),
+                token.clone(),
+                symbol_short!("admin"),
+            ),
+            (amount),
+        );
+
         Ok(())
     }
 
@@ -298,6 +342,17 @@ impl PayrollVault {
 
         let token_client = token::Client::new(&e, &token);
         token_client.transfer(&e.current_contract_address(), &to, &amount);
+
+        e.events().publish(
+            (
+                symbol_short!("vault"),
+                symbol_short!("payout"),
+                to.clone(),
+                token.clone(),
+            ),
+            (amount),
+        );
+
         Ok(())
     }
 
