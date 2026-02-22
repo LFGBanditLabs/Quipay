@@ -5,29 +5,13 @@ import { Code, Layout, Text } from "@stellar/design-system";
 const Home: React.FC = () => (
   <Layout.Content>
     <Layout.Inset>
-      <Text as="h1" size="xl">
-        Welcome to your app!
+      <Text as="h1" size="xl" weight="medium">
+        Welcome to Quipay!
       </Text>
       <Text as="p" size="md">
         This is a basic template to get your dapp started with the Stellar
         Design System and Stellar contracts. You can customize it further by
         adding your own contracts, components, and styles.
-      </Text>
-
-      <Text as="h2" size="lg">
-        Develop your contracts
-      </Text>
-      <Text as="p" size="md">
-        Take a look in the <Code size="md">contracts/</Code> directory. Compare
-        that to what you see in the <Code size="md">npm run dev</Code> output
-        (which itself is running <Code size="md">stellar scaffold watch</Code>).
-        Also compare it to what you see when you click{" "}
-        <Code size="md">&lt;/&gt; Debugger</Code> up in the top right. See?
-      </Text>
-      <Text as="p" size="md">
-        As you update your contracts,{" "}
-        <Code size="md">stellar scaffold watch</Code> command will automatically
-        recompile them and update the dapp with the latest changes.
       </Text>
 
       <Text as="h2" size="lg">

@@ -170,6 +170,7 @@ Quipay/
 ## 📚 Documentation
 
 - **[Product Requirements (PRD)](docs/PRD.md)** - Complete product specification
+- **[DAO Treasury Setup Guide](docs/DAO_TREASURY_SETUP.md)** - Multisig configuration for DAOs and enterprise clients
 - **[Implementation Plan](.gemini/antigravity/brain/2a2ff1d1-92c4-44ca-9e86-2bf558a85165/implementation_plan.md)** - Technical architecture & roadmap
 - **[Design Document](docs/design.md)** - System design overview
 - **[GitHub Issues](https://github.com/LFGBanditLabs/Quipay/issues)** - Development tasks & progress
@@ -184,7 +185,7 @@ Quipay/
 
 ### DAOs & Protocol Teams
 
-Transparent contributor compensation with automated scheduling and multi-sig control
+Transparent contributor compensation with automated scheduling and multi-sig control. [See DAO Setup Guide →](docs/DAO_TREASURY_SETUP.md)
 
 </td>
 <td width="50%">
@@ -252,6 +253,7 @@ Security is paramount for payroll infrastructure. Quipay implements:
 
 - ✅ **Solvency Invariants** - Treasury balance ≥ liabilities enforced on-chain
 - ✅ **Authorization Checks** - Strict access control on all fund movements
+- ✅ **Multisig Support** - Treasury Vault supports multi-signature Stellar accounts for decentralized governance
 - ✅ **Double-Withdrawal Prevention** - Safe accounting prevents duplicate payouts
 - ✅ **Timestamp Validation** - Protection against manipulation attacks
 - ✅ **Formal Auditing** - Pre-mainnet security review (planned Phase 4)
