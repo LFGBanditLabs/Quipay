@@ -61,6 +61,7 @@ const EmployerDashboard: React.FC = () => {
             tokenSymbol="USDC"
             tokenDecimals={6}
           />
+
           {/* Treasury Balance */}
           <div className={styles.card} id="tour-treasury-balance">
             <Text
@@ -73,6 +74,7 @@ const EmployerDashboard: React.FC = () => {
             </Text>
             {treasuryBalances.map((balance) => (
               <div key={balance.tokenSymbol}>
+                showSim
                 <Text as="div" size="lg" className={styles.metricValue}>
                   {balance.balance} {balance.tokenSymbol}
                 </Text>
