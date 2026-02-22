@@ -9,6 +9,12 @@ mod test;
 mod upgrade_test;
 
 #[cfg(test)]
+mod fuzz_test;
+
+#[cfg(kani)]
+mod kani_test;
+
+#[cfg(test)]
 mod proptest;
 
 // Storage keys - using separate enums for persistent vs instance storage
@@ -395,12 +401,12 @@ impl PayrollVault {
             panic!("insufficient funds for liability");
         }
         
-        let key = StateKey::TotalLiability(token);
+        let key = StateKey::TotalLiability(token.clone());
         let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
         e.storage().persistent().set(&key, &(current + amount));
         
         // Also update total liability for this token
-        let total_key = StateKey::TotalLiability(token.clone());
+        let total_key = StateKey::TotalLiability(token);
         let total: i128 = e.storage().persistent().get(&total_key).unwrap_or(0);
         e.storage().persistent().set(&total_key, &(total + amount));
     }
@@ -417,7 +423,7 @@ impl PayrollVault {
             panic!("removal amount must be positive");
         }
         
-        let key = StateKey::TotalLiability(token);
+        let key = StateKey::TotalLiability(token.clone());
         let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
         
         if amount > current {
@@ -427,7 +433,7 @@ impl PayrollVault {
         e.storage().persistent().set(&key, &(current - amount));
         
         // Also update total liability for this token
-        let total_key = StateKey::TotalLiability(token.clone());
+        let total_key = StateKey::TotalLiability(token);
         let total: i128 = e.storage().persistent().get(&total_key).unwrap_or(0);
         e.storage().persistent().set(&total_key, &(total - amount));
     }
