@@ -38,6 +38,7 @@ import {
   type CreateStreamParams,
 } from "../contracts/payroll_stream";
 import styles from "./StreamCreator.module.css";
+import { TransactionProgress } from "./Loading";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -213,11 +214,6 @@ function toStroops(amount: number | string, decimals: number): bigint {
 /** Returns today's date as YYYY-MM-DD. */
 function todayStr(): string {
   return new Date().toISOString().split("T")[0];
-}
-
-/** Truncates a hash for display. */
-function shortHash(hash: string): string {
-  return hash.length > 16 ? `${hash.slice(0, 8)}…${hash.slice(-8)}` : hash;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -602,7 +598,35 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
             </div>
           )}
 
-          <TxStatusBox phase={txPhase} />
+          {txPhase.kind !== "idle" && (
+            <TransactionProgress
+              steps={["Simulating", "Signing", "Submitting"]}
+              currentStep={
+                txPhase.kind === "simulating"
+                  ? 0
+                  : txPhase.kind === "signing"
+                    ? 1
+                    : txPhase.kind === "submitting"
+                      ? 2
+                      : txPhase.kind === "success"
+                        ? 3
+                        : txPhase.kind === "error"
+                          ? 2
+                          : 0
+              }
+              status={
+                txPhase.kind === "success"
+                  ? "success"
+                  : txPhase.kind === "error"
+                    ? "error"
+                    : "loading"
+              }
+              errorMessage={
+                txPhase.kind === "error" ? txPhase.message : undefined
+              }
+              timeoutMs={30_000}
+            />
+          )}
 
           <div className={styles.footer}>
             {onCancel && (
@@ -652,35 +676,6 @@ function SolvencyBanner({ status }: { status: SolvencyStatus }) {
       </p>
     );
   return null;
-}
-
-function TxStatusBox({ phase }: { phase: TxPhase }) {
-  if (phase.kind === "idle") return null;
-  if (phase.kind === "success")
-    return (
-      <div
-        className={`${styles.statusBox} ${styles.statusSuccess}`}
-        role="alert"
-        aria-live="polite"
-      >
-        Success! Hash: {shortHash(phase.hash)}
-      </div>
-    );
-  if (phase.kind === "error")
-    return (
-      <div
-        className={`${styles.statusBox} ${styles.statusError}`}
-        role="alert"
-        aria-live="assertive"
-      >
-        {phase.message}
-      </div>
-    );
-  return (
-    <div className={`${styles.statusBox} ${styles.statusLoading}`}>
-      Processing...
-    </div>
-  );
 }
 
 export default StreamCreator;
