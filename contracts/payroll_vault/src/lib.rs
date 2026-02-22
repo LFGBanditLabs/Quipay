@@ -68,8 +68,16 @@ impl PayrollVault {
 
     /// Upgrade the contract to a new WASM code
     /// Only the admin can call this function
+    /// 
+    /// # Multisig Support
+    /// When the admin is a multisig Stellar account (e.g., 2-of-3), the Stellar network
+    /// validates that the transaction meets the signature threshold before it reaches
+    /// this contract. The `require_auth()` call then verifies the transaction was
+    /// properly authorized by the admin account. This enables decentralized governance
+    /// for DAOs and enterprise clients.
     pub fn upgrade(e: Env, new_wasm_hash: BytesN<32>, new_version: (u32, u32, u32)) -> Result<(), QuipayError> {
         // Require admin authorization
+        // For multisig accounts, Stellar validates threshold signatures before this call
         let admin = Self::get_admin(e.clone())?;
         admin.require_auth();
         
@@ -110,6 +118,11 @@ impl PayrollVault {
     }
 
     /// Transfer admin rights to a new address
+    /// 
+    /// # Multisig Support
+    /// Supports transferring admin to another multisig account. The current admin
+    /// must authorize the transfer. If the current admin is a multisig, the transaction
+    /// must meet its threshold. The new admin can also be a multisig account.
     pub fn transfer_admin(e: Env, new_admin: Address) -> Result<(), QuipayError> {
         let admin = Self::get_admin(e.clone())?;
         admin.require_auth();
@@ -192,6 +205,10 @@ impl PayrollVault {
 
     /// Adds liability to the vault (e.g., when a stream is created)
     /// Checks if there are enough funds (solvency check)
+    /// 
+    /// # Multisig Support
+    /// Requires admin authorization. If admin is a multisig account, the transaction
+    /// must meet the signature threshold (e.g., 2-of-3) before reaching this function.
     pub fn allocate_funds(e: Env, token: Address, amount: i128) -> Result<(), QuipayError> {
         let admin: Address = e.storage().persistent().get(&StateKey::Admin).ok_or(QuipayError::NotInitialized)?;
         admin.require_auth();
@@ -217,6 +234,10 @@ impl PayrollVault {
     }
 
     /// Removes liability (e.g., when a stream is cancelled)
+    /// 
+    /// # Multisig Support
+    /// Requires admin authorization. Supports multisig admin accounts where the
+    /// signature threshold must be met at the Stellar network level.
     pub fn release_funds(e: Env, token: Address, amount: i128) -> Result<(), QuipayError> {
         let admin: Address = e.storage().persistent().get(&StateKey::Admin).ok_or(QuipayError::NotInitialized)?;
         admin.require_auth();
@@ -238,6 +259,12 @@ impl PayrollVault {
         Ok(())
     }
 
+    /// Payout funds to a recipient
+    /// 
+    /// # Multisig Support
+    /// Requires admin authorization. When admin is a multisig account (e.g., DAO treasury),
+    /// the transaction must meet the signature threshold before execution. This ensures
+    /// decentralized control over payroll payouts.
     pub fn payout(e: Env, to: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
         let admin: Address = e.storage().persistent().get(&StateKey::Admin).ok_or(QuipayError::NotInitialized)?;
         admin.require_auth();
@@ -281,6 +308,10 @@ impl PayrollVault {
 
     /// Set the authorized contract that can modify liabilities
     /// Only the admin can call this function
+    /// 
+    /// # Multisig Support
+    /// Requires admin authorization. Supports multisig admin accounts for decentralized
+    /// control over which contracts can modify treasury liabilities.
     pub fn set_authorized_contract(e: Env, contract: Address) {
         let admin: Address = e.storage().persistent().get(&StateKey::Admin).expect("not initialized");
         admin.require_auth();
@@ -312,6 +343,11 @@ impl PayrollVault {
         let key = StateKey::TotalLiability(token);
         let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
         e.storage().persistent().set(&key, &(current + amount));
+        
+        // Also update total liability for this token
+        let total_key = StateKey::TotalLiability(token.clone());
+        let total: i128 = e.storage().persistent().get(&total_key).unwrap_or(0);
+        e.storage().persistent().set(&total_key, &(total + amount));
     }
 
     /// Remove liability for a specific token
@@ -334,6 +370,11 @@ impl PayrollVault {
         }
         
         e.storage().persistent().set(&key, &(current - amount));
+        
+        // Also update total liability for this token
+        let total_key = StateKey::TotalLiability(token.clone());
+        let total: i128 = e.storage().persistent().get(&total_key).unwrap_or(0);
+        e.storage().persistent().set(&total_key, &(total - amount));
     }
 
     /// Get the liability for a specific token

@@ -16,16 +16,16 @@ export default defineConfig(() => {
       }),
       wasm(),
     ],
-    build: {
-      target: "esnext",
-    },
     optimizeDeps: {
       exclude: ["@stellar/stellar-xdr-json"],
+    },
+    build: {
+      target: "esnext",
     },
     define: {
       global: "window",
     },
-    envPrefix: "PUBLIC_",
+    envPrefix: ["PUBLIC_", "VITE_"],
     server: {
       proxy: {
         "/friendbot": {

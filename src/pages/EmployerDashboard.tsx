@@ -3,7 +3,9 @@ import { Layout, Text, Button, Loader } from "@stellar/design-system";
 import { usePayroll } from "../hooks/usePayroll";
 import styles from "./EmployerDashboard.module.css";
 import { useNavigate } from "react-router-dom";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 import WithdrawButton from "../components/WithdrawButton";
+import EmptyState from "../components/EmptyState";
 
 const EmployerDashboard: React.FC = () => {
   const {
@@ -15,6 +17,25 @@ const EmployerDashboard: React.FC = () => {
   } = usePayroll();
   const navigate = useNavigate();
 
+  const seoDescription = isLoading
+    ? "Loading your Quipay dashboard metrics and active stream overview."
+    : `Track ${activeStreamsCount} active streams with total liabilities ${totalLiabilities} in your Quipay employer dashboard.`;
+
+  if (isLoading) {
+    return (
+      <>
+        <SeoHelmet
+          title="Employer Dashboard"
+          description={seoDescription}
+          path="/dashboard"
+          imagePath="/social/dashboard-preview.png"
+          robots="noindex,nofollow"
+        />
+        <Layout.Content>
+            <Layout.Inset>
+                <Text as="h1" size="xl" weight="medium">
+                    Employer Dashboard
+                </Text>
   const demoContract = {
     // eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
     withdrawableAmount: async (_address: string) => {
@@ -47,6 +68,19 @@ const EmployerDashboard: React.FC = () => {
     );
   }
 
+  const demoContract = {
+    withdrawableAmount: () => {
+      return Promise.resolve(BigInt("5000000")); // 5.00 USDC (6 decimals)
+    },
+    withdraw: async () => {
+      await new Promise((res) => setTimeout(res, 2000)); // simulate delay
+      return {
+        hash: "0xabc123def456abc123def456abc123def456abc123def456abc123def456abc1",
+        wait: async () => { },
+      };
+    },
+  };
+
   return (
     <Layout.Content>
       <Layout.Inset>
@@ -54,6 +88,29 @@ const EmployerDashboard: React.FC = () => {
           Employer Dashboard
         </Text>
 
+                    {/* Active Streams Count */}
+                    <div className={styles.card} id="tour-active-streams">
+                        <Text as="span" size="md" weight="semi-bold" className={styles.cardHeader}>
+                            Active Streams
+                        </Text>
+                        <Text as="div" size="lg" className={styles.metricValue}>
+                            {activeStreamsCount}
+                        </Text>
+                    </div>
+                </div>
+              ))}
+              <div style={{ marginTop: "10px" }}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    void navigate("/treasury-management");
+                  }}
+                >
+                  Manage Treasury
+                </Button>
+              </div>
+            </div>
         <div className={styles.dashboardGrid}>
           <WithdrawButton
             walletAddress="0xYourWalletAddress"
@@ -78,6 +135,18 @@ const EmployerDashboard: React.FC = () => {
                 <Text as="div" size="lg" className={styles.metricValue}>
                   {balance.balance} {balance.tokenSymbol}
                 </Text>
+                 </div>
+            ))}
+            {treasuryBalances.length === 0 ? (
+              <div style={{ marginTop: "1rem" }}>
+                <EmptyState
+                  variant="treasury"
+                  title="No Funds Yet"
+                  description="Your treasury is currently empty. Deposit funds to start paying your workers."
+                  icon="💰"
+                  actionLabel="Deposit Funds"
+                  onAction={() => navigate("/treasury-management")}
+                />
               </div>
             ))}
             <div style={{ marginTop: "10px" }}>
@@ -97,7 +166,7 @@ const EmployerDashboard: React.FC = () => {
           {/* Total Liabilities */}
           <div className={styles.card}>
             <Text
-              as="h2"
+              as="span"
               size="md"
               weight="semi-bold"
               className={styles.cardHeader}
@@ -107,15 +176,15 @@ const EmployerDashboard: React.FC = () => {
             <Text as="div" size="lg" className={styles.metricValue}>
               {totalLiabilities}
             </Text>
-            <Text as="p" size="sm">
-              Estimated monthly
+            <Text as="p" size="sm" style={{ color: "var(--gray-500)" }}>
+              You are projected to pay {totalLiabilities} in the next 30 days.
             </Text>
           </div>
 
           {/* Active Streams Count */}
           <div className={styles.card}>
             <Text
-              as="h2"
+              as="span"
               size="md"
               weight="semi-bold"
               className={styles.cardHeader}
@@ -136,7 +205,6 @@ const EmployerDashboard: React.FC = () => {
             <Button
               variant="primary"
               size="md"
-              id="tour-create-stream"
               onClick={() => {
                 void navigate("/create-stream");
               }}
@@ -146,18 +214,35 @@ const EmployerDashboard: React.FC = () => {
           </div>
 
           {activeStreams.length === 0 ? (
-            <Text as="p" size="md">
-              No active streams found.
-            </Text>
+            <EmptyState
+              title="No active streams"
+              description="You haven't created any payment streams yet. Start by adding your first worker."
+              variant="streams"
+              actionLabel="Create New Stream"
+              onAction={() => {
+                void navigate("/create-stream");
+              }}
+            />
           ) : (
             <div className={styles.streamsList}>
               {activeStreams.map((stream) => (
-                <div key={stream.id} className={styles.streamItem}>
+                <div
+                  key={stream.id}
+                  className={styles.streamItem}
+                  onClick={() => {
+                    void navigate(`/stream/${stream.id}`);
+                  }}
+                  style={{ cursor: "pointer" }}
+                >
                   <div>
-                    <Text as="div" size="sm" weight="bold">
+                    <Text as="div" size="md" weight="bold">
                       {stream.employeeName}
                     </Text>
-                    <Text as="div" size="sm">
+                    <Text
+                      as="div"
+                      size="sm"
+                      style={{ color: "var(--gray-500)" }}
+                    >
                       {stream.employeeAddress}
                     </Text>
                   </div>
@@ -165,7 +250,11 @@ const EmployerDashboard: React.FC = () => {
                     <Text as="div" size="sm">
                       Flow Rate: {stream.flowRate} {stream.tokenSymbol}/sec
                     </Text>
-                    <Text as="div" size="sm">
+                    <Text
+                      as="div"
+                      size="sm"
+                      style={{ color: "var(--gray-500)" }}
+                    >
                       Start: {stream.startDate}
                     </Text>
                   </div>
