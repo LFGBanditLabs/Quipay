@@ -486,10 +486,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               aria-invalid={!!errors.workerAddress}
             />
             <div aria-live="assertive">
-              <ErrorMessage
-                error={errors.workerAddress || null}
-                severity="error"
-              />
+              <ErrorMessage error={errors.workerAddress || null} />
             </div>
           </div>
 
@@ -514,7 +511,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               aria-invalid={!!errors.rate}
             />
             <div aria-live="assertive">
-              <ErrorMessage error={errors.rate || null} severity="error" />
+              <ErrorMessage error={errors.rate || null} />
             </div>
           </div>
 
