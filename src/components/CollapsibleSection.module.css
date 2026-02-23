@@ -1,6 +1,6 @@
 .container {
   margin: 1rem 0;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
   overflow: hidden;
 }
@@ -11,7 +11,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 0.75rem 1rem;
-  background-color: var(--gray-50);
+  background-color: var(--surface-subtle);
   border: none;
   cursor: pointer;
   text-align: left;
@@ -19,18 +19,18 @@
 }
 
 .header:hover {
-  background-color: var(--gray-100);
+  background-color: var(--surface);
 }
 
 .title {
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--gray-700);
+  color: var(--text);
 }
 
 .icon {
   transition: transform 0.2s;
-  color: var(--gray-500);
+  color: var(--muted);
 }
 
 .iconExpanded {
@@ -39,6 +39,6 @@
 
 .content {
   padding: 1rem;
-  background-color: white;
-  border-top: 1px solid var(--gray-200);
+  background-color: var(--surface);
+  border-top: 1px solid var(--border);
 }

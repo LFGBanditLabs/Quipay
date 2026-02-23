@@ -271,7 +271,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
           <mark
             key={key}
             style={{
-              background: "rgba(110,86,207,0.18)",
+              background: "var(--accent-transparent-strong)",
               color: "inherit",
               borderRadius: "2px",
               padding: "0 1px",
@@ -371,14 +371,6 @@ export default function HelpCenter() {
         .hc-root *, .hc-root *::before, .hc-root *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         .hc-root {
-          --bg:         #f5f3ff;
-          --card:       #ffffff;
-          --border:     #e8e2d9;
-          --accent:     #6E56CF;
-          --text:       #13111a;
-          --muted:      #8a7f74;
-          --radius:     14px;
-          --shadow:     0 2px 16px rgba(0,0,0,0.07);
           font-family: 'Mulish', sans-serif;
           background: var(--bg);
           color: var(--text);
@@ -398,8 +390,8 @@ export default function HelpCenter() {
           position: absolute;
           inset: 0;
           background:
-            radial-gradient(ellipse 55% 60% at 20% 50%, rgba(110,86,207,.18) 0%, transparent 60%),
-            radial-gradient(ellipse 45% 50% at 80% 40%, rgba(110,86,207,.1) 0%, transparent 60%);
+            radial-gradient(ellipse 55% 60% at 20% 50%, var(--accent-transparent) 0%, transparent 60%),
+            radial-gradient(ellipse 45% 50% at 80% 40%, var(--accent-transparent) 0%, transparent 60%);
           pointer-events: none;
         }
         .hc-hero-eyebrow {
@@ -415,7 +407,7 @@ export default function HelpCenter() {
           font-family: 'Playfair Display', serif;
           font-size: clamp(32px, 5vw, 54px);
           font-weight: 700;
-          color: #f5f3ff;
+          color: var(--bg);
           line-height: 1.15;
           margin-bottom: 16px;
           animation: hcFadeUp .4s .08s ease both;
@@ -445,20 +437,20 @@ export default function HelpCenter() {
           border-radius: 12px;
           font-family: 'Mulish', sans-serif;
           font-size: 15px;
-          background: #fff;
+          background: var(--surface);
           color: var(--text);
-          box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+          box-shadow: 0 4px 24px var(--shadow-color);
           outline: none;
           transition: box-shadow .2s;
         }
-        .hc-search-input::placeholder { color: #b0a89e; }
-        .hc-search-input:focus { box-shadow: 0 4px 32px rgba(110,86,207,0.25), 0 0 0 2px var(--accent); }
+        .hc-search-input::placeholder { color: var(--muted); }
+        .hc-search-input:focus { box-shadow: 0 4px 32px var(--accent-transparent-strong), 0 0 0 2px var(--accent); }
         .hc-search-clear {
           position: absolute;
           right: 16px;
           top: 50%;
           transform: translateY(-50%);
-          background: #ede8e1;
+          background: var(--surface-subtle);
           border: none;
           border-radius: 50%;
           width: 24px; height: 24px;
@@ -475,7 +467,7 @@ export default function HelpCenter() {
           gap: 32px;
           padding: 28px 24px;
           border-bottom: 1px solid var(--border);
-          background: #fff;
+          background: var(--surface);
         }
         .hc-stat { text-align: center; }
         .hc-stat-num {
@@ -525,7 +517,7 @@ export default function HelpCenter() {
           background: var(--accent);
           border-color: var(--accent);
           color: #fff;
-          box-shadow: 0 2px 12px rgba(110,86,207,0.3);
+          box-shadow: 0 2px 12px var(--accent-transparent-strong);
         }
 
         .hc-section { margin-bottom: 40px; animation: hcFadeUp .3s ease both; }
@@ -554,15 +546,15 @@ export default function HelpCenter() {
 
         .hc-faq-item {
           border: 1.5px solid var(--border);
-          border-radius: var(--radius);
+          border-radius: 14px;
           margin-bottom: 8px;
           background: var(--card);
           overflow: hidden;
           transition: border-color .2s, box-shadow .2s;
         }
         .hc-faq-item:hover, .hc-faq-item.open {
-          border-color: rgba(110,86,207,0.35);
-          box-shadow: var(--shadow);
+          border-color: var(--accent-transparent-strong);
+          box-shadow: 0 2px 16px var(--shadow-color);
         }
         .hc-faq-q {
           width: 100%;
@@ -592,7 +584,7 @@ export default function HelpCenter() {
           padding: 16px 20px 20px;
           font-size: 14px;
           line-height: 1.75;
-          color: #5a5048;
+          color: var(--text);
           border-top: 1px solid var(--border);
         }
 
@@ -640,7 +632,7 @@ export default function HelpCenter() {
           cursor: pointer;
           white-space: nowrap;
           transition: opacity .2s, transform .15s;
-          box-shadow: 0 4px 16px rgba(110,86,207,.4);
+          box-shadow: 0 4px 16px var(--accent-transparent-strong);
           letter-spacing: .03em;
         }
         .hc-contact-btn:hover { opacity: .9; transform: translateY(-1px); }
@@ -661,7 +653,7 @@ export default function HelpCenter() {
             <br />
             We have <span>answers.</span>
           </h1>
-          <p style={{ color: "white" }}>
+          <p style={{ color: "var(--bg)" }}>
             Everything you need to know about tokens, streams, withdrawals, and
             keeping your salary safe.
           </p>

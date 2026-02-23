@@ -120,7 +120,7 @@ const OnboardingTour: React.FC = () => {
       callback={handleJoyrideCallback}
       styles={{
         options: {
-          primaryColor: "#0070f3",
+          primaryColor: "var(--accent)",
           zIndex: 1000,
         },
       }}

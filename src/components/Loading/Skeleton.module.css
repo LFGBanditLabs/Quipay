@@ -4,6 +4,7 @@
   0% {
     background-position: -200% 0;
   }
+
   100% {
     background-position: 200% 0;
   }
@@ -13,9 +14,9 @@
   border-radius: 4px;
   background: linear-gradient(
     90deg,
-    var(--sds-color-neutral-subtle, #e5e7eb) 25%,
-    var(--sds-color-neutral-border, #d1d5db) 50%,
-    var(--sds-color-neutral-subtle, #e5e7eb) 75%
+    var(--surface-subtle) 25%,
+    var(--border) 50%,
+    var(--surface-subtle) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
@@ -23,7 +24,7 @@
 
 .noAnimate {
   animation: none;
-  background: var(--sds-color-neutral-subtle, #e5e7eb);
+  background: var(--surface-subtle);
 }
 
 /* Variant: text */
@@ -47,8 +48,8 @@
 /* ── SkeletonCard ────────────────────────────────────────────────────────────── */
 
 .card {
-  background-color: var(--sds-color-neutral-subtle, #f3f4f6);
-  border: 1px solid var(--sds-color-neutral-border, #e5e7eb);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
@@ -64,9 +65,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 15px;
-  border: 1px solid var(--sds-color-neutral-border, #e5e7eb);
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background-color: var(--sds-color-background-primary, #fff);
+  background-color: var(--bg);
   gap: 16px;
 }
 

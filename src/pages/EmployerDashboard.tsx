@@ -145,7 +145,7 @@ const EmployerDashboard: React.FC = () => {
             <Text as="div" size="lg" className={styles.metricValue}>
               {totalLiabilities}
             </Text>
-            <Text as="p" size="sm" style={{ color: "var(--gray-500)" }}>
+            <Text as="p" size="sm" style={{ color: "var(--muted)" }}>
               You are projected to pay {totalLiabilities} in the next 30 days.
             </Text>
           </div>
@@ -207,11 +207,7 @@ const EmployerDashboard: React.FC = () => {
                     <Text as="div" size="md" weight="bold">
                       {stream.employeeName}
                     </Text>
-                    <Text
-                      as="div"
-                      size="sm"
-                      style={{ color: "var(--gray-500)" }}
-                    >
+                    <Text as="div" size="sm" style={{ color: "var(--muted)" }}>
                       {stream.employeeAddress}
                     </Text>
                   </div>
@@ -219,11 +215,7 @@ const EmployerDashboard: React.FC = () => {
                     <Text as="div" size="sm">
                       Flow Rate: {stream.flowRate} {stream.tokenSymbol}/sec
                     </Text>
-                    <Text
-                      as="div"
-                      size="sm"
-                      style={{ color: "var(--gray-500)" }}
-                    >
+                    <Text as="div" size="sm" style={{ color: "var(--muted)" }}>
                       Start: {stream.startDate}
                     </Text>
                   </div>

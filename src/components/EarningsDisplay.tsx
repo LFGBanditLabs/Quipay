@@ -81,12 +81,13 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
                 </Pie>
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "#18181b",
-                    border: "1px solid #3f3f46",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
                     borderRadius: "8px",
-                    color: "#fff",
+                    color: "var(--text)",
+                    fontSize: "12px",
                   }}
-                  itemStyle={{ color: "#fff" }}
+                  itemStyle={{ color: "var(--text)" }}
                   formatter={(value: number | string | undefined) => [
                     typeof value === "number" ? value.toFixed(6) : value || "",
                     "Earned",
@@ -97,7 +98,7 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
           ) : (
             <div
               style={{
-                color: "#a5a5a5",
+                color: "var(--muted)",
                 fontSize: "0.875rem",
                 display: "flex",
                 alignItems: "center",

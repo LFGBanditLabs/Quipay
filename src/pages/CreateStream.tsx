@@ -205,7 +205,7 @@ const CreateStream: React.FC = () => {
           <Text as="h1" size="xl" weight="bold">
             Create New Payment Stream
           </Text>
-          <Text as="p" size="md" style={{ color: "var(--gray-500)" }}>
+          <Text as="p" size="md" style={{ color: "var(--muted)" }}>
             Set up a continuous, real-time payment for your worker.
           </Text>
         </div>
@@ -219,9 +219,9 @@ const CreateStream: React.FC = () => {
         />
 
         <div style={{ marginTop: "3rem", textAlign: "center" }}>
-          <Text as="p" size="sm" style={{ color: "var(--gray-500)" }}>
+          <Text as="p" size="sm" style={{ color: "var(--muted)" }}>
             Need help? Check out our{" "}
-            <a href="#" style={{ color: "var(--blue-500)" }}>
+            <a href="#" style={{ color: "var(--accent)" }}>
               documentation on streams
             </a>
             .

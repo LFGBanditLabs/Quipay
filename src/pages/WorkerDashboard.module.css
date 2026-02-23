@@ -2,7 +2,7 @@
   padding: 2rem;
   max-width: 1200px;
   margin: 0 auto;
-  color: #fff;
+  color: var(--text);
 }
 
 .header {
@@ -15,7 +15,7 @@
 .title {
   font-size: 2.5rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #fff 0%, #a5a5a5 100%);
+  background: linear-gradient(135deg, var(--text) 0%, var(--muted) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -47,7 +47,7 @@
 
 .statLabel {
   font-size: 0.875rem;
-  color: #a5a5a5;
+  color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 0.5rem;
@@ -149,18 +149,18 @@
 
 .withdrawButton {
   width: 100%;
-  background: #fff;
-  color: #000;
+  background: var(--accent);
+  color: #fff;
   border: none;
   padding: 0.75rem;
   border-radius: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: opacity 0.2s ease;
 }
 
 .withdrawButton:hover {
-  background: #e5e5e5;
+  opacity: 0.9;
 }
 
 .historyContainer {

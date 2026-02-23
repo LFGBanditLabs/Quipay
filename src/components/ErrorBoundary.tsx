@@ -42,11 +42,12 @@ class ErrorBoundary extends Component<Props, State> {
             padding: "40px 20px",
             textAlign: "center",
             fontFamily: "system-ui, -apple-system, sans-serif",
-            background: "#fdf2f2",
-            color: "#9b1c1c",
+            background: "var(--bg)",
+            color: "var(--sds-color-feedback-error, #ef4444)",
             borderRadius: "12px",
             margin: "20px",
-            border: "1px solid #f8b4b4",
+            border: "1px solid var(--border)",
+            boxShadow: "var(--shadow)",
           }}
         >
           <div style={{ fontSize: "48px", marginBottom: "16px" }}>⚠️</div>
@@ -63,7 +64,7 @@ class ErrorBoundary extends Component<Props, State> {
             onClick={this.handleReload}
             style={{
               padding: "10px 20px",
-              background: "#9b1c1c",
+              background: "var(--accent)",
               color: "white",
               border: "none",
               borderRadius: "8px",

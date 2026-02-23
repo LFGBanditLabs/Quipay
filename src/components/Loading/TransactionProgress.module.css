@@ -5,6 +5,7 @@
   100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.4;
   }
@@ -15,6 +16,7 @@
     opacity: 0;
     transform: translateY(4px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -27,8 +29,8 @@
   gap: 0;
   padding: 16px;
   border-radius: 10px;
-  border: 1px solid var(--sds-color-neutral-border, #e5e7eb);
-  background: var(--sds-color-neutral-subtle, #f9fafb);
+  border: 1px solid var(--border);
+  background: var(--surface-subtle);
   animation: fadeIn 0.25s ease both;
 }
 
@@ -50,11 +52,12 @@
 .step:not(:last-child)::after {
   content: "";
   position: absolute;
-  left: 11px; /* center of 24px circle */
+  left: 11px;
+  /* center of 24px circle */
   top: 24px;
   bottom: 0;
   width: 2px;
-  background: var(--sds-color-neutral-border, #d1d5db);
+  background: var(--border);
   transition: background 0.3s;
 }
 
@@ -81,24 +84,24 @@
 }
 
 .circlePending {
-  background: var(--sds-color-neutral-subtle, #e5e7eb);
-  color: var(--sds-color-content-secondary, #9ca3af);
+  background: var(--surface-subtle);
+  color: var(--muted);
 }
 
 .circleActive {
-  background: #3b82f6;
+  background: var(--accent);
   color: #fff;
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 0 4px var(--accent-transparent-strong);
   animation: pulse 1.4s ease-in-out infinite;
 }
 
 .circleCompleted {
-  background: #10b981;
+  background: var(--sds-color-feedback-success);
   color: #fff;
 }
 
 .circleError {
-  background: #ef4444;
+  background: var(--sds-color-feedback-error);
   color: #fff;
 }
 
@@ -114,7 +117,7 @@
 .stepLabel {
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--sds-color-content-primary, #111827);
+  color: var(--text);
   transition: color 0.3s;
 }
 
@@ -124,7 +127,7 @@
 
 .stepSublabel {
   font-size: 0.75rem;
-  color: var(--sds-color-content-secondary, #6b7280);
+  color: var(--muted);
 }
 
 /* ── Timeout / Error banner ───────────────────────────────────────────────── */
