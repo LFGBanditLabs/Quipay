@@ -360,29 +360,52 @@
 @media (max-width: 768px) {
   .header {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+    gap: 12px;
   }
 
   .statusGrid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
 
-  .modalGrid {
-    grid-template-columns: 1fr;
+  .proposalHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
 
   .actionButtons {
     flex-direction: column;
+    width: 100%;
+  }
+
+  .actionButtons button {
+    width: 100%;
+  }
+
+  .modalGrid {
+    grid-template-columns: 1fr;
+    gap: 20px;
   }
 
   .historyMeta {
     flex-direction: column;
-    gap: 4px;
+    gap: 8px;
   }
 }
 
 @media (max-width: 480px) {
-  .statusGrid {
-    grid-template-columns: 1fr;
+  .proposalCard {
+    padding: 16px;
+  }
+
+  .statusCard {
+    padding: 16px;
+  }
+
+  .address {
+    font-size: 0.75rem;
+    word-break: break-all;
   }
 }
