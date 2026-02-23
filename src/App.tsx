@@ -40,11 +40,7 @@ const Navigation: React.FC<{
         </Button>
       )}
     </NavLink>
-    <NavLink
-      to="/governance"
-      className={styles.navLink}
-      onClick={onItemClick}
-    >
+    <NavLink to="/governance" className={styles.navLink} onClick={onItemClick}>
       {({ isActive }) => (
         <Button
           variant="tertiary"
@@ -56,11 +52,7 @@ const Navigation: React.FC<{
         </Button>
       )}
     </NavLink>
-    <NavLink
-      to="/worker"
-      className={styles.navLink}
-      onClick={onItemClick}
-    >
+    <NavLink to="/worker" className={styles.navLink} onClick={onItemClick}>
       {({ isActive }) => (
         <Button
           variant="tertiary"
@@ -115,7 +107,9 @@ const AppLayout: React.FC = () => {
                 variant="default"
                 altText={isMenuOpen ? "Close menu" : "Open menu"}
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                icon={isMenuOpen ? <Icon.X size="md" /> : <Icon.Menu01 size="md" />}
+                icon={
+                  isMenuOpen ? <Icon.X size="md" /> : <Icon.Menu01 size="md" />
+                }
               />
             </div>
           </div>
@@ -125,10 +119,7 @@ const AppLayout: React.FC = () => {
       {isMenuOpen && (
         <div className={styles.mobileMenuOverlay}>
           <div className={styles.mobileMenu}>
-            <Navigation
-              isMobile
-              onItemClick={() => setIsMenuOpen(false)}
-            />
+            <Navigation isMobile onItemClick={() => setIsMenuOpen(false)} />
           </div>
         </div>
       )}

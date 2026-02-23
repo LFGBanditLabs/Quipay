@@ -198,7 +198,6 @@
 }
 
 @keyframes pulse {
-
   0%,
   100% {
     opacity: 1;
@@ -296,7 +295,7 @@
   margin-bottom: 20px;
 }
 
-.modalSection>span {
+.modalSection > span {
   display: block;
   margin-bottom: 4px;
 }
