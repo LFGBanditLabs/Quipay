@@ -422,7 +422,6 @@ impl PayrollStream {
         vested.checked_sub(stream.withdrawn_amount).unwrap_or(0).max(0)
     }
 
-    pub fn cleanup_stream(env: Env, stream_id: u64) {
     pub fn get_employer_streams(env: Env, employer: Address) -> Vec<u64> {
         env.storage()
             .persistent()
@@ -512,26 +511,36 @@ impl PayrollStream {
     }
 
     fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
-        let is_canceled = (stream.status_bits & (1u32 << (StreamStatus::Canceled as u32))) != 0;
-        let is_completed = (stream.status_bits & (1u32 << (StreamStatus::Completed as u32))) != 0;
-        let is_closed = is_canceled || is_completed;
-
+        let is_closed = Self::is_closed(stream);
         let effective_ts = if is_closed {
             core::cmp::min(timestamp, stream.closed_at)
         } else {
             timestamp
         };
 
+        if timestamp < stream.cliff_ts {
+            return 0;
+        }
         if effective_ts <= stream.start_ts {
-        if now < stream.cliff_ts {
             return 0;
         }
-        if now <= stream.start_ts {
-            return 0;
-        }
-
-        if effective_ts >= stream.end_ts || (is_completed && effective_ts >= stream.closed_at) {
+        if effective_ts >= stream.end_ts {
             return stream.total_amount;
+        }
+        if is_closed && stream.status == StreamStatus::Canceled {
+            let elapsed = effective_ts - stream.start_ts;
+            let duration = stream.end_ts - stream.start_ts;
+            if duration == 0 {
+                return stream.total_amount;
+            }
+            let elapsed_i = elapsed as i128;
+            let duration_i = duration as i128;
+            return stream
+                .total_amount
+                .checked_mul(elapsed_i)
+                .expect("accrued mul overflow")
+                .checked_div(duration_i)
+                .expect("accrued div overflow");
         }
 
         let elapsed: u64 = effective_ts - stream.start_ts;
@@ -553,6 +562,9 @@ impl PayrollStream {
 }
 
 mod test;
+
+#[cfg(test)]
+mod benchmarks;
 
 #[cfg(test)]
 mod proptest;
