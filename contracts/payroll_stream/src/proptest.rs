@@ -11,7 +11,12 @@ mod dummy_vault {
     pub struct DummyVault;
     #[contractimpl]
     impl DummyVault {
+        pub fn check_solvency(_env: Env, _token: Address, _additional_liability: i128) -> bool {
+            true
+        }
         pub fn add_liability(_env: Env, _token: Address, _amount: i128) {}
+        pub fn remove_liability(_env: Env, _token: Address, _amount: i128) {}
+        pub fn payout_liability(_env: Env, _to: Address, _token: Address, _amount: i128) {}
     }
 }
 

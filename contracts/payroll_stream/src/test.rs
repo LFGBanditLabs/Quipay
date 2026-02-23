@@ -8,7 +8,12 @@ mod dummy_vault {
     pub struct DummyVault;
     #[contractimpl]
     impl DummyVault {
+        pub fn check_solvency(_env: Env, _token: Address, _additional_liability: i128) -> bool {
+            true
+        }
         pub fn add_liability(_env: Env, _token: Address, _amount: i128) {}
+        pub fn remove_liability(_env: Env, _token: Address, _amount: i128) {}
+        pub fn payout_liability(_env: Env, _to: Address, _token: Address, _amount: i128) {}
     }
 }
 
@@ -18,9 +23,28 @@ mod rejecting_vault {
     pub struct RejectingVault;
     #[contractimpl]
     impl RejectingVault {
+        pub fn check_solvency(_env: Env, _token: Address, _additional_liability: i128) -> bool {
+            true
+        }
         pub fn add_liability(_env: Env, _token: Address, _amount: i128) {
             panic!("vault rejected liability");
         }
+    }
+}
+
+/// Insolvent vault: check_solvency returns false so stream creation is blocked
+mod insolvent_vault {
+    use soroban_sdk::{contract, contractimpl, Address, Env};
+    #[contract]
+    pub struct InsolventVault;
+    #[contractimpl]
+    impl InsolventVault {
+        pub fn check_solvency(_env: Env, _token: Address, _additional_liability: i128) -> bool {
+            false
+        }
+        pub fn add_liability(_env: Env, _token: Address, _amount: i128) {}
+        pub fn remove_liability(_env: Env, _token: Address, _amount: i128) {}
+        pub fn payout_liability(_env: Env, _to: Address, _token: Address, _amount: i128) {}
     }
 }
 
@@ -694,6 +718,24 @@ fn test_create_vault_rejection_fails() {
     let token = Address::generate(&env);
     let admin = Address::generate(&env);
     let vault_id = env.register_contract(None, rejecting_vault::RejectingVault);
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(&env, &contract_id);
+    client.init(&admin);
+    client.set_vault(&vault_id);
+    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    let result = client.try_create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_create_stream_blocked_when_treasury_insolvent() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+    let admin = Address::generate(&env);
+    let vault_id = env.register_contract(None, insolvent_vault::InsolventVault);
     let contract_id = env.register_contract(None, PayrollStream);
     let client = PayrollStreamClient::new(&env, &contract_id);
     client.init(&admin);
