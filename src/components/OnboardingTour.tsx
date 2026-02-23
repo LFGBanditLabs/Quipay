@@ -1,16 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Joyride, { Step, CallBackProps } from "react-joyride";
 
 const OnboardingTour: React.FC = () => {
-  const [run, setRun] = useState(false);
-
-  useEffect(() => {
-    // Check if the user has already seen the tour
-    const hasSeenTour = localStorage.getItem("hasSeenOnboardingTour");
-    if (!hasSeenTour) {
-      setRun(true);
-    }
-  }, []);
+  const [run, setRun] = useState(() => {
+    return !localStorage.getItem("hasSeenOnboardingTour");
+  });
 
   const handleJoyrideCallback = (data: CallBackProps) => {
     const { status } = data;

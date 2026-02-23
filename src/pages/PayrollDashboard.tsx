@@ -375,10 +375,10 @@ interface ActivePieShapeProps {
   outerRadius: number;
   startAngle: number;
   endAngle: number;
-  fill: string;
-  payload: { name: string };
-  percent: number;
-  value: number;
+  fill?: string;
+  payload?: { name?: string; [key: string]: unknown };
+  percent?: number;
+  value?: number;
 }
 
 function ActivePieShape(props: ActivePieShapeProps) {
@@ -407,7 +407,7 @@ function ActivePieShape(props: ActivePieShapeProps) {
           fontFamily: "'DM Mono',monospace",
         }}
       >
-        {fmtUSD(value)}
+        {fmtUSD(value || 0)}
       </text>
       <text
         x={cx}
@@ -416,7 +416,7 @@ function ActivePieShape(props: ActivePieShapeProps) {
         fill="#8a82a8"
         style={{ fontSize: 11 }}
       >
-        {(percent * 100).toFixed(1)}%
+        {((percent || 0) * 100).toFixed(1)}%
       </text>
       <text
         x={cx}
@@ -425,7 +425,7 @@ function ActivePieShape(props: ActivePieShapeProps) {
         fill="#8a82a8"
         style={{ fontSize: 10 }}
       >
-        {payload.name}
+        {payload?.name || "Unknown"}
       </text>
       <Sector
         cx={cx}
@@ -947,7 +947,7 @@ export default function PayrollDashboard() {
             >
               {pieData.map((p, i) => (
                 <div
-                  key={i}
+                  key={p.name}
                   style={{
                     display: "flex",
                     alignItems: "center",
