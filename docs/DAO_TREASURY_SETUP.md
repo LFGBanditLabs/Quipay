@@ -19,6 +19,7 @@ When you use a multisig Stellar account as the Treasury Vault admin, the Stellar
 ### Example: 2-of-3 Multisig Setup
 
 For a 2-of-3 multisig configuration:
+
 - **3 Signers**: Three authorized members (e.g., DAO council members)
 - **Threshold**: 2 signatures required
 - **Security**: Any 2 of the 3 signers can authorize treasury operations
@@ -60,13 +61,14 @@ client.initialize(&multisig_admin);
 
 **Recommended Thresholds for DAOs:**
 
-| DAO Size | Recommended Setup | Use Case |
-|---------|-------------------|----------|
-| Small (3-5 members) | 2-of-3 or 2-of-4 | Fast decision-making with security |
-| Medium (5-10 members) | 3-of-5 or 4-of-7 | Balanced security and efficiency |
-| Large (10+ members) | 5-of-9 or 7-of-12 | High security, slower but more decentralized |
+| DAO Size              | Recommended Setup | Use Case                                     |
+| --------------------- | ----------------- | -------------------------------------------- |
+| Small (3-5 members)   | 2-of-3 or 2-of-4  | Fast decision-making with security           |
+| Medium (5-10 members) | 3-of-5 or 4-of-7  | Balanced security and efficiency             |
+| Large (10+ members)   | 5-of-9 or 7-of-12 | High security, slower but more decentralized |
 
 **Threshold Guidelines:**
+
 - **Low Threshold**: 2-3 signatures for routine operations (payouts, allocations)
 - **Medium Threshold**: 3-5 signatures for important changes (authorized contract updates)
 - **High Threshold**: 5+ signatures for critical operations (admin transfer, upgrades)
@@ -159,7 +161,8 @@ vault_client.payout(&employee_address, &token_address, &salary_amount);
 
 **Problem**: Transaction is rejected even though you have the admin address.
 
-**Solution**: 
+**Solution**:
+
 - Verify that enough signers have signed the transaction to meet the threshold
 - Check that signer weights sum to at least the threshold value
 - Ensure all signatures are valid and correspond to authorized signers
@@ -169,6 +172,7 @@ vault_client.payout(&employee_address, &token_address, &salary_amount);
 **Problem**: Operations that should work are failing.
 
 **Solution**:
+
 - Verify the multisig account is correctly set as the admin: `get_admin()`
 - Check that transaction includes signatures from authorized signers
 - Confirm threshold is set correctly on the Stellar account
@@ -178,6 +182,7 @@ vault_client.payout(&employee_address, &token_address, &salary_amount);
 **Problem**: You need to transfer admin to a new multisig account.
 
 **Solution**:
+
 - Current admin (with sufficient signatures) must call `transfer_admin(new_admin)`
 - The new admin can be another multisig account
 - Ensure the new multisig account is properly configured before transfer
@@ -192,6 +197,7 @@ vault_client.payout(&employee_address, &token_address, &salary_amount);
 ## Support
 
 For questions or issues with multisig setup:
+
 - Open an issue on [GitHub](https://github.com/LFGBanditLabs/Quipay/issues)
 - Review the [contract tests](../contracts/payroll_vault/src/test.rs) for examples
 - Check the [PRD](PRD.md) for protocol details

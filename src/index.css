@@ -18,12 +18,16 @@ body {
   min-height: 100vh;
   color: inherit;
   background:
-    radial-gradient(circle at 10% 18%,
+    radial-gradient(
+      circle at 10% 18%,
       rgba(208, 234, 255, 0.52),
-      transparent 36%),
-    radial-gradient(circle at 88% 16%,
+      transparent 36%
+    ),
+    radial-gradient(
+      circle at 88% 16%,
       rgba(255, 220, 190, 0.44),
-      transparent 32%),
+      transparent 32%
+    ),
     #f4f9ff;
 }
 

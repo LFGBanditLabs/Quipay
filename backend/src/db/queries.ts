@@ -471,9 +471,18 @@ export const getSchedulerLogs = async (
   );
   return res.rows;
 };
-export interface TreasuryBalance { employer: string; balance: string; }
-export interface TreasuryLiability { employer: string; liabilities: string; }
-export const getTreasuryBalances = async (): Promise<TreasuryBalance[]> => { return []; };
-export const getActiveLiabilities = async (): Promise<TreasuryLiability[]> => { return []; };
+export interface TreasuryBalance {
+  employer: string;
+  balance: string;
+}
+export interface TreasuryLiability {
+  employer: string;
+  liabilities: string;
+}
+export const getTreasuryBalances = async (): Promise<TreasuryBalance[]> => {
+  return [];
+};
+export const getActiveLiabilities = async (): Promise<TreasuryLiability[]> => {
+  return [];
+};
 export const logMonitorEvent = async (params: any): Promise<void> => {};
-

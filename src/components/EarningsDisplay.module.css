@@ -142,12 +142,12 @@
 }
 
 .projectionLabel {
-    color: #4f46e5;
-    font-weight: 600;
+  color: #4f46e5;
+  font-weight: 600;
 }
 
 .projectionPositive {
-    color: #10b981;
+  color: #10b981;
 }
 
 @media (max-width: 992px) {
@@ -156,7 +156,7 @@
     align-items: flex-start;
     gap: 2rem;
   }
-  
+
   .chartSection {
     width: 100%;
     justify-content: center;
@@ -171,7 +171,7 @@
   .statsGrid {
     grid-template-columns: 1fr;
   }
-  
+
   .container {
     padding: 1.5rem;
   }
