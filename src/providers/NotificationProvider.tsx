@@ -62,13 +62,15 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
 
       setTimeout(() => {
         setNotifications((prev) =>
-          prev.map((n) => (n.id === newNotification.id ? { ...n, isVisible: false } : n))
+          prev.map((n) =>
+            n.id === newNotification.id ? { ...n, isVisible: false } : n,
+          ),
         );
       }, duration);
 
       setTimeout(() => {
         setNotifications((prev) =>
-          prev.filter(n => n.id !== newNotification.id)
+          prev.filter((n) => n.id !== newNotification.id),
         );
       }, removeAfter);
     },

@@ -413,17 +413,21 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
         type: "SET_TX_PHASE",
         phase: {
           kind: "error",
-          message: appError.actionableStep ? `${appError.message} ${appError.actionableStep}` : appError.message
-        }
+          message: appError.actionableStep
+            ? `${appError.message} ${appError.actionableStep}`
+            : appError.message,
+        },
       });
 
       addNotification(
         appError.message,
         appError.severity,
-        appError.actionableStep ? {
-          label: "Retry",
-          onClick: () => void handleSubmit(e)
-        } : undefined
+        appError.actionableStep
+          ? {
+              label: "Retry",
+              onClick: () => void handleSubmit(e),
+            }
+          : undefined,
       );
     }
   };
@@ -482,7 +486,10 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               aria-invalid={!!errors.workerAddress}
             />
             <div aria-live="assertive">
-              <ErrorMessage error={errors.workerAddress || null} severity="error" />
+              <ErrorMessage
+                error={errors.workerAddress || null}
+                severity="error"
+              />
             </div>
           </div>
 
