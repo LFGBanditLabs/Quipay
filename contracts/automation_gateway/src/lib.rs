@@ -48,13 +48,13 @@ impl AutomationGateway {
 
         let agent = Agent {
             address: agent_address.clone(),
-            permissions,
+            permissions: permissions.clone(),
             registered_at: env.ledger().timestamp(),
         };
 
         env.storage()
             .instance()
-            .set(&DataKey::Agent(agent_address), &agent);
+            .set(&DataKey::Agent(agent_address.clone()), &agent);
 
         env.events().publish(
             (
@@ -77,7 +77,7 @@ impl AutomationGateway {
 
         env.storage()
             .instance()
-            .remove(&DataKey::Agent(agent_address));
+            .remove(&DataKey::Agent(agent_address.clone()));
 
         env.events().publish(
             (
@@ -109,7 +109,7 @@ impl AutomationGateway {
         agent.require_auth();
 
         require!(
-            Self::is_authorized(env.clone(), agent, action),
+            Self::is_authorized(env.clone(), agent.clone(), action),
             QuipayError::InsufficientPermissions
         );
 
