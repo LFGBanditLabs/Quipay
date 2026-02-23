@@ -555,23 +555,34 @@ fn test_get_liability_returns_zero_for_untracked_token() {
 #[test]
 fn test_require_auth_enforces_admin_authorization() {
     let env = Env::default();
+    env.mock_all_auths();
     let contract_id = env.register(PayrollVault, ());
     let client = PayrollVaultClient::new(&env, &contract_id);
 
     let admin = Address::generate(&env);
-    let token = Address::generate(&env);
+    let depositor = Address::generate(&env);
+
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token = token_contract.address();
+    let token_admin_client = token::StellarAssetClient::new(&env, &token);
 
     // Initialize with admin (no auth needed for initialize)
     client.initialize(&admin);
 
+    token_admin_client.mint(&depositor, &1_000);
+    client.deposit(&depositor, &token, &1_000);
+
     // With mock_all_auths, operations succeed (simulates multisig threshold met)
-    env.mock_all_auths();
     client.allocate_funds(&token, &100);
     
     // Without mock_all_auths, operations fail (simulates insufficient signatures)
     // Note: We can't easily test this in a separate env due to address incompatibility
     // In production, multisig threshold validation happens at Stellar network level
     // The contract's require_auth() will reject transactions without proper authorization
+    env.set_auths(&[]);
+    let res = client.try_allocate_funds(&token, &100);
+    assert!(res.is_err());
 }
 
 #[test]
@@ -586,17 +597,12 @@ fn test_require_auth_for_upgrade_with_multisig() {
     // Initialize
     client.initialize(&admin);
 
-    // Admin can upgrade (authorized - mock_all_auths simulates multisig threshold met)
+    // Try to upgrade without auth - should fail.
+    // We don't assert a successful upgrade here because providing a valid WASM hash
+    // requires uploading WASM into the test environment.
+    env.set_auths(&[]);
     let new_wasm_hash = BytesN::from_array(&env, &[0u8; 32]);
-    client.upgrade(&new_wasm_hash, &(1, 1, 0));
-
-    // Try to upgrade without auth - should fail
-    // This simulates insufficient signatures for multisig threshold
-    let env2 = Env::default();
-    let contract_id2 = env2.register(PayrollVault, ());
-    let client2 = PayrollVaultClient::new(&env2, &contract_id2);
-    client2.initialize(&admin);
-    let result = client2.try_upgrade(&new_wasm_hash, &(1, 2, 0));
+    let result = client.try_upgrade(&new_wasm_hash, &(1, 2, 0));
     assert!(result.is_err());
 }
 
@@ -618,13 +624,10 @@ fn test_require_auth_for_transfer_admin_with_multisig() {
     assert_eq!(client.get_admin(), new_admin);
 
     // Try to transfer admin without proper auth - should fail
-    // This simulates a transaction that doesn't meet the new admin's multisig threshold
-    let env2 = Env::default();
-    let contract_id2 = env2.register(PayrollVault, ());
-    let client2 = PayrollVaultClient::new(&env2, &contract_id2);
-    client2.initialize(&admin);
-    let another_admin = Address::generate(&env2);
-    let result = client2.try_transfer_admin(&another_admin);
+    // In tests we can simulate missing auth by turning off mocked auths.
+    env.set_auths(&[]);
+    let another_admin = Address::generate(&env);
+    let result = client.try_transfer_admin(&another_admin);
     assert!(result.is_err());
 }
 
@@ -656,14 +659,9 @@ fn test_require_auth_for_payout_with_multisig() {
     client.payout(&recipient, &token_id, &200);
 
     // Try to payout without admin auth - should fail
-    // This simulates insufficient signatures for multisig threshold
-    let env2 = Env::default();
-    let contract_id2 = env2.register(PayrollVault, ());
-    let client2 = PayrollVaultClient::new(&env2, &contract_id2);
-    let admin2 = Address::generate(&env2);
-    let recipient2 = Address::generate(&env2);
-    client2.initialize(&admin2);
-    let result = client2.try_payout(&recipient2, &token_id, &100);
+    env.set_auths(&[]);
+    let recipient2 = Address::generate(&env);
+    let result = client.try_payout(&recipient2, &token_id, &100);
     assert!(result.is_err());
 }
 
