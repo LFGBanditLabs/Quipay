@@ -22,6 +22,7 @@ export default defineConfig(() => {
         registerType: "autoUpdate",
         workbox: {
           globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
+          maximumFileSizeToCacheInBytes: 4194304, // 4MiB
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/horizon-testnet\.stellar\.org\/.*/i,

@@ -1,7 +1,5 @@
-@import "tailwindcss";
-
-/* Import font for Stellar Design System */
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Inconsolata:wght@500&display=swap");
+@import "tailwindcss";
 
 :root {
   --bg: #f4f9ff;
@@ -36,27 +34,13 @@
   background: var(--bg);
   font-family: Inter, "Avenir Next", "Segoe UI", sans-serif;
 
-  /* Breakpoints */
-  --breakpoint-mobile: 768px;
-  --breakpoint-tablet: 1024px;
-}
-
-.skip-link {
-  position: absolute;
-  top: -40px;
-  left: 0;
-  background: #000;
-  color: white;
-  padding: 8px;
-  z-index: 100;
-  transition: top 0.3s;
-}
-
-.skip-link:focus {
-  top: 0;
   transition:
     background-color 0.3s ease,
     color 0.3s ease;
+
+  /* Breakpoints */
+  --breakpoint-mobile: 768px;
+  --breakpoint-tablet: 1024px;
 }
 
 [data-theme="dark"] {
@@ -87,6 +71,21 @@
   --sds-color-feedback-success: #34d399;
   --sds-color-feedback-warning: #fbbf24;
   --sds-color-feedback-error-transparent: rgba(248, 113, 113, 0.2);
+}
+
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: #000;
+  color: white;
+  padding: 8px;
+  z-index: 100;
+  transition: top 0.3s;
+}
+
+.skip-link:focus {
+  top: 0;
 }
 
 * {
