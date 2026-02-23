@@ -9,6 +9,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { SimulationResult, TokenBalance } from "../util/simulationUtils";
+import type { AppError } from "../util/errors";
+import { translateError } from "../util/errors";
+import { ErrorMessage } from "./ErrorMessage";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -71,23 +74,6 @@ const IconGas = () => (
     <path d="M15 8h2a2 2 0 0 1 2 2v3a2 2 0 0 0 2 2h0" />
     <line x1="3" y1="22" x2="21" y2="22" />
     <line x1="7" y1="10" x2="11" y2="10" />
-  </svg>
-);
-
-const IconAlert = () => (
-  <svg
-    width="20"
-    height="20"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-    <line x1="12" y1="9" x2="12" y2="13" />
-    <line x1="12" y1="17" x2="12.01" y2="17" />
   </svg>
 );
 
@@ -217,7 +203,13 @@ function BalanceRow({ b }: { b: TokenBalance }) {
 
 // ─── Status Banner ────────────────────────────────────────────────────────────
 
-function StatusBanner({ result }: { result: SimulationResult }) {
+function StatusBanner({
+  result,
+  onRetry,
+}: {
+  result: SimulationResult;
+  onRetry?: () => void;
+}) {
   if (result.status === "success") {
     return (
       <div className="tsm-banner tsm-banner-success">
@@ -242,18 +234,11 @@ function StatusBanner({ result }: { result: SimulationResult }) {
     );
   }
 
-  const appError = translateError(result.errorMessage);
+  const appError: AppError = translateError(result.errorMessage);
 
   return (
-    <div className="tsm-banner tsm-banner-error">
-      <IconAlert />
-      <div>
-        <strong>Transaction will likely fail</strong>
-        <p>
-          {appError.message}
-          {appError.actionableStep && <span style={{ display: 'block', marginTop: 4 }}>{appError.actionableStep}</span>}
-        </p>
-      </div>
+    <div style={{ marginBottom: "-16px" }}>
+      <ErrorMessage error={appError} onRetry={onRetry} />
     </div>
   );
 }
@@ -767,7 +752,12 @@ export default function TransactionSimulationModal({
             {simResult && !simLoading && (
               <>
                 {/* Status banner */}
-                <StatusBanner result={simResult} />
+                <StatusBanner
+                  result={simResult}
+                  onRetry={() => {
+                    void runSim();
+                  }}
+                />
 
                 {/* Gas cost */}
                 <div>
@@ -781,8 +771,8 @@ export default function TransactionSimulationModal({
                       <span className="tsm-gas-val">
                         {simResult.estimatedFeeXLM > 0
                           ? simResult.estimatedFeeXLM.toLocaleString("en-US", {
-                            minimumFractionDigits: 7,
-                          })
+                              minimumFractionDigits: 7,
+                            })
                           : "< 0.0000001"}
                       </span>
                       <span className="tsm-gas-sub">

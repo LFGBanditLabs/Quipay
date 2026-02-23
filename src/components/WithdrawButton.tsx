@@ -186,7 +186,11 @@ export default function WithdrawButton({
       console.error("Withdrawal failed:", err);
       const appError = translateError(err);
       setStatus("error");
-      setErrorMsg(appError.actionableStep ? `${appError.message} ${appError.actionableStep}` : appError.message);
+      setErrorMsg(
+        appError.actionableStep
+          ? `${appError.message} ${appError.actionableStep}`
+          : appError.message,
+      );
     }
   };
 
@@ -197,7 +201,8 @@ export default function WithdrawButton({
     void fetchAmount();
   };
 
-  const explorerUrl = (hash: string) => `https://stellar.expert/explorer/testnet/tx/${hash}`;
+  const explorerUrl = (hash: string) =>
+    `https://stellar.expert/explorer/testnet/tx/${hash}`;
 
   // ── Derived UI values ──────────────────────────────────────────────────────
 
@@ -521,16 +526,17 @@ export default function WithdrawButton({
 
           {/* CTA Button */}
           <button
-            className={`wb-btn ${isLoading
-              ? "wb-btn-loading"
-              : status === "success"
-                ? "wb-btn-success"
-                : status === "error"
-                  ? "wb-btn-error"
-                  : isDisabled
-                    ? "wb-btn-disabled"
-                    : "wb-btn-default"
-              }`}
+            className={`wb-btn ${
+              isLoading
+                ? "wb-btn-loading"
+                : status === "success"
+                  ? "wb-btn-success"
+                  : status === "error"
+                    ? "wb-btn-error"
+                    : isDisabled
+                      ? "wb-btn-disabled"
+                      : "wb-btn-default"
+            }`}
             onClick={status === "error" ? reset : handleWithdraw}
             // disabled={isDisabled && status !== "error"}
             aria-label={buttonLabel()}
@@ -553,7 +559,7 @@ export default function WithdrawButton({
                 <span>Transaction broadcasting…</span>
                 <a
                   className="wb-tx-link"
-                  href={`https://etherscan.io/tx/${txHash}`}
+                  href={explorerUrl(txHash)}
                   target="_blank"
                   rel="noopener noreferrer"
                   title={txHash}
@@ -571,7 +577,7 @@ export default function WithdrawButton({
                 <span>Withdrawal confirmed</span>
                 <a
                   className="wb-tx-link"
-                  href={`https://etherscan.io/tx/${txHash}`}
+                  href={explorerUrl(txHash)}
                   target="_blank"
                   rel="noopener noreferrer"
                   title={txHash}
@@ -581,7 +587,9 @@ export default function WithdrawButton({
               </div>
               <button
                 className="wb-refresh"
-                onClick={reset}
+                onClick={() => {
+                  void reset();
+                }}
                 aria-label="Refresh balance"
               >
                 <IconRefresh /> Refresh balance
@@ -593,8 +601,9 @@ export default function WithdrawButton({
             <div className="wb-status">
               <ErrorMessage
                 error={errorMsg}
-                severity="error"
-                onRetry={handleWithdraw}
+                onRetry={() => {
+                  void handleWithdraw();
+                }}
               />
             </div>
           )}
