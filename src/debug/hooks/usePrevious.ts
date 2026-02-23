@@ -1,13 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export const usePrevious = <T>(value: T): T | undefined => {
-  const [current, setCurrent] = useState<T>(value);
-  const [previous, setPrevious] = useState<T | undefined>(undefined);
+  const [tuple, setTuple] = useState<[T | undefined, T]>([undefined, value]);
 
-  useEffect(() => {
-    setPrevious(current);
-    setCurrent(value);
-  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (tuple[1] !== value) {
+    setTuple([tuple[1], value]);
+  }
 
-  return previous;
+  return tuple[0];
 };
