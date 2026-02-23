@@ -157,7 +157,16 @@ impl PayrollStream {
             .instance()
             .get(&DataKey::Vault)
             .expect("vault not configured");
+
         use soroban_sdk::{vec, IntoVal, Symbol};
+        // Block stream creation if treasury would be insolvent
+        let solvent: bool = env.invoke_contract(
+            &vault,
+            &Symbol::new(&env, "check_solvency"),
+            vec![&env, token.clone().into_val(&env), total_amount.into_val(&env)],
+        );
+        require!(solvent, QuipayError::InsufficientBalance);
+
         env.invoke_contract::<()>(
             &vault,
             &Symbol::new(&env, "add_liability"),
@@ -252,6 +261,23 @@ impl PayrollStream {
             return Ok(0);
         }
 
+        let vault: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Vault)
+            .expect("vault not configured");
+        use soroban_sdk::{vec, IntoVal, Symbol};
+        env.invoke_contract::<()>(
+            &vault,
+            &Symbol::new(&env, "payout_liability"),
+            vec![
+                &env,
+                worker.clone().into_val(&env),
+                stream.token.clone().into_val(&env),
+                available.into_val(&env),
+            ],
+        );
+
         stream.withdrawn_amount = stream
             .withdrawn_amount
             .checked_add(available)
@@ -314,6 +340,23 @@ impl PayrollStream {
                                 success: true,
                             }
                         } else {
+                            let vault: Address = env
+                                .storage()
+                                .instance()
+                                .get(&DataKey::Vault)
+                                .expect("vault not configured");
+                            use soroban_sdk::{vec, IntoVal, Symbol};
+                            env.invoke_contract::<()>(
+                                &vault,
+                                &Symbol::new(&env, "payout_liability"),
+                                vec![
+                                    &env,
+                                    caller.clone().into_val(&env),
+                                    stream.token.clone().into_val(&env),
+                                    available.into_val(&env),
+                                ],
+                            );
+
                             stream.withdrawn_amount = stream
                                 .withdrawn_amount
                                 .checked_add(available)
@@ -378,6 +421,28 @@ impl PayrollStream {
         }
         if Self::is_closed(&stream) {
             return Ok(());
+        }
+
+        let remaining_liability = stream
+            .total_amount
+            .checked_sub(stream.withdrawn_amount)
+            .expect("remaining liability underflow");
+        if remaining_liability > 0 {
+            let vault: Address = env
+                .storage()
+                .instance()
+                .get(&DataKey::Vault)
+                .expect("vault not configured");
+            use soroban_sdk::{vec, IntoVal, Symbol};
+            env.invoke_contract::<()>(
+                &vault,
+                &Symbol::new(&env, "remove_liability"),
+                vec![
+                    &env,
+                    stream.token.clone().into_val(&env),
+                    remaining_liability.into_val(&env),
+                ],
+            );
         }
 
         let now = env.ledger().timestamp();
@@ -528,6 +593,7 @@ impl PayrollStream {
             return stream.total_amount;
         }
         if is_closed && stream.status == StreamStatus::Canceled {
+            // For canceled streams, cap at proportion up to closed_at
             let elapsed = effective_ts - stream.start_ts;
             let duration = stream.end_ts - stream.start_ts;
             if duration == 0 {
@@ -564,7 +630,7 @@ impl PayrollStream {
 mod test;
 
 #[cfg(test)]
-mod benchmarks;
+mod integration_test;
 
 #[cfg(test)]
 mod proptest;
