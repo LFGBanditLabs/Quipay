@@ -25,20 +25,20 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({
 
   const colors = {
     error: {
-      bg: "rgba(248, 113, 113, 0.1)",
-      border: "rgba(248, 113, 113, 0.25)",
-      text: "#f87171",
+      bg: "rgba(248, 113, 113, 0.15)",
+      border: "rgba(248, 113, 113, 0.3)",
+      text: "var(--sds-color-feedback-error, #f87171)",
       icon: "⚠",
     },
     warning: {
-      bg: "rgba(251, 191, 36, 0.1)",
-      border: "rgba(251, 191, 36, 0.25)",
+      bg: "rgba(251, 191, 36, 0.15)",
+      border: "rgba(251, 191, 36, 0.3)",
       text: "#fbbf24",
       icon: "⚡",
     },
     info: {
-      bg: "rgba(110, 86, 207, 0.1)",
-      border: "rgba(110, 86, 207, 0.25)",
+      bg: "rgba(110, 86, 207, 0.15)",
+      border: "rgba(110, 86, 207, 0.3)",
       text: "#9b85f5",
       icon: "i",
     },
@@ -62,6 +62,7 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({
         lineHeight: "1.5",
         color: styleSet.text,
         animation: "slideIn 0.2s ease-out",
+        boxShadow: "var(--shadow)",
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>

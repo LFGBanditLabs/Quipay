@@ -1,7 +1,6 @@
 .container {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 24px;
   padding: 2rem;
   margin-bottom: 2rem;
@@ -10,7 +9,12 @@
   gap: 2rem;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow);
+}
+
+[data-theme="dark"] .container {
+  background: rgba(var(--surface-rgb), 0.03);
+  backdrop-filter: blur(20px);
 }
 
 .container::after {
@@ -22,7 +26,7 @@
   height: 200%;
   background: radial-gradient(
     circle,
-    rgba(79, 70, 229, 0.05) 0%,
+    rgba(var(--accent-rgb, 79, 70, 229), 0.05) 0%,
     transparent 70%
   );
   pointer-events: none;
@@ -43,7 +47,7 @@
 
 .label {
   font-size: 0.875rem;
-  color: #a5a5a5;
+  color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   margin-bottom: 0.5rem;
@@ -53,17 +57,21 @@
   font-size: 3.5rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+  color: var(--text);
+  line-height: 1;
+}
+
+[data-theme="dark"] .amount {
   background: linear-gradient(135deg, #fff 0%, #a5a5a5 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  line-height: 1;
 }
 
 .symbol {
   font-size: 1.5rem;
   margin-left: 0.5rem;
-  color: #fff;
+  color: var(--text);
   opacity: 0.8;
   font-weight: 400;
 }
@@ -95,10 +103,12 @@
     transform: scale(0.95);
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
   }
+
   70% {
     transform: scale(1);
     box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
   }
+
   100% {
     transform: scale(0.95);
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
@@ -120,16 +130,23 @@
 }
 
 .statsCard {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 1.25rem;
-  transition: transform 0.3s ease;
+  transition:
+    transform 0.3s ease,
+    background-color 0.2s;
+  box-shadow: var(--shadow);
+}
+
+[data-theme="dark"] .statsCard {
+  background: rgba(var(--surface-rgb), 0.03);
 }
 
 .statsCard:hover {
   transform: translateY(-5px);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg);
 }
 
 .statValue {
@@ -139,10 +156,11 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--text);
 }
 
 .projectionLabel {
-  color: #4f46e5;
+  color: var(--accent);
   font-weight: 600;
 }
 

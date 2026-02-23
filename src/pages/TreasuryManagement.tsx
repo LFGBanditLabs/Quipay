@@ -19,7 +19,7 @@ const TreasuryManagement: React.FC = () => {
             <Text as="h1" size="xl" weight="bold">
               Treasury Management
             </Text>
-            <Text as="p" size="md" style={{ color: "var(--gray-500)" }}>
+            <Text as="p" size="md" style={{ color: "var(--muted)" }}>
               Manage your protocol's funds and global settings.
             </Text>
           </div>
@@ -72,7 +72,7 @@ const TreasuryManagement: React.FC = () => {
             </div>
             <span className={styles.balanceValue}>{totalLiabilities}</span>
             <div style={{ marginTop: "1rem" }}>
-              <Text as="p" size="sm" style={{ color: "var(--gray-500)" }}>
+              <Text as="p" size="sm" style={{ color: "var(--muted)" }}>
                 Ensure your treasury balance exceeds your liabilities to prevent
                 stream interruptions.
               </Text>
@@ -92,7 +92,7 @@ const TreasuryManagement: React.FC = () => {
           <Text
             as="p"
             size="md"
-            style={{ color: "var(--gray-500)", marginBottom: "1.5rem" }}
+            style={{ color: "var(--muted)", marginBottom: "1.5rem" }}
           >
             Configure global parameters for your payroll protocol.
           </Text>
@@ -140,23 +140,26 @@ const TreasuryManagement: React.FC = () => {
             <div
               style={{
                 padding: "1rem",
-                border: "1px solid var(--red-200)",
+                border: "1px solid var(--sds-color-feedback-error-transparent)",
                 borderRadius: "0.5rem",
-                backgroundColor: "var(--red-50)",
+                backgroundColor: "var(--error-transparent)",
               }}
             >
               <Text
                 as="h3"
                 size="md"
                 weight="bold"
-                style={{ color: "var(--red-700)" }}
+                style={{ color: "var(--sds-color-feedback-error)" }}
               >
                 Pause Protocol
               </Text>
               <Text
                 as="p"
                 size="sm"
-                style={{ color: "var(--red-600)", marginBottom: "1rem" }}
+                style={{
+                  color: "var(--sds-color-feedback-error)",
+                  marginBottom: "1rem",
+                }}
               >
                 Pausing the protocol will stop all real-time streams and prevent
                 new withdrawals. Only use this in emergencies.
@@ -164,7 +167,7 @@ const TreasuryManagement: React.FC = () => {
               <Button
                 variant="primary"
                 size="md"
-                style={{ backgroundColor: "var(--red-600)" }}
+                style={{ backgroundColor: "var(--sds-color-feedback-error)" }}
               >
                 Pause All Streams
               </Button>

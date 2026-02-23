@@ -67,7 +67,7 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
           justifyContent: "space-between",
         }}
       >
-        <span style={{ fontSize: "0.875rem", color: "#a5a5a5" }}>
+        <span style={{ fontSize: "0.875rem", color: "var(--muted)" }}>
           Available:
         </span>
         <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>
@@ -130,7 +130,7 @@ const WorkerDashboard: React.FC = () => {
               className={styles.statCard}
               style={{ textAlign: "center", padding: "3rem" }}
             >
-              <p style={{ color: "#a5a5a5" }}>
+              <p style={{ color: "var(--muted)" }}>
                 No active streams found for this address.
               </p>
             </div>
@@ -173,7 +173,7 @@ const WorkerDashboard: React.FC = () => {
                       style={{
                         textAlign: "center",
                         padding: "2rem",
-                        color: "#a5a5a5",
+                        color: "var(--muted)",
                       }}
                     >
                       No withdrawal history yet.

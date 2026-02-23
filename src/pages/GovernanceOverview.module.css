@@ -74,7 +74,7 @@
 }
 
 .emptyIcon {
-  color: #00e5a0;
+  color: var(--sds-color-feedback-success);
   opacity: 0.6;
 }
 
@@ -94,7 +94,7 @@
 }
 
 .proposalCard:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px var(--shadow-color);
 }
 
 .proposalHeader {
@@ -131,7 +131,7 @@
 
 .address {
   font-family: "DM Mono", monospace;
-  background: rgba(0, 229, 160, 0.1);
+  background: var(--accent-transparent);
   padding: 4px 8px;
   border-radius: 6px;
   font-size: 0.85em;
@@ -139,7 +139,7 @@
 
 /* Signers Section */
 .signersSection {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-subtle);
   border-radius: 12px;
   padding: 16px;
   margin: 16px 0;
@@ -165,16 +165,16 @@
   gap: 8px;
   padding: 8px 12px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-subtle);
   transition: background 0.2s ease;
 }
 
 .signerItem.signed {
-  background: rgba(0, 229, 160, 0.1);
+  background: var(--success-transparent);
 }
 
 .signerItem.currentUser {
-  border: 1px solid rgba(0, 229, 160, 0.3);
+  border: 1px solid var(--success-transparent-strong);
 }
 
 .signerStatus {
@@ -186,14 +186,14 @@
 }
 
 .checkIcon {
-  color: #00e5a0;
+  color: var(--sds-color-feedback-success);
 }
 
 .pendingDot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #f5a623;
+  background: var(--sds-color-feedback-warning);
   animation: pulse 1.5s ease-in-out infinite;
 }
 
@@ -209,7 +209,7 @@
 }
 
 .youBadge {
-  color: #00e5a0;
+  color: var(--sds-color-feedback-success);
   font-weight: 600;
 }
 
@@ -221,7 +221,7 @@
 /* Progress Bar */
 .progressBar {
   height: 4px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--border);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -277,11 +277,11 @@
   gap: 8px;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--border);
 }
 
 .executedIcon {
-  color: #00e5a0;
+  color: var(--sds-color-feedback-success);
 }
 
 /* Modal */

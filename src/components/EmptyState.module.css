@@ -5,8 +5,8 @@
   justify-content: center;
   text-align: center;
   padding: 3rem 2rem;
-  background-color: var(--gray-50);
-  border: 2px dashed var(--gray-200);
+  background-color: var(--surface-subtle);
+  border: 2px dashed var(--border);
   border-radius: 1rem;
   margin: 1.5rem 0;
 }
@@ -18,11 +18,11 @@
 
 .title {
   margin-bottom: 0.5rem !important;
-  color: var(--gray-900);
+  color: var(--text);
 }
 
 .description {
-  color: var(--gray-500);
+  color: var(--muted);
   max-width: 400px;
   margin-bottom: 1.5rem !important;
 }
@@ -33,16 +33,16 @@
 
 /* Variants */
 .streams {
-  background-color: #f0f7ff;
-  border-color: #cce3ff;
+  background-color: var(--accent-transparent);
+  border-color: var(--accent-transparent-strong);
 }
 
 .workers {
-  background-color: #fdf2f8;
-  border-color: #fbcfe8;
+  background-color: rgba(236, 72, 153, 0.08);
+  border-color: rgba(236, 72, 153, 0.2);
 }
 
 .treasury {
-  background-color: #f0fdf4;
-  border-color: #dcfce7;
+  background-color: var(--success-transparent-strong);
+  border-color: var(--sds-color-feedback-success);
 }

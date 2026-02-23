@@ -20,7 +20,7 @@
   left: 0;
   right: 0;
   height: 2px;
-  background-color: var(--gray-200);
+  background-color: var(--border);
   z-index: 0;
 }
 
@@ -28,8 +28,8 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background-color: white;
-  border: 2px solid var(--gray-200);
+  background-color: var(--surface);
+  border: 2px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -41,14 +41,14 @@
 }
 
 .stepActive {
-  border-color: var(--blue-500);
-  color: var(--blue-500);
-  box-shadow: 0 0 0 4px var(--blue-50);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-transparent);
 }
 
 .stepCompleted {
-  background-color: var(--blue-500);
-  border-color: var(--blue-500);
+  background-color: var(--accent);
+  border-color: var(--accent);
   color: white;
 }
 
@@ -58,21 +58,21 @@
   left: 50%;
   transform: translateX(-50%);
   font-size: 0.75rem;
-  color: var(--gray-500);
+  color: var(--muted);
   white-space: nowrap;
 }
 
 .stepLabelActive {
-  color: var(--gray-900);
+  color: var(--text);
   font-weight: 500;
 }
 
 .content {
-  background-color: white;
+  background-color: var(--surface);
   padding: 2rem;
   border-radius: 0.75rem;
-  border: 1px solid var(--gray-200);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px var(--shadow-color);
 }
 
 .footer {

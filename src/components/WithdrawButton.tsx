@@ -251,39 +251,40 @@ export default function WithdrawButton({
         .wb-root * { box-sizing: border-box; margin: 0; padding: 0; }
 
         .wb-root {
-          --clr-bg:         #0d0f14;
-          --clr-card:       #13161e;
-          --clr-border:     rgba(255,255,255,0.07);
-          --clr-accent:     #00e5a0;
-          --clr-accent-dim: rgba(0,229,160,0.12);
-          --clr-text:       #e8eaf0;
-          --clr-muted:      #9ca3af; /* Increased contrast from #5a607a to meet 4.5:1 */
-          --clr-danger:     #ff5f5f;
-          --clr-danger-dim: rgba(255,95,95,0.12);
-          --clr-success:    #00e5a0;
-          --clr-pending:    #f5a623;
-          --radius:         16px;
+          --wb-bg:         var(--bg);
+          --wb-card:       var(--surface);
+          --wb-border:     var(--border);
+          --wb-accent:     var(--accent);
+          --wb-accent-dim: rgba(var(--surface-rgb), 0.1);
+          --wb-text:       var(--text);
+          --wb-muted:      var(--muted);
+          --wb-danger:     var(--sds-color-feedback-error, #ef4444);
+          --wb-danger-dim: rgba(239, 68, 68, 0.1);
+          --wb-success:    #10b981;
+          --wb-pending:    #f59e0b;
+          --wb-radius:     16px;
           font-family: 'Syne', sans-serif;
-          color: var(--clr-text);
+          color: var(--wb-text);
         }
 
         /* ── Card ── */
         .wb-card {
-          background: var(--clr-card);
-          border: 1px solid var(--clr-border);
-          border-radius: var(--radius);
+          background: var(--wb-card);
+          border: 1px solid var(--wb-border);
+          border-radius: var(--wb-radius);
           padding: 28px;
           max-width: 400px;
           width: 100%;
           animation: wbFadeUp .35s ease both;
           position: relative;
           overflow: hidden;
+          box-shadow: var(--shadow);
         }
         .wb-card::before {
           content: '';
           position: absolute;
           inset: 0;
-          background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(0,229,160,.06) 0%, transparent 70%);
+          background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(var(--surface-rgb),.06) 0%, transparent 70%);
           pointer-events: none;
         }
 
@@ -299,15 +300,15 @@ export default function WithdrawButton({
           font-weight: 700;
           letter-spacing: .12em;
           text-transform: uppercase;
-          color: var(--clr-muted);
+          color: var(--wb-muted);
         }
         .wb-badge {
           font-family: 'DM Mono', monospace;
           font-size: 10px;
           padding: 3px 8px;
           border-radius: 99px;
-          background: var(--clr-accent-dim);
-          color: var(--clr-accent);
+          background: var(--wb-accent-dim);
+          color: var(--wb-accent);
           letter-spacing: .04em;
         }
 
@@ -320,7 +321,7 @@ export default function WithdrawButton({
           font-weight: 600;
           letter-spacing: .1em;
           text-transform: uppercase;
-          color: var(--clr-muted);
+          color: var(--wb-muted);
           margin-bottom: 6px;
         }
         .wb-amount-row {
@@ -332,21 +333,21 @@ export default function WithdrawButton({
           font-family: 'DM Mono', monospace;
           font-size: 36px;
           font-weight: 500;
-          color: var(--clr-text);
+          color: var(--wb-text);
           line-height: 1;
           transition: color .3s;
         }
         .wb-amount-value.has-balance {
-          color: var(--clr-accent);
+          color: var(--wb-accent);
         }
         .wb-amount-symbol {
           font-size: 14px;
           font-weight: 600;
-          color: var(--clr-muted);
+          color: var(--wb-muted);
           letter-spacing: .06em;
         }
         .wb-amount-shimmer .wb-amount-value {
-          background: linear-gradient(90deg, var(--clr-muted) 25%, #8b93af 50%, var(--clr-muted) 75%);
+          background: linear-gradient(90deg, var(--wb-muted) 25%, #8b93af 50%, var(--wb-muted) 75%);
           background-size: 200% auto;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
@@ -356,7 +357,7 @@ export default function WithdrawButton({
         /* ── Divider ── */
         .wb-divider {
           height: 1px;
-          background: var(--clr-border);
+          background: var(--wb-border);
           margin-bottom: 24px;
         }
 
@@ -380,19 +381,20 @@ export default function WithdrawButton({
           overflow: hidden;
         }
         .wb-btn:focus-visible {
-          outline: 2px solid var(--clr-accent);
+          outline: 2px solid var(--wb-accent);
           outline-offset: 3px;
         }
 
         /* idle / default */
         .wb-btn-default {
-          background: var(--clr-accent);
-          color: #05120d;
+          background: var(--wb-accent);
+          color: white;
           box-shadow: 0 0 24px rgba(0,229,160,.25);
         }
         .wb-btn-default:hover:not(:disabled) {
           box-shadow: 0 0 36px rgba(0,229,160,.4);
           transform: translateY(-1px);
+          background: var(--accent-hover);
         }
         .wb-btn-default:active:not(:disabled) {
           transform: translateY(0);
@@ -400,33 +402,34 @@ export default function WithdrawButton({
 
         /* disabled (no balance) */
         .wb-btn-disabled {
-          background: rgba(255,255,255,0.05);
-          color: var(--clr-muted);
+          background: var(--border);
+          color: var(--wb-muted);
           cursor: not-allowed;
         }
 
         /* loading */
         .wb-btn-loading {
-          background: rgba(0,229,160,0.15);
-          color: var(--clr-accent);
+          background: var(--bg);
+          color: var(--wb-accent);
           cursor: not-allowed;
           animation: wbPulse 1.6s ease-in-out infinite;
+          border: 1px solid var(--wb-border);
         }
 
         /* success */
         .wb-btn-success {
-          background: rgba(0,229,160,0.15);
-          color: var(--clr-accent);
+          background: rgba(16, 185, 129, 0.15);
+          color: #10b981;
           cursor: default;
         }
 
         /* error */
         .wb-btn-error {
-          background: var(--clr-danger-dim);
-          color: var(--clr-danger);
+          background: var(--wb-danger-dim);
+          color: var(--wb-danger);
         }
         .wb-btn-error:hover {
-          background: rgba(255,95,95,.2);
+          background: rgba(239, 68, 68, 0.2);
         }
 
         /* ── Status area ── */
@@ -444,15 +447,15 @@ export default function WithdrawButton({
         }
         .wb-status-pending {
           background: rgba(245,166,35,0.1);
-          color: var(--clr-pending);
+          color: var(--wb-pending);
         }
         .wb-status-success {
-          background: rgba(0,229,160,0.1);
-          color: var(--clr-accent);
+          background: rgba(16, 185, 129, 0.1);
+          color: #10b981;
         }
         .wb-status-error {
-          background: var(--clr-danger-dim);
-          color: var(--clr-danger);
+          background: var(--wb-danger-dim);
+          color: var(--wb-danger);
         }
         .wb-status-dot {
           width: 7px;
@@ -486,7 +489,7 @@ export default function WithdrawButton({
           font-weight: 600;
           letter-spacing: .08em;
           text-transform: uppercase;
-          color: var(--clr-muted);
+          color: var(--wb-muted);
           background: none;
           border: none;
           cursor: pointer;
@@ -494,7 +497,7 @@ export default function WithdrawButton({
           margin-top: 12px;
           transition: color .2s;
         }
-        .wb-refresh:hover { color: var(--clr-text); }
+        .wb-refresh:hover { color: var(--wb-text); }
       `}</style>
 
       <div className="wb-root">

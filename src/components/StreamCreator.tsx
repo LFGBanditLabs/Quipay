@@ -552,9 +552,9 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
             <div
               style={{
                 padding: "12px",
-                background: "rgba(0,0,0,0.02)",
+                background: "rgba(var(--text-rgb), 0.03)",
                 borderRadius: "8px",
-                border: "1px dashed var(--sds-color-neutral-border)",
+                border: "1px dashed var(--border)",
               }}
             >
               <div
@@ -567,12 +567,12 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
                 <span
                   style={{
                     fontSize: "0.8125rem",
-                    color: "var(--sds-color-content-secondary)",
+                    color: "var(--muted)",
                   }}
                 >
                   Estimated Total Commitment:
                 </span>
-                <span style={{ fontWeight: 600 }}>
+                <span style={{ fontWeight: 600, color: "var(--text)" }}>
                   {estimatedTotal.toLocaleString(undefined, {
                     maximumFractionDigits: 4,
                   })}{" "}
@@ -644,19 +644,25 @@ function SolvencyBanner({ status }: { status: SolvencyStatus }) {
   if (status.kind === "idle") return null;
   if (status.kind === "checking")
     return (
-      <p style={{ fontSize: "0.75rem", margin: 0 }}>
+      <p style={{ fontSize: "0.75rem", margin: 0, color: "var(--muted)" }}>
         Checking treasury solvency...
       </p>
     );
   if (status.kind === "ok")
     return (
-      <p style={{ fontSize: "0.75rem", margin: 0, color: "green" }}>
+      <p style={{ fontSize: "0.75rem", margin: 0, color: "#10b981" }}>
         ✅ Treasury funds confirmed
       </p>
     );
   if (status.kind === "insufficient")
     return (
-      <p style={{ fontSize: "0.75rem", margin: 0, color: "red" }}>
+      <p
+        style={{
+          fontSize: "0.75rem",
+          margin: 0,
+          color: "var(--sds-color-feedback-error, #ef4444)",
+        }}
+      >
         ⚠️ Treasury may be insufficient
       </p>
     );
