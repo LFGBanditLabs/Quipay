@@ -10,6 +10,7 @@ export interface SeoHelmetProps {
   type?: "website" | "article";
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function SeoHelmet(_props: SeoHelmetProps) {
   /*
   const fullTitle = title.includes(SITE_NAME)
