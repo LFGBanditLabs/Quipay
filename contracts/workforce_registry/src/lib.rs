@@ -56,7 +56,7 @@ impl WorkforceRegistryContract {
         e.events().publish(
             (
                 symbol_short!("registry"),
-                symbol_short!("registered"),
+                symbol_short!("register"),
                 worker.clone(),
                 preferred_token.clone(),
             ),

@@ -583,7 +583,7 @@ impl PayrollStream {
             timestamp
         };
 
-        if timestamp < stream.cliff_ts {
+        if effective_ts < stream.cliff_ts {
             return 0;
         }
         if effective_ts <= stream.start_ts {

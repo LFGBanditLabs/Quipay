@@ -46,6 +46,9 @@ impl AutomationGateway {
         let admin = Self::get_admin(env.clone())?;
         admin.require_auth();
 
+        let agent_address_for_key = agent_address.clone();
+        let permissions_for_event = permissions.clone();
+
         let agent = Agent {
             address: agent_address.clone(),
             permissions,
@@ -54,7 +57,7 @@ impl AutomationGateway {
 
         env.storage()
             .instance()
-            .set(&DataKey::Agent(agent_address), &agent);
+            .set(&DataKey::Agent(agent_address_for_key), &agent);
 
         env.events().publish(
             (
@@ -63,7 +66,7 @@ impl AutomationGateway {
                 agent_address.clone(),
                 symbol_short!("admin"),
             ),
-            (permissions),
+            permissions_for_event,
         );
 
         Ok(())
@@ -77,7 +80,7 @@ impl AutomationGateway {
 
         env.storage()
             .instance()
-            .remove(&DataKey::Agent(agent_address));
+            .remove(&DataKey::Agent(agent_address.clone()));
 
         env.events().publish(
             (
@@ -109,7 +112,7 @@ impl AutomationGateway {
         agent.require_auth();
 
         require!(
-            Self::is_authorized(env.clone(), agent, action),
+            Self::is_authorized(env.clone(), agent.clone(), action),
             QuipayError::InsufficientPermissions
         );
 
