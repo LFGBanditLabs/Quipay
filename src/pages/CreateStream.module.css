@@ -52,3 +52,20 @@
   font-size: 0.75rem;
   margin-top: 0.25rem;
 }
+
+@media (max-width: 480px) {
+  .reviewItem {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+
+  .reviewLabel {
+    font-size: 0.75rem;
+  }
+
+  .reviewValue {
+    font-size: 0.875rem;
+    word-break: break-all;
+  }
+}
