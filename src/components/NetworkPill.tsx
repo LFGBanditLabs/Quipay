@@ -12,8 +12,8 @@ const formatNetworkName = (name: string) =>
 
 const appNetwork = formatNetworkName(stellarNetwork);
 
-const bgColor = "#F0F2F5";
-const textColor = "#4A5362";
+const bgColor = "var(--surface)";
+const textColor = "var(--text)";
 
 const NetworkPill: React.FC = () => {
   const { network, address } = useWallet();
@@ -23,17 +23,19 @@ const NetworkPill: React.FC = () => {
   const isNetworkMismatch = walletNetwork !== appNetwork;
 
   let title = "";
-  let color = "#2ED06E";
+  let color = "var(--sds-color-feedback-success)";
   if (!address) {
     title = "Connect your wallet using this network.";
-    color = "#C1C7D0";
+    color = "var(--muted)";
   } else if (isNetworkMismatch) {
     title = `Wallet is on ${walletNetwork}, connect to ${appNetwork} instead.`;
-    color = "#FF3B30";
+    color = "var(--sds-color-feedback-error)";
   }
 
   return (
     <div
+      role="status"
+      aria-label={`Network: ${appNetwork}${isNetworkMismatch ? `. Mismatch: wallet is on ${walletNetwork}` : ""}`}
       style={{
         backgroundColor: bgColor,
         color: textColor,

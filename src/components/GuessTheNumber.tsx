@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { Button, Code, Input, Text } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
-import game from "../contracts/guess_the_number";
+// import game from "../contracts/guess_the_number";
+// // @ts-ignore: contract bindings may not be locally generated yet
+
+// import game from "../contracts/guess_the_number";
 import { Box } from "../components/layout/Box";
 
 export const GuessTheNumber = () => {
   const [guessedIt, setGuessedIt] = useState<boolean>();
   const [theGuess, setTheGuess] = useState<number>();
-  const { address, updateBalances, signTransaction } = useWallet();
+  const { address } = useWallet();
 
   if (!address) {
     return (
@@ -17,12 +20,14 @@ export const GuessTheNumber = () => {
     );
   }
 
-  const submitGuess = async () => {
+  const submitGuess = () => {
     if (!theGuess || !address) return;
+    console.log("Guessing game contract call removed in this example.");
+    /*
     const tx = await game.guess(
       { a_number: BigInt(theGuess), guesser: address },
-      // @ts-expect-error js-stellar-sdk has bad typings; publicKey is, in fact, allowed
-      { publicKey: address },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { publicKey: address } as any,
     );
     const { result } = await tx.signAndSend({ signTransaction });
     if (result.isErr()) {
@@ -31,6 +36,7 @@ export const GuessTheNumber = () => {
       setGuessedIt(result.unwrap());
       await updateBalances();
     }
+    */
   };
 
   return (
