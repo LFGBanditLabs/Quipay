@@ -33,11 +33,11 @@ export const TransactionProgress: React.FC<TransactionProgressProps> = ({
 
   useEffect(() => {
     if (status !== "loading") {
-      setTimedOut(false);
+      setTimeout(() => setTimedOut(false), 0);
       return;
     }
 
-    setTimedOut(false);
+    setTimeout(() => setTimedOut(false), 0);
     const timer = setTimeout(() => setTimedOut(true), timeoutMs);
     return () => clearTimeout(timer);
   }, [status, currentStep, timeoutMs]);
