@@ -242,14 +242,16 @@ function StatusBanner({ result }: { result: SimulationResult }) {
     );
   }
 
+  const appError = translateError(result.errorMessage);
+
   return (
     <div className="tsm-banner tsm-banner-error">
       <IconAlert />
       <div>
         <strong>Transaction will likely fail</strong>
         <p>
-          {result.errorMessage ??
-            "Simulation returned an error. Signing may waste gas."}
+          {appError.message}
+          {appError.actionableStep && <span style={{ display: 'block', marginTop: 4 }}>{appError.actionableStep}</span>}
         </p>
       </div>
     </div>
@@ -779,8 +781,8 @@ export default function TransactionSimulationModal({
                       <span className="tsm-gas-val">
                         {simResult.estimatedFeeXLM > 0
                           ? simResult.estimatedFeeXLM.toLocaleString("en-US", {
-                              minimumFractionDigits: 7,
-                            })
+                            minimumFractionDigits: 7,
+                          })
                           : "< 0.0000001"}
                       </span>
                       <span className="tsm-gas-sub">

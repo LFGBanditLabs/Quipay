@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
+import { translateError } from "../util/errors";
+import { ErrorMessage } from "./ErrorMessage";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -182,14 +184,9 @@ export default function WithdrawButton({
       }, 1000);
     } catch (err: unknown) {
       console.error("Withdrawal failed:", err);
+      const appError = translateError(err);
       setStatus("error");
-      const message =
-        err instanceof Error
-          ? err.message.includes("user rejected")
-            ? "Transaction rejected by user."
-            : err.message.slice(0, 120)
-          : "Unexpected error during withdrawal.";
-      setErrorMsg(message);
+      setErrorMsg(appError.actionableStep ? `${appError.message} ${appError.actionableStep}` : appError.message);
     }
   };
 
@@ -199,6 +196,8 @@ export default function WithdrawButton({
     setTxHash(null);
     void fetchAmount();
   };
+
+  const explorerUrl = (hash: string) => `https://stellar.expert/explorer/testnet/tx/${hash}`;
 
   // ── Derived UI values ──────────────────────────────────────────────────────
 
@@ -522,17 +521,16 @@ export default function WithdrawButton({
 
           {/* CTA Button */}
           <button
-            className={`wb-btn ${
-              isLoading
-                ? "wb-btn-loading"
-                : status === "success"
-                  ? "wb-btn-success"
-                  : status === "error"
-                    ? "wb-btn-error"
-                    : isDisabled
-                      ? "wb-btn-disabled"
-                      : "wb-btn-default"
-            }`}
+            className={`wb-btn ${isLoading
+              ? "wb-btn-loading"
+              : status === "success"
+                ? "wb-btn-success"
+                : status === "error"
+                  ? "wb-btn-error"
+                  : isDisabled
+                    ? "wb-btn-disabled"
+                    : "wb-btn-default"
+              }`}
             onClick={status === "error" ? reset : handleWithdraw}
             // disabled={isDisabled && status !== "error"}
             aria-label={buttonLabel()}
@@ -591,12 +589,13 @@ export default function WithdrawButton({
             </div>
           )}
 
-          {status === "error" && errorMsg && (
+          {status === "error" && (
             <div className="wb-status">
-              <div className="wb-status-row wb-status-error">
-                <span className="wb-status-dot static" />
-                <span>{errorMsg}</span>
-              </div>
+              <ErrorMessage
+                error={errorMsg}
+                severity="error"
+                onRetry={handleWithdraw}
+              />
             </div>
           )}
         </div>
