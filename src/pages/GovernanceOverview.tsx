@@ -236,15 +236,15 @@ const getTypeIcon = (type: MultisigProposal["type"]): string => {
 const getTypeColor = (type: MultisigProposal["type"]): string => {
   switch (type) {
     case "transfer":
-      return "#00e5a0";
+      return "var(--sds-color-feedback-success)";
     case "upgrade":
-      return "#f5a623";
+      return "var(--sds-color-feedback-warning)";
     case "admin_change":
-      return "#0070f3";
+      return "var(--accent)";
     case "threshold_change":
-      return "#8b5cf6";
+      return "#8b5cf6"; // Keep special color but check contrast
     default:
-      return "#5a607a";
+      return "var(--muted)";
   }
 };
 
@@ -520,7 +520,7 @@ const GovernanceOverview: React.FC = () => {
                         as="span"
                         size="md"
                         weight="semi-bold"
-                        style={{ color: "#00e5a0" }}
+                        style={{ color: "var(--sds-color-feedback-success)" }}
                       >
                         {proposal.amount} {proposal.tokenSymbol}
                       </Text>
@@ -594,8 +594,8 @@ const GovernanceOverview: React.FC = () => {
                           backgroundColor:
                             proposal.currentApprovals >=
                             proposal.requiredApprovals
-                              ? "#00e5a0"
-                              : "#f5a623",
+                              ? "var(--sds-color-feedback-success)"
+                              : "var(--sds-color-feedback-warning)",
                         }}
                       />
                     </div>
@@ -642,7 +642,10 @@ const GovernanceOverview: React.FC = () => {
                         variant="primary"
                         size="sm"
                         onClick={() => openProposalDetails(proposal)}
-                        style={{ backgroundColor: "#00e5a0", color: "#05120d" }}
+                        style={{
+                          backgroundColor: "var(--sds-color-feedback-success)",
+                          color: "#05120d",
+                        }}
                       >
                         <Icon.Play size="sm" /> Execute
                       </Button>
@@ -711,7 +714,11 @@ const GovernanceOverview: React.FC = () => {
                       size="sm"
                       className={styles.executedIcon}
                     />
-                    <Text as="span" size="sm" style={{ color: "#00e5a0" }}>
+                    <Text
+                      as="span"
+                      size="sm"
+                      style={{ color: "var(--sds-color-feedback-success)" }}
+                    >
                       Executed Successfully
                     </Text>
                   </div>
@@ -784,7 +791,7 @@ const GovernanceOverview: React.FC = () => {
                     as="p"
                     size="lg"
                     weight="bold"
-                    style={{ color: "#00e5a0" }}
+                    style={{ color: "var(--sds-color-feedback-success)" }}
                   >
                     {selectedProposal.amount} {selectedProposal.tokenSymbol}
                   </Text>

@@ -1,6 +1,7 @@
 import { Routes, Route, Outlet, NavLink } from "react-router-dom";
 import { Layout, Button, Icon } from "@stellar/design-system";
 import ConnectAccount from "./components/ConnectAccount";
+import ThemeToggle from "./components/ThemeToggle";
 
 import Home from "./pages/Home";
 import Debugger from "./pages/Debugger.tsx";
@@ -78,6 +79,7 @@ const AppLayout: React.FC = () => (
               )}
             </NavLink>
           </nav>
+          <ThemeToggle />
           <ConnectAccount />
         </>
       }
