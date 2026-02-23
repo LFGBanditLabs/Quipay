@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import wasm from "vite-plugin-wasm";
+import tailwindcss from "@tailwindcss/vite";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 import { VitePWA } from "vite-plugin-pwa";
 
@@ -8,6 +9,7 @@ import { VitePWA } from "vite-plugin-pwa";
 export default defineConfig(() => {
   return {
     plugins: [
+      tailwindcss(),
       react(),
       nodePolyfills({
         include: ["buffer"],

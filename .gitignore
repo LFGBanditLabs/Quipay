@@ -9,6 +9,10 @@ target
 test_snapshots
 contracts/payroll_stream/proptest-regressions/
 
+# benchmark report output
+benchmark-out/
+contracts/payroll_stream/benchmark-out/
+
 # build output
 dist
 dist-ssr

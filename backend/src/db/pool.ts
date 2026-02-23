@@ -26,7 +26,7 @@ export const initDb = async (): Promise<void> => {
 
   pool = new Pool({ connectionString: url });
 
-  pool.on("error", (err) => {
+  pool.on("error", (err: Error) => {
     console.error("[DB] Unexpected pool error:", err.message);
   });
 

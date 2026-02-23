@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Button, Code, Input, Text } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
+// import game from "../contracts/guess_the_number";
 // // @ts-ignore: contract bindings may not be locally generated yet
+
 // import game from "../contracts/guess_the_number";
 import { Box } from "../components/layout/Box";
 
@@ -24,7 +26,8 @@ export const GuessTheNumber = () => {
     /*
     const tx = await game.guess(
       { a_number: BigInt(theGuess), guesser: address },
-      { publicKey: address },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { publicKey: address } as any,
     );
     const { result } = await tx.signAndSend({ signTransaction });
     if (result.isErr()) {

@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
+import { translateError } from "../util/errors";
+import { ErrorMessage } from "./ErrorMessage";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -182,14 +184,13 @@ export default function WithdrawButton({
       }, 1000);
     } catch (err: unknown) {
       console.error("Withdrawal failed:", err);
+      const appError = translateError(err);
       setStatus("error");
-      const message =
-        err instanceof Error
-          ? err.message.includes("user rejected")
-            ? "Transaction rejected by user."
-            : err.message.slice(0, 120)
-          : "Unexpected error during withdrawal.";
-      setErrorMsg(message);
+      setErrorMsg(
+        appError.actionableStep
+          ? `${appError.message} ${appError.actionableStep}`
+          : appError.message,
+      );
     }
   };
 
@@ -199,6 +200,9 @@ export default function WithdrawButton({
     setTxHash(null);
     void fetchAmount();
   };
+
+  const explorerUrl = (hash: string) =>
+    `https://stellar.expert/explorer/testnet/tx/${hash}`;
 
   // ── Derived UI values ──────────────────────────────────────────────────────
 
@@ -555,7 +559,7 @@ export default function WithdrawButton({
                 <span>Transaction broadcasting…</span>
                 <a
                   className="wb-tx-link"
-                  href={`https://etherscan.io/tx/${txHash}`}
+                  href={explorerUrl(txHash)}
                   target="_blank"
                   rel="noopener noreferrer"
                   title={txHash}
@@ -573,7 +577,7 @@ export default function WithdrawButton({
                 <span>Withdrawal confirmed</span>
                 <a
                   className="wb-tx-link"
-                  href={`https://etherscan.io/tx/${txHash}`}
+                  href={explorerUrl(txHash)}
                   target="_blank"
                   rel="noopener noreferrer"
                   title={txHash}
@@ -583,7 +587,9 @@ export default function WithdrawButton({
               </div>
               <button
                 className="wb-refresh"
-                onClick={reset}
+                onClick={() => {
+                  void reset();
+                }}
                 aria-label="Refresh balance"
               >
                 <IconRefresh /> Refresh balance
@@ -591,12 +597,14 @@ export default function WithdrawButton({
             </div>
           )}
 
-          {status === "error" && errorMsg && (
+          {status === "error" && (
             <div className="wb-status">
-              <div className="wb-status-row wb-status-error">
-                <span className="wb-status-dot static" />
-                <span>{errorMsg}</span>
-              </div>
+              <ErrorMessage
+                error={errorMsg}
+                onRetry={() => {
+                  void handleWithdraw();
+                }}
+              />
             </div>
           )}
         </div>

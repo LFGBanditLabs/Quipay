@@ -35,15 +35,17 @@ export const useRealTimeEarnings = (
 
   useEffect(() => {
     if (streams.length === 0) {
-      setEarnings({
-        totalEarned: 0,
-        streamEarned: [],
-        hourlyRate: 0,
-        dailyRate: 0,
-        projectedOneHour: 0,
-        projectedTwentyFourHours: 0,
-        activeStreamsCount: 0,
-      });
+      setTimeout(() => {
+        setEarnings({
+          totalEarned: 0,
+          streamEarned: [],
+          hourlyRate: 0,
+          dailyRate: 0,
+          projectedOneHour: 0,
+          projectedTwentyFourHours: 0,
+          activeStreamsCount: 0,
+        });
+      }, 0);
       return;
     }
 

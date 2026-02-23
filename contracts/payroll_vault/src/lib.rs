@@ -9,6 +9,12 @@ mod test;
 mod upgrade_test;
 
 #[cfg(test)]
+mod fuzz_test;
+
+#[cfg(kani)]
+mod kani_test;
+
+#[cfg(test)]
 mod proptest;
 
 // Storage keys - using separate enums for persistent vs instance storage
@@ -398,11 +404,6 @@ impl PayrollVault {
         let key = StateKey::TotalLiability(token);
         let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
         e.storage().persistent().set(&key, &(current + amount));
-        
-        // Also update total liability for this token
-        let total_key = StateKey::TotalLiability(token.clone());
-        let total: i128 = e.storage().persistent().get(&total_key).unwrap_or(0);
-        e.storage().persistent().set(&total_key, &(total + amount));
     }
 
     /// Remove liability for a specific token
@@ -417,19 +418,52 @@ impl PayrollVault {
             panic!("removal amount must be positive");
         }
         
-        let key = StateKey::TotalLiability(token);
+        let key = StateKey::TotalLiability(token.clone());
         let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
-        
         if amount > current {
             panic!("cannot remove more liability than exists");
         }
-        
         e.storage().persistent().set(&key, &(current - amount));
-        
-        // Also update total liability for this token
-        let total_key = StateKey::TotalLiability(token.clone());
-        let total: i128 = e.storage().persistent().get(&total_key).unwrap_or(0);
-        e.storage().persistent().set(&total_key, &(total - amount));
+    }
+
+    /// Transfer tokens to a recipient against liability (e.g. stream withdrawal).
+    /// Only the authorized contract (e.g., PayrollStream) can call this.
+    /// Reduces liability and treasury balance, and transfers token to `to`.
+    pub fn payout_liability(e: Env, to: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
+        let authorized: Address = e.storage().persistent().get(&StateKey::AuthorizedContract)
+            .ok_or(QuipayError::NotInitialized)?;
+        authorized.require_auth();
+
+        require_positive_amount!(amount);
+
+        let liability_key = StateKey::TotalLiability(token.clone());
+        let balance_key = StateKey::TreasuryBalance(token.clone());
+        let liability: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
+        let balance: i128 = e.storage().persistent().get(&balance_key).unwrap_or(0);
+
+        if amount > liability {
+            return Err(QuipayError::InvalidAmount);
+        }
+        if amount > balance {
+            return Err(QuipayError::InsufficientBalance);
+        }
+
+        e.storage().persistent().set(&liability_key, &(liability - amount));
+        e.storage().persistent().set(&balance_key, &(balance - amount));
+
+        let token_client = token::Client::new(&e, &token);
+        token_client.transfer(&e.current_contract_address(), &to, &amount);
+
+        e.events().publish(
+            (
+                symbol_short!("vault"),
+                symbol_short!("pay_liab"),
+                to.clone(),
+                token.clone(),
+            ),
+            (amount),
+        );
+        Ok(())
     }
 
     /// Get the liability for a specific token

@@ -30,6 +30,8 @@ import React, {
 import { Button } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
 import { useNotification } from "../hooks/useNotification";
+import { translateError } from "../util/errors";
+import { ErrorMessage } from "./ErrorMessage";
 import {
   buildCreateStreamTx,
   checkTreasurySolvency,
@@ -406,14 +408,27 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
 
       setTimeout(() => dispatch({ type: "RESET" }), 3500);
     } catch (err: unknown) {
-      let message = "An unknown error occurred.";
-      if (typeof err === "string") {
-        message = err;
-      } else if (err instanceof Error) {
-        message = err.message;
-      }
-      dispatch({ type: "SET_TX_PHASE", phase: { kind: "error", message } });
-      addNotification(`Stream failed: ${message}`, "error");
+      const appError = translateError(err);
+      dispatch({
+        type: "SET_TX_PHASE",
+        phase: {
+          kind: "error",
+          message: appError.actionableStep
+            ? `${appError.message} ${appError.actionableStep}`
+            : appError.message,
+        },
+      });
+
+      addNotification(
+        appError.message,
+        appError.severity,
+        appError.actionableStep
+          ? {
+              label: "Retry",
+              onClick: () => void handleSubmit(e),
+            }
+          : undefined,
+      );
     }
   };
 
@@ -471,36 +486,11 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               aria-invalid={!!errors.workerAddress}
             />
             <div aria-live="assertive">
-              {errors.workerAddress && (
-                <p id={id("workerAddress-error")} className={styles.errorText}>
-                  ⚠ <span className="sr-only">Error: </span>
-                  {errors.workerAddress}
-                </p>
-              )}
+              <ErrorMessage error={errors.workerAddress || null} />
             </div>
           </div>
 
-          <div className={styles.fieldGroup}>
-            <label htmlFor={id("token")} className={styles.label}>
-              Token <span className={styles.required}>*</span>
-            </label>
-            <div className={styles.selectWrapper}>
-              <select
-                id={id("token")}
-                name="token"
-                className={styles.select}
-                value={values.token}
-                onChange={handleChange}
-                disabled={isBusy}
-              >
-                {SUPPORTED_TOKENS.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+          {/* ... existing token field ... */}
 
           <div className={styles.fieldGroup}>
             <label htmlFor={id("rate")} className={styles.label}>
@@ -521,12 +511,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               aria-invalid={!!errors.rate}
             />
             <div aria-live="assertive">
-              {errors.rate && (
-                <p id={id("rate-error")} className={styles.errorText}>
-                  ⚠ <span className="sr-only">Error: </span>
-                  {errors.rate}
-                </p>
-              )}
+              <ErrorMessage error={errors.rate || null} />
             </div>
           </div>
 

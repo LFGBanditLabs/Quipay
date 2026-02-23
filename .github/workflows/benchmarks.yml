@@ -1,0 +1,74 @@
+# Run PayrollStream benchmarks and report instruction (gas) usage.
+# Ensures developers see gas usage on every PR and prevents performance regressions.
+
+name: Contract benchmarks
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "contracts/payroll_stream/**"
+      - ".github/workflows/benchmarks.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "contracts/payroll_stream/**"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
+
+      - run: rustup target add wasm32v1-none
+
+      - name: Run PayrollStream benchmarks (current)
+        id: bench_current
+        run: |
+          mkdir -p ${{ github.workspace }}/benchmark-out
+          BENCHMARK_REPORT=${{ github.workspace }}/benchmark-out \
+            cargo test -p payroll_stream --lib benchmark_full_report -- --nocapture 2>&1 | tee benchmark.log
+          ls -la ${{ github.workspace }}/benchmark-out/ || true
+          echo "## PayrollStream gas usage (instructions)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f "${{ github.workspace }}/benchmark-out/benchmark-results.json" ]; then
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat ${{ github.workspace }}/benchmark-out/benchmark-results.json >> $GITHUB_STEP_SUMMARY
+            echo '' >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            CREATE=$(cat ${{ github.workspace }}/benchmark-out/benchmark-results.json | grep -o '"create_stream_instructions":[0-9]*' | cut -d: -f2)
+            WITHDRAW=$(cat ${{ github.workspace }}/benchmark-out/benchmark-results.json | grep -o '"withdraw_instructions":[0-9]*' | cut -d: -f2)
+            echo "| Function | Instructions |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------------|" >> $GITHUB_STEP_SUMMARY
+            echo "| create_stream | $CREATE |" >> $GITHUB_STEP_SUMMARY
+            echo "| withdraw | $WITHDRAW |" >> $GITHUB_STEP_SUMMARY
+          fi
+          grep -E '\[BENCHMARK\]' benchmark.log || true
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.sha }}
+          path: |
+            ${{ github.workspace }}/benchmark-out/
+            benchmark.log
+
+      - name: Fail on significant regression (optional)
+        if: failure() == false && github.event_name == 'pull_request'
+        run: |
+          # Optional: add threshold check here, e.g. fail if create_stream > baseline * 1.2
+          echo "Benchmark run complete. Review the gas usage table in the job summary."

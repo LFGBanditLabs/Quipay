@@ -44,6 +44,30 @@
   background: rgba(255, 249, 236, 0.96);
 }
 
+.notification-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.notification-action-btn {
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid currentColor;
+  color: inherit;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.notification-action-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
 .notification.slide-in {
   transform: translateY(0);
 }

@@ -66,13 +66,18 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {chartData.map((_, index: number) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={COLORS[index % COLORS.length]}
-                      stroke="none"
-                    />
-                  ))}
+                  {chartData.map(
+                    (
+                      entry: { name: string; value: number; symbol: string },
+                      index: number,
+                    ) => (
+                      <Cell
+                        key={`cell-${entry.name}`}
+                        fill={COLORS[index % COLORS.length]}
+                        stroke="none"
+                      />
+                    ),
+                  )}
                 </Pie>
                 <Tooltip
                   contentStyle={{
@@ -82,7 +87,10 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
                     color: "#fff",
                   }}
                   itemStyle={{ color: "#fff" }}
-                  formatter={(value: number) => [value.toFixed(6), "Earned"]}
+                  formatter={(value: number | string | undefined) => [
+                    typeof value === "number" ? value.toFixed(6) : value || "",
+                    "Earned",
+                  ]}
                 />
               </PieChart>
             </ResponsiveContainer>
