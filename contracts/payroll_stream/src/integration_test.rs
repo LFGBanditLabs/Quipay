@@ -7,8 +7,9 @@
 use super::*;
 use payroll_vault::{PayrollVault, PayrollVaultClient};
 use soroban_sdk::{
+    Address, Env,
     testutils::{Address as _, Ledger as _},
-    token, Address, Env,
+    token,
 };
 
 fn setup_integration(
@@ -68,7 +69,8 @@ fn test_integration_stream_creation_blocked_if_insolvent() {
 
     // Deposited 10_000. Try to create stream with total_amount 15_000 (rate 150, duration 100)
     env.ledger().with_mut(|li| li.timestamp = 0);
-    let result = stream_client.try_create_stream(&employer, &worker, &token_id, &150, &0u64, &0u64, &100u64);
+    let result =
+        stream_client.try_create_stream(&employer, &worker, &token_id, &150, &0u64, &0u64, &100u64);
     assert!(result.is_err());
 }
 
@@ -81,7 +83,8 @@ fn test_integration_liabilities_updated_on_create_and_withdraw() {
         setup_integration(&env);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
-    let stream_id = stream_client.create_stream(&employer, &worker, &token_id, &100, &0u64, &0u64, &100u64);
+    let stream_id =
+        stream_client.create_stream(&employer, &worker, &token_id, &100, &0u64, &0u64, &100u64);
     // total_amount = 100 * 100 = 10_000
     assert_eq!(vault_client.get_total_liability(&token_id), 10_000);
 
@@ -104,7 +107,8 @@ fn test_integration_token_transfer_on_withdrawal() {
     let token_client = token::Client::new(&env, &token_id);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
-    let stream_id = stream_client.create_stream(&employer, &worker, &token_id, &10, &0u64, &0u64, &10u64);
+    let stream_id =
+        stream_client.create_stream(&employer, &worker, &token_id, &10, &0u64, &0u64, &10u64);
     let balance_before = token_client.balance(&worker);
 
     env.ledger().with_mut(|li| li.timestamp = 10);
@@ -122,14 +126,15 @@ fn test_integration_remove_liability_on_cancel() {
         setup_integration(&env);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
-    let stream_id = stream_client.create_stream(&employer, &worker, &token_id, &100, &0u64, &0u64, &100u64);
+    let stream_id =
+        stream_client.create_stream(&employer, &worker, &token_id, &100, &0u64, &0u64, &100u64);
     assert_eq!(vault_client.get_total_liability(&token_id), 10_000);
 
     env.ledger().with_mut(|li| li.timestamp = 25);
     stream_client.withdraw(&stream_id, &worker);
     assert_eq!(vault_client.get_total_liability(&token_id), 7_500);
 
-    stream_client.cancel_stream(&stream_id, &employer);
+    stream_client.cancel_stream(&stream_id, &employer, &None);
     assert_eq!(vault_client.get_total_liability(&token_id), 0);
 }
 
@@ -143,7 +148,8 @@ fn test_integration_full_withdraw_completes_and_liability_zero() {
     let token_client = token::Client::new(&env, &token_id);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
-    let stream_id = stream_client.create_stream(&employer, &worker, &token_id, &50, &0u64, &0u64, &100u64);
+    let stream_id =
+        stream_client.create_stream(&employer, &worker, &token_id, &50, &0u64, &0u64, &100u64);
     assert_eq!(vault_client.get_total_liability(&token_id), 5_000);
 
     env.ledger().with_mut(|li| li.timestamp = 100);

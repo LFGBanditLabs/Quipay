@@ -34,9 +34,9 @@ const setDeepValue = (
 const isTaggedUnion = (schema: JSONSchema7): boolean => {
   return Boolean(
     schema.properties?.tag &&
-      schema.properties?.values &&
-      schema.required?.includes("tag") &&
-      schema.required?.includes("values"),
+    schema.properties?.values &&
+    schema.required?.includes("tag") &&
+    schema.required?.includes("values"),
   );
 };
 
