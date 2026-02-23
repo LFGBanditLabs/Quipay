@@ -12,16 +12,27 @@ type NotificationType =
   | "secondary"
   | "success"
   | "error"
-  | "warning";
+  | "warning"
+  | "info";
+interface NotificationAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface Notification {
   id: string;
   message: string;
   type: NotificationType;
   isVisible: boolean;
+  action?: NotificationAction;
 }
 
 interface NotificationContextType {
-  addNotification: (message: string, type: NotificationType) => void;
+  addNotification: (
+    message: string,
+    type: NotificationType,
+    action?: NotificationAction,
+  ) => void;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(
@@ -34,22 +45,34 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const addNotification = useCallback(
-    (message: string, type: NotificationType) => {
-      const newNotification = {
+    (message: string, type: NotificationType, action?: NotificationAction) => {
+      const newNotification: Notification = {
         id: `${type}-${Date.now().toString()}`,
         message,
         type,
         isVisible: true,
+        action,
       };
       setNotifications((prev) => [...prev, newNotification]);
 
-      setTimeout(() => {
-        setNotifications(markRead(newNotification.id));
-      }, 2500); // Start transition out after 2.5 seconds
+      // If it has an action, we might want to keep it longer or require manual dismissal
+      // But for now, let's just keep the existing timing or slightly longer if there's an action
+      const duration = action ? 8000 : 2500;
+      const removeAfter = action ? 10000 : 5000;
 
       setTimeout(() => {
-        setNotifications(filterOut(newNotification.id));
-      }, 5000); // Remove after 5 seconds
+        setNotifications((prev) =>
+          prev.map((n) =>
+            n.id === newNotification.id ? { ...n, isVisible: false } : n,
+          ),
+        );
+      }, duration);
+
+      setTimeout(() => {
+        setNotifications((prev) =>
+          prev.filter((n) => n.id !== newNotification.id),
+        );
+      }, removeAfter);
     },
     [],
   );
@@ -65,30 +88,27 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
             key={notification.id}
             className={`notification ${notification.type} ${notification.isVisible ? "slide-in" : "slide-out"}`}
           >
-            <p>{notification.message}</p>
+            <div className="notification-content">
+              <p>{notification.message}</p>
+              {notification.action && (
+                <button
+                  className="notification-action-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    notification.action?.onClick();
+                    // Optionally dismiss after action
+                  }}
+                >
+                  {notification.action.label}
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>
     </NotificationContext.Provider>
   );
 };
-
-function markRead(
-  id: Notification["id"],
-): React.SetStateAction<Notification[]> {
-  return (prev) =>
-    prev.map((notification) =>
-      notification.id === id
-        ? { ...notification, isVisible: true }
-        : notification,
-    );
-}
-
-function filterOut(
-  id: Notification["id"],
-): React.SetStateAction<Notification[]> {
-  return (prev) => prev.filter((notification) => notification.id !== id);
-}
 
 export { NotificationContext };
 export type { NotificationContextType };
