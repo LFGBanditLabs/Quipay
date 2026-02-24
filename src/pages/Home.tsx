@@ -1,19 +1,241 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 
-const Home: React.FC = () => {
-  const [streamAmount, setStreamAmount] = useState(1337.0425);
+interface Stream {
+  id: number;
+  name: string;
+  role: string;
+  avatar: string;
+  amount: number;
+  rate: number;
+  status: "streaming" | "paused" | "completed";
+  color: string;
+}
+
+const mockStreams: Stream[] = [
+  {
+    id: 1,
+    name: "Alice Chen",
+    role: "Senior Engineer",
+    avatar: "AC",
+    amount: 1250,
+    rate: 0.0034,
+    status: "streaming",
+    color: "from-indigo-500 to-purple-500",
+  },
+  {
+    id: 2,
+    name: "Bob Martinez",
+    role: "Product Designer",
+    avatar: "BM",
+    amount: 980,
+    rate: 0.0027,
+    status: "streaming",
+    color: "from-pink-500 to-rose-500",
+  },
+  {
+    id: 3,
+    name: "Carol Wu",
+    role: "DevOps Lead",
+    avatar: "CW",
+    amount: 1420,
+    rate: 0.0039,
+    status: "paused",
+    color: "from-emerald-500 to-teal-500",
+  },
+];
+
+const TokenFlow: React.FC<{ delay: number; duration: number; y: number }> = ({
+  delay,
+  duration,
+  y,
+}) => (
+  <div
+    className="absolute pointer-events-none animate-token-flow"
+    style={{
+      animationDelay: `${delay}s`,
+      animationDuration: `${duration}s`,
+      top: `${y}%`,
+    }}
+  >
+    <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-gradient-to-r from-indigo-500/20 to-pink-500/20 backdrop-blur-sm border border-white/10">
+      <div className="w-2 h-2 rounded-full bg-gradient-to-r from-indigo-400 to-pink-400 animate-pulse-glow" />
+      <span className="text-xs font-mono text-white/80">+0.0024</span>
+    </div>
+  </div>
+);
+
+const Particle: React.FC<{
+  x: number;
+  y: number;
+  size: number;
+  delay: number;
+}> = ({ x, y, size, delay }) => (
+  <div
+    className="absolute rounded-full bg-gradient-to-r from-indigo-400/30 to-pink-400/30 animate-pulse-glow"
+    style={{
+      left: `${x}%`,
+      top: `${y}%`,
+      width: size,
+      height: size,
+      animationDelay: `${delay}s`,
+    }}
+  />
+);
+
+const StatusBadge: React.FC<{ status: Stream["status"] }> = ({ status }) => {
+  const config = {
+    streaming: {
+      bg: "bg-emerald-500/10",
+      text: "text-emerald-400",
+      label: "Streaming",
+      dot: "bg-emerald-400",
+    },
+    paused: {
+      bg: "bg-amber-500/10",
+      text: "text-amber-400",
+      label: "Paused",
+      dot: "bg-amber-400",
+    },
+    completed: {
+      bg: "bg-blue-500/10",
+      text: "text-blue-400",
+      label: "Completed",
+      dot: "bg-blue-400",
+    },
+  };
+
+  const { bg, text, label, dot } = config[status];
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${bg} ${text}`}
+    >
+      <span
+        className={`w-1.5 h-1.5 rounded-full ${dot} ${status === "streaming" ? "animate-pulse" : ""}`}
+      />
+      {label}
+    </span>
+  );
+};
+
+const StreamCard: React.FC<{ stream: Stream; index: number }> = ({
+  stream,
+  index,
+}) => {
+  const [amount, setAmount] = useState(stream.amount);
 
   useEffect(() => {
+    if (stream.status !== "streaming") return;
     const interval = setInterval(() => {
-      setStreamAmount((prev) => prev + 0.0034);
+      setAmount((prev) => prev + stream.rate);
     }, 1000);
     return () => clearInterval(interval);
+  }, [stream.rate, stream.status]);
+
+  return (
+    <div
+      className="flex items-center gap-4 p-4 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--border)] transition-all duration-300 hover:bg-[var(--surface)] hover:border-[var(--accent-transparent)] hover:shadow-lg group"
+      style={{ animationDelay: `${index * 150}ms` }}
+    >
+      <div
+        className={`flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br ${stream.color} font-bold text-sm text-white shadow-lg transition-transform duration-300 group-hover:scale-110`}
+      >
+        {stream.avatar}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <h4 className="text-sm font-medium text-[var(--text)] truncate">
+            {stream.name}
+          </h4>
+          <StatusBadge status={stream.status} />
+        </div>
+        <p className="text-xs text-[var(--muted)]">{stream.role}</p>
+      </div>
+      <div className="text-right">
+        <span className="block font-mono text-base font-semibold text-emerald-400 tabular-nums">
+          + {amount.toFixed(4)}
+        </span>
+        <span className="text-[10px] text-[var(--muted)] uppercase tracking-wide">
+          USDC
+        </span>
+      </div>
+    </div>
+  );
+};
+
+const FeatureCard: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  index: number;
+  isVisible: boolean;
+}> = ({ icon, title, description, index, isVisible }) => (
+  <div
+    className={`group relative bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-8 backdrop-blur-md transition-all duration-500 hover:-translate-y-2 hover:bg-[var(--surface-subtle)] hover:shadow-[0_20px_40px_-10px_var(--shadow-color)] ${
+      isVisible ? "animate-fade-in-up" : "opacity-0 translate-y-8"
+    }`}
+    style={{ animationDelay: `${index * 100}ms` }}
+  >
+    <div className="absolute inset-0 rounded-3xl p-[1px] bg-gradient-to-b from-white/15 to-transparent style-mask-border pointer-events-none" />
+    <div className="w-14 h-14 flex items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 mb-6 transition-all duration-300 group-hover:bg-indigo-500 group-hover:text-white group-hover:scale-110 group-hover:rotate-6">
+      {icon}
+    </div>
+    <h3 className="text-xl font-semibold mb-4 text-[var(--text)]">{title}</h3>
+    <p className="text-base leading-relaxed text-[var(--muted)] m-0">
+      {description}
+    </p>
+  </div>
+);
+
+const Home: React.FC = () => {
+  const [scrollY, setScrollY] = useState(0);
+  const [featuresVisible, setFeaturesVisible] = useState(false);
+  const featuresRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrollY(window.scrollY);
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setFeaturesVisible(true);
+          }
+        });
+      },
+      { threshold: 0.2 },
+    );
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    if (featuresRef.current) {
+      observer.observe(featuresRef.current);
+    }
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      observer.disconnect();
+    };
   }, []);
+
+  const particles = Array.from({ length: 20 }, (_, i) => ({
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    size: Math.random() * 6 + 2,
+    delay: Math.random() * 5,
+  }));
+
+  const tokenFlows = Array.from({ length: 6 }, (_, i) => ({
+    delay: i * 0.8,
+    duration: 3 + Math.random() * 2,
+    y: 15 + i * 12,
+  }));
 
   return (
     <div className="relative min-h-screen bg-[var(--bg)] text-[var(--text)] font-sans overflow-hidden">
-      {/* Background Grid */}
       <div
         className="absolute inset-0 z-0 pointer-events-none"
         style={{
@@ -25,50 +247,122 @@ const Home: React.FC = () => {
           maskImage:
             "radial-gradient(ellipse at center, var(--bg) 0%, transparent 80%)",
         }}
-      ></div>
+      />
 
-      {/* Glowing Orbs */}
-      <div className="absolute -top-[10%] -left-[10%] w-[50vw] h-[50vw] rounded-full blur-[100px] bg-[radial-gradient(circle,var(--accent-transparent-strong),transparent_70%)] opacity-30 z-0 animate-[float_10s_ease-in-out_infinite]"></div>
-      <div className="absolute -bottom-[20%] -right-[10%] w-[60vw] h-[60vw] rounded-full blur-[100px] bg-[radial-gradient(circle,rgba(236,72,153,0.15),transparent_70%)] opacity-20 z-0 animate-[float_10s_ease-in-out_infinite_-3s]"></div>
-      <div className="absolute top-[40%] left-[30%] w-[40vw] h-[40vw] rounded-full blur-[100px] bg-[radial-gradient(circle,var(--success-transparent-strong),transparent_70%)] opacity-20 z-0 animate-[float_10s_ease-in-out_infinite_-7s]"></div>
+      <div
+        className="absolute -top-[10%] -left-[10%] w-[50vw] h-[50vw] rounded-full blur-[100px] bg-[radial-gradient(circle,var(--accent-transparent-strong),transparent_70%)] opacity-30 z-0 animate-float"
+        style={{ transform: `translateY(${scrollY * 0.05}px)` }}
+      />
+      <div
+        className="absolute -bottom-[20%] -right-[10%] w-[60vw] h-[60vw] rounded-full blur-[100px] bg-[radial-gradient(circle,rgba(236,72,153,0.15),transparent_70%)] opacity-20 z-0 animate-float"
+        style={{ transform: `translateY(${scrollY * -0.03}px)` }}
+      />
+      <div
+        className="absolute top-[40%] left-[30%] w-[40vw] h-[40vw] rounded-full blur-[100px] bg-[radial-gradient(circle,var(--success-transparent-strong),transparent_70%)] opacity-20 z-0 animate-float"
+        style={{ transform: `translateY(${scrollY * 0.02}px)` }}
+      />
+
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        {particles.map((p, i) => (
+          <Particle key={i} {...p} />
+        ))}
+      </div>
+
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 hidden lg:block">
+        {tokenFlows.map((tf, i) => (
+          <TokenFlow key={i} {...tf} />
+        ))}
+      </div>
+
+      <div className="absolute top-1/4 right-0 w-96 h-96 opacity-20 pointer-events-none z-0 hidden xl:block animate-spin-slow">
+        <svg viewBox="0 0 200 200" className="w-full h-full">
+          <defs>
+            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#818cf8" stopOpacity="0.5" />
+              <stop offset="100%" stopColor="#f472b6" stopOpacity="0.5" />
+            </linearGradient>
+          </defs>
+          <circle
+            cx="100"
+            cy="100"
+            r="80"
+            fill="none"
+            stroke="url(#grad1)"
+            strokeWidth="0.5"
+            strokeDasharray="10 5"
+          />
+          <circle
+            cx="100"
+            cy="100"
+            r="60"
+            fill="none"
+            stroke="url(#grad1)"
+            strokeWidth="0.5"
+            strokeDasharray="15 5"
+          />
+          <circle
+            cx="100"
+            cy="100"
+            r="40"
+            fill="none"
+            stroke="url(#grad1)"
+            strokeWidth="0.5"
+            strokeDasharray="5 10"
+          />
+        </svg>
+      </div>
 
       <main className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8 flex flex-col items-center">
-        {/* Hero Section */}
-        <section className="pt-32 pb-16 text-center max-w-4xl animate-[slideUp_1s_cubic-bezier(0.16,1,0.3,1)_forwards]">
-          <div className="flex justify-center mb-8">
+        <section className="pt-24 pb-12 text-center max-w-4xl animate-slide-up">
+          <div className="flex justify-center mb-6">
             <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--surface-subtle)] border border-[var(--border)] backdrop-blur-md shadow-[0_4px_20px_var(--shadow-color),inset_0_0_0_1px_var(--border)] transition-all duration-300 hover:bg-[var(--surface)] hover:border-[var(--accent-transparent)] hover:-translate-y-[2px]">
-              <span>✨</span>
+              <span className="animate-bounce-subtle">✨</span>
               <span className="text-sm font-medium text-[var(--muted)] tracking-wide">
                 Welcome to Quipay 2.0
               </span>
             </div>
           </div>
 
-          <h1 className="text-[clamp(3.5rem,8vw,6rem)] font-extrabold leading-[1.05] tracking-tight mb-8 text-[var(--text)]">
-            The Future of <br />
-            <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              Decentralized Payroll
+          <h1 className="text-[clamp(2.5rem,7vw,5rem)] font-extrabold leading-[1.1] tracking-tight mb-6 text-[var(--text)]">
+            The Future of
+            <br />
+            <span className="relative inline-block">
+              <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+                Decentralized Payroll
+              </span>
+              <svg
+                className="absolute -bottom-2 left-0 w-full h-3 text-indigo-400/30"
+                viewBox="0 0 300 12"
+                preserveAspectRatio="none"
+              >
+                <path
+                  d="M0 6 Q 75 0, 150 6 T 300 6"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="animate-pulse-glow"
+                />
+              </svg>
             </span>
           </h1>
 
-          <p className="text-[clamp(1.1rem,2.5vw,1.35rem)] leading-relaxed text-[var(--muted)] max-w-3xl mx-auto mb-14">
+          <p className="text-[clamp(1rem,2vw,1.25rem)] leading-relaxed text-[var(--muted)] max-w-2xl mx-auto mb-10">
             Experience seamless, continuous streaming payments built on Stellar.
             Manage your treasury automatically with AI-driven compliance.
             Empower your workforce with real-time capital access.
           </p>
 
-          <div className="flex flex-col sm:flex-row justify-center gap-6">
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
             <Link
               to="/dashboard"
-              className="group relative inline-flex items-center justify-center gap-3 px-10 py-4 rounded-xl bg-gradient-to-br from-indigo-600 to-pink-500 text-white font-semibold text-lg overflow-hidden transition-all duration-300 shadow-[0_10px_30px_-10px_rgba(236,72,153,0.5)] hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_20px_40px_-10px_rgba(236,72,153,0.6)] z-10"
+              className="group relative inline-flex items-center justify-center gap-3 px-8 py-4 rounded-xl bg-gradient-to-br from-indigo-600 to-pink-500 text-white font-semibold text-lg overflow-hidden transition-all duration-300 shadow-[0_10px_30px_-10px_rgba(236,72,153,0.5)] hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_20px_40px_-10px_rgba(236,72,153,0.6)]"
             >
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-indigo-500 to-pink-400 opacity-0 transition-opacity duration-300 -z-10 group-hover:opacity-100"></div>
-              <span>Launch App</span>
+              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-indigo-500 to-pink-400 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+              <span className="relative z-10">Launch App</span>
               <svg
-                className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1"
+                className="relative z-10 w-5 h-5 transition-transform duration-300 group-hover:translate-x-1"
                 viewBox="0 0 24 24"
                 fill="none"
-                xmlns="http://www.w3.org/2000/svg"
               >
                 <path
                   d="M5 12H19M19 12L12 5M19 12L12 19"
@@ -82,69 +376,68 @@ const Home: React.FC = () => {
 
             <Link
               to="/help"
-              className="inline-flex items-center justify-center px-10 py-4 rounded-xl bg-[var(--surface-subtle)] border border-[var(--border)] text-[var(--text)] font-semibold text-lg backdrop-blur-md transition-all duration-300 hover:bg-[var(--surface)] hover:border-[var(--accent-transparent)] hover:-translate-y-1 hover:shadow-[0_10px_30px_-10px_var(--shadow-color)]"
+              className="inline-flex items-center justify-center px-8 py-4 rounded-xl bg-[var(--surface-subtle)] border border-[var(--border)] text-[var(--text)] font-semibold text-lg backdrop-blur-md transition-all duration-300 hover:bg-[var(--surface)] hover:border-[var(--accent-transparent)] hover:-translate-y-1 hover:shadow-[0_10px_30px_-10px_var(--shadow-color)]"
             >
               View Documentation
             </Link>
           </div>
         </section>
 
-        {/* Floating UI Showcase */}
         <section
-          className="w-full flex justify-center my-12 mb-32 hidden md:flex"
+          className="w-full flex justify-center my-8 mb-20"
           style={{ perspective: "1000px" }}
         >
-          <div
-            className="w-full max-max-w-2xl bg-[var(--surface)] border border-[var(--border)] rounded-3xl backdrop-blur-xl shadow-[0_30px_60px_-15px_var(--shadow-color),inset_0_1px_0_var(--border)] overflow-hidden transition-all duration-500 hover:rotate-x-0 hover:-translate-y-3 hover:border-[var(--accent-transparent)] hover:shadow-[0_40px_80px_-20px_var(--shadow-color),inset_0_1px_0_var(--border)] animate-[floatPanel_6s_ease-in-out_infinite_alternate]"
-            style={{ transform: "rotateX(5deg)" }}
-          >
-            <div className="flex items-center px-6 py-4 bg-[var(--surface-subtle)] border-b border-[var(--border)]">
+          <div className="w-full max-w-2xl bg-[var(--surface)]/80 border border-[var(--border)] rounded-3xl backdrop-blur-xl shadow-[0_30px_60px_-15px_var(--shadow-color),inset_0_1px_0_var(--border)] overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:border-[var(--accent-transparent)] hover:shadow-[0_40px_80px_-20px_var(--shadow-color)] animate-float-panel">
+            <div className="flex items-center px-5 py-3 bg-[var(--surface-subtle)] border-b border-[var(--border)]">
               <div className="flex gap-1.5 mr-auto">
-                <div className="w-2.5 h-2.5 rounded-full bg-[var(--sds-color-feedback-error)]"></div>
-                <div className="w-2.5 h-2.5 rounded-full bg-[var(--sds-color-feedback-warning)]"></div>
-                <div className="w-2.5 h-2.5 rounded-full bg-[var(--sds-color-feedback-success)]"></div>
+                <div className="w-2.5 h-2.5 rounded-full bg-[var(--sds-color-feedback-error)]" />
+                <div className="w-2.5 h-2.5 rounded-full bg-[var(--sds-color-feedback-warning)]" />
+                <div className="w-2.5 h-2.5 rounded-full bg-[var(--sds-color-feedback-success)]" />
               </div>
-              <div className="text-[13px] font-medium text-[var(--muted)] tracking-wide uppercase mx-auto -translate-x-[24px]">
-                Active Quipay Stream
+              <div className="text-xs font-medium text-[var(--muted)] tracking-wide uppercase mx-auto -translate-x-[24px]">
+                Active Streams
               </div>
+              <span className="text-xs font-mono text-emerald-400 animate-counter-pulse">
+                ● LIVE
+              </span>
             </div>
 
-            <div className="p-8">
-              <div className="flex items-center gap-6 p-4 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--border)] transition-colors duration-300 hover:bg-[var(--surface)]">
-                <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl font-bold text-lg text-white shadow-[0_4px_10px_rgba(99,102,241,0.3)]">
-                  AL
-                </div>
-                <div>
-                  <h4 className="m-0 mb-1 text-lg text-[var(--text)]">
-                    Alice (Engineer)
-                  </h4>
-                  <p className="m-0 text-sm text-[var(--muted)]">
-                    1,250 USDC / month
-                  </p>
-                </div>
-                <div className="ml-auto text-right">
-                  <span className="block font-['Inconsolata'] text-xl font-semibold text-emerald-400 mb-1 animate-[counterPulse_1s_ease-in-out_infinite]">
-                    + {streamAmount.toFixed(4)} USDC
-                  </span>
-                  <span className="block text-xs text-[var(--muted)] uppercase tracking-wide">
-                    Streaming...
-                  </span>
-                </div>
+            <div className="p-4 space-y-2">
+              {mockStreams.map((stream, index) => (
+                <StreamCard key={stream.id} stream={stream} index={index} />
+              ))}
+            </div>
+
+            <div className="px-4 pb-4">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-indigo-500/5 to-pink-500/5 border border-[var(--border)]">
+                <span className="text-xs text-[var(--muted)]">
+                  Total streaming this month
+                </span>
+                <span className="font-mono text-sm font-semibold bg-gradient-to-r from-indigo-400 to-pink-400 bg-clip-text text-transparent">
+                  $12,847.50 USDC
+                </span>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Features Section */}
-        <section className="w-full py-16 pb-32">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Feature 1 */}
-            <div className="group relative bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-10 backdrop-blur-md transition-all duration-400 hover:-translate-y-2 hover:bg-[var(--surface-subtle)] hover:shadow-[0_20px_40px_-10px_var(--shadow-color)]">
-              <div className="absolute inset-0 rounded-3xl p-[1px] bg-gradient-to-b from-white/15 to-transparent style-mask-border pointer-events-none"></div>
-              <div className="w-14 h-14 flex items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 mb-6 transition-all duration-300 group-hover:bg-indigo-500 group-hover:text-white group-hover:scale-110 group-hover:rotate-6">
+        <section ref={featuresRef} className="w-full py-16 pb-24">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-[var(--text)] mb-4">
+              Why Choose Quipay?
+            </h2>
+            <p className="text-[var(--muted)] max-w-xl mx-auto">
+              Built for the future of work, powered by cutting-edge blockchain
+              technology
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <FeatureCard
+              index={0}
+              isVisible={featuresVisible}
+              icon={
                 <svg
                   className="w-7 h-7"
-                  style={{ width: "28px", height: "28px" }}
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -152,23 +445,16 @@ const Home: React.FC = () => {
                 >
                   <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                 </svg>
-              </div>
-              <h3 className="text-xl font-semibold mb-4 text-[var(--text)]">
-                Continuous Streaming
-              </h3>
-              <p className="text-base leading-relaxed text-[var(--muted)] m-0">
-                Money flows fluidly into wallets, eliminating the painful wait
-                for payday. Employees watch their earnings grow by the second.
-              </p>
-            </div>
-
-            {/* Feature 2 */}
-            <div className="group relative bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-10 backdrop-blur-md transition-all duration-400 hover:-translate-y-2 hover:bg-[var(--surface-subtle)] hover:shadow-[0_20px_40px_-10px_var(--shadow-color)]">
-              <div className="absolute inset-0 rounded-3xl p-[1px] bg-gradient-to-b from-white/15 to-transparent style-mask-border pointer-events-none"></div>
-              <div className="w-14 h-14 flex items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 mb-6 transition-all duration-300 group-hover:bg-indigo-500 group-hover:text-white group-hover:scale-110 group-hover:rotate-6">
+              }
+              title="Continuous Streaming"
+              description="Money flows fluidly into wallets, eliminating the painful wait for payday. Watch earnings grow by the second."
+            />
+            <FeatureCard
+              index={1}
+              isVisible={featuresVisible}
+              icon={
                 <svg
                   className="w-7 h-7"
-                  style={{ width: "28px", height: "28px" }}
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -177,20 +463,14 @@ const Home: React.FC = () => {
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                 </svg>
-              </div>
-              <h3 className="text-xl font-semibold mb-4 text-[var(--text)]">
-                On-Chain Treasury
-              </h3>
-              <p className="text-base leading-relaxed text-[var(--muted)] m-0">
-                Fully transparent and verifiable smart contract vaults powered
-                by Soroban. Self-custody your funds with zero counterparty risk.
-              </p>
-            </div>
-
-            {/* Feature 3 */}
-            <div className="group relative bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-10 backdrop-blur-md transition-all duration-400 hover:-translate-y-2 hover:bg-[var(--surface-subtle)] hover:shadow-[0_20px_40px_-10px_var(--shadow-color)]">
-              <div className="absolute inset-0 rounded-3xl p-[1px] bg-gradient-to-b from-white/15 to-transparent style-mask-border pointer-events-none"></div>
-              <div className="w-14 h-14 flex items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 mb-6 transition-all duration-300 group-hover:bg-indigo-500 group-hover:text-white group-hover:scale-110 group-hover:-rotate-6">
+              }
+              title="On-Chain Treasury"
+              description="Fully transparent smart contract vaults powered by Soroban. Self-custody with zero counterparty risk."
+            />
+            <FeatureCard
+              index={2}
+              isVisible={featuresVisible}
+              icon={
                 <svg
                   className="w-7 h-7"
                   viewBox="0 0 24 24"
@@ -202,44 +482,13 @@ const Home: React.FC = () => {
                   <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
                   <line x1="12" y1="22.08" x2="12" y2="12" />
                 </svg>
-              </div>
-              <h3 className="text-xl font-semibold mb-4 text-[var(--text)]">
-                Automated AI Agent
-              </h3>
-              <p className="text-base leading-relaxed text-[var(--muted)] m-0">
-                Let an autonomous AI agent handle the complex stream
-                calculations, dynamic pause rules, and real-time solvency
-                checks.
-              </p>
-            </div>
+              }
+              title="Automated AI Agent"
+              description="Autonomous AI handles stream calculations, dynamic pause rules, and real-time solvency checks."
+            />
           </div>
         </section>
       </main>
-
-      <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0) scale(1); }
-          50% { transform: translateY(-30px) scale(1.05); }
-        }
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(40px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes floatPanel {
-          0% { transform: rotateX(5deg) translateY(0); }
-          100% { transform: rotateX(5deg) translateY(-15px); }
-        }
-        @keyframes counterPulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.7; }
-        }
-        .style-mask-border {
-          -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-          -webkit-mask-composite: xor;
-          mask-composite: exclude;
-          mask-composite: exclude;
-        }
-      `}</style>
     </div>
   );
 };
