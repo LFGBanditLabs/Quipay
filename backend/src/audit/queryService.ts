@@ -1,11 +1,11 @@
 /**
  * Log Query Service
- * 
+ *
  * Provides querying and export functionality for audit logs.
  */
 
-import { Pool } from 'pg';
-import { LogEntry, LogQueryFilters, ExportFilters } from './types';
+import { Pool } from "pg";
+import { LogEntry, LogQueryFilters, ExportFilters } from "./types";
 
 /**
  * LogQueryService class - Handles log querying and export
@@ -47,7 +47,8 @@ export class LogQueryService {
       params.push(filters.actionType);
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
     const limit = filters.limit || 1000;
     const offset = filters.offset || 0;
 
@@ -65,11 +66,12 @@ export class LogQueryService {
     params.push(limit, offset);
 
     const result = await this.pool.query(query, params);
-    
+
     // Parse JSONB context field
-    return result.rows.map(row => ({
+    return result.rows.map((row) => ({
       ...row,
-      context: typeof row.context === 'string' ? JSON.parse(row.context) : row.context,
+      context:
+        typeof row.context === "string" ? JSON.parse(row.context) : row.context,
     }));
   }
 
@@ -79,7 +81,7 @@ export class LogQueryService {
   async export(employerId: string, filters: ExportFilters): Promise<string> {
     const logs = await this.query({ ...filters, employer: employerId });
 
-    if (filters.format === 'csv') {
+    if (filters.format === "csv") {
       return this.convertToCSV(logs);
     }
 
@@ -91,44 +93,41 @@ export class LogQueryService {
    */
   private convertToCSV(logs: LogEntry[]): string {
     if (logs.length === 0) {
-      return 'timestamp,log_level,message,action_type,employer\n';
+      return "timestamp,log_level,message,action_type,employer\n";
     }
 
     const headers = [
-      'timestamp',
-      'log_level',
-      'message',
-      'action_type',
-      'employer',
-      'transaction_hash',
-      'block_number',
-      'error_message',
+      "timestamp",
+      "log_level",
+      "message",
+      "action_type",
+      "employer",
+      "transaction_hash",
+      "block_number",
+      "error_message",
     ];
 
-    const rows = logs.map(log => [
+    const rows = logs.map((log) => [
       log.timestamp,
       log.log_level,
       this.escapeCsvValue(log.message),
       log.action_type,
-      log.employer || '',
-      log.transaction_hash || '',
-      log.block_number?.toString() || '',
-      log.error_message ? this.escapeCsvValue(log.error_message) : '',
+      log.employer || "",
+      log.transaction_hash || "",
+      log.block_number?.toString() || "",
+      log.error_message ? this.escapeCsvValue(log.error_message) : "",
     ]);
 
-    const csvLines = [
-      headers.join(','),
-      ...rows.map(row => row.join(',')),
-    ];
+    const csvLines = [headers.join(","), ...rows.map((row) => row.join(","))];
 
-    return csvLines.join('\n');
+    return csvLines.join("\n");
   }
 
   /**
    * Escape CSV values that contain commas, quotes, or newlines
    */
   private escapeCsvValue(value: string): string {
-    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+    if (value.includes(",") || value.includes('"') || value.includes("\n")) {
       return `"${value.replace(/"/g, '""')}"`;
     }
     return value;
@@ -139,8 +138,8 @@ export class LogQueryService {
    */
   async getLogCount(employerId: string): Promise<number> {
     const result = await this.pool.query(
-      'SELECT COUNT(*) as count FROM audit_logs WHERE employer = $1',
-      [employerId]
+      "SELECT COUNT(*) as count FROM audit_logs WHERE employer = $1",
+      [employerId],
     );
     return parseInt(result.rows[0].count, 10);
   }
@@ -153,34 +152,34 @@ export class LogQueryService {
     byLevel: Record<string, number>;
     byActionType: Record<string, number>;
   }> {
-    const whereClause = employerId ? 'WHERE employer = $1' : '';
+    const whereClause = employerId ? "WHERE employer = $1" : "";
     const params = employerId ? [employerId] : [];
 
     // Total count
     const totalResult = await this.pool.query(
       `SELECT COUNT(*) as count FROM audit_logs ${whereClause}`,
-      params
+      params,
     );
 
     // By log level
     const levelResult = await this.pool.query(
       `SELECT log_level, COUNT(*) as count FROM audit_logs ${whereClause} GROUP BY log_level`,
-      params
+      params,
     );
 
     // By action type
     const actionResult = await this.pool.query(
       `SELECT action_type, COUNT(*) as count FROM audit_logs ${whereClause} GROUP BY action_type`,
-      params
+      params,
     );
 
     const byLevel: Record<string, number> = {};
-    levelResult.rows.forEach(row => {
+    levelResult.rows.forEach((row) => {
       byLevel[row.log_level] = parseInt(row.count, 10);
     });
 
     const byActionType: Record<string, number> = {};
-    actionResult.rows.forEach(row => {
+    actionResult.rows.forEach((row) => {
       byActionType[row.action_type] = parseInt(row.count, 10);
     });
 

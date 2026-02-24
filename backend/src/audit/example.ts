@@ -1,10 +1,10 @@
 /**
  * Audit Logger Usage Example
- * 
+ *
  * This file demonstrates how to integrate the audit logger into your services.
  */
 
-import { AuditLogger, loadConfig } from './index';
+import { AuditLogger, loadConfig } from "./index";
 
 // Initialize the audit logger (typically done once at application startup)
 const config = loadConfig();
@@ -17,15 +17,15 @@ export async function exampleStreamCreation() {
   try {
     // Your stream creation logic here...
     const streamId = 123;
-    const transactionHash = '0xabc...';
+    const transactionHash = "0xabc...";
     const blockNumber = 456789;
 
     // Log successful stream creation
     await auditLogger.logStreamCreation({
-      employer: 'GEMPLOYER...',
-      worker: 'GWORKER...',
-      token: 'USDC',
-      amount: '1000',
+      employer: "GEMPLOYER...",
+      worker: "GWORKER...",
+      token: "USDC",
+      amount: "1000",
       duration: 30,
       streamId,
       transactionHash,
@@ -35,10 +35,10 @@ export async function exampleStreamCreation() {
   } catch (error) {
     // Log failed stream creation
     await auditLogger.logStreamCreation({
-      employer: 'GEMPLOYER...',
-      worker: 'GWORKER...',
-      token: 'USDC',
-      amount: '1000',
+      employer: "GEMPLOYER...",
+      worker: "GWORKER...",
+      token: "USDC",
+      amount: "1000",
       duration: 30,
       success: false,
       error: error as Error,
@@ -60,11 +60,11 @@ export async function exampleContractInteraction() {
 
     // Log successful interaction
     await auditLogger.logContractInteraction({
-      contractAddress: 'CCONTRACT...',
-      functionName: 'transfer',
-      parameters: { to: 'GWORKER...', amount: '100' },
-      employer: 'GEMPLOYER...',
-      transactionHash: '0xdef...',
+      contractAddress: "CCONTRACT...",
+      functionName: "transfer",
+      parameters: { to: "GWORKER...", amount: "100" },
+      employer: "GEMPLOYER...",
+      transactionHash: "0xdef...",
       blockNumber: 456790,
       success: true,
       durationMs,
@@ -74,9 +74,9 @@ export async function exampleContractInteraction() {
 
     // Log failed interaction
     await auditLogger.logContractInteraction({
-      contractAddress: 'CCONTRACT...',
-      functionName: 'transfer',
-      parameters: { to: 'GWORKER...', amount: '100' },
+      contractAddress: "CCONTRACT...",
+      functionName: "transfer",
+      parameters: { to: "GWORKER...", amount: "100" },
       success: false,
       durationMs,
       error: error as Error,
@@ -94,9 +94,9 @@ export async function exampleSchedulerEvent() {
   // Log task started
   await auditLogger.logSchedulerEvent({
     scheduleId,
-    action: 'task_started',
-    taskName: 'monthly-payroll',
-    employer: 'GEMPLOYER...',
+    action: "task_started",
+    taskName: "monthly-payroll",
+    employer: "GEMPLOYER...",
   });
 
   try {
@@ -108,18 +108,18 @@ export async function exampleSchedulerEvent() {
     // Log task completed
     await auditLogger.logSchedulerEvent({
       scheduleId,
-      action: 'task_completed',
-      taskName: 'monthly-payroll',
-      employer: 'GEMPLOYER...',
+      action: "task_completed",
+      taskName: "monthly-payroll",
+      employer: "GEMPLOYER...",
       executionTime,
     });
   } catch (error) {
     // Log task failed
     await auditLogger.logSchedulerEvent({
       scheduleId,
-      action: 'task_failed',
-      taskName: 'monthly-payroll',
-      employer: 'GEMPLOYER...',
+      action: "task_failed",
+      taskName: "monthly-payroll",
+      employer: "GEMPLOYER...",
       error: error as Error,
     });
   }
@@ -137,13 +137,13 @@ export async function exampleMonitorEvent() {
   const alertSent = runwayDays < 7;
 
   await auditLogger.logMonitorEvent({
-    employer: 'GEMPLOYER...',
+    employer: "GEMPLOYER...",
     balance,
     liabilities,
     dailyBurnRate,
     runwayDays,
     alertSent,
-    checkType: 'routine',
+    checkType: "routine",
   });
 }
 
@@ -153,8 +153,8 @@ export async function exampleMonitorEvent() {
 export async function exampleQueryLogs() {
   // Query all ERROR logs for an employer
   const errorLogs = await auditLogger.query({
-    employer: 'GEMPLOYER...',
-    logLevel: 'ERROR',
+    employer: "GEMPLOYER...",
+    logLevel: "ERROR",
     limit: 100,
   });
 
@@ -162,9 +162,9 @@ export async function exampleQueryLogs() {
 
   // Query logs within a date range
   const recentLogs = await auditLogger.query({
-    startDate: new Date('2024-02-01'),
-    endDate: new Date('2024-02-28'),
-    actionType: 'stream_creation',
+    startDate: new Date("2024-02-01"),
+    endDate: new Date("2024-02-28"),
+    actionType: "stream_creation",
   });
 
   console.log(`Found ${recentLogs.length} stream creation logs in February`);
@@ -175,21 +175,21 @@ export async function exampleQueryLogs() {
  */
 export async function exampleExportLogs() {
   // Export as JSON
-  const jsonExport = await auditLogger.export('GEMPLOYER...', {
-    format: 'json',
-    startDate: new Date('2024-01-01'),
-    endDate: new Date('2024-12-31'),
+  const jsonExport = await auditLogger.export("GEMPLOYER...", {
+    format: "json",
+    startDate: new Date("2024-01-01"),
+    endDate: new Date("2024-12-31"),
   });
 
-  console.log('JSON export:', jsonExport);
+  console.log("JSON export:", jsonExport);
 
   // Export as CSV
-  const csvExport = await auditLogger.export('GEMPLOYER...', {
-    format: 'csv',
-    logLevel: 'WARN',
+  const csvExport = await auditLogger.export("GEMPLOYER...", {
+    format: "csv",
+    logLevel: "WARN",
   });
 
-  console.log('CSV export:', csvExport);
+  console.log("CSV export:", csvExport);
 }
 
 /**
@@ -197,13 +197,13 @@ export async function exampleExportLogs() {
  */
 export function exampleLogLevelAdjustment() {
   // Set to WARN to reduce verbosity
-  auditLogger.setMinLogLevel('WARN');
+  auditLogger.setMinLogLevel("WARN");
 
   // INFO logs will no longer be recorded
-  auditLogger.info('This will not be logged', {});
+  auditLogger.info("This will not be logged", {});
 
   // WARN and ERROR logs will still be recorded
-  auditLogger.warn('This will be logged', {});
+  auditLogger.warn("This will be logged", {});
 }
 
 /**
@@ -212,7 +212,7 @@ export function exampleLogLevelAdjustment() {
 export async function exampleShutdown() {
   // Flush remaining logs before shutdown
   await auditLogger.shutdown();
-  console.log('Audit logger shut down gracefully');
+  console.log("Audit logger shut down gracefully");
 }
 
 // Placeholder functions for examples

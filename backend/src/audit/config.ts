@@ -1,24 +1,26 @@
 /**
  * Audit Logger Configuration
- * 
+ *
  * Loads configuration from environment variables with sensible defaults.
  */
 
-import { AuditLoggerConfig, LogLevel } from './types';
+import { AuditLoggerConfig, LogLevel } from "./types";
 
 /**
  * Parse log level from string, with fallback to INFO
  */
 function parseLogLevel(value: string | undefined): LogLevel {
-  if (!value) return 'INFO';
-  
+  if (!value) return "INFO";
+
   const upper = value.toUpperCase();
-  if (upper === 'INFO' || upper === 'WARN' || upper === 'ERROR') {
+  if (upper === "INFO" || upper === "WARN" || upper === "ERROR") {
     return upper as LogLevel;
   }
-  
-  console.warn(`[AuditLogger] Invalid LOG_LEVEL "${value}", defaulting to INFO`);
-  return 'INFO';
+
+  console.warn(
+    `[AuditLogger] Invalid LOG_LEVEL "${value}", defaulting to INFO`,
+  );
+  return "INFO";
 }
 
 /**
@@ -26,30 +28,35 @@ function parseLogLevel(value: string | undefined): LogLevel {
  */
 function parseInteger(value: string | undefined, defaultValue: number): number {
   if (!value) return defaultValue;
-  
+
   const parsed = parseInt(value, 10);
   if (isNaN(parsed) || parsed < 0) {
-    console.warn(`[AuditLogger] Invalid integer value "${value}", using default ${defaultValue}`);
+    console.warn(
+      `[AuditLogger] Invalid integer value "${value}", using default ${defaultValue}`,
+    );
     return defaultValue;
   }
-  
+
   return parsed;
 }
 
 /**
  * Parse boolean from environment variable
  */
-function parseBoolean(value: string | undefined, defaultValue: boolean): boolean {
+function parseBoolean(
+  value: string | undefined,
+  defaultValue: boolean,
+): boolean {
   if (!value) return defaultValue;
-  
+
   const lower = value.toLowerCase();
-  if (lower === 'false' || lower === '0' || lower === 'no') {
+  if (lower === "false" || lower === "0" || lower === "no") {
     return false;
   }
-  if (lower === 'true' || lower === '1' || lower === 'yes') {
+  if (lower === "true" || lower === "1" || lower === "yes") {
     return true;
   }
-  
+
   return defaultValue;
 }
 
@@ -70,9 +77,9 @@ export function loadConfig(): AuditLoggerConfig {
     },
     redaction: {
       enabled: parseBoolean(process.env.LOG_REDACTION_ENABLED, true),
-      customFields: (process.env.LOG_REDACT_FIELDS || '')
-        .split(',')
-        .map(f => f.trim())
+      customFields: (process.env.LOG_REDACT_FIELDS || "")
+        .split(",")
+        .map((f) => f.trim())
         .filter(Boolean),
     },
     performance: {
@@ -83,13 +90,17 @@ export function loadConfig(): AuditLoggerConfig {
 
   // Validate queue size
   if (config.maxQueueSize < 1) {
-    console.warn('[AuditLogger] maxQueueSize must be at least 1, using default 1000');
+    console.warn(
+      "[AuditLogger] maxQueueSize must be at least 1, using default 1000",
+    );
     config.maxQueueSize = 1000;
   }
 
   // Validate flush interval
   if (config.flushIntervalMs < 100) {
-    console.warn('[AuditLogger] flushIntervalMs must be at least 100ms, using default 1000ms');
+    console.warn(
+      "[AuditLogger] flushIntervalMs must be at least 100ms, using default 1000ms",
+    );
     config.flushIntervalMs = 1000;
   }
 
@@ -101,7 +112,7 @@ export function loadConfig(): AuditLoggerConfig {
  */
 export function getDefaultConfig(): AuditLoggerConfig {
   return {
-    minLogLevel: 'INFO',
+    minLogLevel: "INFO",
     asyncWrites: true,
     maxQueueSize: 1000,
     flushIntervalMs: 1000,

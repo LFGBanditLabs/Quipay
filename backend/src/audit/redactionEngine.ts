@@ -1,11 +1,11 @@
 /**
  * Redaction Engine - Sensitive Data Protection
- * 
+ *
  * Automatically redacts sensitive information from log entries including
  * private keys, seed phrases, authentication tokens, and custom fields.
  */
 
-import { RedactionConfig } from './types';
+import { RedactionConfig } from "./types";
 
 /**
  * RedactionEngine class - Handles sensitive data redaction
@@ -22,7 +22,7 @@ export class RedactionEngine {
     this.initializeDefaultPatterns();
 
     // Add custom sensitive fields (case-insensitive)
-    config.customFields.forEach(field => {
+    config.customFields.forEach((field) => {
       this.sensitiveFields.add(field.toLowerCase());
     });
   }
@@ -32,34 +32,37 @@ export class RedactionEngine {
    */
   private initializeDefaultPatterns(): void {
     // Stellar private keys: S followed by 55 alphanumeric characters
-    this.patterns.set('stellar_private_key', /S[A-Z0-9]{55}/g);
-    
+    this.patterns.set("stellar_private_key", /S[A-Z0-9]{55}/g);
+
     // Stellar public keys (for reference, not redacted): G followed by 55 alphanumeric characters
-    this.patterns.set('stellar_public_key', /G[A-Z0-9]{55}/g);
-    
+    this.patterns.set("stellar_public_key", /G[A-Z0-9]{55}/g);
+
     // JWT tokens: eyJ... format
-    this.patterns.set('jwt_token', /eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+/g);
-    
+    this.patterns.set(
+      "jwt_token",
+      /eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+/g,
+    );
+
     // Generic bearer tokens
-    this.patterns.set('bearer_token', /Bearer\s+[A-Za-z0-9-_]+/gi);
+    this.patterns.set("bearer_token", /Bearer\s+[A-Za-z0-9-_]+/gi);
 
     // Default sensitive field names
     const defaultSensitiveFields = [
-      'password',
-      'secret',
-      'privatekey',
-      'private_key',
-      'seedphrase',
-      'seed_phrase',
-      'mnemonic',
-      'token',
-      'apikey',
-      'api_key',
-      'auth',
-      'authorization',
+      "password",
+      "secret",
+      "privatekey",
+      "private_key",
+      "seedphrase",
+      "seed_phrase",
+      "mnemonic",
+      "token",
+      "apikey",
+      "api_key",
+      "auth",
+      "authorization",
     ];
 
-    defaultSensitiveFields.forEach(field => {
+    defaultSensitiveFields.forEach((field) => {
       this.sensitiveFields.add(field.toLowerCase());
     });
   }
@@ -68,15 +71,15 @@ export class RedactionEngine {
    * Redact sensitive data from any value
    */
   redact(data: unknown): unknown {
-    if (typeof data === 'string') {
+    if (typeof data === "string") {
       return this.redactString(data);
     }
 
     if (Array.isArray(data)) {
-      return data.map(item => this.redact(item));
+      return data.map((item) => this.redact(item));
     }
 
-    if (typeof data === 'object' && data !== null) {
+    if (typeof data === "object" && data !== null) {
       return this.redactObject(data as Record<string, unknown>);
     }
 
@@ -91,21 +94,24 @@ export class RedactionEngine {
 
     // Check if this is a seed phrase (12 or 24 words)
     if (this.isSeedPhrase(value)) {
-      return '[REDACTED]';
+      return "[REDACTED]";
     }
 
     // Apply all pattern-based redactions
     // Redact private keys but preserve public keys
-    redacted = redacted.replace(/S[A-Z0-9]{55}/g, '[REDACTED]');
-    
+    redacted = redacted.replace(/S[A-Z0-9]{55}/g, "[REDACTED]");
+
     // Redact JWT tokens
     redacted = redacted.replace(
       /eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+/g,
-      '[REDACTED]'
+      "[REDACTED]",
     );
-    
+
     // Redact bearer tokens
-    redacted = redacted.replace(/Bearer\s+[A-Za-z0-9-_]+/gi, 'Bearer [REDACTED]');
+    redacted = redacted.replace(
+      /Bearer\s+[A-Za-z0-9-_]+/gi,
+      "Bearer [REDACTED]",
+    );
 
     return redacted;
   }
@@ -119,7 +125,7 @@ export class RedactionEngine {
     for (const [key, value] of Object.entries(obj)) {
       // Check if field name is sensitive
       if (this.sensitiveFields.has(key.toLowerCase())) {
-        redacted[key] = '[REDACTED]';
+        redacted[key] = "[REDACTED]";
       } else {
         // Recursively redact the value
         redacted[key] = this.redact(value);
@@ -135,14 +141,14 @@ export class RedactionEngine {
   private isSeedPhrase(value: string): boolean {
     const trimmed = value.trim();
     const words = trimmed.split(/\s+/);
-    
+
     // Must be exactly 12 or 24 words
     if (words.length !== 12 && words.length !== 24) {
       return false;
     }
 
     // All words should be lowercase alphabetic
-    return words.every(word => /^[a-z]+$/.test(word));
+    return words.every((word) => /^[a-z]+$/.test(word));
   }
 
   /**

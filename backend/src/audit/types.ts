@@ -1,23 +1,23 @@
 /**
  * Audit Logging System - Type Definitions
- * 
+ *
  * This module defines all TypeScript interfaces and types for the structured audit logging system.
  */
 
 /**
  * Log severity levels
  */
-export type LogLevel = 'INFO' | 'WARN' | 'ERROR';
+export type LogLevel = "INFO" | "WARN" | "ERROR";
 
 /**
  * Action types that can be logged
  */
-export type ActionType = 
-  | 'stream_creation' 
-  | 'contract_interaction' 
-  | 'monitoring' 
-  | 'scheduling' 
-  | 'system';
+export type ActionType =
+  | "stream_creation"
+  | "contract_interaction"
+  | "monitoring"
+  | "scheduling"
+  | "system";
 
 /**
  * Core log entry structure
@@ -60,7 +60,7 @@ export interface LogContext {
   runway_days?: number | null;
   daily_burn_rate?: number;
   alert_sent?: boolean;
-  check_type?: 'routine' | 'triggered';
+  check_type?: "routine" | "triggered";
 
   // Scheduling context
   schedule_id?: number;
@@ -111,7 +111,7 @@ export interface ContractInteractionParams {
 /**
  * Scheduler event actions
  */
-export type SchedulerAction = 'task_started' | 'task_completed' | 'task_failed';
+export type SchedulerAction = "task_started" | "task_completed" | "task_failed";
 
 /**
  * Parameters for logging scheduler events
@@ -135,7 +135,7 @@ export interface MonitorEventParams {
   dailyBurnRate: number;
   runwayDays: number | null;
   alertSent: boolean;
-  checkType: 'routine' | 'triggered';
+  checkType: "routine" | "triggered";
 }
 
 /**
@@ -194,5 +194,5 @@ export interface LogQueryFilters {
  * Filters for exporting logs
  */
 export interface ExportFilters extends LogQueryFilters {
-  format?: 'json' | 'csv';
+  format?: "json" | "csv";
 }

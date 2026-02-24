@@ -1,11 +1,11 @@
 /**
  * Audit Logger Initialization
- * 
+ *
  * Singleton instance of the audit logger for use throughout the application.
  */
 
-import { AuditLogger } from './auditLogger';
-import { loadConfig } from './config';
+import { AuditLogger } from "./auditLogger";
+import { loadConfig } from "./config";
 
 let auditLoggerInstance: AuditLogger | null = null;
 
@@ -14,29 +14,31 @@ let auditLoggerInstance: AuditLogger | null = null;
  */
 export function initAuditLogger(): AuditLogger {
   if (auditLoggerInstance) {
-    console.warn('[AuditLogger] Already initialized, returning existing instance');
+    console.warn(
+      "[AuditLogger] Already initialized, returning existing instance",
+    );
     return auditLoggerInstance;
   }
 
   const config = loadConfig();
   auditLoggerInstance = new AuditLogger(config);
 
-  console.log('[AuditLogger] ✅ Initialized with config:', {
+  console.log("[AuditLogger] ✅ Initialized with config:", {
     minLogLevel: config.minLogLevel,
     asyncWrites: config.asyncWrites,
     redactionEnabled: config.redaction.enabled,
   });
 
   // Handle graceful shutdown
-  process.on('SIGTERM', async () => {
-    console.log('[AuditLogger] SIGTERM received, shutting down...');
+  process.on("SIGTERM", async () => {
+    console.log("[AuditLogger] SIGTERM received, shutting down...");
     if (auditLoggerInstance) {
       await auditLoggerInstance.shutdown();
     }
   });
 
-  process.on('SIGINT', async () => {
-    console.log('[AuditLogger] SIGINT received, shutting down...');
+  process.on("SIGINT", async () => {
+    console.log("[AuditLogger] SIGINT received, shutting down...");
     if (auditLoggerInstance) {
       await auditLoggerInstance.shutdown();
     }
@@ -50,7 +52,9 @@ export function initAuditLogger(): AuditLogger {
  */
 export function getAuditLogger(): AuditLogger {
   if (!auditLoggerInstance) {
-    throw new Error('AuditLogger not initialized. Call initAuditLogger() first.');
+    throw new Error(
+      "AuditLogger not initialized. Call initAuditLogger() first.",
+    );
   }
   return auditLoggerInstance;
 }

@@ -239,7 +239,7 @@ export const runMonitorCycle = async (): Promise<EmployerTreasuryStatus[]> => {
           dailyBurnRate: status.daily_burn_rate,
           runwayDays: status.runway_days,
           alertSent: status.alert_sent,
-          checkType: 'routine',
+          checkType: "routine",
         });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);

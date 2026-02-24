@@ -1,6 +1,6 @@
 /**
  * Audit Logger - Core Logging System
- * 
+ *
  * Provides structured JSON logging for all automated actions in the backend agent.
  */
 
@@ -15,10 +15,10 @@ import {
   MonitorEventParams,
   LogQueryFilters,
   ExportFilters,
-} from './types';
-import { getPool } from '../db/pool';
-import { RedactionEngine } from './redactionEngine';
-import { LogQueryService } from './queryService';
+} from "./types";
+import { getPool } from "../db/pool";
+import { RedactionEngine } from "./redactionEngine";
+import { LogQueryService } from "./queryService";
 
 /**
  * AuditLogger class - Core logging service
@@ -36,13 +36,13 @@ export class AuditLogger {
     this.config = config;
     this.minLogLevel = config.minLogLevel;
     this.redactionEngine = new RedactionEngine(config.redaction);
-    
+
     // Initialize query service if database is available
     const pool = getPool();
     if (pool) {
       this.queryService = new LogQueryService(pool);
     }
-    
+
     // Start periodic flush if async writes are enabled
     if (config.asyncWrites && config.flushIntervalMs > 0) {
       this.startPeriodicFlush();
@@ -60,14 +60,19 @@ export class AuditLogger {
     // Check if log level meets minimum threshold
     if (!this.shouldLog(level)) {
       // Return a dummy entry but don't persist it
-      return this.formatLogEntry({ log_level: level, message, context, action_type: 'system' });
+      return this.formatLogEntry({
+        log_level: level,
+        message,
+        context,
+        action_type: "system",
+      });
     }
 
     const entry = this.formatLogEntry({
       log_level: level,
       message,
       context,
-      action_type: context.action_type || 'system',
+      action_type: context.action_type || "system",
     });
 
     // Validate JSON structure
@@ -85,14 +90,14 @@ export class AuditLogger {
    * Log an INFO level message
    */
   async info(message: string, context: LogContext): Promise<LogEntry> {
-    return this.log('INFO', message, context);
+    return this.log("INFO", message, context);
   }
 
   /**
    * Log a WARN level message
    */
   async warn(message: string, context: LogContext): Promise<LogEntry> {
-    return this.log('WARN', message, context);
+    return this.log("WARN", message, context);
   }
 
   /**
@@ -110,8 +115,8 @@ export class AuditLogger {
       error_stack: error.stack,
     };
 
-    const entry = await this.log('ERROR', message, errorContext);
-    
+    const entry = await this.log("ERROR", message, errorContext);
+
     // Add error details to the entry
     entry.error_message = error.message;
     entry.error_code = (error as any).code;
@@ -124,10 +129,10 @@ export class AuditLogger {
    * Log stream creation event
    */
   async logStreamCreation(params: StreamCreationParams): Promise<void> {
-    const level: LogLevel = params.success ? 'INFO' : 'ERROR';
+    const level: LogLevel = params.success ? "INFO" : "ERROR";
     const message = params.success
-      ? 'Payroll stream created successfully'
-      : 'Payroll stream creation failed';
+      ? "Payroll stream created successfully"
+      : "Payroll stream creation failed";
 
     const context: LogContext = {
       worker: params.worker,
@@ -138,7 +143,7 @@ export class AuditLogger {
     };
 
     const entry = await this.log(level, message, context);
-    entry.action_type = 'stream_creation';
+    entry.action_type = "stream_creation";
     entry.employer = params.employer;
     entry.transaction_hash = params.transactionHash;
     entry.block_number = params.blockNumber;
@@ -152,11 +157,13 @@ export class AuditLogger {
   /**
    * Log contract interaction event
    */
-  async logContractInteraction(params: ContractInteractionParams): Promise<void> {
-    const level: LogLevel = params.success ? 'INFO' : 'ERROR';
+  async logContractInteraction(
+    params: ContractInteractionParams,
+  ): Promise<void> {
+    const level: LogLevel = params.success ? "INFO" : "ERROR";
     const message = params.success
-      ? 'Contract interaction completed'
-      : 'Contract interaction failed';
+      ? "Contract interaction completed"
+      : "Contract interaction failed";
 
     const context: LogContext = {
       contract_address: params.contractAddress,
@@ -166,7 +173,7 @@ export class AuditLogger {
     };
 
     const entry = await this.log(level, message, context);
-    entry.action_type = 'contract_interaction';
+    entry.action_type = "contract_interaction";
     entry.employer = params.employer;
     entry.transaction_hash = params.transactionHash;
     entry.block_number = params.blockNumber;
@@ -181,8 +188,8 @@ export class AuditLogger {
    * Log scheduler event
    */
   async logSchedulerEvent(params: SchedulerEventParams): Promise<void> {
-    const level: LogLevel = params.action === 'task_failed' ? 'ERROR' : 'INFO';
-    const message = `Scheduled task ${params.action.replace('_', ' ')}`;
+    const level: LogLevel = params.action === "task_failed" ? "ERROR" : "INFO";
+    const message = `Scheduled task ${params.action.replace("_", " ")}`;
 
     const context: LogContext = {
       schedule_id: params.scheduleId,
@@ -191,7 +198,7 @@ export class AuditLogger {
     };
 
     const entry = await this.log(level, message, context);
-    entry.action_type = 'scheduling';
+    entry.action_type = "scheduling";
     entry.employer = params.employer;
 
     if (params.error) {
@@ -204,10 +211,10 @@ export class AuditLogger {
    * Log monitor event
    */
   async logMonitorEvent(params: MonitorEventParams): Promise<void> {
-    const level: LogLevel = params.alertSent ? 'WARN' : 'INFO';
+    const level: LogLevel = params.alertSent ? "WARN" : "INFO";
     const message = params.alertSent
-      ? 'Monitoring check detected issue'
-      : 'Monitoring check completed';
+      ? "Monitoring check detected issue"
+      : "Monitoring check completed";
 
     const context: LogContext = {
       balance: params.balance,
@@ -219,7 +226,7 @@ export class AuditLogger {
     };
 
     const entry = await this.log(level, message, context);
-    entry.action_type = 'monitoring';
+    entry.action_type = "monitoring";
     entry.employer = params.employer;
   }
 
@@ -228,7 +235,9 @@ export class AuditLogger {
    */
   async query(filters: LogQueryFilters): Promise<LogEntry[]> {
     if (!this.queryService) {
-      console.warn('[AuditLogger] Query service not available (database not initialized)');
+      console.warn(
+        "[AuditLogger] Query service not available (database not initialized)",
+      );
       return [];
     }
     return this.queryService.query(filters);
@@ -239,7 +248,9 @@ export class AuditLogger {
    */
   async export(employerId: string, filters: ExportFilters): Promise<string> {
     if (!this.queryService) {
-      console.warn('[AuditLogger] Query service not available (database not initialized)');
+      console.warn(
+        "[AuditLogger] Query service not available (database not initialized)",
+      );
       return JSON.stringify([]);
     }
     return this.queryService.export(employerId, filters);
@@ -257,17 +268,21 @@ export class AuditLogger {
    */
   private formatLogEntry(entry: Partial<LogEntry>): LogEntry {
     const timestamp = entry.timestamp || new Date().toISOString();
-    
+
     // Validate timestamp format
     if (!this.isValidISO8601(timestamp)) {
-      console.warn('[AuditLogger] Invalid timestamp, using current time');
+      console.warn("[AuditLogger] Invalid timestamp, using current time");
     }
 
     return {
-      timestamp: this.isValidISO8601(timestamp) ? timestamp : new Date().toISOString(),
-      log_level: this.isValidLogLevel(entry.log_level) ? entry.log_level! : 'INFO',
-      message: entry.message || 'No message provided',
-      action_type: entry.action_type || 'system',
+      timestamp: this.isValidISO8601(timestamp)
+        ? timestamp
+        : new Date().toISOString(),
+      log_level: this.isValidLogLevel(entry.log_level)
+        ? entry.log_level!
+        : "INFO",
+      message: entry.message || "No message provided",
+      action_type: entry.action_type || "system",
       context: entry.context || {},
       employer: entry.employer,
       transaction_hash: entry.transaction_hash,
@@ -286,8 +301,8 @@ export class AuditLogger {
       const serialized = JSON.stringify(entry);
       JSON.parse(serialized);
     } catch (error) {
-      console.error('[AuditLogger] Invalid log entry JSON structure:', error);
-      throw new Error('Log entry must be valid JSON');
+      console.error("[AuditLogger] Invalid log entry JSON structure:", error);
+      throw new Error("Log entry must be valid JSON");
     }
   }
 
@@ -295,7 +310,7 @@ export class AuditLogger {
    * Check if a log level should be logged based on minimum threshold
    */
   private shouldLog(level: LogLevel): boolean {
-    const levels: LogLevel[] = ['INFO', 'WARN', 'ERROR'];
+    const levels: LogLevel[] = ["INFO", "WARN", "ERROR"];
     const minIndex = levels.indexOf(this.minLogLevel);
     const currentIndex = levels.indexOf(level);
     return currentIndex >= minIndex;
@@ -305,7 +320,7 @@ export class AuditLogger {
    * Validate log level
    */
   private isValidLogLevel(level: any): level is LogLevel {
-    return level === 'INFO' || level === 'WARN' || level === 'ERROR';
+    return level === "INFO" || level === "WARN" || level === "ERROR";
   }
 
   /**
@@ -322,14 +337,20 @@ export class AuditLogger {
   private enqueueWrite(entry: LogEntry): void {
     // Apply redaction before adding to queue
     if (this.config.redaction.enabled) {
-      entry.context = this.redactionEngine.redact(entry.context) as typeof entry.context;
+      entry.context = this.redactionEngine.redact(
+        entry.context,
+      ) as typeof entry.context;
       entry.message = this.redactionEngine.redact(entry.message) as string;
-      
+
       if (entry.error_message) {
-        entry.error_message = this.redactionEngine.redact(entry.error_message) as string;
+        entry.error_message = this.redactionEngine.redact(
+          entry.error_message,
+        ) as string;
       }
       if (entry.error_stack) {
-        entry.error_stack = this.redactionEngine.redact(entry.error_stack) as string;
+        entry.error_stack = this.redactionEngine.redact(
+          entry.error_stack,
+        ) as string;
       }
     }
 
@@ -337,7 +358,7 @@ export class AuditLogger {
       this.writeQueue.push(entry);
     } else {
       // Queue full - log to console as fallback
-      console.error('[AuditLogger] Queue full, dropping entry:', entry);
+      console.error("[AuditLogger] Queue full, dropping entry:", entry);
     }
   }
 
@@ -350,7 +371,9 @@ export class AuditLogger {
     const pool = getPool();
     if (!pool) {
       // Database not available - keep in queue or log to console
-      console.warn('[AuditLogger] Database not available, keeping entries in queue');
+      console.warn(
+        "[AuditLogger] Database not available, keeping entries in queue",
+      );
       return;
     }
 
@@ -360,26 +383,31 @@ export class AuditLogger {
 
     try {
       // Write all entries in a single transaction for performance
-      await pool.query('BEGIN');
+      await pool.query("BEGIN");
 
       for (const entry of entriesToWrite) {
         await this.writeToDatabase(entry);
       }
 
-      await pool.query('COMMIT');
+      await pool.query("COMMIT");
     } catch (error) {
-      await pool.query('ROLLBACK');
-      
+      await pool.query("ROLLBACK");
+
       // Put entries back in queue for retry
       this.writeQueue.unshift(...entriesToWrite);
-      
+
       // If queue is too large, drop oldest entries
       if (this.writeQueue.length > this.config.maxQueueSize) {
-        const dropped = this.writeQueue.splice(0, this.writeQueue.length - this.config.maxQueueSize);
-        console.error(`[AuditLogger] Queue overflow, dropped ${dropped.length} entries`);
+        const dropped = this.writeQueue.splice(
+          0,
+          this.writeQueue.length - this.config.maxQueueSize,
+        );
+        console.error(
+          `[AuditLogger] Queue overflow, dropped ${dropped.length} entries`,
+        );
       }
-      
-      console.error('[AuditLogger] Failed to flush queue:', error);
+
+      console.error("[AuditLogger] Failed to flush queue:", error);
     }
   }
 
@@ -389,7 +417,7 @@ export class AuditLogger {
   private async writeToDatabase(entry: LogEntry): Promise<void> {
     const pool = getPool();
     if (!pool) {
-      throw new Error('Database pool not initialized');
+      throw new Error("Database pool not initialized");
     }
 
     const query = `
@@ -423,8 +451,8 @@ export class AuditLogger {
   private startPeriodicFlush(): void {
     this.flushTimer = setInterval(() => {
       if (!this.isShuttingDown) {
-        this.flushQueue().catch(err => {
-          console.error('[AuditLogger] Periodic flush error:', err);
+        this.flushQueue().catch((err) => {
+          console.error("[AuditLogger] Periodic flush error:", err);
         });
       }
     }, this.config.flushIntervalMs);
@@ -435,7 +463,7 @@ export class AuditLogger {
    */
   async shutdown(): Promise<void> {
     this.isShuttingDown = true;
-    
+
     if (this.flushTimer) {
       clearInterval(this.flushTimer);
       this.flushTimer = null;

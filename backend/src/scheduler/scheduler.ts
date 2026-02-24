@@ -114,12 +114,12 @@ const executeScheduledPayroll = async (
       const auditLogger = getAuditLogger();
       await auditLogger.logSchedulerEvent({
         scheduleId: schedule.id,
-        action: 'task_started',
+        action: "task_started",
         taskName: `payroll-schedule-${schedule.id}`,
         employer: schedule.employer,
       });
     } catch (err) {
-      logError('Failed to log scheduler task start', err);
+      logError("Failed to log scheduler task start", err);
     }
   }
 
@@ -155,13 +155,13 @@ const executeScheduledPayroll = async (
         const executionTime = Date.now() - startTime;
         await auditLogger.logSchedulerEvent({
           scheduleId: schedule.id,
-          action: 'task_completed',
+          action: "task_completed",
           taskName: `payroll-schedule-${schedule.id}`,
           employer: schedule.employer,
           executionTime,
         });
       } catch (err) {
-        logError('Failed to log scheduler task completion', err);
+        logError("Failed to log scheduler task completion", err);
       }
     }
   } catch (error) {
@@ -178,13 +178,13 @@ const executeScheduledPayroll = async (
         const auditLogger = getAuditLogger();
         await auditLogger.logSchedulerEvent({
           scheduleId: schedule.id,
-          action: 'task_failed',
+          action: "task_failed",
           taskName: `payroll-schedule-${schedule.id}`,
           employer: schedule.employer,
           error: error instanceof Error ? error : new Error(String(error)),
         });
       } catch (err) {
-        logError('Failed to log scheduler task failure', err);
+        logError("Failed to log scheduler task failure", err);
       }
     }
 
