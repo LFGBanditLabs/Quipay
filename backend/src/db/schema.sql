@@ -119,3 +119,27 @@ CREATE TABLE IF NOT EXISTS treasury_monitor_log (
 
 CREATE INDEX IF NOT EXISTS idx_monitor_log_employer ON treasury_monitor_log (employer);
 CREATE INDEX IF NOT EXISTS idx_monitor_log_created  ON treasury_monitor_log (created_at DESC);
+
+-- Audit logs for comprehensive action tracking
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id              BIGSERIAL   PRIMARY KEY,
+    timestamp       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    log_level       TEXT        NOT NULL CHECK (log_level IN ('INFO', 'WARN', 'ERROR')),
+    message         TEXT        NOT NULL,
+    action_type     TEXT        NOT NULL,
+    employer        TEXT,
+    context         JSONB       NOT NULL DEFAULT '{}',
+    transaction_hash TEXT,
+    block_number    BIGINT,
+    error_message   TEXT,
+    error_code      TEXT,
+    error_stack     TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_level ON audit_logs (log_level);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_employer ON audit_logs (employer);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action_type ON audit_logs (action_type);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_context ON audit_logs USING GIN (context);
