@@ -14,16 +14,66 @@ import type {
 /* ---------- Deterministic demo data ---------- */
 
 const EMPLOYEES = [
-  { name: "Alice Johnson", id: "EMP-001", wallet: "GDRQE6KQ...V4QH", dept: "Engineering" },
-  { name: "Bob Williams", id: "EMP-002", wallet: "GBUD7I2Z...X9PL", dept: "Engineering" },
-  { name: "Carol Martinez", id: "EMP-003", wallet: "GCS6KTP3...K7MN", dept: "Design" },
-  { name: "Daniel Brown", id: "EMP-004", wallet: "GAHK7EEG...J2WR", dept: "Marketing" },
-  { name: "Eve Davis", id: "EMP-005", wallet: "GCEZWKCA...Y6FH", dept: "Marketing" },
-  { name: "Frank Wilson", id: "EMP-006", wallet: "GDVDKQFP...M3BT", dept: "Operations" },
-  { name: "Grace Lee", id: "EMP-007", wallet: "GBTCBCWL...N8QS", dept: "Engineering" },
-  { name: "Henry Taylor", id: "EMP-008", wallet: "GAIH3ULR...P5VD", dept: "Design" },
-  { name: "Iris Anderson", id: "EMP-009", wallet: "GBH7WM56...R2KJ", dept: "Operations" },
-  { name: "Jack Thomas", id: "EMP-010", wallet: "GCKFBEQ4...T7YA", dept: "Engineering" },
+  {
+    name: "Alice Johnson",
+    id: "EMP-001",
+    wallet: "GDRQE6KQ...V4QH",
+    dept: "Engineering",
+  },
+  {
+    name: "Bob Williams",
+    id: "EMP-002",
+    wallet: "GBUD7I2Z...X9PL",
+    dept: "Engineering",
+  },
+  {
+    name: "Carol Martinez",
+    id: "EMP-003",
+    wallet: "GCS6KTP3...K7MN",
+    dept: "Design",
+  },
+  {
+    name: "Daniel Brown",
+    id: "EMP-004",
+    wallet: "GAHK7EEG...J2WR",
+    dept: "Marketing",
+  },
+  {
+    name: "Eve Davis",
+    id: "EMP-005",
+    wallet: "GCEZWKCA...Y6FH",
+    dept: "Marketing",
+  },
+  {
+    name: "Frank Wilson",
+    id: "EMP-006",
+    wallet: "GDVDKQFP...M3BT",
+    dept: "Operations",
+  },
+  {
+    name: "Grace Lee",
+    id: "EMP-007",
+    wallet: "GBTCBCWL...N8QS",
+    dept: "Engineering",
+  },
+  {
+    name: "Henry Taylor",
+    id: "EMP-008",
+    wallet: "GAIH3ULR...P5VD",
+    dept: "Design",
+  },
+  {
+    name: "Iris Anderson",
+    id: "EMP-009",
+    wallet: "GBH7WM56...R2KJ",
+    dept: "Operations",
+  },
+  {
+    name: "Jack Thomas",
+    id: "EMP-010",
+    wallet: "GCKFBEQ4...T7YA",
+    dept: "Engineering",
+  },
 ];
 
 function generateTransactions(): PayrollTransaction[] {
@@ -41,7 +91,9 @@ function generateTransactions(): PayrollTransaction[] {
     "failed",
   ];
 
-  const baseAmounts = [3500, 4200, 3800, 2900, 3100, 3600, 4500, 3300, 2800, 4000];
+  const baseAmounts = [
+    3500, 4200, 3800, 2900, 3100, 3600, 4500, 3300, 2800, 4000,
+  ];
 
   for (let month = 0; month < 3; month++) {
     EMPLOYEES.forEach((emp, idx) => {
@@ -134,10 +186,16 @@ export function useTransactionData() {
 
   const filteredTransactions = useMemo(() => {
     return allTransactions.filter((tx) => {
-      if (filter.status && filter.status !== "all" && tx.status !== filter.status) return false;
+      if (
+        filter.status &&
+        filter.status !== "all" &&
+        tx.status !== filter.status
+      )
+        return false;
       if (filter.startDate && tx.date < filter.startDate) return false;
       if (filter.endDate && tx.date > filter.endDate) return false;
-      if (filter.employeeId && tx.employeeId !== filter.employeeId) return false;
+      if (filter.employeeId && tx.employeeId !== filter.employeeId)
+        return false;
       return true;
     });
   }, [allTransactions, filter]);
