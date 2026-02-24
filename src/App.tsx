@@ -3,6 +3,9 @@ import { Routes, Route, Outlet, NavLink } from "react-router-dom";
 import { Layout, Button, Icon, IconButton } from "@stellar/design-system";
 import ConnectAccount from "./components/ConnectAccount.tsx";
 import ThemeToggle from "./components/ThemeToggle";
+import React, { lazy, Suspense } from "react";
+import { Routes, Route, Outlet } from "react-router-dom";
+import Navbar from "./components/layout/Navbar";
 import OnboardingTour from "./components/OnboardingTour";
 import Footer from "./components/layout/Footer";
 import styles from "./App.module.css";
@@ -102,44 +105,12 @@ const Navigation: React.FC<{
 );
 
 const AppLayout: React.FC = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
   return (
     <div className={styles.appShell}>
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
-      <Layout.Header
-        projectId="Quipay"
-        projectTitle="Quipay"
-        contentRight={
-          <div className={styles.headerRight}>
-            <div className={styles.desktopOnly}>
-              <Navigation />
-            </div>
-            <ThemeToggle />
-            <ConnectAccount />
-            <div className={styles.mobileOnly}>
-              <IconButton
-                variant="default"
-                altText={isMenuOpen ? "Close menu" : "Open menu"}
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                icon={
-                  isMenuOpen ? <Icon.X size="md" /> : <Icon.Menu01 size="md" />
-                }
-              />
-            </div>
-          </div>
-        }
-      />
-
-      {isMenuOpen && (
-        <div className={styles.mobileMenuOverlay}>
-          <div className={styles.mobileMenu}>
-            <Navigation isMobile onItemClick={() => setIsMenuOpen(false)} />
-          </div>
-        </div>
-      )}
+      <Navbar />
 
       <main id="main-content" tabIndex={-1} className={styles.mainContent}>
         <OnboardingTour />

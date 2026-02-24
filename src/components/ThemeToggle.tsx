@@ -8,24 +8,7 @@ const ThemeToggle: React.FC = () => {
     <button
       onClick={toggleTheme}
       aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
-      style={{
-        background: "none",
-        border: "none",
-        cursor: "pointer",
-        padding: "8px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: "8px",
-        color: "inherit",
-        transition: "background-color 0.2s",
-      }}
-      onMouseEnter={(e) =>
-        (e.currentTarget.style.backgroundColor = "rgba(0,0,0,0.05)")
-      }
-      onMouseLeave={(e) =>
-        (e.currentTarget.style.backgroundColor = "transparent")
-      }
+      className="p-2 rounded-lg flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-subtle)] transition-all duration-200"
     >
       {theme === "light" ? (
         <svg

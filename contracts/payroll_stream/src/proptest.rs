@@ -3,10 +3,10 @@ extern crate std;
 
 use crate::{PayrollStream, PayrollStreamClient, StreamStatus};
 use proptest::prelude::*;
-use soroban_sdk::{testutils::Address as _, testutils::Ledger, Address, Env};
+use soroban_sdk::{Address, Env, testutils::Address as _, testutils::Ledger};
 
 mod dummy_vault {
-    use soroban_sdk::{contract, contractimpl, Address, Env};
+    use soroban_sdk::{Address, Env, contract, contractimpl};
     #[contract]
     pub struct DummyVault;
     #[contractimpl]
@@ -75,7 +75,7 @@ proptest! {
                 }));
             } else {
                 let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    client.cancel_stream(&stream_id, &employer);
+                    client.cancel_stream(&stream_id, &employer, &None);
                 }));
             }
 
