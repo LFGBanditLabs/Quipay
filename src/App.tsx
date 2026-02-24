@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from "react";
+import { lazy, Suspense } from "react";
 import { Routes, Route, Outlet } from "react-router-dom";
 import Navbar from "./components/layout/Navbar";
 import OnboardingTour from "./components/OnboardingTour";
@@ -14,8 +14,9 @@ const HelpPage = lazy(() => import("./pages/HelpPage.tsx"));
 const PayrollDashboard = lazy(() => import("./pages/PayrollDashboard.tsx"));
 const TreasuryManager = lazy(() => import("./pages/TreasuryManager"));
 const WithdrawPage = lazy(() => import("./pages/withdrawPage.tsx"));
+const Reports = lazy(() => import("./pages/Reports.tsx"));
 
-const AppLayout: React.FC = () => {
+function AppLayout() {
   return (
     <div className={styles.appShell}>
       <a href="#main-content" className="skip-link">
@@ -30,7 +31,7 @@ const AppLayout: React.FC = () => {
       <Footer />
     </div>
   );
-};
+}
 
 function App() {
   return (
@@ -48,6 +49,7 @@ function App() {
           <Route path="/treasury-management" element={<TreasuryManager />} />
           <Route path="/create-stream" element={<CreateStream />} />
           <Route path="/governance" element={<GovernanceOverview />} />
+          <Route path="/reports" element={<Reports />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/debug" element={<Debugger />} />
           <Route path="/debug/:contractName" element={<Debugger />} />
