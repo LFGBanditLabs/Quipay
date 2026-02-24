@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { NavLink } from "react-router-dom";
 import ConnectAccount from "../ConnectAccount";
 import ThemeToggle from "../ThemeToggle";
 
@@ -14,8 +14,8 @@ const navLinks = [
 const Navbar: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const location = useLocation();
-  const prevPathnameRef = useRef(location.pathname);
+
+  const closeMenu = () => setIsMenuOpen(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -24,13 +24,6 @@ const Navbar: React.FC = () => {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
-
-  useEffect(() => {
-    if (prevPathnameRef.current !== location.pathname) {
-      prevPathnameRef.current = location.pathname;
-      setIsMenuOpen(false);
-    }
-  }, [location.pathname]);
 
   useEffect(() => {
     if (isMenuOpen) {
@@ -68,6 +61,7 @@ const Navbar: React.FC = () => {
                 <NavLink
                   key={link.to}
                   to={link.to}
+                  onClick={closeMenu}
                   className={({ isActive }) =>
                     `relative px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
                       isActive
@@ -139,10 +133,7 @@ const Navbar: React.FC = () => {
       </header>
 
       {isMenuOpen && (
-        <div
-          className="fixed inset-0 z-40 md:hidden"
-          onClick={() => setIsMenuOpen(false)}
-        >
+        <div className="fixed inset-0 z-40 md:hidden" onClick={closeMenu}>
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
         </div>
       )}
@@ -160,7 +151,7 @@ const Navbar: React.FC = () => {
               <NavLink
                 key={link.to}
                 to={link.to}
-                onClick={() => setIsMenuOpen(false)}
+                onClick={closeMenu}
                 className={({ isActive }) =>
                   `flex items-center px-4 py-3 rounded-xl text-base font-medium transition-all duration-200 ${
                     isActive
