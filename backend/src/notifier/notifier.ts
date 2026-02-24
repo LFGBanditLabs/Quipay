@@ -102,9 +102,7 @@ const sendWebhookAlert = async (
 /**
  * Sends alert to Slack
  */
-const sendSlackAlert = async (
-  payload: TreasuryAlertPayload,
-): Promise<void> => {
+const sendSlackAlert = async (payload: TreasuryAlertPayload): Promise<void> => {
   const slackWebhookUrl = process.env.SLACK_WEBHOOK_URL;
   if (!slackWebhookUrl) {
     console.warn(
@@ -186,9 +184,7 @@ const sendSlackAlert = async (
  * Sends alert via email (placeholder implementation)
  * In production, integrate with SendGrid, AWS SES, or similar
  */
-const sendEmailAlert = async (
-  payload: TreasuryAlertPayload,
-): Promise<void> => {
+const sendEmailAlert = async (payload: TreasuryAlertPayload): Promise<void> => {
   // Placeholder for email integration
   console.log(
     `[Notifier] 📧 Email alert would be sent for employer ${payload.employer}`,

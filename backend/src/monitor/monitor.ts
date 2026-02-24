@@ -47,12 +47,12 @@ export interface EmployerTreasuryStatus {
 
 /**
  * Calculates the daily burn rate based on active streams.
- * 
+ *
  * For each active stream, we calculate how much is being paid per day:
  *   daily_rate = remaining_amount / remaining_days
- * 
+ *
  * Total burn rate = sum of all active stream daily rates
- * 
+ *
  * @param streams Array of active streams with their details
  * @returns Daily burn rate in stroops
  */
@@ -84,7 +84,7 @@ export const calculateDailyBurnRate = (
 
 /**
  * Calculates the runway in days and funds exhaustion date.
- * 
+ *
  * Runway = balance / daily burn rate
  * Exhaustion Date = current date + runway days
  */
@@ -142,7 +142,7 @@ export const computeTreasuryStatus = async (): Promise<
 
     // Fetch active streams for this employer to calculate accurate burn rate
     const activeStreams = await getStreamsByEmployer(employer, "active", 1000);
-    
+
     const streamData = activeStreams.map((s: StreamRecord) => ({
       total_amount: parseFloat(s.total_amount),
       withdrawn_amount: parseFloat(s.withdrawn_amount),
