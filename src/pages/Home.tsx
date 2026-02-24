@@ -45,11 +45,44 @@ const mockStreams: Stream[] = [
   },
 ];
 
-const TokenFlow: React.FC<{ delay: number; duration: number; y: number }> = ({
-  delay,
-  duration,
-  y,
-}) => (
+const particles = [
+  { id: "p1", x: 12, y: 24, size: 4, delay: 0.2 },
+  { id: "p2", x: 45, y: 67, size: 3, delay: 1.5 },
+  { id: "p3", x: 78, y: 12, size: 5, delay: 0.8 },
+  { id: "p4", x: 23, y: 89, size: 4, delay: 2.1 },
+  { id: "p5", x: 56, y: 34, size: 6, delay: 1.2 },
+  { id: "p6", x: 89, y: 56, size: 3, delay: 0.5 },
+  { id: "p7", x: 34, y: 78, size: 5, delay: 1.8 },
+  { id: "p8", x: 67, y: 23, size: 4, delay: 2.5 },
+  { id: "p9", x: 12, y: 45, size: 3, delay: 0.3 },
+  { id: "p10", x: 45, y: 12, size: 6, delay: 1.1 },
+  { id: "p11", x: 78, y: 89, size: 4, delay: 2.2 },
+  { id: "p12", x: 23, y: 56, size: 5, delay: 0.7 },
+  { id: "p13", x: 56, y: 23, size: 3, delay: 1.9 },
+  { id: "p14", x: 89, y: 78, size: 6, delay: 0.4 },
+  { id: "p15", x: 34, y: 12, size: 4, delay: 2.3 },
+  { id: "p16", x: 67, y: 45, size: 5, delay: 1.0 },
+  { id: "p17", x: 12, y: 78, size: 3, delay: 0.6 },
+  { id: "p18", x: 45, y: 56, size: 6, delay: 1.7 },
+  { id: "p19", x: 78, y: 34, size: 4, delay: 2.4 },
+  { id: "p20", x: 23, y: 23, size: 5, delay: 0.9 },
+];
+
+const tokenFlows = [
+  { id: "t1", delay: 0, duration: 3.5, y: 15 },
+  { id: "t2", delay: 0.8, duration: 4.2, y: 27 },
+  { id: "t3", delay: 1.6, duration: 3.8, y: 39 },
+  { id: "t4", delay: 2.4, duration: 4.5, y: 51 },
+  { id: "t5", delay: 3.2, duration: 3.2, y: 63 },
+  { id: "t6", delay: 4.0, duration: 4.8, y: 75 },
+];
+
+const TokenFlow: React.FC<{
+  id: string;
+  delay: number;
+  duration: number;
+  y: number;
+}> = ({ delay, duration, y }) => (
   <div
     className="absolute pointer-events-none animate-token-flow"
     style={{
@@ -66,6 +99,7 @@ const TokenFlow: React.FC<{ delay: number; duration: number; y: number }> = ({
 );
 
 const Particle: React.FC<{
+  id: string;
   x: number;
   y: number;
   size: number;
@@ -221,19 +255,6 @@ const Home: React.FC = () => {
     };
   }, []);
 
-  const particles = Array.from({ length: 20 }, (_, i) => ({
-    x: Math.random() * 100,
-    y: Math.random() * 100,
-    size: Math.random() * 6 + 2,
-    delay: Math.random() * 5,
-  }));
-
-  const tokenFlows = Array.from({ length: 6 }, (_, i) => ({
-    delay: i * 0.8,
-    duration: 3 + Math.random() * 2,
-    y: 15 + i * 12,
-  }));
-
   return (
     <div className="relative min-h-screen bg-[var(--bg)] text-[var(--text)] font-sans overflow-hidden">
       <div
@@ -263,14 +284,14 @@ const Home: React.FC = () => {
       />
 
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        {particles.map((p, i) => (
-          <Particle key={i} {...p} />
+        {particles.map((p) => (
+          <Particle key={p.id} {...p} />
         ))}
       </div>
 
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 hidden lg:block">
-        {tokenFlows.map((tf, i) => (
-          <TokenFlow key={i} {...tf} />
+        {tokenFlows.map((tf) => (
+          <TokenFlow key={tf.id} {...tf} />
         ))}
       </div>
 
