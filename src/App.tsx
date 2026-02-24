@@ -18,91 +18,102 @@ const TreasuryManager = lazy(() => import("./pages/TreasuryManager"));
 const WithdrawPage = lazy(() => import("./pages/withdrawPage.tsx"));
 const Reports = lazy(() => import("./pages/Reports.tsx"));
 
-const Navigation: React.FC<{
+interface NavigationProps {
   onItemClick?: () => void;
   isMobile?: boolean;
-}> = ({ onItemClick, isMobile }) => (
-  <nav
-    aria-label="Main Navigation"
-    className={isMobile ? styles.mobileNav : styles.headerNav}
-  >
-    <NavLink
-      to="/dashboard"
-      className={styles.navLink}
-      aria-label="Go to Dashboard"
-      onClick={onItemClick}
-    >
-      {({ isActive }) => (
-        <Button
-          variant="tertiary"
-          size="md"
-          disabled={isActive}
-          className={styles.navButton}
-        >
-          Dashboard
-        </Button>
-      )}
-    </NavLink>
-    <NavLink to="/governance" className={styles.navLink} onClick={onItemClick}>
-      {({ isActive }) => (
-        <Button
-          variant="tertiary"
-          size="md"
-          disabled={isActive}
-          className={styles.navButton}
-        >
-          Governance
-        </Button>
-      )}
-    </NavLink>
-    <NavLink to="/worker" className={styles.navLink} onClick={onItemClick}>
-      {({ isActive }) => (
-        <Button
-          variant="tertiary"
-          size="md"
-          disabled={isActive}
-          className={styles.navButton}
-        >
-          Worker
-        </Button>
-      )}
-    </NavLink>
-    <NavLink to="/reports" className={styles.navLink} onClick={onItemClick}>
-      {({ isActive }) => (
-        <Button
-          variant="tertiary"
-          size="md"
-          disabled={isActive}
-          className={styles.navButton}
-        >
-          <Icon.Download04 size="md" />
-          Reports
-        </Button>
-      )}
-    </NavLink>
-    <NavLink
-      to="/debug"
-      className={styles.navLink}
-      aria-label="Go to Debugger"
-      onClick={onItemClick}
-    >
-      {({ isActive }) => (
-        <Button
-          variant="tertiary"
-          size="md"
-          disabled={isActive}
-          className={styles.navButton}
-        >
-          <Icon.Code02 size="md" />
-          Debugger
-        </Button>
-      )}
-    </NavLink>
-  </nav>
-);
+}
 
-const AppLayout: React.FC = () => {
+function MainNavigation({ onItemClick, isMobile }: NavigationProps) {
+  return (
+    <nav
+      aria-label="Main Navigation"
+      className={isMobile ? styles.mobileNav : styles.headerNav}
+    >
+      <NavLink
+        to="/dashboard"
+        className={styles.navLink}
+        aria-label="Go to Dashboard"
+        onClick={onItemClick}
+      >
+        {({ isActive }) => (
+          <Button
+            variant="tertiary"
+            size="md"
+            disabled={isActive}
+            className={styles.navButton}
+          >
+            Dashboard
+          </Button>
+        )}
+      </NavLink>
+      <NavLink
+        to="/governance"
+        className={styles.navLink}
+        onClick={onItemClick}
+      >
+        {({ isActive }) => (
+          <Button
+            variant="tertiary"
+            size="md"
+            disabled={isActive}
+            className={styles.navButton}
+          >
+            Governance
+          </Button>
+        )}
+      </NavLink>
+      <NavLink to="/worker" className={styles.navLink} onClick={onItemClick}>
+        {({ isActive }) => (
+          <Button
+            variant="tertiary"
+            size="md"
+            disabled={isActive}
+            className={styles.navButton}
+          >
+            Worker
+          </Button>
+        )}
+      </NavLink>
+      <NavLink to="/reports" className={styles.navLink} onClick={onItemClick}>
+        {({ isActive }) => (
+          <Button
+            variant="tertiary"
+            size="md"
+            disabled={isActive}
+            className={styles.navButton}
+          >
+            <Icon.Download04 size="md" />
+            Reports
+          </Button>
+        )}
+      </NavLink>
+      <NavLink
+        to="/debug"
+        className={styles.navLink}
+        aria-label="Go to Debugger"
+        onClick={onItemClick}
+      >
+        {({ isActive }) => (
+          <Button
+            variant="tertiary"
+            size="md"
+            disabled={isActive}
+            className={styles.navButton}
+          >
+            <Icon.Code02 size="md" />
+            Debugger
+          </Button>
+        )}
+      </NavLink>
+    </nav>
+  );
+}
+
+function AppLayout() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+  const closeMenu = () => setIsMenuOpen(false);
 
   return (
     <div className={styles.appShell}>
@@ -115,7 +126,7 @@ const AppLayout: React.FC = () => {
         contentRight={
           <div className={styles.headerRight}>
             <div className={styles.desktopOnly}>
-              <Navigation />
+              <MainNavigation />
             </div>
             <ThemeToggle />
             <ConnectAccount />
@@ -123,7 +134,7 @@ const AppLayout: React.FC = () => {
               <IconButton
                 variant="default"
                 altText={isMenuOpen ? "Close menu" : "Open menu"}
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                onClick={toggleMenu}
                 icon={
                   isMenuOpen ? <Icon.X size="md" /> : <Icon.Menu01 size="md" />
                 }
@@ -136,7 +147,7 @@ const AppLayout: React.FC = () => {
       {isMenuOpen && (
         <div className={styles.mobileMenuOverlay}>
           <div className={styles.mobileMenu}>
-            <Navigation isMobile onItemClick={() => setIsMenuOpen(false)} />
+            <MainNavigation isMobile onItemClick={closeMenu} />
           </div>
         </div>
       )}
@@ -148,7 +159,7 @@ const AppLayout: React.FC = () => {
       <Footer />
     </div>
   );
-};
+}
 
 function App() {
   return (
