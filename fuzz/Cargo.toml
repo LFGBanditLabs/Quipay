@@ -1,0 +1,21 @@
+[package]
+name = "quipay-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1.3", features = ["derive"] }
+soroban-sdk = { version = "23.4.0", features = ["testutils"] }
+payroll_vault = { path = "../contracts/payroll_vault" }
+
+[[bin]]
+name = "payroll_vault_fuzz"
+path = "fuzz_targets/payroll_vault_fuzz.rs"
+test = false
+doc = false
+bench = false

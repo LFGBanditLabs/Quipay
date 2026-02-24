@@ -146,6 +146,13 @@ Traditional payroll systems suffer from:
 
 - Employers can withdraw unused funds.
 
+#### FR-TV-4 Multisig Support
+
+- Treasury Vault supports multi-signature Stellar accounts as admin.
+- Enables decentralized governance for DAOs and enterprise clients.
+- Signature threshold validation occurs at Stellar network level before contract execution.
+- See [DAO Treasury Setup Guide](DAO_TREASURY_SETUP.md) for configuration details.
+
 ### 7.3 Workforce Registry
 
 **Description:** Stores worker payment metadata.
@@ -361,7 +368,7 @@ Handles:
 
 - Should workers allow partial stream withdrawal?
 - Should payroll streams be transferable?
-- Should employer governance be multi-sig controlled?
+- ~~Should employer governance be multi-sig controlled?~~ ✅ **Resolved**: Treasury Vault supports multisig admin accounts. See [DAO Treasury Setup Guide](DAO_TREASURY_SETUP.md)
 - Should AI agents require stake-based trust?
 
 ---

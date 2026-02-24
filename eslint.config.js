@@ -15,17 +15,21 @@ export default tseslint.config(
     "target/packages",
     "src/contracts/*",
     "!src/contracts/util.ts",
+    "backend/**",
+    "developer-hub/**",
   ]),
   {
     extends: [
       js.configs.recommended,
       tseslint.configs.recommendedTypeChecked,
       reactDOM.configs.recommended,
-      reactHooks.configs["recommended-latest"],
       reactRefresh.configs.vite,
       reactX.configs["recommended-typescript"],
       prettier,
     ],
+    plugins: {
+      "react-hooks": reactHooks,
+    },
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
       ecmaVersion: 2020,
@@ -36,6 +40,7 @@ export default tseslint.config(
       },
     },
     rules: {
+      ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": [
         "warn",
         { allowConstantExport: true },
