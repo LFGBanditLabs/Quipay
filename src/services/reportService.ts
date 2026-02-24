@@ -206,7 +206,11 @@ export function exportTransactionsPDF(
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  let startY = addHeader(doc, "Transaction History", `${transactions.length} transactions`);
+  let startY = addHeader(
+    doc,
+    "Transaction History",
+    `${transactions.length} transactions`,
+  );
 
   // Summary strip
   const completed = transactions.filter((t) => t.status === "completed");
@@ -272,7 +276,11 @@ export function exportTransactionsPDF(
     },
     didParseCell(data) {
       if (data.section === "body" && data.column.index === 6) {
-        const val = String(data.cell.raw).toLowerCase();
+        const raw = data.cell.raw;
+        const val =
+          typeof raw === "string" || typeof raw === "number"
+            ? String(raw).toLowerCase()
+            : "";
         data.cell.styles.textColor = statusColor(val);
         data.cell.styles.fontStyle = "bold";
       }
@@ -294,10 +302,7 @@ export function exportTransactionsPDF(
 /*  PDF – Professional Paycheck Stub                                  */
 /* ------------------------------------------------------------------ */
 
-export function exportPaycheckPDF(
-  tx: PayrollTransaction,
-  filename?: string,
-) {
+export function exportPaycheckPDF(tx: PayrollTransaction, filename?: string) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -355,10 +360,7 @@ export function exportPaycheckPDF(
       ["Blockchain TX Hash", tx.txHash],
       ["Currency", tx.currency],
       ["Network", "Stellar"],
-      [
-        "Status",
-        tx.status.charAt(0).toUpperCase() + tx.status.slice(1),
-      ],
+      ["Status", tx.status.charAt(0).toUpperCase() + tx.status.slice(1)],
     ],
     styles: {
       fontSize: 9,
@@ -379,7 +381,9 @@ export function exportPaycheckPDF(
   });
 
   // Disclaimer
-  const finalY = (doc as unknown as Record<string, number>).lastAutoTable?.finalY ?? y + 80;
+  const finalY =
+    (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable
+      ?.finalY ?? y + 80;
   doc.setFont("helvetica", "italic");
   doc.setFontSize(7);
   doc.setTextColor(...BRAND.muted);
@@ -416,11 +420,7 @@ export function exportMonthlySummaryPDF(
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  let y = addHeader(
-    doc,
-    "Monthly Payroll Summary",
-    summary.month,
-  );
+  let y = addHeader(doc, "Monthly Payroll Summary", summary.month);
 
   // ── KPI cards ──
   const cardWidth = (pageWidth - 28 - 12) / 3; // 3 cards with gaps
@@ -464,8 +464,16 @@ export function exportMonthlySummaryPDF(
   doc.setFontSize(9);
 
   const statuses = [
-    { label: "Completed", count: summary.completedTransactions, color: BRAND.success },
-    { label: "Pending", count: summary.pendingTransactions, color: BRAND.warning },
+    {
+      label: "Completed",
+      count: summary.completedTransactions,
+      color: BRAND.success,
+    },
+    {
+      label: "Pending",
+      count: summary.pendingTransactions,
+      color: BRAND.warning,
+    },
     { label: "Failed", count: summary.failedTransactions, color: BRAND.danger },
   ];
 
@@ -527,7 +535,7 @@ export function exportMonthlySummaryPDF(
     });
 
     y =
-      (doc as unknown as Record<string, Record<string, number>>).lastAutoTable
+      (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable
         ?.finalY ?? y + 40;
     y += 8;
   }
@@ -567,7 +575,11 @@ export function exportMonthlySummaryPDF(
     },
     didParseCell(data) {
       if (data.section === "body" && data.column.index === 3) {
-        const val = String(data.cell.raw).toLowerCase();
+        const raw = data.cell.raw;
+        const val =
+          typeof raw === "string" || typeof raw === "number"
+            ? String(raw).toLowerCase()
+            : "";
         data.cell.styles.textColor = statusColor(val);
         data.cell.styles.fontStyle = "bold";
       }

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import React, { lazy, Suspense, useState } from "react";
 import { Routes, Route, Outlet, NavLink } from "react-router-dom";
 import { Layout, Button, Icon, IconButton } from "@stellar/design-system";
 import ConnectAccount from "./components/ConnectAccount.tsx";
