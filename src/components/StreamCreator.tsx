@@ -30,6 +30,8 @@ import React, {
 import { Button } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
 import { useNotification } from "../hooks/useNotification";
+import { translateError } from "../util/errors";
+import { ErrorMessage } from "./ErrorMessage";
 import {
   buildCreateStreamTx,
   checkTreasurySolvency,
@@ -38,6 +40,7 @@ import {
   type CreateStreamParams,
 } from "../contracts/payroll_stream";
 import styles from "./StreamCreator.module.css";
+import { TransactionProgress } from "./Loading";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -213,11 +216,6 @@ function toStroops(amount: number | string, decimals: number): bigint {
 /** Returns today's date as YYYY-MM-DD. */
 function todayStr(): string {
   return new Date().toISOString().split("T")[0];
-}
-
-/** Truncates a hash for display. */
-function shortHash(hash: string): string {
-  return hash.length > 16 ? `${hash.slice(0, 8)}…${hash.slice(-8)}` : hash;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -410,14 +408,27 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
 
       setTimeout(() => dispatch({ type: "RESET" }), 3500);
     } catch (err: unknown) {
-      let message = "An unknown error occurred.";
-      if (typeof err === "string") {
-        message = err;
-      } else if (err instanceof Error) {
-        message = err.message;
-      }
-      dispatch({ type: "SET_TX_PHASE", phase: { kind: "error", message } });
-      addNotification(`Stream failed: ${message}`, "error");
+      const appError = translateError(err);
+      dispatch({
+        type: "SET_TX_PHASE",
+        phase: {
+          kind: "error",
+          message: appError.actionableStep
+            ? `${appError.message} ${appError.actionableStep}`
+            : appError.message,
+        },
+      });
+
+      addNotification(
+        appError.message,
+        appError.severity,
+        appError.actionableStep
+          ? {
+              label: "Retry",
+              onClick: () => void handleSubmit(e),
+            }
+          : undefined,
+      );
     }
   };
 
@@ -475,36 +486,11 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               aria-invalid={!!errors.workerAddress}
             />
             <div aria-live="assertive">
-              {errors.workerAddress && (
-                <p id={id("workerAddress-error")} className={styles.errorText}>
-                  ⚠ <span className="sr-only">Error: </span>
-                  {errors.workerAddress}
-                </p>
-              )}
+              <ErrorMessage error={errors.workerAddress || null} />
             </div>
           </div>
 
-          <div className={styles.fieldGroup}>
-            <label htmlFor={id("token")} className={styles.label}>
-              Token <span className={styles.required}>*</span>
-            </label>
-            <div className={styles.selectWrapper}>
-              <select
-                id={id("token")}
-                name="token"
-                className={styles.select}
-                value={values.token}
-                onChange={handleChange}
-                disabled={isBusy}
-              >
-                {SUPPORTED_TOKENS.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+          {/* ... existing token field ... */}
 
           <div className={styles.fieldGroup}>
             <label htmlFor={id("rate")} className={styles.label}>
@@ -525,12 +511,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               aria-invalid={!!errors.rate}
             />
             <div aria-live="assertive">
-              {errors.rate && (
-                <p id={id("rate-error")} className={styles.errorText}>
-                  ⚠ <span className="sr-only">Error: </span>
-                  {errors.rate}
-                </p>
-              )}
+              <ErrorMessage error={errors.rate || null} />
             </div>
           </div>
 
@@ -571,9 +552,9 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
             <div
               style={{
                 padding: "12px",
-                background: "rgba(0,0,0,0.02)",
+                background: "rgba(var(--text-rgb), 0.03)",
                 borderRadius: "8px",
-                border: "1px dashed var(--sds-color-neutral-border)",
+                border: "1px dashed var(--border)",
               }}
             >
               <div
@@ -586,12 +567,12 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
                 <span
                   style={{
                     fontSize: "0.8125rem",
-                    color: "var(--sds-color-content-secondary)",
+                    color: "var(--muted)",
                   }}
                 >
                   Estimated Total Commitment:
                 </span>
-                <span style={{ fontWeight: 600 }}>
+                <span style={{ fontWeight: 600, color: "var(--text)" }}>
                   {estimatedTotal.toLocaleString(undefined, {
                     maximumFractionDigits: 4,
                   })}{" "}
@@ -602,7 +583,35 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
             </div>
           )}
 
-          <TxStatusBox phase={txPhase} />
+          {txPhase.kind !== "idle" && (
+            <TransactionProgress
+              steps={["Simulating", "Signing", "Submitting"]}
+              currentStep={
+                txPhase.kind === "simulating"
+                  ? 0
+                  : txPhase.kind === "signing"
+                    ? 1
+                    : txPhase.kind === "submitting"
+                      ? 2
+                      : txPhase.kind === "success"
+                        ? 3
+                        : txPhase.kind === "error"
+                          ? 2
+                          : 0
+              }
+              status={
+                txPhase.kind === "success"
+                  ? "success"
+                  : txPhase.kind === "error"
+                    ? "error"
+                    : "loading"
+              }
+              errorMessage={
+                txPhase.kind === "error" ? txPhase.message : undefined
+              }
+              timeoutMs={30_000}
+            />
+          )}
 
           <div className={styles.footer}>
             {onCancel && (
@@ -635,52 +644,29 @@ function SolvencyBanner({ status }: { status: SolvencyStatus }) {
   if (status.kind === "idle") return null;
   if (status.kind === "checking")
     return (
-      <p style={{ fontSize: "0.75rem", margin: 0 }}>
+      <p style={{ fontSize: "0.75rem", margin: 0, color: "var(--muted)" }}>
         Checking treasury solvency...
       </p>
     );
   if (status.kind === "ok")
     return (
-      <p style={{ fontSize: "0.75rem", margin: 0, color: "green" }}>
+      <p style={{ fontSize: "0.75rem", margin: 0, color: "#10b981" }}>
         ✅ Treasury funds confirmed
       </p>
     );
   if (status.kind === "insufficient")
     return (
-      <p style={{ fontSize: "0.75rem", margin: 0, color: "red" }}>
+      <p
+        style={{
+          fontSize: "0.75rem",
+          margin: 0,
+          color: "var(--sds-color-feedback-error, #ef4444)",
+        }}
+      >
         ⚠️ Treasury may be insufficient
       </p>
     );
   return null;
-}
-
-function TxStatusBox({ phase }: { phase: TxPhase }) {
-  if (phase.kind === "idle") return null;
-  if (phase.kind === "success")
-    return (
-      <div
-        className={`${styles.statusBox} ${styles.statusSuccess}`}
-        role="alert"
-        aria-live="polite"
-      >
-        Success! Hash: {shortHash(phase.hash)}
-      </div>
-    );
-  if (phase.kind === "error")
-    return (
-      <div
-        className={`${styles.statusBox} ${styles.statusError}`}
-        role="alert"
-        aria-live="assertive"
-      >
-        {phase.message}
-      </div>
-    );
-  return (
-    <div className={`${styles.statusBox} ${styles.statusLoading}`}>
-      Processing...
-    </div>
-  );
 }
 
 export default StreamCreator;

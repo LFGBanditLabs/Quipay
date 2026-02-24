@@ -153,6 +153,13 @@ export const renderPrimitivesType = ({
           <Input
             key={path.join(".")}
             {...sharedProps}
+            onChange={(e) => {
+              handleChange(e, schemaType);
+              handleValidate(e, schemaType, [
+                validate.getPublicKeyError,
+                validate.getContractIdError,
+              ]);
+            }}
             infoText={description || ""}
             leftElement={<Icon.User03 />}
             note={<>{description}</>}

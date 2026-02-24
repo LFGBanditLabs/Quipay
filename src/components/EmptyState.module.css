@@ -1,0 +1,48 @@
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3rem 2rem;
+  background-color: var(--surface-subtle);
+  border: 2px dashed var(--border);
+  border-radius: 1rem;
+  margin: 1.5rem 0;
+}
+
+.iconContainer {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.title {
+  margin-bottom: 0.5rem !important;
+  color: var(--text);
+}
+
+.description {
+  color: var(--muted);
+  max-width: 400px;
+  margin-bottom: 1.5rem !important;
+}
+
+.actionContainer {
+  margin-top: 1rem;
+}
+
+/* Variants */
+.streams {
+  background-color: var(--accent-transparent);
+  border-color: var(--accent-transparent-strong);
+}
+
+.workers {
+  background-color: rgba(236, 72, 153, 0.08);
+  border-color: rgba(236, 72, 153, 0.2);
+}
+
+.treasury {
+  background-color: var(--success-transparent-strong);
+  border-color: var(--sds-color-feedback-success);
+}

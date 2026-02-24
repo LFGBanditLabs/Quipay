@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useWallet } from "../hooks/useWallet";
 import { connectWallet, disconnectWallet } from "../util/wallet";
+import { Spinner } from "./Loading";
 
 /**
  * WalletConnect component
@@ -69,7 +70,13 @@ export const WalletConnect = () => {
             disabled={isDisconnecting || isPending}
             aria-busy={isDisconnecting}
           >
-            {isDisconnecting ? "Disconnecting…" : "Disconnect"}
+            {isDisconnecting ? (
+              <>
+                <Spinner size="sm" /> Disconnecting…
+              </>
+            ) : (
+              "Disconnect"
+            )}
           </button>
         </div>
       ) : (
@@ -79,7 +86,13 @@ export const WalletConnect = () => {
           disabled={isConnecting || isPending}
           aria-busy={isConnecting || isPending}
         >
-          {isConnecting || isPending ? "Connecting…" : "Connect Wallet"}
+          {isConnecting || isPending ? (
+            <>
+              <Spinner size="sm" /> Connecting…
+            </>
+          ) : (
+            "Connect Wallet"
+          )}
         </button>
       )}
     </div>

@@ -18,14 +18,14 @@
 }
 
 .card {
-  background: var(--sds-color-neutral-subtle);
-  border: 1px solid var(--sds-color-neutral-border);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 16px;
 }
 
 .metricLabel {
-  color: var(--sds-color-content-secondary);
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -48,11 +48,12 @@
 }
 
 .selectInput {
-  border: 1px solid var(--sds-color-neutral-border);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 14px;
-  background: var(--sds-color-background-primary);
+  background: var(--surface);
+  color: var(--text);
 }
 
 .historyList {
@@ -62,7 +63,7 @@
 }
 
 .historyItem {
-  border: 1px solid var(--sds-color-neutral-border);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px;
   display: flex;
@@ -72,18 +73,18 @@
 }
 
 .historyMeta {
-  color: var(--sds-color-content-secondary);
+  color: var(--muted);
 }
 
 .emptyState {
-  color: var(--sds-color-content-secondary);
+  color: var(--muted);
   padding: 12px 0;
 }
 
 .errorText {
-  color: var(--sds-color-status-error);
+  color: var(--sds-color-feedback-error);
 }
 
 .successText {
-  color: var(--sds-color-status-success);
+  color: var(--sds-color-feedback-success);
 }
