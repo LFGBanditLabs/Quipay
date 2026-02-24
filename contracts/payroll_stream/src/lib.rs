@@ -1,6 +1,6 @@
 #![no_std]
-use quipay_common::{require, QuipayError};
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol, Vec};
+use quipay_common::{QuipayError, require};
+use soroban_sdk::{Address, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype};
 
 #[contracttype]
 #[derive(Clone)]
@@ -158,19 +158,27 @@ impl PayrollStream {
             .get(&DataKey::Vault)
             .expect("vault not configured");
 
-        use soroban_sdk::{vec, IntoVal, Symbol};
+        use soroban_sdk::{IntoVal, Symbol, vec};
         // Block stream creation if treasury would be insolvent
         let solvent: bool = env.invoke_contract(
             &vault,
             &Symbol::new(&env, "check_solvency"),
-            vec![&env, token.clone().into_val(&env), total_amount.into_val(&env)],
+            vec![
+                &env,
+                token.clone().into_val(&env),
+                total_amount.into_val(&env),
+            ],
         );
         require!(solvent, QuipayError::InsufficientBalance);
 
         env.invoke_contract::<()>(
             &vault,
             &Symbol::new(&env, "add_liability"),
-            vec![&env, token.clone().into_val(&env), total_amount.into_val(&env)],
+            vec![
+                &env,
+                token.clone().into_val(&env),
+                total_amount.into_val(&env),
+            ],
         );
 
         let mut next_id: u64 = env
@@ -266,7 +274,7 @@ impl PayrollStream {
             .instance()
             .get(&DataKey::Vault)
             .expect("vault not configured");
-        use soroban_sdk::{vec, IntoVal, Symbol};
+        use soroban_sdk::{IntoVal, Symbol, vec};
         env.invoke_contract::<()>(
             &vault,
             &Symbol::new(&env, "payout_liability"),
@@ -345,7 +353,7 @@ impl PayrollStream {
                                 .instance()
                                 .get(&DataKey::Vault)
                                 .expect("vault not configured");
-                            use soroban_sdk::{vec, IntoVal, Symbol};
+                            use soroban_sdk::{IntoVal, Symbol, vec};
                             env.invoke_contract::<()>(
                                 &vault,
                                 &Symbol::new(&env, "payout_liability"),
@@ -405,9 +413,14 @@ impl PayrollStream {
         results
     }
 
-    pub fn cancel_stream(env: Env, stream_id: u64, employer: Address) -> Result<(), QuipayError> {
+    pub fn cancel_stream(
+        env: Env,
+        stream_id: u64,
+        caller: Address,
+        gateway: Option<Address>,
+    ) -> Result<(), QuipayError> {
         Self::require_not_paused(&env)?;
-        employer.require_auth();
+        caller.require_auth();
 
         let key = StreamKey::Stream(stream_id);
         let mut stream: Stream = env
@@ -416,24 +429,73 @@ impl PayrollStream {
             .get(&key)
             .expect("stream not found");
 
-        if stream.employer != employer {
-            panic!("not employer");
+        if stream.employer != caller {
+            let gateway_addr = gateway.expect("gateway required for agent auth");
+            let admin: Address = env.invoke_contract(
+                &gateway_addr,
+                &soroban_sdk::Symbol::new(&env, "get_admin"),
+                soroban_sdk::vec![&env],
+            );
+            if admin != stream.employer {
+                panic!("gateway admin mismatch");
+            }
+            let is_auth: bool = env.invoke_contract(
+                &gateway_addr,
+                &soroban_sdk::Symbol::new(&env, "is_authorized"),
+                soroban_sdk::vec![
+                    &env,
+                    caller.clone().into_val(&env),
+                    1u32.into_val(&env), // Permission::ExecutePayroll
+                ],
+            );
+            if !is_auth {
+                panic!("not authorized by gateway");
+            }
         }
+
         if Self::is_closed(&stream) {
             return Ok(());
+        }
+
+        let now = env.ledger().timestamp();
+
+        // Calculate accrued (vested) amount up to now
+        let vested = Self::vested_amount(&stream, now);
+        let owed = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
+
+        let vault: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Vault)
+            .expect("vault not configured");
+
+        // Pay out owed amount to worker
+        if owed > 0 {
+            use soroban_sdk::{IntoVal, Symbol, vec};
+            env.invoke_contract::<()>(
+                &vault,
+                &Symbol::new(&env, "payout_liability"),
+                vec![
+                    &env,
+                    stream.worker.clone().into_val(&env),
+                    stream.token.clone().into_val(&env),
+                    owed.into_val(&env),
+                ],
+            );
+            stream.withdrawn_amount = stream
+                .withdrawn_amount
+                .checked_add(owed)
+                .expect("withdrawn overflow");
+            stream.last_withdrawal_ts = now;
         }
 
         let remaining_liability = stream
             .total_amount
             .checked_sub(stream.withdrawn_amount)
             .expect("remaining liability underflow");
+
         if remaining_liability > 0 {
-            let vault: Address = env
-                .storage()
-                .instance()
-                .get(&DataKey::Vault)
-                .expect("vault not configured");
-            use soroban_sdk::{vec, IntoVal, Symbol};
+            use soroban_sdk::{IntoVal, Symbol, vec};
             env.invoke_contract::<()>(
                 &vault,
                 &Symbol::new(&env, "remove_liability"),
@@ -445,16 +507,15 @@ impl PayrollStream {
             );
         }
 
-        let now = env.ledger().timestamp();
         Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
         env.storage().persistent().set(&key, &stream);
 
         env.events().publish(
             (
-                Symbol::new(&env, "stream"),
-                Symbol::new(&env, "canceled"),
+                soroban_sdk::Symbol::new(&env, "stream"),
+                soroban_sdk::Symbol::new(&env, "canceled"),
                 stream_id,
-                employer.clone(),
+                caller.clone(),
             ),
             (stream.worker.clone(), stream.token.clone()),
         );
@@ -484,7 +545,10 @@ impl PayrollStream {
             .expect("stream not found");
 
         let vested = Self::vested_amount_at(&stream, timestamp);
-        vested.checked_sub(stream.withdrawn_amount).unwrap_or(0).max(0)
+        vested
+            .checked_sub(stream.withdrawn_amount)
+            .unwrap_or(0)
+            .max(0)
     }
 
     pub fn get_employer_streams(env: Env, employer: Address) -> Vec<u64> {
