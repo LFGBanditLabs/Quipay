@@ -1,9 +1,9 @@
 #![cfg(test)]
 use super::*;
-use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, Address, Env};
+use soroban_sdk::{Address, Env, IntoVal, testutils::Address as _, testutils::Ledger as _};
 
 mod dummy_vault {
-    use soroban_sdk::{contract, contractimpl, Address, Env};
+    use soroban_sdk::{Address, Env, contract, contractimpl};
     #[contract]
     pub struct DummyVault;
     #[contractimpl]
@@ -18,7 +18,7 @@ mod dummy_vault {
 }
 
 mod rejecting_vault {
-    use soroban_sdk::{contract, contractimpl, Address, Env};
+    use soroban_sdk::{Address, Env, contract, contractimpl};
     #[contract]
     pub struct RejectingVault;
     #[contractimpl]
@@ -34,7 +34,7 @@ mod rejecting_vault {
 
 /// Insolvent vault: check_solvency returns false so stream creation is blocked
 mod insolvent_vault {
-    use soroban_sdk::{contract, contractimpl, Address, Env};
+    use soroban_sdk::{Address, Env, contract, contractimpl};
     #[contract]
     pub struct InsolventVault;
     #[contractimpl]
@@ -142,7 +142,7 @@ fn test_cancel_stream_paused() {
 
     client.init(&admin);
     client.set_paused(&true);
-    let result = client.try_cancel_stream(&1u64, &employer);
+    let result = client.try_cancel_stream(&1u64, &employer, &None);
 
     assert!(result.is_err());
 }
@@ -401,7 +401,7 @@ fn test_batch_withdraw_closed_stream() {
     let stream1 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
     let stream2 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
 
-    client.cancel_stream(&stream1, &employer);
+    client.cancel_stream(&stream1, &employer, &None);
 
     env.ledger().with_mut(|li| {
         li.timestamp = 5;
@@ -495,7 +495,9 @@ fn test_index_get_employer_streams() {
     client.init(&admin);
     client.set_vault(&vault_id);
 
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
 
     let id1 = client.create_stream(&employer, &worker, &token, &10, &0u64, &0u64, &100u64);
     let id2 = client.create_stream(&employer, &worker, &token, &20, &0u64, &0u64, &200u64);
@@ -523,7 +525,9 @@ fn test_index_get_worker_streams() {
     client.init(&admin);
     client.set_vault(&vault_id);
 
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
 
     let id1 = client.create_stream(&employer, &worker, &token, &10, &0u64, &0u64, &100u64);
     let id2 = client.create_stream(&employer, &worker, &token, &20, &0u64, &0u64, &200u64);
@@ -551,15 +555,21 @@ fn test_cliff_blocks_early_withdrawal() {
     client.init(&admin);
     client.set_vault(&vault_id);
 
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
 
     let stream_id = client.create_stream(&employer, &worker, &token, &100, &5u64, &0u64, &10u64);
 
-    env.ledger().with_mut(|li| { li.timestamp = 3; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 3;
+    });
     let amount = client.withdraw(&stream_id, &worker);
     assert_eq!(amount, 0);
 
-    env.ledger().with_mut(|li| { li.timestamp = 7; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 7;
+    });
     let amount = client.withdraw(&stream_id, &worker);
     assert!(amount > 0);
 }
@@ -582,7 +592,9 @@ fn test_cleanup_removes_from_indexes() {
     client.set_vault(&vault_id);
     client.set_retention_secs(&0u64);
 
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
 
     let id1 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
     let id2 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &20u64);
@@ -590,7 +602,9 @@ fn test_cleanup_removes_from_indexes() {
     assert_eq!(client.get_employer_streams(&employer).len(), 2);
     assert_eq!(client.get_worker_streams(&worker).len(), 2);
 
-    env.ledger().with_mut(|li| { li.timestamp = 10; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 10;
+    });
     client.withdraw(&id1, &worker);
 
     client.cleanup_stream(&id1);
@@ -621,7 +635,9 @@ fn test_audit_fields_set_on_create() {
     client.init(&admin);
     client.set_vault(&vault_id);
 
-    env.ledger().with_mut(|li| { li.timestamp = 42; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 42;
+    });
 
     let stream_id = client.create_stream(&employer, &worker, &token, &10, &0u64, &42u64, &142u64);
     let stream = client.get_stream(&stream_id).unwrap();
@@ -641,7 +657,9 @@ fn test_create_zero_rate_panics() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let result = client.try_create_stream(&employer, &worker, &token, &0, &0u64, &0u64, &100u64);
     assert!(result.is_err());
 }
@@ -651,7 +669,9 @@ fn test_create_negative_rate_panics() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let result = client.try_create_stream(&employer, &worker, &token, &-1, &0u64, &0u64, &100u64);
     assert!(result.is_err());
 }
@@ -661,7 +681,9 @@ fn test_create_end_equals_start_panics() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let result = client.try_create_stream(&employer, &worker, &token, &100, &0u64, &50u64, &50u64);
     assert!(result.is_err());
 }
@@ -671,7 +693,9 @@ fn test_create_end_before_start_panics() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let result = client.try_create_stream(&employer, &worker, &token, &100, &0u64, &50u64, &10u64);
     assert!(result.is_err());
 }
@@ -681,7 +705,9 @@ fn test_create_start_in_past_panics() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 100; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 100;
+    });
     let result = client.try_create_stream(&employer, &worker, &token, &100, &0u64, &50u64, &200u64);
     assert!(result.is_err());
 }
@@ -691,8 +717,11 @@ fn test_create_cliff_exceeds_end_panics() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
-    let result = client.try_create_stream(&employer, &worker, &token, &100, &200u64, &0u64, &100u64);
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+    let result =
+        client.try_create_stream(&employer, &worker, &token, &100, &200u64, &0u64, &100u64);
     assert!(result.is_err());
 }
 
@@ -701,7 +730,9 @@ fn test_create_sequential_ids() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let id1 = client.create_stream(&employer, &worker, &token, &10, &0u64, &0u64, &100u64);
     let id2 = client.create_stream(&employer, &worker, &token, &10, &0u64, &0u64, &100u64);
     let id3 = client.create_stream(&employer, &worker, &token, &10, &0u64, &0u64, &100u64);
@@ -722,7 +753,9 @@ fn test_create_vault_rejection_fails() {
     let client = PayrollStreamClient::new(&env, &contract_id);
     client.init(&admin);
     client.set_vault(&vault_id);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let result = client.try_create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
     assert!(result.is_err());
 }
@@ -740,7 +773,9 @@ fn test_create_stream_blocked_when_treasury_insolvent() {
     let client = PayrollStreamClient::new(&env, &contract_id);
     client.init(&admin);
     client.set_vault(&vault_id);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let result = client.try_create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
     assert!(result.is_err());
 }
@@ -754,9 +789,13 @@ fn test_withdraw_before_stream_starts() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 100; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 100;
+    });
     let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &200u64, &300u64);
-    env.ledger().with_mut(|li| { li.timestamp = 150; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 150;
+    });
     let amount = client.withdraw(&stream_id, &worker);
     assert_eq!(amount, 0);
 }
@@ -766,10 +805,14 @@ fn test_withdraw_at_midpoint_linear() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     // rate=100, duration=100, total=10000
     let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
-    env.ledger().with_mut(|li| { li.timestamp = 50; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 50;
+    });
     let amount = client.withdraw(&stream_id, &worker);
     assert_eq!(amount, 5000);
 }
@@ -779,10 +822,14 @@ fn test_withdraw_after_end_returns_total() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     // rate=100, duration=10, total=1000
     let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
-    env.ledger().with_mut(|li| { li.timestamp = 50; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 50;
+    });
     let amount = client.withdraw(&stream_id, &worker);
     assert_eq!(amount, 1000);
 }
@@ -792,13 +839,132 @@ fn test_withdraw_zero_available_returns_zero() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
-    env.ledger().with_mut(|li| { li.timestamp = 40; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 40;
+    });
     client.withdraw(&stream_id, &worker);
     // same timestamp: nothing new has vested
     let second = client.withdraw(&stream_id, &worker);
     assert_eq!(second, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Cancellation tests
+// ---------------------------------------------------------------------------
+
+mod mock_gateway {
+    use soroban_sdk::{Address, Env, contract, contractimpl};
+    #[contract]
+    pub struct MockGateway;
+    #[contractimpl]
+    impl MockGateway {
+        pub fn get_admin(_env: Env) -> Address {
+            // For testing, just return a dummy address not matched unless properly set
+            panic!("Not properly initialized for test")
+        }
+        pub fn is_authorized(_env: Env, _agent: Address, _action: u32) -> bool {
+            true
+        }
+    }
+}
+
+mod auth_mock_gateway {
+    use soroban_sdk::{Address, Env, contract, contractimpl};
+
+    #[contract]
+    pub struct AuthMockGateway;
+
+    #[contractimpl]
+    impl AuthMockGateway {
+        pub fn get_admin(env: Env) -> Address {
+            env.storage()
+                .instance()
+                .get(&soroban_sdk::Symbol::new(&env, "admin"))
+                .unwrap()
+        }
+        pub fn set_admin(env: Env, admin: Address) {
+            env.storage()
+                .instance()
+                .set(&soroban_sdk::Symbol::new(&env, "admin"), &admin);
+        }
+        pub fn is_authorized(_env: Env, _agent: Address, _action: u32) -> bool {
+            true
+        }
+    }
+}
+
+#[test]
+fn test_cancel_stream_by_employer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 50;
+    });
+
+    client.cancel_stream(&stream_id, &employer, &None);
+
+    let stream = client.get_stream(&stream_id).unwrap();
+    assert_eq!(stream.status, StreamStatus::Canceled);
+    assert_eq!(stream.last_withdrawal_ts, 50);
+}
+
+#[test]
+fn test_cancel_stream_by_agent() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    let gateway_id = env.register_contract(None, auth_mock_gateway::AuthMockGateway);
+    env.invoke_contract::<()>(
+        &gateway_id,
+        &soroban_sdk::Symbol::new(&env, "set_admin"),
+        soroban_sdk::vec![&env, employer.clone().into_val(&env)],
+    );
+
+    let agent = Address::generate(&env);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
+
+    client.cancel_stream(&stream_id, &agent, &Some(gateway_id));
+
+    let stream = client.get_stream(&stream_id).unwrap();
+    assert_eq!(stream.status, StreamStatus::Canceled);
+}
+
+#[test]
+fn test_cancel_stream_pays_worker() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 50;
+    });
+
+    client.cancel_stream(&stream_id, &employer, &None);
+
+    let stream = client.get_stream(&stream_id).unwrap();
+    // Vested amount at 50 is 5000. It should be paid out.
+    assert_eq!(stream.withdrawn_amount, 5000);
 }
 
 #[test]
@@ -806,13 +972,19 @@ fn test_withdraw_sequential_accumulates_correctly() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     // rate=10, duration=100, total=1000
     let stream_id = client.create_stream(&employer, &worker, &token, &10, &0u64, &0u64, &100u64);
-    env.ledger().with_mut(|li| { li.timestamp = 25; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 25;
+    });
     let first = client.withdraw(&stream_id, &worker);
     assert_eq!(first, 250);
-    env.ledger().with_mut(|li| { li.timestamp = 75; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 75;
+    });
     let second = client.withdraw(&stream_id, &worker);
     assert_eq!(second, 500);
     let stream = client.get_stream(&stream_id).unwrap();
@@ -825,9 +997,13 @@ fn test_withdraw_wrong_worker_panics() {
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
     let intruder = Address::generate(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
-    env.ledger().with_mut(|li| { li.timestamp = 50; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 50;
+    });
     let result = client.try_withdraw(&stream_id, &intruder);
     assert!(result.is_err());
 }
@@ -837,11 +1013,15 @@ fn test_withdraw_updates_last_withdrawal_ts() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
     let before = client.get_stream(&stream_id).unwrap();
     assert_eq!(before.last_withdrawal_ts, 0);
-    env.ledger().with_mut(|li| { li.timestamp = 42; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 42;
+    });
     client.withdraw(&stream_id, &worker);
     let after = client.get_stream(&stream_id).unwrap();
     assert_eq!(after.last_withdrawal_ts, 42);
@@ -857,9 +1037,11 @@ fn test_cancel_wrong_employer_panics() {
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
     let intruder = Address::generate(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
-    let result = client.try_cancel_stream(&stream_id, &intruder);
+    let result = client.try_cancel_stream(&stream_id, &intruder, &None);
     assert!(result.is_err());
 }
 
@@ -868,11 +1050,13 @@ fn test_cancel_already_canceled_is_idempotent() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
-    client.cancel_stream(&stream_id, &employer);
+    client.cancel_stream(&stream_id, &employer, &None);
     // second cancel must not panic
-    client.cancel_stream(&stream_id, &employer);
+    client.cancel_stream(&stream_id, &employer, &None);
     let stream = client.get_stream(&stream_id).unwrap();
     assert_eq!(stream.status, StreamStatus::Canceled);
 }
@@ -882,10 +1066,14 @@ fn test_cancel_sets_closed_at() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
-    env.ledger().with_mut(|li| { li.timestamp = 55; });
-    client.cancel_stream(&stream_id, &employer);
+    env.ledger().with_mut(|li| {
+        li.timestamp = 55;
+    });
+    client.cancel_stream(&stream_id, &employer, &None);
     let stream = client.get_stream(&stream_id).unwrap();
     assert_eq!(stream.status, StreamStatus::Canceled);
     assert_eq!(stream.closed_at, 55);
@@ -896,12 +1084,16 @@ fn test_cancel_completed_stream_is_idempotent() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
-    env.ledger().with_mut(|li| { li.timestamp = 10; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 10;
+    });
     client.withdraw(&stream_id, &worker);
     // stream is now Completed; cancel should return early without panicking
-    client.cancel_stream(&stream_id, &employer);
+    client.cancel_stream(&stream_id, &employer, &None);
     let stream = client.get_stream(&stream_id).unwrap();
     assert_eq!(stream.status, StreamStatus::Completed);
 }
@@ -915,9 +1107,13 @@ fn test_full_withdrawal_auto_completes_stream() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
-    env.ledger().with_mut(|li| { li.timestamp = 10; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 10;
+    });
     let amount = client.withdraw(&stream_id, &worker);
     assert_eq!(amount, 1000);
     let stream = client.get_stream(&stream_id).unwrap();
@@ -930,9 +1126,13 @@ fn test_completed_stream_blocks_further_withdrawal() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
-    env.ledger().with_mut(|li| { li.timestamp = 10; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 10;
+    });
     client.withdraw(&stream_id, &worker);
     let result = client.try_withdraw(&stream_id, &worker);
     assert!(result.is_err());
@@ -947,10 +1147,14 @@ fn test_minimum_one_second_stream() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     // rate=1, duration=1, total=1
     let stream_id = client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &1u64);
-    env.ledger().with_mut(|li| { li.timestamp = 1; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 1;
+    });
     let amount = client.withdraw(&stream_id, &worker);
     assert_eq!(amount, 1);
     let stream = client.get_stream(&stream_id).unwrap();
@@ -986,7 +1190,9 @@ fn test_cleanup_active_stream_panics() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
     let result = client.try_cleanup_stream(&stream_id);
     assert!(result.is_err());
@@ -998,13 +1204,19 @@ fn test_cleanup_before_retention_panics() {
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
     client.set_retention_secs(&100u64);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
-    env.ledger().with_mut(|li| { li.timestamp = 10; });
-    client.cancel_stream(&stream_id, &employer);
+    env.ledger().with_mut(|li| {
+        li.timestamp = 10;
+    });
+    client.cancel_stream(&stream_id, &employer, &None);
     // closed_at=10, retention=100 → eligible at t=110
     // trying at t=50 must fail
-    env.ledger().with_mut(|li| { li.timestamp = 50; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 50;
+    });
     let result = client.try_cleanup_stream(&stream_id);
     assert!(result.is_err());
 }
@@ -1028,23 +1240,33 @@ fn test_accrual_exact_linear() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     // rate=1000, duration=1000, total=1_000_000
     let stream_id = client.create_stream(&employer, &worker, &token, &1000, &0u64, &0u64, &1000u64);
 
-    env.ledger().with_mut(|li| { li.timestamp = 250; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 250;
+    });
     let a = client.withdraw(&stream_id, &worker);
     assert_eq!(a, 250_000);
 
-    env.ledger().with_mut(|li| { li.timestamp = 500; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 500;
+    });
     let b = client.withdraw(&stream_id, &worker);
     assert_eq!(b, 250_000);
 
-    env.ledger().with_mut(|li| { li.timestamp = 750; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 750;
+    });
     let c = client.withdraw(&stream_id, &worker);
     assert_eq!(c, 250_000);
 
-    env.ledger().with_mut(|li| { li.timestamp = 1000; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 1000;
+    });
     let d = client.withdraw(&stream_id, &worker);
     assert_eq!(d, 250_000);
 
@@ -1056,16 +1278,22 @@ fn test_cliff_retroactive_accrual() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     // cliff=50, start=0, end=100, rate=10, total=1000
     // at t=60: vested = 1000 * 60 / 100 = 600 (retroactive from start_ts)
     let stream_id = client.create_stream(&employer, &worker, &token, &10, &50u64, &0u64, &100u64);
 
-    env.ledger().with_mut(|li| { li.timestamp = 30; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 30;
+    });
     let before_cliff = client.withdraw(&stream_id, &worker);
     assert_eq!(before_cliff, 0);
 
-    env.ledger().with_mut(|li| { li.timestamp = 60; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 60;
+    });
     let after_cliff = client.withdraw(&stream_id, &worker);
     assert_eq!(after_cliff, 600);
 }
@@ -1075,15 +1303,21 @@ fn test_cliff_at_end_blocks_until_maturity() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     // cliff == end: nothing vests until stream fully matures
     let stream_id = client.create_stream(&employer, &worker, &token, &100, &100u64, &0u64, &100u64);
 
-    env.ledger().with_mut(|li| { li.timestamp = 50; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 50;
+    });
     let mid = client.withdraw(&stream_id, &worker);
     assert_eq!(mid, 0);
 
-    env.ledger().with_mut(|li| { li.timestamp = 100; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 100;
+    });
     let at_maturity = client.withdraw(&stream_id, &worker);
     assert_eq!(at_maturity, 10000);
 }
@@ -1098,10 +1332,12 @@ fn test_multiple_streams_are_independent() {
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
     let worker2 = Address::generate(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let s1 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
     let s2 = client.create_stream(&employer, &worker2, &token, &200, &0u64, &0u64, &100u64);
-    client.cancel_stream(&s1, &employer);
+    client.cancel_stream(&s1, &employer, &None);
     let stream1 = client.get_stream(&s1).unwrap();
     let stream2 = client.get_stream(&s2).unwrap();
     assert_eq!(stream1.status, StreamStatus::Canceled);
@@ -1113,12 +1349,18 @@ fn test_last_withdrawal_ts_tracked_per_stream() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let s1 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
     let s2 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
-    env.ledger().with_mut(|li| { li.timestamp = 10; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 10;
+    });
     client.withdraw(&s1, &worker);
-    env.ledger().with_mut(|li| { li.timestamp = 20; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 20;
+    });
     client.withdraw(&s2, &worker);
     assert_eq!(client.get_stream(&s1).unwrap().last_withdrawal_ts, 10);
     assert_eq!(client.get_stream(&s2).unwrap().last_withdrawal_ts, 20);
@@ -1139,7 +1381,9 @@ fn test_different_employers_have_independent_indexes() {
     let client = PayrollStreamClient::new(&env, &contract_id);
     client.init(&admin);
     client.set_vault(&vault_id);
-    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
     let id1 = client.create_stream(&employer1, &worker1, &token, &10, &0u64, &0u64, &100u64);
     let id2 = client.create_stream(&employer2, &worker2, &token, &10, &0u64, &0u64, &100u64);
     let emp1_ids = client.get_employer_streams(&employer1);

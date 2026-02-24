@@ -1,8 +1,6 @@
-import React, { lazy, Suspense, useState } from "react";
-import { Routes, Route, Outlet, NavLink } from "react-router-dom";
-import { Layout, Button, Icon, IconButton } from "@stellar/design-system";
-import ConnectAccount from "./components/ConnectAccount.tsx";
-import ThemeToggle from "./components/ThemeToggle";
+import React, { lazy, Suspense } from "react";
+import { Routes, Route, Outlet } from "react-router-dom";
+import Navbar from "./components/layout/Navbar";
 import OnboardingTour from "./components/OnboardingTour";
 import Footer from "./components/layout/Footer";
 import styles from "./App.module.css";
@@ -18,139 +16,13 @@ const TreasuryManager = lazy(() => import("./pages/TreasuryManager"));
 const WithdrawPage = lazy(() => import("./pages/withdrawPage.tsx"));
 const Reports = lazy(() => import("./pages/Reports.tsx"));
 
-interface NavigationProps {
-  onItemClick?: () => void;
-  isMobile?: boolean;
-}
-
-function MainNavigation({ onItemClick, isMobile }: NavigationProps) {
-  return (
-    <nav
-      aria-label="Main Navigation"
-      className={isMobile ? styles.mobileNav : styles.headerNav}
-    >
-      <NavLink
-        to="/dashboard"
-        className={styles.navLink}
-        aria-label="Go to Dashboard"
-        onClick={onItemClick}
-      >
-        {({ isActive }) => (
-          <Button
-            variant="tertiary"
-            size="md"
-            disabled={isActive}
-            className={styles.navButton}
-          >
-            Dashboard
-          </Button>
-        )}
-      </NavLink>
-      <NavLink
-        to="/governance"
-        className={styles.navLink}
-        onClick={onItemClick}
-      >
-        {({ isActive }) => (
-          <Button
-            variant="tertiary"
-            size="md"
-            disabled={isActive}
-            className={styles.navButton}
-          >
-            Governance
-          </Button>
-        )}
-      </NavLink>
-      <NavLink to="/worker" className={styles.navLink} onClick={onItemClick}>
-        {({ isActive }) => (
-          <Button
-            variant="tertiary"
-            size="md"
-            disabled={isActive}
-            className={styles.navButton}
-          >
-            Worker
-          </Button>
-        )}
-      </NavLink>
-      <NavLink to="/reports" className={styles.navLink} onClick={onItemClick}>
-        {({ isActive }) => (
-          <Button
-            variant="tertiary"
-            size="md"
-            disabled={isActive}
-            className={styles.navButton}
-          >
-            <Icon.Download04 size="md" />
-            Reports
-          </Button>
-        )}
-      </NavLink>
-      <NavLink
-        to="/debug"
-        className={styles.navLink}
-        aria-label="Go to Debugger"
-        onClick={onItemClick}
-      >
-        {({ isActive }) => (
-          <Button
-            variant="tertiary"
-            size="md"
-            disabled={isActive}
-            className={styles.navButton}
-          >
-            <Icon.Code02 size="md" />
-            Debugger
-          </Button>
-        )}
-      </NavLink>
-    </nav>
-  );
-}
-
 function AppLayout() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
-  const closeMenu = () => setIsMenuOpen(false);
-
   return (
     <div className={styles.appShell}>
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
-      <Layout.Header
-        projectId="Quipay"
-        projectTitle="Quipay"
-        contentRight={
-          <div className={styles.headerRight}>
-            <div className={styles.desktopOnly}>
-              <MainNavigation />
-            </div>
-            <ThemeToggle />
-            <ConnectAccount />
-            <div className={styles.mobileOnly}>
-              <IconButton
-                variant="default"
-                altText={isMenuOpen ? "Close menu" : "Open menu"}
-                onClick={toggleMenu}
-                icon={
-                  isMenuOpen ? <Icon.X size="md" /> : <Icon.Menu01 size="md" />
-                }
-              />
-            </div>
-          </div>
-        }
-      />
-
-      {isMenuOpen && (
-        <div className={styles.mobileMenuOverlay}>
-          <div className={styles.mobileMenu}>
-            <MainNavigation isMobile onItemClick={closeMenu} />
-          </div>
-        </div>
-      )}
+      <Navbar />
 
       <main id="main-content" tabIndex={-1} className={styles.mainContent}>
         <OnboardingTour />
