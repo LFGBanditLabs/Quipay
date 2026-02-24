@@ -4,6 +4,7 @@ import { Layout, Button, Icon, IconButton } from "@stellar/design-system";
 import ConnectAccount from "./components/ConnectAccount.tsx";
 import ThemeToggle from "./components/ThemeToggle";
 import OnboardingTour from "./components/OnboardingTour";
+import Footer from "./components/layout/Footer";
 import styles from "./App.module.css";
 
 const Home = lazy(() => import("./pages/Home"));
@@ -130,21 +131,7 @@ const AppLayout: React.FC = () => {
         <OnboardingTour />
         <Outlet />
       </main>
-      <Layout.Footer>
-        <div className={styles.footerContent}>
-          <span>
-            © {new Date().getFullYear()} Quipay. Licensed under the{" "}
-            <a
-              href="https://opensource.org/license/mit"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              MIT License
-            </a>
-            .
-          </span>
-        </div>
-      </Layout.Footer>
+      <Footer />
     </div>
   );
 };
