@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import ConnectAccount from "../ConnectAccount";
 import ThemeToggle from "../ThemeToggle";
@@ -15,6 +15,7 @@ const Navbar: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const location = useLocation();
+  const prevPathnameRef = useRef(location.pathname);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -25,8 +26,11 @@ const Navbar: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    setIsMenuOpen(false);
-  }, [location]);
+    if (prevPathnameRef.current !== location.pathname) {
+      prevPathnameRef.current = location.pathname;
+      setIsMenuOpen(false);
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     if (isMenuOpen) {
