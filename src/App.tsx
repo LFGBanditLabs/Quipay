@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import React, { lazy, Suspense } from "react";
 import { Routes, Route, Outlet } from "react-router-dom";
 import { Layout } from "@stellar/design-system";
 import Navbar from "./components/layout/Navbar";
