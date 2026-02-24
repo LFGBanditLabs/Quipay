@@ -6,9 +6,9 @@ use quipay_common::{QuipayError, require};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u32)]
 pub enum Permission {
-    ExecutePayroll = 1,
-    ManageTreasury = 2,
-    RegisterAgent = 3,
+    CreateStream = 1,
+    CancelStream = 2,
+    RebalanceTreasury = 3,
 }
 
 #[contracttype]
@@ -37,6 +37,101 @@ impl AutomationGateway {
             QuipayError::AlreadyInitialized
         );
         env.storage().instance().set(&DataKey::Admin, &admin);
+        Ok(())
+    }
+
+    /// Replace an agent's permissions.
+    /// Only the admin can call this.
+    pub fn set_agent_permissions(env: Env, agent_address: Address, permissions: Vec<Permission>) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(env.clone())?;
+        admin.require_auth();
+
+        let mut agent: Agent = env
+            .storage()
+            .instance()
+            .get(&DataKey::Agent(agent_address.clone()))
+            .ok_or(QuipayError::AgentNotFound)?;
+
+        agent.permissions = permissions.clone();
+        env.storage().instance().set(&DataKey::Agent(agent_address.clone()), &agent);
+
+        env.events().publish(
+            (
+                symbol_short!("gateway"),
+                symbol_short!("perm_set"),
+                agent_address.clone(),
+                symbol_short!("admin"),
+            ),
+            permissions,
+        );
+
+        Ok(())
+    }
+
+    /// Grant a single permission to an agent.
+    /// Only the admin can call this.
+    pub fn grant_permission(env: Env, agent_address: Address, permission: Permission) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(env.clone())?;
+        admin.require_auth();
+
+        let mut agent: Agent = env
+            .storage()
+            .instance()
+            .get(&DataKey::Agent(agent_address.clone()))
+            .ok_or(QuipayError::AgentNotFound)?;
+
+        if !agent.permissions.contains(permission) {
+            agent.permissions.push_back(permission);
+            env.storage().instance().set(&DataKey::Agent(agent_address.clone()), &agent);
+        }
+
+        env.events().publish(
+            (
+                symbol_short!("gateway"),
+                symbol_short!("perm_add"),
+                agent_address.clone(),
+                symbol_short!("admin"),
+            ),
+            permission,
+        );
+
+        Ok(())
+    }
+
+    /// Revoke a single permission from an agent.
+    /// Only the admin can call this.
+    pub fn revoke_permission(env: Env, agent_address: Address, permission: Permission) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(env.clone())?;
+        admin.require_auth();
+
+        let mut agent: Agent = env
+            .storage()
+            .instance()
+            .get(&DataKey::Agent(agent_address.clone()))
+            .ok_or(QuipayError::AgentNotFound)?;
+
+        let mut new_perms: Vec<Permission> = Vec::new(&env);
+        let mut i = 0u32;
+        while i < agent.permissions.len() {
+            let p = agent.permissions.get(i).unwrap();
+            if p != permission {
+                new_perms.push_back(p);
+            }
+            i += 1;
+        }
+        agent.permissions = new_perms;
+        env.storage().instance().set(&DataKey::Agent(agent_address.clone()), &agent);
+
+        env.events().publish(
+            (
+                symbol_short!("gateway"),
+                symbol_short!("perm_rev"),
+                agent_address.clone(),
+                symbol_short!("admin"),
+            ),
+            permission,
+        );
+
         Ok(())
     }
 
