@@ -9,6 +9,7 @@ import {
   StreamRecord,
 } from "../db/queries";
 import { sendTreasuryAlert } from "../notifier/notifier";
+import { getAuditLogger, isAuditLoggerInitialized } from "../audit/init";
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
@@ -223,6 +224,27 @@ export const runMonitorCycle = async (): Promise<EmployerTreasuryStatus[]> => {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(
           `[Monitor] Alert delivery failed for ${status.employer}: ${msg}`,
+        );
+      }
+    }
+
+    // Log to audit system
+    if (isAuditLoggerInitialized()) {
+      try {
+        const auditLogger = getAuditLogger();
+        await auditLogger.logMonitorEvent({
+          employer: status.employer,
+          balance: status.balance,
+          liabilities: status.liabilities,
+          dailyBurnRate: status.daily_burn_rate,
+          runwayDays: status.runway_days,
+          alertSent: status.alert_sent,
+          checkType: 'routine',
+        });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(
+          `[Monitor] Failed to log audit event for ${status.employer}: ${msg}`,
         );
       }
     }

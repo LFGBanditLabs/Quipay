@@ -10,6 +10,9 @@ import { startStellarListener } from "./stellarListener";
 import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
 import { startMonitor, runMonitorCycle } from "./monitor/monitor";
 import { NonceManager } from "./services/nonceManager";
+import { initAuditLogger, getAuditLogger } from "./audit/init";
+import { createLoggingMiddleware, createErrorLoggingMiddleware } from "./audit/middleware";
+import { initDb } from "./db/pool";
 
 dotenv.config();
 
@@ -19,11 +22,40 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// Initialize database and audit logger
+async function initializeServices() {
+  await initDb();
+  const auditLogger = initAuditLogger();
+  
+  // Add audit logging middleware for contract interactions
+  app.use(createLoggingMiddleware(auditLogger));
+  
+  return auditLogger;
+}
+
+// Initialize services before starting routes
+let auditLogger: ReturnType<typeof getAuditLogger>;
+initializeServices().then(logger => {
+  auditLogger = logger;
+  console.log('[Backend] ✅ Services initialized');
+}).catch(err => {
+  console.error('[Backend] Failed to initialize services:', err);
+});
+
 app.use("/webhooks", webhookRouter);
 app.use("/slack", slackRouter);
 // Note: discordRouter utilizes native express payloads natively bypassing body buffers mapping local examples
 app.use("/discord", discordRouter);
 app.use("/ai", aiRouter); // Added aiRouter use
+
+// Error logging middleware (should be after routes)
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (auditLogger) {
+    createErrorLoggingMiddleware(auditLogger)(err, req, res, next);
+  } else {
+    next(err);
+  }
+});
 
 // Start time for uptime calculation
 const startTime = Date.now();
