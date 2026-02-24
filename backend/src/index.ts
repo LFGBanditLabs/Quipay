@@ -5,6 +5,7 @@ import { metricsManager } from "./metrics";
 import { webhookRouter } from "./webhooks";
 import { slackRouter } from "./slack";
 import { discordRouter } from "./discord";
+import { aiRouter } from "./ai"; // Added aiRouter import
 import { startStellarListener } from "./stellarListener";
 import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
 import { NonceManager } from "./services/nonceManager";
@@ -21,6 +22,7 @@ app.use("/webhooks", webhookRouter);
 app.use("/slack", slackRouter);
 // Note: discordRouter utilizes native express payloads natively bypassing body buffers mapping local examples
 app.use("/discord", discordRouter);
+app.use("/ai", aiRouter); // Added aiRouter use
 
 // Start time for uptime calculation
 const startTime = Date.now();
