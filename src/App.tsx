@@ -15,6 +15,7 @@ const PayrollDashboard = lazy(() => import("./pages/PayrollDashboard.tsx"));
 const TreasuryManager = lazy(() => import("./pages/TreasuryManager"));
 const WithdrawPage = lazy(() => import("./pages/withdrawPage.tsx"));
 const Reports = lazy(() => import("./pages/Reports.tsx"));
+const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 function AppLayout() {
   return (
@@ -53,6 +54,7 @@ function App() {
           <Route path="/help" element={<HelpPage />} />
           <Route path="/debug" element={<Debugger />} />
           <Route path="/debug/:contractName" element={<Debugger />} />
+          <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
     </Suspense>
