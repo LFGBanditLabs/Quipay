@@ -66,9 +66,6 @@ impl PayrollVault {
         };
         e.storage().persistent().set(&StateKey::Version, &initial_version);
         
-        // Initialize state
-        e.storage().persistent().set(&StateKey::TreasuryBalance, &0i128);
-        e.storage().persistent().set(&StateKey::TotalLiability, &0i128);
         // Authorized contract starts as None - must be set by admin later
         // No need to initialize balances/liabilities as they are maps
         Ok(())
@@ -261,8 +258,9 @@ impl PayrollVault {
         e.storage().persistent().set(&key, &(current + amount));
         
         // Also update total liability
-        let total: i128 = e.storage().persistent().get(&StateKey::TotalLiability).unwrap_or(0);
-        e.storage().persistent().set(&StateKey::TotalLiability, &(total + amount));
+        let liability_key = StateKey::TotalLiability(token.clone());
+        let total: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
+        e.storage().persistent().set(&liability_key, &(total + amount));
     }
 
     /// Remove liability for a specific token
@@ -288,8 +286,9 @@ impl PayrollVault {
         e.storage().persistent().set(&key, &(current - amount));
         
         // Also update total liability
-        let total: i128 = e.storage().persistent().get(&StateKey::TotalLiability).unwrap_or(0);
-        e.storage().persistent().set(&StateKey::TotalLiability, &(total - amount));
+        let liability_key = StateKey::TotalLiability(token.clone());
+        let total: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
+        e.storage().persistent().set(&liability_key, &(total - amount));
     }
 
     /// Get the liability for a specific token

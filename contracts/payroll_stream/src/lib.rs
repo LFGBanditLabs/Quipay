@@ -160,7 +160,7 @@ impl PayrollStream {
         env.invoke_contract::<()>(
             &vault,
             &Symbol::new(&env, "add_liability"),
-            vec![&env, total_amount.into_val(&env)],
+            vec![&env, token.into_val(&env), total_amount.into_val(&env)],
         );
 
         let mut next_id: u64 = env
@@ -372,18 +372,69 @@ impl PayrollStream {
             .get(&StreamKey::Stream(stream_id))
     }
 
-    pub fn get_employer_streams(env: Env, employer: Address) -> Vec<u64> {
-        env.storage()
+    pub fn get_withdrawable(env: Env, stream_id: u64) -> i128 {
+        let key = StreamKey::Stream(stream_id);
+        let stream: Stream = env
+            .storage()
             .persistent()
-            .get(&StreamKey::EmployerStreams(employer))
-            .unwrap_or_else(|| Vec::new(&env))
+            .get(&key)
+            .expect("stream not found");
+
+        if Self::is_closed(&stream) {
+            return 0;
+        }
+
+        let now = env.ledger().timestamp();
+        let vested = Self::vested_amount(&stream, now);
+        vested.checked_sub(stream.withdrawn_amount).unwrap_or(0)
     }
 
-    pub fn get_worker_streams(env: Env, worker: Address) -> Vec<u64> {
-        env.storage()
+    pub fn get_streams_by_employer(
+        env: Env,
+        employer: Address,
+        offset: Option<u32>,
+        limit: Option<u32>,
+    ) -> Vec<u64> {
+        let ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StreamKey::EmployerStreams(employer))
+            .unwrap_or_else(|| Vec::new(&env));
+
+        Self::paginate(&env, ids, offset, limit)
+    }
+
+    pub fn get_streams_by_worker(
+        env: Env,
+        worker: Address,
+        offset: Option<u32>,
+        limit: Option<u32>,
+    ) -> Vec<u64> {
+        let ids: Vec<u64> = env
+            .storage()
             .persistent()
             .get(&StreamKey::WorkerStreams(worker))
-            .unwrap_or_else(|| Vec::new(&env))
+            .unwrap_or_else(|| Vec::new(&env));
+
+        Self::paginate(&env, ids, offset, limit)
+    }
+
+    fn paginate(env: &Env, ids: Vec<u64>, offset: Option<u32>, limit: Option<u32>) -> Vec<u64> {
+        let offset = offset.unwrap_or(0);
+        let ids_len = ids.len();
+        let limit = limit.unwrap_or(ids_len);
+
+        let mut result = Vec::new(env);
+        if offset >= ids_len {
+            return result;
+        }
+
+        let end = (offset + limit).min(ids_len);
+
+        for i in offset..end {
+            result.push_back(ids.get(i).expect("index out of bounds"));
+        }
+        result
     }
 
     pub fn cleanup_stream(env: Env, stream_id: u64) {
