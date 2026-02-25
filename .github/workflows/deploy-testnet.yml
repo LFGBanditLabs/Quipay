@@ -1,0 +1,136 @@
+name: Deploy Contracts to Testnet
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "contracts/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/deploy-testnet.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-testnet:
+    name: Compile, deploy, and initialize Soroban contracts (Testnet)
+    runs-on: ubuntu-latest
+    env:
+      TESTNET_DEPLOYER_SECRET: ${{ secrets.TESTNET_DEPLOYER_SECRET }}
+    outputs:
+      payroll_vault_id: ${{ steps.deploy.outputs.payroll_vault_id }}
+      payroll_stream_id: ${{ steps.deploy.outputs.payroll_stream_id }}
+      automation_gateway_id: ${{ steps.deploy.outputs.automation_gateway_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure deployer secret exists
+        run: |
+          if [ -z "${TESTNET_DEPLOYER_SECRET:-}" ]; then
+            echo "Missing TESTNET_DEPLOYER_SECRET. Add it in GitHub repository secrets before deploying."
+            exit 1
+          fi
+
+      - name: Install Rust target for Soroban contracts
+        run: rustup target add wasm32v1-none
+
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Install Stellar CLI
+        run: cargo binstall --no-confirm --secure stellar-cli
+
+      - name: Build contracts (release)
+        run: |
+          cargo build --release --target wasm32v1-none --package payroll_vault
+          cargo build --release --target wasm32v1-none --package payroll_stream
+          cargo build --release --target wasm32v1-none --package automation_gateway
+
+      - name: Deploy and initialize contracts on Testnet
+        id: deploy
+        run: |
+          set -euo pipefail
+
+          # Extra defense in depth: mask secret even if it appears in unexpected output.
+          echo "::add-mask::${TESTNET_DEPLOYER_SECRET}"
+
+          stellar keys add testnet-deployer \
+            --secret-key "${TESTNET_DEPLOYER_SECRET}" \
+            --global \
+            --no-password
+
+          DEPLOYER_PUBLIC_KEY="$(stellar keys address testnet-deployer)"
+
+          PAYROLL_VAULT_ID="$(stellar contract deploy \
+            --source testnet-deployer \
+            --network testnet \
+            --wasm target/wasm32v1-none/release/payroll_vault.wasm)"
+
+          stellar contract invoke \
+            --source testnet-deployer \
+            --network testnet \
+            --id "${PAYROLL_VAULT_ID}" \
+            -- \
+            initialize \
+            --admin "${DEPLOYER_PUBLIC_KEY}"
+
+          PAYROLL_STREAM_ID="$(stellar contract deploy \
+            --source testnet-deployer \
+            --network testnet \
+            --wasm target/wasm32v1-none/release/payroll_stream.wasm)"
+
+          stellar contract invoke \
+            --source testnet-deployer \
+            --network testnet \
+            --id "${PAYROLL_STREAM_ID}" \
+            -- \
+            init \
+            --admin "${DEPLOYER_PUBLIC_KEY}"
+
+          stellar contract invoke \
+            --source testnet-deployer \
+            --network testnet \
+            --id "${PAYROLL_STREAM_ID}" \
+            -- \
+            set_vault \
+            --vault "${PAYROLL_VAULT_ID}"
+
+          stellar contract invoke \
+            --source testnet-deployer \
+            --network testnet \
+            --id "${PAYROLL_VAULT_ID}" \
+            -- \
+            set_authorized_contract \
+            --contract "${PAYROLL_STREAM_ID}"
+
+          AUTOMATION_GATEWAY_ID="$(stellar contract deploy \
+            --source testnet-deployer \
+            --network testnet \
+            --wasm target/wasm32v1-none/release/automation_gateway.wasm)"
+
+          stellar contract invoke \
+            --source testnet-deployer \
+            --network testnet \
+            --id "${AUTOMATION_GATEWAY_ID}" \
+            -- \
+            init \
+            --admin "${DEPLOYER_PUBLIC_KEY}"
+
+          {
+            echo "payroll_vault_id=${PAYROLL_VAULT_ID}"
+            echo "payroll_stream_id=${PAYROLL_STREAM_ID}"
+            echo "automation_gateway_id=${AUTOMATION_GATEWAY_ID}"
+          } >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "## Testnet Contract Deployment"
+            echo ""
+            echo "- Deployer: \`${DEPLOYER_PUBLIC_KEY}\`"
+            echo "- PayrollVault: \`${PAYROLL_VAULT_ID}\`"
+            echo "- PayrollStream: \`${PAYROLL_STREAM_ID}\`"
+            echo "- AutomationGateway: \`${AUTOMATION_GATEWAY_ID}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
