@@ -479,7 +479,7 @@ fn test_batch_withdraw_completes_stream() {
 }
 
 #[test]
-fn test_index_get_employer_streams() {
+fn test_index_get_streams_by_employer() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -502,14 +502,14 @@ fn test_index_get_employer_streams() {
     let id1 = client.create_stream(&employer, &worker, &token, &10, &0u64, &0u64, &100u64);
     let id2 = client.create_stream(&employer, &worker, &token, &20, &0u64, &0u64, &200u64);
 
-    let ids = client.get_employer_streams(&employer);
+    let ids = client.get_streams_by_employer(&employer, &None, &None);
     assert_eq!(ids.len(), 2);
     assert_eq!(ids.get(0).unwrap(), id1);
     assert_eq!(ids.get(1).unwrap(), id2);
 }
 
 #[test]
-fn test_index_get_worker_streams() {
+fn test_index_get_streams_by_worker() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -532,7 +532,7 @@ fn test_index_get_worker_streams() {
     let id1 = client.create_stream(&employer, &worker, &token, &10, &0u64, &0u64, &100u64);
     let id2 = client.create_stream(&employer, &worker, &token, &20, &0u64, &0u64, &200u64);
 
-    let ids = client.get_worker_streams(&worker);
+    let ids = client.get_streams_by_worker(&worker, &None, &None);
     assert_eq!(ids.len(), 2);
     assert_eq!(ids.get(0).unwrap(), id1);
     assert_eq!(ids.get(1).unwrap(), id2);
@@ -599,8 +599,8 @@ fn test_cleanup_removes_from_indexes() {
     let id1 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
     let id2 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &20u64);
 
-    assert_eq!(client.get_employer_streams(&employer).len(), 2);
-    assert_eq!(client.get_worker_streams(&worker).len(), 2);
+    assert_eq!(client.get_streams_by_employer(&employer, &None, &None).len(), 2);
+    assert_eq!(client.get_streams_by_worker(&worker, &None, &None).len(), 2);
 
     env.ledger().with_mut(|li| {
         li.timestamp = 10;
@@ -609,11 +609,11 @@ fn test_cleanup_removes_from_indexes() {
 
     client.cleanup_stream(&id1);
 
-    let emp_ids = client.get_employer_streams(&employer);
+    let emp_ids = client.get_streams_by_employer(&employer, &None, &None);
     assert_eq!(emp_ids.len(), 1);
     assert_eq!(emp_ids.get(0).unwrap(), id2);
 
-    let wrk_ids = client.get_worker_streams(&worker);
+    let wrk_ids = client.get_streams_by_worker(&worker, &None, &None);
     assert_eq!(wrk_ids.len(), 1);
     assert_eq!(wrk_ids.get(0).unwrap(), id2);
 }
@@ -1227,8 +1227,8 @@ fn test_empty_index_for_unknown_address() {
     env.mock_all_auths();
     let (client, _, _, _, _) = setup(&env);
     let stranger = Address::generate(&env);
-    assert_eq!(client.get_employer_streams(&stranger).len(), 0);
-    assert_eq!(client.get_worker_streams(&stranger).len(), 0);
+    assert_eq!(client.get_streams_by_employer(&stranger, &None, &None).len(), 0);
+    assert_eq!(client.get_streams_by_worker(&stranger, &None, &None).len(), 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -1386,12 +1386,58 @@ fn test_different_employers_have_independent_indexes() {
     });
     let id1 = client.create_stream(&employer1, &worker1, &token, &10, &0u64, &0u64, &100u64);
     let id2 = client.create_stream(&employer2, &worker2, &token, &10, &0u64, &0u64, &100u64);
-    let emp1_ids = client.get_employer_streams(&employer1);
-    let emp2_ids = client.get_employer_streams(&employer2);
+    let emp1_ids = client.get_streams_by_employer(&employer1, &None, &None);
+    let emp2_ids = client.get_streams_by_employer(&employer2, &None, &None);
     assert_eq!(emp1_ids.len(), 1);
     assert_eq!(emp1_ids.get(0).unwrap(), id1);
     assert_eq!(emp2_ids.len(), 1);
     assert_eq!(emp2_ids.get(0).unwrap(), id2);
-    assert_eq!(client.get_worker_streams(&worker1).get(0).unwrap(), id1);
-    assert_eq!(client.get_worker_streams(&worker2).get(0).unwrap(), id2);
+    assert_eq!(client.get_streams_by_worker(&worker1, &None, &None).get(0).unwrap(), id1);
+    assert_eq!(client.get_streams_by_worker(&worker2, &None, &None).get(0).unwrap(), id2);
+}
+
+#[test]
+fn test_get_withdrawable() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    
+    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
+    
+    env.ledger().with_mut(|li| { li.timestamp = 25; });
+    assert_eq!(client.get_withdrawable(&stream_id), 2500);
+    
+    client.withdraw(&stream_id, &worker);
+    assert_eq!(client.get_withdrawable(&stream_id), 0);
+    
+    env.ledger().with_mut(|li| { li.timestamp = 50; });
+    assert_eq!(client.get_withdrawable(&stream_id), 2500);
+}
+
+#[test]
+fn test_pagination() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+    env.ledger().with_mut(|li| { li.timestamp = 0; });
+    
+    let id1 = client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64);
+    let id2 = client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64);
+    let id3 = client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64);
+    
+    let all = client.get_streams_by_employer(&employer, &None, &None);
+    assert_eq!(all.len(), 3);
+    
+    let page1 = client.get_streams_by_employer(&employer, &Some(0), &Some(2));
+    assert_eq!(page1.len(), 2);
+    assert_eq!(page1.get(0).unwrap(), id1);
+    assert_eq!(page1.get(1).unwrap(), id2);
+    
+    let page2 = client.get_streams_by_employer(&employer, &Some(2), &Some(2));
+    assert_eq!(page2.len(), 1);
+    assert_eq!(page2.get(0).unwrap(), id3);
+    
+    let empty = client.get_streams_by_employer(&employer, &Some(5), &Some(1));
+    assert_eq!(empty.len(), 0);
 }
