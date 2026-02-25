@@ -176,13 +176,17 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     // Get the wallet address when the component is mounted for the first time
-    startTransition(async () => {
+    // Get the wallet address when the component is mounted for the first time
+    const init = async () => {
       await updateCurrentWalletState();
       // Start polling after initial state is loaded
-
       if (isMounted) {
         timer = setTimeout(() => void pollWalletState(), POLL_INTERVAL);
       }
+    };
+
+    startTransition(() => {
+      void init();
     });
 
     // Clear the timeout and stop polling when the component unmounts
@@ -216,5 +220,9 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
     ],
   );
 
-  return <WalletContext value={contextValue}>{children}</WalletContext>;
+  return (
+    <WalletContext.Provider value={contextValue}>
+      {children}
+    </WalletContext.Provider>
+  );
 };

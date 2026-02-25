@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Layout, Text, Loader } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
 import { useStreams, WorkerStream } from "../hooks/useStreams";
+import { EarningsDisplay } from "../components/EarningsDisplay";
 import styles from "./WorkerDashboard.module.css";
 
 const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
@@ -66,7 +67,7 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
           justifyContent: "space-between",
         }}
       >
-        <span style={{ fontSize: "0.875rem", color: "#a5a5a5" }}>
+        <span style={{ fontSize: "0.875rem", color: "var(--muted)" }}>
           Available:
         </span>
         <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>
@@ -87,32 +88,6 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
 const WorkerDashboard: React.FC = () => {
   const { address } = useWallet();
   const { streams, withdrawalHistory, isLoading } = useStreams(address);
-  const [totalEarned, setTotalEarned] = useState<{ [key: string]: number }>({});
-
-  useEffect(() => {
-    if (streams.length === 0) return;
-
-    const calculateTotal = () => {
-      const totals: { [key: string]: number } = {};
-      const now = Date.now() / 1000;
-
-      streams.forEach((stream) => {
-        const elapsed = Math.max(0, now - stream.startTime);
-        const earned = Math.min(elapsed * stream.flowRate, stream.totalAmount);
-
-        if (!totals[stream.tokenSymbol]) {
-          totals[stream.tokenSymbol] = 0;
-        }
-        totals[stream.tokenSymbol] += earned;
-      });
-
-      setTotalEarned(totals);
-    };
-
-    calculateTotal();
-    const interval = setInterval(calculateTotal, 100);
-    return () => clearInterval(interval);
-  }, [streams]);
 
   if (isLoading) {
     return (
@@ -146,22 +121,7 @@ const WorkerDashboard: React.FC = () => {
           </header>
 
           <section className={styles.statsGrid}>
-            {Object.entries(totalEarned).map(([token, amount]) => (
-              <div key={token} className={styles.statCard}>
-                <div className={styles.statLabel}>Total Earned ({token})</div>
-                <div className={styles.statValue}>{amount.toFixed(6)}</div>
-              </div>
-            ))}
-            {Object.keys(totalEarned).length === 0 && (
-              <div className={styles.statCard}>
-                <div className={styles.statLabel}>Total Earned</div>
-                <div className={styles.statValue}>0.000000</div>
-              </div>
-            )}
-            <div className={styles.statCard}>
-              <div className={styles.statLabel}>Active Streams</div>
-              <div className={styles.statValue}>{streams.length}</div>
-            </div>
+            <EarningsDisplay streams={streams} />
           </section>
 
           <h2 className={styles.sectionTitle}>Your Active Streams</h2>
@@ -170,7 +130,7 @@ const WorkerDashboard: React.FC = () => {
               className={styles.statCard}
               style={{ textAlign: "center", padding: "3rem" }}
             >
-              <p style={{ color: "#a5a5a5" }}>
+              <p style={{ color: "var(--muted)" }}>
                 No active streams found for this address.
               </p>
             </div>
@@ -213,7 +173,7 @@ const WorkerDashboard: React.FC = () => {
                       style={{
                         textAlign: "center",
                         padding: "2rem",
-                        color: "#a5a5a5",
+                        color: "var(--muted)",
                       }}
                     >
                       No withdrawal history yet.

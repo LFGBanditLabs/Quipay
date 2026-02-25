@@ -1,2 +1,278 @@
-/* Import font for Stellar Design System */
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Inconsolata:wght@500&display=swap");
+@import "tailwindcss";
+
+:root {
+  --bg: #f4f9ff;
+  --text: #12263f;
+  --surface: #ffffff;
+  --surface-rgb: 255, 255, 255;
+  --border: rgba(0, 0, 0, 0.08);
+  --accent: #0f7a99;
+  --accent-hover: #0c617a;
+  --muted: #64748b;
+  --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --success-transparent-strong: rgba(16, 185, 129, 0.2);
+  --accent-transparent: rgba(15, 122, 153, 0.08);
+  --accent-transparent-strong: rgba(15, 122, 153, 0.15);
+  --error-transparent: rgba(239, 68, 68, 0.08);
+
+  /* SDS Mappings */
+  --sds-color-background-primary: var(--surface);
+  --sds-color-background-secondary: var(--bg);
+  --sds-color-neutral-subtle: #f8fafc;
+  --sds-color-content-primary: var(--text);
+  --sds-color-content-secondary: var(--muted);
+  --sds-color-neutral-border: var(--border);
+  --sds-color-brand-primary: var(--accent);
+  --sds-color-feedback-error: #ef4444;
+  --sds-color-feedback-success: #10b981;
+  --sds-color-feedback-warning: #f59e0b;
+  --sds-color-feedback-error-transparent: rgba(239, 68, 68, 0.1);
+
+  color: var(--text);
+  background: var(--bg);
+  font-family: Inter, "Avenir Next", "Segoe UI", sans-serif;
+
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+
+  /* Breakpoints */
+  --breakpoint-mobile: 768px;
+  --breakpoint-tablet: 1024px;
+}
+
+[data-theme="dark"] {
+  --bg: #0f172a;
+  --text: #f8fafc;
+  --surface: #1e293b;
+  --surface-rgb: 30, 41, 59;
+  --border: rgba(255, 255, 255, 0.15);
+  --accent: #38bdf8;
+  --accent-hover: #7dd3fc;
+  --muted: #94a3b8;
+  --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5);
+  --shadow-color: rgba(0, 0, 0, 0.5);
+  --success-transparent-strong: rgba(52, 211, 153, 0.3);
+  --accent-transparent: rgba(56, 189, 248, 0.15);
+  --accent-transparent-strong: rgba(56, 189, 248, 0.25);
+  --error-transparent: rgba(248, 113, 113, 0.15);
+
+  /* SDS Mappings for Dark Mode */
+  --sds-color-background-primary: var(--surface);
+  --sds-color-background-secondary: #111827;
+  --sds-color-neutral-subtle: #1e293b;
+  --sds-color-content-primary: var(--text);
+  --sds-color-content-secondary: var(--muted);
+  --sds-color-neutral-border: var(--border);
+  --sds-color-brand-primary: var(--accent);
+  --sds-color-feedback-error: #f87171;
+  --sds-color-feedback-success: #34d399;
+  --sds-color-feedback-warning: #fbbf24;
+  --sds-color-feedback-error-transparent: rgba(248, 113, 113, 0.2);
+}
+
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: #000;
+  color: white;
+  padding: 8px;
+  z-index: 100;
+  transition: top 0.3s;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: inherit;
+  background: var(--bg);
+  /* Optional: Keep partial gradients if desired, or simplify for dark mode */
+}
+
+[data-theme="light"] body {
+  background:
+    radial-gradient(
+      circle at 10% 18%,
+      rgba(208, 234, 255, 0.52),
+      transparent 36%
+    ),
+    radial-gradient(
+      circle at 88% 16%,
+      rgba(255, 220, 190, 0.44),
+      transparent 32%
+    ),
+    var(--bg);
+}
+
+a {
+  color: inherit;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-30px) scale(1.05);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes floatPanel {
+  0% {
+    transform: rotateX(5deg) translateY(0);
+  }
+  100% {
+    transform: rotateX(5deg) translateY(-15px);
+  }
+}
+
+@keyframes counterPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes tokenFlow {
+  0% {
+    transform: translateX(-100%) translateY(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100vw) translateY(20px);
+    opacity: 0;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 10s ease-in-out infinite;
+}
+
+.animate-slide-up {
+  animation: slideUp 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-float-panel {
+  animation: floatPanel 6s ease-in-out infinite alternate;
+}
+
+.animate-counter-pulse {
+  animation: counterPulse 1s ease-in-out infinite;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.8s ease-out forwards;
+  opacity: 0;
+}
+
+.animate-token-flow {
+  animation: tokenFlow 4s linear infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s linear infinite;
+  background-size: 200% 100%;
+}
+
+.animate-spin-slow {
+  animation: spin 20s linear infinite;
+}
+
+.animate-bounce-subtle {
+  animation: bounce 2s ease-in-out infinite;
+}
+
+.style-mask-border {
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}

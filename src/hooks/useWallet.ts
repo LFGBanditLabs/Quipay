@@ -1,8 +1,8 @@
-import { use } from "react";
+import { useContext } from "react";
 import { WalletContext } from "../providers/WalletProvider";
 
 export const useWallet = () => {
-  const ctx = use(WalletContext);
+  const ctx = useContext(WalletContext);
   if (!ctx) {
     throw new Error("useWallet must be used within a WalletProvider");
   }

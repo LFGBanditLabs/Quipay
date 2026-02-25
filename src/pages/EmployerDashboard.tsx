@@ -1,9 +1,12 @@
 import React from "react";
-import { Layout, Text, Button, Loader } from "@stellar/design-system";
+import { Layout, Text, Button } from "@stellar/design-system";
 import { usePayroll } from "../hooks/usePayroll";
 import styles from "./EmployerDashboard.module.css";
 import { useNavigate } from "react-router-dom";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 import WithdrawButton from "../components/WithdrawButton";
+import EmptyState from "../components/EmptyState";
+import { SkeletonCard, SkeletonRow } from "../components/Loading";
 
 const EmployerDashboard: React.FC = () => {
   const {
@@ -15,10 +18,50 @@ const EmployerDashboard: React.FC = () => {
   } = usePayroll();
   const navigate = useNavigate();
 
+  const seoDescription = isLoading
+    ? "Loading your Quipay dashboard metrics and active stream overview."
+    : `Track ${activeStreamsCount} active streams with total liabilities ${totalLiabilities} in your Quipay employer dashboard.`;
+
+  if (isLoading) {
+    return (
+      <>
+        <SeoHelmet
+          title="Employer Dashboard"
+          description={seoDescription}
+          path="/dashboard"
+          imagePath="/social/dashboard-preview.png"
+          robots="noindex,nofollow"
+        />
+        <Layout.Content>
+          <Layout.Inset>
+            <Text as="h1" size="xl" weight="medium">
+              Employer Dashboard
+            </Text>
+            <div className={styles.dashboardGrid}>
+              <SkeletonCard lines={3} />
+              <SkeletonCard lines={2} />
+              <SkeletonCard lines={2} />
+            </div>
+            <div className={styles.streamsSection}>
+              <div className={styles.streamsHeader}>
+                <Text as="h2" size="lg">
+                  Active Streams
+                </Text>
+              </div>
+              <div className={styles.streamsList}>
+                <SkeletonRow />
+                <SkeletonRow />
+              </div>
+            </div>
+          </Layout.Inset>
+        </Layout.Content>
+      </>
+    );
+  }
+
   const demoContract = {
-    // eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
-    withdrawableAmount: async (_address: string) => {
-      return BigInt("5000000"); // 5.00 USDC (6 decimals)
+    withdrawableAmount: () => {
+      return Promise.resolve(BigInt("5000000")); // 5.00 USDC (6 decimals)
     },
     withdraw: async () => {
       await new Promise((res) => setTimeout(res, 2000)); // simulate delay
@@ -28,24 +71,6 @@ const EmployerDashboard: React.FC = () => {
       };
     },
   };
-
-  if (isLoading) {
-    return (
-      <Layout.Content>
-        <Layout.Inset>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              padding: "50px",
-            }}
-          >
-            <Loader />
-          </div>
-        </Layout.Inset>
-      </Layout.Content>
-    );
-  }
 
   return (
     <Layout.Content>
@@ -61,10 +86,11 @@ const EmployerDashboard: React.FC = () => {
             tokenSymbol="USDC"
             tokenDecimals={6}
           />
+
           {/* Treasury Balance */}
           <div className={styles.card} id="tour-treasury-balance">
             <Text
-              as="span"
+              as="h2"
               size="md"
               weight="semi-bold"
               className={styles.cardHeader}
@@ -78,6 +104,20 @@ const EmployerDashboard: React.FC = () => {
                 </Text>
               </div>
             ))}
+            {treasuryBalances.length === 0 ? (
+              <div style={{ marginTop: "1rem" }}>
+                <EmptyState
+                  variant="treasury"
+                  title="No Funds Yet"
+                  description="Your treasury is currently empty. Deposit funds to start paying your workers."
+                  icon="💰"
+                  actionLabel="Deposit Funds"
+                  onAction={() => {
+                    void navigate("/treasury-management");
+                  }}
+                />
+              </div>
+            ) : null}
             <div style={{ marginTop: "10px" }}>
               <Button
                 variant="secondary"
@@ -105,8 +145,8 @@ const EmployerDashboard: React.FC = () => {
             <Text as="div" size="lg" className={styles.metricValue}>
               {totalLiabilities}
             </Text>
-            <Text as="p" size="sm">
-              Estimated monthly
+            <Text as="p" size="sm" style={{ color: "var(--muted)" }}>
+              You are projected to pay {totalLiabilities} in the next 30 days.
             </Text>
           </div>
 
@@ -134,7 +174,6 @@ const EmployerDashboard: React.FC = () => {
             <Button
               variant="primary"
               size="md"
-              id="tour-create-stream"
               onClick={() => {
                 void navigate("/create-stream");
               }}
@@ -144,18 +183,31 @@ const EmployerDashboard: React.FC = () => {
           </div>
 
           {activeStreams.length === 0 ? (
-            <Text as="p" size="md">
-              No active streams found.
-            </Text>
+            <EmptyState
+              title="No active streams"
+              description="You haven't created any payment streams yet. Start by adding your first worker."
+              variant="streams"
+              actionLabel="Create New Stream"
+              onAction={() => {
+                void navigate("/create-stream");
+              }}
+            />
           ) : (
             <div className={styles.streamsList}>
               {activeStreams.map((stream) => (
-                <div key={stream.id} className={styles.streamItem}>
+                <div
+                  key={stream.id}
+                  className={styles.streamItem}
+                  onClick={() => {
+                    void navigate(`/stream/${stream.id}`);
+                  }}
+                  style={{ cursor: "pointer" }}
+                >
                   <div>
-                    <Text as="div" size="sm" weight="bold">
+                    <Text as="div" size="md" weight="bold">
                       {stream.employeeName}
                     </Text>
-                    <Text as="div" size="sm">
+                    <Text as="div" size="sm" style={{ color: "var(--muted)" }}>
                       {stream.employeeAddress}
                     </Text>
                   </div>
@@ -163,7 +215,7 @@ const EmployerDashboard: React.FC = () => {
                     <Text as="div" size="sm">
                       Flow Rate: {stream.flowRate} {stream.tokenSymbol}/sec
                     </Text>
-                    <Text as="div" size="sm">
+                    <Text as="div" size="sm" style={{ color: "var(--muted)" }}>
                       Start: {stream.startDate}
                     </Text>
                   </div>

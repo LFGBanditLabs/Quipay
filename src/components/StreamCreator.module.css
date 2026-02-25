@@ -36,7 +36,8 @@
 
 .subtitle {
   font-size: 0.875rem;
-  color: var(--sds-color-content-secondary, #64748b);
+  color: var(--sds-color-content-secondary, #4b5563);
+  /* Increased contrast from #64748b */
   margin: 0;
 }
 
@@ -168,21 +169,21 @@
 }
 
 .solvencyBannerOk {
-  background: rgba(34, 197, 94, 0.08);
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  color: #166534;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #10b981;
 }
 
 .solvencyBannerWarn {
-  background: rgba(239, 68, 68, 0.08);
+  background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #991b1b;
+  color: var(--sds-color-feedback-error, #ef4444);
 }
 
 .solvencyBannerLoading {
-  background: rgba(148, 163, 184, 0.1);
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  color: var(--sds-color-content-secondary, #64748b);
+  background: rgba(var(--text-rgb), 0.05);
+  border: 1px solid var(--border);
+  color: var(--muted);
 }
 
 .solvencyIcon {
@@ -202,21 +203,21 @@
 }
 
 .statusLoading {
-  background: rgba(99, 102, 241, 0.07);
-  border: 1px solid rgba(99, 102, 241, 0.2);
-  color: #3730a3;
+  background: rgba(var(--accent-rgb), 0.1);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  color: var(--accent);
 }
 
 .statusSuccess {
-  background: rgba(34, 197, 94, 0.08);
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  color: #166534;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #10b981;
 }
 
 .statusError {
-  background: rgba(239, 68, 68, 0.08);
+  background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #991b1b;
+  color: var(--sds-color-feedback-error, #ef4444);
 }
 
 .statusContent {

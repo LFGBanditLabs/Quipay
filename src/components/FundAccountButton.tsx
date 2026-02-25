@@ -13,7 +13,7 @@ const FundAccountButton: React.FC = () => {
   if (!address) return null;
 
   const handleFundAccount = () => {
-    startTransition(async () => {
+    const fund = async () => {
       try {
         const response = await fetch(getFriendbotUrl(address));
 
@@ -35,6 +35,10 @@ const FundAccountButton: React.FC = () => {
       } catch {
         addNotification("Error funding account. Please try again.", "error");
       }
+    };
+
+    startTransition(() => {
+      void fund();
     });
   };
 

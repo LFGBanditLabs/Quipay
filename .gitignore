@@ -7,6 +7,11 @@ target
 
 # test snapshot folders from sample contracts
 test_snapshots
+contracts/payroll_stream/proptest-regressions/
+
+# benchmark report output
+benchmark-out/
+contracts/payroll_stream/benchmark-out/
 
 # build output
 dist
@@ -23,6 +28,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+lighthouse-report*
+lighthouse-mobile-report*
 
 # environment variables
 .env
@@ -43,3 +50,4 @@ packages/*
 # generated contract client imports
 src/contracts/*
 !src/contracts/util.ts
+!src/contracts/payroll_stream.ts

@@ -1,6 +1,6 @@
 #![no_std]
-use quipay_common::{require, QuipayError};
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol, Vec};
+use quipay_common::{QuipayError, require};
+use soroban_sdk::{Address, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype};
 
 #[contracttype]
 #[derive(Clone)]
@@ -94,16 +94,17 @@ impl PayrollStream {
             .unwrap_or(false)
     }
 
-    pub fn set_retention_secs(env: Env, retention_secs: u64) {
+    pub fn set_retention_secs(env: Env, retention_secs: u64) -> Result<(), QuipayError> {
         let admin: Address = env
             .storage()
             .instance()
             .get(&DataKey::Admin)
-            .expect("not initialized");
+            .ok_or(QuipayError::NotInitialized)?;
         admin.require_auth();
         env.storage()
             .instance()
             .set(&DataKey::RetentionSecs, &retention_secs);
+        Ok(())
     }
 
     pub fn set_vault(env: Env, vault: Address) {
@@ -125,8 +126,8 @@ impl PayrollStream {
         cliff_ts: u64,
         start_ts: u64,
         end_ts: u64,
-    ) -> u64 {
-        Self::require_not_paused(&env);
+    ) -> Result<u64, QuipayError> {
+        Self::require_not_paused(&env)?;
         employer.require_auth();
 
         if rate <= 0 {
@@ -156,7 +157,20 @@ impl PayrollStream {
             .instance()
             .get(&DataKey::Vault)
             .expect("vault not configured");
-        use soroban_sdk::{vec, IntoVal, Symbol};
+
+        use soroban_sdk::{IntoVal, Symbol, vec};
+        // Block stream creation if treasury would be insolvent
+        let solvent: bool = env.invoke_contract(
+            &vault,
+            &Symbol::new(&env, "check_solvency"),
+            vec![
+                &env,
+                token.clone().into_val(&env),
+                total_amount.into_val(&env),
+            ],
+        );
+        require!(solvent, QuipayError::InsufficientBalance);
+
         env.invoke_contract::<()>(
             &vault,
             &Symbol::new(&env, "add_liability"),
@@ -213,15 +227,20 @@ impl PayrollStream {
         env.storage().persistent().set(&wrk_key, &wrk_ids);
 
         env.events().publish(
-            (Symbol::new(&env, "stream"), Symbol::new(&env, "created")),
-            (stream_id, employer, worker, token, rate, start_ts, end_ts),
+            (
+                Symbol::new(&env, "stream"),
+                Symbol::new(&env, "created"),
+                worker.clone(),
+                employer.clone(),
+            ),
+            (stream_id, token, rate, start_ts, end_ts),
         );
 
-        stream_id
+        Ok(stream_id)
     }
 
-    pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> i128 {
-        Self::require_not_paused(&env);
+    pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> Result<i128, QuipayError> {
+        Self::require_not_paused(&env)?;
         worker.require_auth();
 
         let key = StreamKey::Stream(stream_id);
@@ -232,10 +251,10 @@ impl PayrollStream {
             .expect("stream not found");
 
         if stream.worker != worker {
-            panic!("not stream worker");
+            panic!("not worker");
         }
         if Self::is_closed(&stream) {
-            panic!("stream is closed");
+            panic!("stream closed");
         }
 
         let now = env.ledger().timestamp();
@@ -243,8 +262,25 @@ impl PayrollStream {
         let available = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
 
         if available <= 0 {
-            return 0;
+            return Ok(0);
         }
+
+        let vault: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Vault)
+            .expect("vault not configured");
+        use soroban_sdk::{IntoVal, Symbol, vec};
+        env.invoke_contract::<()>(
+            &vault,
+            &Symbol::new(&env, "payout_liability"),
+            vec![
+                &env,
+                worker.clone().into_val(&env),
+                stream.token.clone().into_val(&env),
+                available.into_val(&env),
+            ],
+        );
 
         stream.withdrawn_amount = stream
             .withdrawn_amount
@@ -257,7 +293,18 @@ impl PayrollStream {
         }
 
         env.storage().persistent().set(&key, &stream);
-        available
+
+        env.events().publish(
+            (
+                Symbol::new(&env, "stream"),
+                Symbol::new(&env, "withdrawn"),
+                stream_id,
+                worker.clone(),
+            ),
+            (available, stream.token.clone()),
+        );
+
+        Ok(available)
     }
 
     pub fn batch_withdraw(env: Env, stream_ids: Vec<u64>, caller: Address) -> Vec<WithdrawResult> {
@@ -297,6 +344,23 @@ impl PayrollStream {
                                 success: true,
                             }
                         } else {
+                            let vault: Address = env
+                                .storage()
+                                .instance()
+                                .get(&DataKey::Vault)
+                                .expect("vault not configured");
+                            use soroban_sdk::{IntoVal, Symbol, vec};
+                            env.invoke_contract::<()>(
+                                &vault,
+                                &Symbol::new(&env, "payout_liability"),
+                                vec![
+                                    &env,
+                                    caller.clone().into_val(&env),
+                                    stream.token.clone().into_val(&env),
+                                    available.into_val(&env),
+                                ],
+                            );
+
                             stream.withdrawn_amount = stream
                                 .withdrawn_amount
                                 .checked_add(available)
@@ -315,10 +379,12 @@ impl PayrollStream {
 
                             env.events().publish(
                                 (
-                                    Symbol::new(&env, "batch_withdraw"),
+                                    Symbol::new(&env, "stream"),
                                     Symbol::new(&env, "withdrawn"),
+                                    stream_id,
+                                    caller.clone(),
                                 ),
-                                (stream_id, caller.clone(), available),
+                                (available, stream.token.clone()),
                             );
 
                             WithdrawResult {
@@ -343,9 +409,14 @@ impl PayrollStream {
         results
     }
 
-    pub fn cancel_stream(env: Env, stream_id: u64, employer: Address) {
-        Self::require_not_paused(&env);
-        employer.require_auth();
+    pub fn cancel_stream(
+        env: Env,
+        stream_id: u64,
+        caller: Address,
+        gateway: Option<Address>,
+    ) -> Result<(), QuipayError> {
+        Self::require_not_paused(&env)?;
+        caller.require_auth();
 
         let key = StreamKey::Stream(stream_id);
         let mut stream: Stream = env
@@ -354,16 +425,98 @@ impl PayrollStream {
             .get(&key)
             .expect("stream not found");
 
-        if stream.employer != employer {
-            panic!("not stream employer");
+        if stream.employer != caller {
+            let gateway_addr = gateway.expect("gateway required for agent auth");
+            let admin: Address = env.invoke_contract(
+                &gateway_addr,
+                &soroban_sdk::Symbol::new(&env, "get_admin"),
+                soroban_sdk::vec![&env],
+            );
+            if admin != stream.employer {
+                panic!("gateway admin mismatch");
+            }
+            let is_auth: bool = env.invoke_contract(
+                &gateway_addr,
+                &soroban_sdk::Symbol::new(&env, "is_authorized"),
+                soroban_sdk::vec![
+                    &env,
+                    caller.clone().into_val(&env),
+                    1u32.into_val(&env), // Permission::ExecutePayroll
+                ],
+            );
+            if !is_auth {
+                panic!("not authorized by gateway");
+            }
         }
+
         if Self::is_closed(&stream) {
-            return;
+            return Ok(());
         }
 
         let now = env.ledger().timestamp();
+
+        // Calculate accrued (vested) amount up to now
+        let vested = Self::vested_amount(&stream, now);
+        let owed = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
+
+        let vault: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Vault)
+            .expect("vault not configured");
+
+        // Pay out owed amount to worker
+        if owed > 0 {
+            use soroban_sdk::{IntoVal, Symbol, vec};
+            env.invoke_contract::<()>(
+                &vault,
+                &Symbol::new(&env, "payout_liability"),
+                vec![
+                    &env,
+                    stream.worker.clone().into_val(&env),
+                    stream.token.clone().into_val(&env),
+                    owed.into_val(&env),
+                ],
+            );
+            stream.withdrawn_amount = stream
+                .withdrawn_amount
+                .checked_add(owed)
+                .expect("withdrawn overflow");
+            stream.last_withdrawal_ts = now;
+        }
+
+        let remaining_liability = stream
+            .total_amount
+            .checked_sub(stream.withdrawn_amount)
+            .expect("remaining liability underflow");
+
+        if remaining_liability > 0 {
+            use soroban_sdk::{IntoVal, Symbol, vec};
+            env.invoke_contract::<()>(
+                &vault,
+                &Symbol::new(&env, "remove_liability"),
+                vec![
+                    &env,
+                    stream.token.clone().into_val(&env),
+                    remaining_liability.into_val(&env),
+                ],
+            );
+        }
+
         Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
         env.storage().persistent().set(&key, &stream);
+
+        env.events().publish(
+            (
+                soroban_sdk::Symbol::new(&env, "stream"),
+                soroban_sdk::Symbol::new(&env, "canceled"),
+                stream_id,
+                caller.clone(),
+            ),
+            (stream.worker.clone(), stream.token.clone()),
+        );
+
+        Ok(())
     }
 
     pub fn get_stream(env: Env, stream_id: u64) -> Option<Stream> {
@@ -437,17 +590,15 @@ impl PayrollStream {
         result
     }
 
-    pub fn cleanup_stream(env: Env, stream_id: u64) {
+    pub fn cleanup_stream(env: Env, stream_id: u64) -> Result<(), QuipayError> {
         let key = StreamKey::Stream(stream_id);
         let stream: Stream = env
             .storage()
             .persistent()
             .get(&key)
-            .expect("stream not found");
+            .ok_or(QuipayError::StreamNotFound)?;
 
-        if !Self::is_closed(&stream) {
-            panic!("stream not closed");
-        }
+        require!(Self::is_closed(&stream), QuipayError::StreamNotClosed);
 
         let retention: u64 = env
             .storage()
@@ -464,6 +615,7 @@ impl PayrollStream {
         Self::remove_from_index(&env, StreamKey::WorkerStreams(stream.worker), stream_id);
 
         env.storage().persistent().remove(&key);
+        Ok(())
     }
 
     fn require_not_paused(env: &Env) -> Result<(), QuipayError> {
@@ -473,7 +625,7 @@ impl PayrollStream {
             .get(&DataKey::Paused)
             .unwrap_or(false)
         {
-            return Err(QuipayError::ProtocolPaused);
+            panic!("protocol paused");
         }
         Ok(())
     }
@@ -509,31 +661,65 @@ impl PayrollStream {
     }
 
     fn vested_amount(stream: &Stream, now: u64) -> i128 {
-        if now < stream.cliff_ts {
+        Self::vested_amount_at(stream, now)
+    }
+
+    fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
+        let is_closed = Self::is_closed(stream);
+        let effective_ts = if is_closed {
+            core::cmp::min(timestamp, stream.closed_at)
+        } else {
+            timestamp
+        };
+
+        if timestamp < stream.cliff_ts {
             return 0;
         }
-        if now <= stream.start_ts {
+        if effective_ts <= stream.start_ts {
             return 0;
         }
-        if now >= stream.end_ts {
+        if effective_ts >= stream.end_ts {
+            return stream.total_amount;
+        }
+        if is_closed && stream.status == StreamStatus::Canceled {
+            // For canceled streams, cap at proportion up to closed_at
+            let elapsed = effective_ts - stream.start_ts;
+            let duration = stream.end_ts - stream.start_ts;
+            if duration == 0 {
+                return stream.total_amount;
+            }
+            let elapsed_i = elapsed as i128;
+            let duration_i = duration as i128;
+            return stream
+                .total_amount
+                .checked_mul(elapsed_i)
+                .expect("accrued mul overflow")
+                .checked_div(duration_i)
+                .expect("accrued div overflow");
+        }
+
+        let elapsed: u64 = effective_ts - stream.start_ts;
+        let duration: u64 = stream.end_ts - stream.start_ts;
+        if duration == 0 {
             return stream.total_amount;
         }
 
-        let elapsed = now - stream.start_ts;
-        let duration = stream.end_ts - stream.start_ts;
+        let elapsed_i: i128 = elapsed as i128;
+        let duration_i: i128 = duration as i128;
 
-        let elapsed_i = i128::from(elapsed as i64);
-        let duration_i = i128::from(duration as i64);
         stream
             .total_amount
             .checked_mul(elapsed_i)
-            .expect("mul overflow")
+            .expect("accrued mul overflow")
             .checked_div(duration_i)
-            .expect("div overflow")
+            .expect("accrued div overflow")
     }
 }
 
 mod test;
+
+#[cfg(test)]
+mod integration_test;
 
 #[cfg(test)]
 mod proptest;

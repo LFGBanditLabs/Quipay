@@ -6,9 +6,9 @@
 }
 
 .card {
-  background-color: var(
-    --sds-color-neutral-subtle
-  ); /* Assuming SDS variables or default */
+  background-color: var(--sds-color-neutral-subtle);
+  background-color: var(--sds-color-neutral-subtle);
+  /* Assuming SDS variables or default */
   border: 1px solid var(--sds-color-neutral-border);
   border-radius: 8px;
   padding: 20px;
@@ -36,6 +36,8 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .streamsList {
@@ -52,6 +54,7 @@
   border: 1px solid var(--sds-color-neutral-border);
   border-radius: 6px;
   background-color: var(--sds-color-background-primary);
+  gap: 14px;
 }
 
 .actionButtons {
@@ -61,9 +64,35 @@
 }
 
 @media (max-width: 768px) {
+  .dashboardGrid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .streamsHeader {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .streamsHeader button {
+    width: 100%;
+  }
+
   .streamItem {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
+    align-items: stretch;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .metricValue {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 16px;
   }
 }
