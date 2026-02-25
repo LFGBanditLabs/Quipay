@@ -2,7 +2,6 @@ import { Button, Layout } from "@stellar/design-system";
 import { NavLink, Outlet } from "react-router-dom";
 import ConnectAccount from "../ConnectAccount";
 import { WalletProvider } from "../../providers/WalletProvider";
-import styles from "../../App.module.css";
 import "@stellar/design-system/build/styles.min.css";
 
 export default function WalletLayout() {
@@ -13,12 +12,12 @@ export default function WalletLayout() {
           projectId="Quipay"
           projectTitle="Quipay"
           contentRight={
-            <div className={styles.headerRight}>
-              <nav className={styles.headerNav}>
-                <NavLink to="/" className={styles.navLink}>
+            <div className="flex items-center gap-3 [--connect-account-justify:flex-end] max-md:[--connect-account-justify:flex-start] max-md:gap-2">
+              <nav className="flex items-center gap-2">
+                <NavLink to="/" className="no-underline">
                   {({ isActive }) => (
                     <Button
-                      className={styles.navButton}
+                      className="whitespace-nowrap"
                       variant="tertiary"
                       size="md"
                       disabled={isActive}
@@ -27,10 +26,10 @@ export default function WalletLayout() {
                     </Button>
                   )}
                 </NavLink>
-                <NavLink to="/dashboard" className={styles.navLink}>
+                <NavLink to="/dashboard" className="no-underline">
                   {({ isActive }) => (
                     <Button
-                      className={styles.navButton}
+                      className="whitespace-nowrap"
                       variant="tertiary"
                       size="md"
                       disabled={isActive}
@@ -39,10 +38,10 @@ export default function WalletLayout() {
                     </Button>
                   )}
                 </NavLink>
-                <NavLink to="/debug" className={styles.navLink}>
+                <NavLink to="/debug" className="no-underline">
                   {({ isActive }) => (
                     <Button
-                      className={styles.navButton}
+                      className="whitespace-nowrap"
                       variant="tertiary"
                       size="md"
                       disabled={isActive}
@@ -53,7 +52,7 @@ export default function WalletLayout() {
                 </NavLink>
               </nav>
 
-              <div className={styles.connectArea}>
+              <div>
                 <ConnectAccount />
               </div>
             </div>
