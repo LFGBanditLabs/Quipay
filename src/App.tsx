@@ -3,7 +3,6 @@ import { Routes, Route, Outlet } from "react-router-dom";
 import Navbar from "./components/layout/Navbar";
 import OnboardingTour from "./components/OnboardingTour";
 import Footer from "./components/layout/Footer";
-import styles from "./App.module.css";
 
 const Home = lazy(() => import("./pages/Home"));
 const Debugger = lazy(() => import("./pages/Debugger.tsx"));
@@ -19,13 +18,13 @@ const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 function AppLayout() {
   return (
-    <div className={styles.appShell}>
+    <div className="flex min-h-screen flex-col">
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
       <Navbar />
 
-      <main id="main-content" tabIndex={-1} className={styles.mainContent}>
+      <main id="main-content" tabIndex={-1} className="flex-1 outline-none">
         <OnboardingTour />
         <Outlet />
       </main>

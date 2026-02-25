@@ -13,8 +13,71 @@ import {
   Notification,
 } from "@stellar/design-system";
 import { useNavigate } from "react-router-dom";
-import styles from "./GovernanceOverview.module.css";
 import { useWallet } from "../hooks/useWallet";
+
+const tw = {
+  loadingContainer: "flex flex-col items-center justify-center gap-4 p-[60px]",
+  loadingText: "text-[var(--color-text-secondary)]",
+  header: "mb-6 flex items-start justify-between gap-4",
+  statusCard:
+    "mb-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-background-card)] p-6",
+  statusGrid: "grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-6",
+  statusItem: "flex flex-col gap-1",
+  badgeRow: "flex items-center gap-2",
+  section: "mb-8",
+  sectionTitle: "mb-4 flex items-center gap-2",
+  emptyState:
+    "flex flex-col items-center justify-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-background-card)] p-10 text-center",
+  emptyIcon: "text-[var(--sds-color-feedback-success)] opacity-60",
+  proposalsList: "flex flex-col gap-4",
+  proposalCard:
+    "rounded-2xl border border-[var(--color-border)] bg-[var(--color-background-card)] p-5 transition-shadow hover:shadow-[0_4px_12px_var(--shadow-color)]",
+  proposalHeader: "mb-3 flex items-center justify-between",
+  proposalType: "flex items-center gap-2",
+  proposalTitle: "mb-2 leading-[1.4]",
+  proposalDescription: "mb-4 leading-[1.5]",
+  amountRow: "mb-2 flex items-center gap-2",
+  targetRow: "mb-2 flex items-center gap-2",
+  address:
+    "rounded-md bg-[var(--accent-transparent)] px-2 py-1 font-[DM_Mono,monospace] text-[0.85em]",
+  signersSection: "my-4 rounded-xl bg-[var(--surface-subtle)] p-4",
+  signersHeader: "mb-3 flex items-center justify-between",
+  signersList: "mb-3 flex flex-col gap-2",
+  signerItem:
+    "flex items-center gap-2 rounded-lg bg-[var(--surface-subtle)] px-3 py-2 transition-colors",
+  signed: "bg-[var(--success-transparent)]",
+  currentUser: "border border-[var(--success-transparent-strong)]",
+  signerStatus: "flex h-5 w-5 items-center justify-center",
+  checkIcon: "text-[var(--sds-color-feedback-success)]",
+  pendingDot:
+    "h-2 w-2 rounded-full bg-[var(--sds-color-feedback-warning)] [animation:pulse_1.5s_ease-in-out_infinite]",
+  youBadge: "font-semibold text-[var(--sds-color-feedback-success)]",
+  signedTime: "ml-auto text-xs",
+  progressBar: "h-1 overflow-hidden rounded bg-[var(--border)]",
+  progressFill: "h-full rounded transition-all",
+  actionButtons: "mt-4 flex gap-3",
+  executedIcon: "text-[var(--sds-color-feedback-success)]",
+  unsigned: "bg-[var(--surface-subtle)]",
+  historyList: "flex flex-col gap-3",
+  historyCard:
+    "rounded-xl border border-[var(--color-border)] bg-[var(--color-background-card)] p-4",
+  historyHeader: "mb-2 flex items-center justify-between",
+  historyType: "font-medium",
+  historyStatus: "text-sm text-[var(--muted)]",
+  historyMeta: "text-xs text-[var(--muted)]",
+  modalContent:
+    "rounded-2xl border border-white/20 bg-slate-900/90 p-6 text-slate-100 shadow-2xl backdrop-blur",
+  modalSection: "mb-4",
+  modalGrid: "grid grid-cols-2 gap-3",
+  modalItem: "rounded-lg bg-white/5 p-3",
+  modalSignersList: "flex flex-col gap-2",
+  modalSigner: "flex items-center gap-2 rounded-lg bg-white/5 px-3 py-2",
+  modalSigned: "text-emerald-300",
+  modalPendingDot:
+    "h-2 w-2 rounded-full bg-amber-300 [animation:pulse_1.5s_ease-in-out_infinite]",
+  modalApprovals: "text-sm text-slate-300",
+  modalActions: "mt-5 flex justify-end gap-3",
+};
 
 // Types for multisig governance
 export interface MultisigProposal {
@@ -355,9 +418,9 @@ const GovernanceOverview: React.FC = () => {
     return (
       <Layout.Content>
         <Layout.Inset>
-          <div className={styles.loadingContainer}>
+          <div className={tw.loadingContainer}>
             <Loader />
-            <Text as="p" size="md" className={styles.loadingText}>
+            <Text as="p" size="md" className={tw.loadingText}>
               Loading governance data...
             </Text>
           </div>
@@ -370,7 +433,7 @@ const GovernanceOverview: React.FC = () => {
     <Layout.Content>
       <Layout.Inset>
         {/* Header */}
-        <div className={styles.header}>
+        <div className={tw.header}>
           <div>
             <Text as="h1" size="xl" weight="medium">
               Governance Overview
@@ -401,9 +464,9 @@ const GovernanceOverview: React.FC = () => {
 
         {/* Multisig Status Card */}
         {config && (
-          <Card className={styles.statusCard}>
-            <div className={styles.statusGrid}>
-              <div className={styles.statusItem}>
+          <Card className={tw.statusCard}>
+            <div className={tw.statusGrid}>
+              <div className={tw.statusItem}>
                 <Text as="span" size="sm" variant="secondary">
                   Required Approvals
                 </Text>
@@ -411,7 +474,7 @@ const GovernanceOverview: React.FC = () => {
                   {config.threshold} of {config.totalSigners}
                 </Text>
               </div>
-              <div className={styles.statusItem}>
+              <div className={tw.statusItem}>
                 <Text as="span" size="sm" variant="secondary">
                   Total Signers
                 </Text>
@@ -419,11 +482,11 @@ const GovernanceOverview: React.FC = () => {
                   {config.totalSigners}
                 </Text>
               </div>
-              <div className={styles.statusItem}>
+              <div className={tw.statusItem}>
                 <Text as="span" size="sm" variant="secondary">
                   Pending Proposals
                 </Text>
-                <div className={styles.badgeRow}>
+                <div className={tw.badgeRow}>
                   <Text as="div" size="lg" weight="bold">
                     {pendingCount}
                   </Text>
@@ -434,7 +497,7 @@ const GovernanceOverview: React.FC = () => {
                   )}
                 </div>
               </div>
-              <div className={styles.statusItem}>
+              <div className={tw.statusItem}>
                 <Text as="span" size="sm" variant="secondary">
                   Your Role
                 </Text>
@@ -450,19 +513,14 @@ const GovernanceOverview: React.FC = () => {
         )}
 
         {/* Pending Proposals Section */}
-        <div className={styles.section}>
-          <Text
-            as="h2"
-            size="lg"
-            weight="medium"
-            className={styles.sectionTitle}
-          >
+        <div className={tw.section}>
+          <Text as="h2" size="lg" weight="medium" className={tw.sectionTitle}>
             Pending Proposals
           </Text>
 
           {proposals.length === 0 ? (
-            <Card className={styles.emptyState}>
-              <Icon.CheckCircle size="lg" className={styles.emptyIcon} />
+            <Card className={tw.emptyState}>
+              <Icon.CheckCircle size="lg" className={tw.emptyIcon} />
               <Text as="p" size="md">
                 No pending proposals
               </Text>
@@ -471,11 +529,11 @@ const GovernanceOverview: React.FC = () => {
               </Text>
             </Card>
           ) : (
-            <div className={styles.proposalsList}>
+            <div className={tw.proposalsList}>
               {proposals.map((proposal) => (
-                <Card key={proposal.id} className={styles.proposalCard}>
-                  <div className={styles.proposalHeader}>
-                    <div className={styles.proposalType}>
+                <Card key={proposal.id} className={tw.proposalCard}>
+                  <div className={tw.proposalHeader}>
+                    <div className={tw.proposalType}>
                       <Icon name={getTypeIcon(proposal.type)} size="md" />
                       <Badge
                         size="sm"
@@ -497,7 +555,7 @@ const GovernanceOverview: React.FC = () => {
                     as="h3"
                     size="md"
                     weight="semi-bold"
-                    className={styles.proposalTitle}
+                    className={tw.proposalTitle}
                   >
                     {proposal.title}
                   </Text>
@@ -506,13 +564,13 @@ const GovernanceOverview: React.FC = () => {
                     as="p"
                     size="sm"
                     variant="secondary"
-                    className={styles.proposalDescription}
+                    className={tw.proposalDescription}
                   >
                     {proposal.description}
                   </Text>
 
                   {proposal.amount && proposal.tokenSymbol && (
-                    <div className={styles.amountRow}>
+                    <div className={tw.amountRow}>
                       <Text as="span" size="sm" variant="secondary">
                         Amount:
                       </Text>
@@ -528,19 +586,19 @@ const GovernanceOverview: React.FC = () => {
                   )}
 
                   {proposal.targetAddress && (
-                    <div className={styles.targetRow}>
+                    <div className={tw.targetRow}>
                       <Text as="span" size="sm" variant="secondary">
                         To:
                       </Text>
-                      <Text as="span" size="sm" className={styles.address}>
+                      <Text as="span" size="sm" className={tw.address}>
                         {shortenAddress(proposal.targetAddress)}
                       </Text>
                     </div>
                   )}
 
                   {/* Signers Progress */}
-                  <div className={styles.signersSection}>
-                    <div className={styles.signersHeader}>
+                  <div className={tw.signersSection}>
+                    <div className={tw.signersHeader}>
                       <Text as="span" size="sm" variant="secondary">
                         Signers
                       </Text>
@@ -549,28 +607,25 @@ const GovernanceOverview: React.FC = () => {
                         {proposal.requiredApprovals}
                       </Text>
                     </div>
-                    <div className={styles.signersList}>
+                    <div className={tw.signersList}>
                       {proposal.signers.map((signer) => (
                         <div
                           key={signer.address}
-                          className={`${styles.signerItem} ${
-                            signer.hasSigned ? styles.signed : styles.unsigned
-                          } ${signer.isCurrentUser ? styles.currentUser : ""}`}
+                          className={`${tw.signerItem} ${
+                            signer.hasSigned ? tw.signed : tw.unsigned
+                          } ${signer.isCurrentUser ? tw.currentUser : ""}`}
                         >
-                          <div className={styles.signerStatus}>
+                          <div className={tw.signerStatus}>
                             {signer.hasSigned ? (
-                              <Icon.Check
-                                size="sm"
-                                className={styles.checkIcon}
-                              />
+                              <Icon.Check size="sm" className={tw.checkIcon} />
                             ) : (
-                              <div className={styles.pendingDot} />
+                              <div className={tw.pendingDot} />
                             )}
                           </div>
                           <Text as="span" size="sm">
                             {shortenAddress(signer.address)}
                             {signer.isCurrentUser && (
-                              <span className={styles.youBadge}> (You)</span>
+                              <span className={tw.youBadge}> (You)</span>
                             )}
                           </Text>
                           {signer.hasSigned && signer.signedAt && (
@@ -578,7 +633,7 @@ const GovernanceOverview: React.FC = () => {
                               as="span"
                               size="xs"
                               variant="secondary"
-                              className={styles.signedTime}
+                              className={tw.signedTime}
                             >
                               {formatDate(signer.signedAt)}
                             </Text>
@@ -586,9 +641,9 @@ const GovernanceOverview: React.FC = () => {
                         </div>
                       ))}
                     </div>
-                    <div className={styles.progressBar}>
+                    <div className={tw.progressBar}>
                       <div
-                        className={styles.progressFill}
+                        className={tw.progressFill}
                         style={{
                           width: `${(proposal.currentApprovals / proposal.requiredApprovals) * 100}%`,
                           backgroundColor:
@@ -602,7 +657,7 @@ const GovernanceOverview: React.FC = () => {
                   </div>
 
                   {/* Action Buttons */}
-                  <div className={styles.actionButtons}>
+                  <div className={tw.actionButtons}>
                     <Button
                       variant="secondary"
                       size="sm"
@@ -658,28 +713,23 @@ const GovernanceOverview: React.FC = () => {
         </div>
 
         {/* Execution History Section */}
-        <div className={styles.section}>
-          <Text
-            as="h2"
-            size="lg"
-            weight="medium"
-            className={styles.sectionTitle}
-          >
+        <div className={tw.section}>
+          <Text as="h2" size="lg" weight="medium" className={tw.sectionTitle}>
             Execution History
           </Text>
 
           {history.length === 0 ? (
-            <Card className={styles.emptyState}>
+            <Card className={tw.emptyState}>
               <Text as="p" size="md">
                 No executed proposals yet
               </Text>
             </Card>
           ) : (
-            <div className={styles.historyList}>
+            <div className={tw.historyList}>
               {history.map((entry) => (
-                <Card key={entry.id} className={styles.historyCard}>
-                  <div className={styles.historyHeader}>
-                    <div className={styles.historyType}>
+                <Card key={entry.id} className={tw.historyCard}>
+                  <div className={tw.historyHeader}>
+                    <div className={tw.historyType}>
                       <Badge
                         size="sm"
                         style={{
@@ -699,7 +749,7 @@ const GovernanceOverview: React.FC = () => {
                     {entry.title}
                   </Text>
 
-                  <div className={styles.historyMeta}>
+                  <div className={tw.historyMeta}>
                     <Text as="span" size="sm" variant="secondary">
                       Executed by: {shortenAddress(entry.executedBy)}
                     </Text>
@@ -709,11 +759,8 @@ const GovernanceOverview: React.FC = () => {
                     </Text>
                   </div>
 
-                  <div className={styles.historyStatus}>
-                    <Icon.CheckCircle
-                      size="sm"
-                      className={styles.executedIcon}
-                    />
+                  <div className={tw.historyStatus}>
+                    <Icon.CheckCircle size="sm" className={tw.executedIcon} />
                     <Text
                       as="span"
                       size="sm"
@@ -731,12 +778,12 @@ const GovernanceOverview: React.FC = () => {
         {/* Proposal Details Modal */}
         {isModalOpen && selectedProposal && (
           <Modal visible={isModalOpen} onClose={closeModal}>
-            <div className={styles.modalContent}>
+            <div className={tw.modalContent}>
               <Text as="h2" size="lg" weight="medium">
                 Proposal Details
               </Text>
 
-              <div className={styles.modalSection}>
+              <div className={tw.modalSection}>
                 <Text as="span" size="sm" variant="secondary">
                   Proposal ID
                 </Text>
@@ -745,7 +792,7 @@ const GovernanceOverview: React.FC = () => {
                 </Text>
               </div>
 
-              <div className={styles.modalSection}>
+              <div className={tw.modalSection}>
                 <Text as="span" size="sm" variant="secondary">
                   Title
                 </Text>
@@ -754,7 +801,7 @@ const GovernanceOverview: React.FC = () => {
                 </Text>
               </div>
 
-              <div className={styles.modalSection}>
+              <div className={tw.modalSection}>
                 <Text as="span" size="sm" variant="secondary">
                   Description
                 </Text>
@@ -763,8 +810,8 @@ const GovernanceOverview: React.FC = () => {
                 </Text>
               </div>
 
-              <div className={styles.modalGrid}>
-                <div className={styles.modalItem}>
+              <div className={tw.modalGrid}>
+                <div className={tw.modalItem}>
                   <Text as="span" size="sm" variant="secondary">
                     Type
                   </Text>
@@ -772,7 +819,7 @@ const GovernanceOverview: React.FC = () => {
                     {selectedProposal.type.replace("_", " ")}
                   </Badge>
                 </div>
-                <div className={styles.modalItem}>
+                <div className={tw.modalItem}>
                   <Text as="span" size="sm" variant="secondary">
                     Proposer
                   </Text>
@@ -783,7 +830,7 @@ const GovernanceOverview: React.FC = () => {
               </div>
 
               {selectedProposal.amount && (
-                <div className={styles.modalSection}>
+                <div className={tw.modalSection}>
                   <Text as="span" size="sm" variant="secondary">
                     Amount
                   </Text>
@@ -799,31 +846,31 @@ const GovernanceOverview: React.FC = () => {
               )}
 
               {selectedProposal.targetAddress && (
-                <div className={styles.modalSection}>
+                <div className={tw.modalSection}>
                   <Text as="span" size="sm" variant="secondary">
                     Target Address
                   </Text>
-                  <Text as="p" size="md" className={styles.address}>
+                  <Text as="p" size="md" className={tw.address}>
                     {selectedProposal.targetAddress}
                   </Text>
                 </div>
               )}
 
-              <div className={styles.modalSection}>
+              <div className={tw.modalSection}>
                 <Text as="span" size="sm" variant="secondary">
                   Approval Status
                 </Text>
-                <div className={styles.modalApprovals}>
+                <div className={tw.modalApprovals}>
                   <Text as="p" size="md" weight="semi-bold">
                     {selectedProposal.currentApprovals} of{" "}
                     {selectedProposal.requiredApprovals} required approvals
                   </Text>
-                  <div className={styles.modalSignersList}>
+                  <div className={tw.modalSignersList}>
                     {selectedProposal.signers.map((signer) => (
                       <div
                         key={signer.address}
-                        className={`${styles.modalSigner} ${
-                          signer.hasSigned ? styles.modalSigned : ""
+                        className={`${tw.modalSigner} ${
+                          signer.hasSigned ? tw.modalSigned : ""
                         }`}
                       >
                         {signer.hasSigned ? (
@@ -832,7 +879,7 @@ const GovernanceOverview: React.FC = () => {
                             style={{ color: "#00e5a0" }}
                           />
                         ) : (
-                          <div className={styles.modalPendingDot} />
+                          <div className={tw.modalPendingDot} />
                         )}
                         <Text as="span" size="sm">
                           {shortenAddress(signer.address)}
@@ -844,7 +891,7 @@ const GovernanceOverview: React.FC = () => {
                 </div>
               </div>
 
-              <div className={styles.modalActions}>
+              <div className={tw.modalActions}>
                 <Button variant="secondary" size="md" onClick={closeModal}>
                   Close
                 </Button>
