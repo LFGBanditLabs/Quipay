@@ -198,6 +198,25 @@ const StreamCard: React.FC<{ stream: Stream; index: number }> = ({
   );
 };
 
+const MobileStreamCard: React.FC<{ stream: Stream }> = ({ stream }) => (
+  <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2.5">
+    <div className="min-w-0">
+      <p className="truncate text-sm font-semibold text-[var(--text)]">
+        {stream.name}
+      </p>
+      <p className="text-[11px] text-[var(--muted)]">{stream.role}</p>
+    </div>
+    <div className="text-right">
+      <p className="text-sm font-semibold text-emerald-400">
+        +{stream.amount.toFixed(2)}
+      </p>
+      <p className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
+        USDC
+      </p>
+    </div>
+  </div>
+);
+
 const FeatureCard: React.FC<{
   icon: React.ReactNode;
   title: string;
@@ -256,7 +275,7 @@ const Home: React.FC = () => {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-[var(--bg)] text-[var(--text)] font-sans overflow-hidden">
+    <div className="relative min-h-screen overflow-x-clip bg-[var(--bg)] font-sans text-[var(--text)]">
       <div
         className="absolute inset-0 z-0 pointer-events-none"
         style={{
@@ -333,12 +352,12 @@ const Home: React.FC = () => {
         </svg>
       </div>
 
-      <main className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8 flex flex-col items-center">
-        <section className="pt-24 pb-12 text-center max-w-4xl animate-slide-up">
+      <main className="relative z-10 mx-auto flex max-w-7xl flex-col items-center px-4 sm:px-6 lg:px-8">
+        <section className="max-w-4xl animate-slide-up pb-12 pt-20 text-center sm:pt-24">
           <div className="flex justify-center mb-6">
             <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--surface-subtle)] border border-[var(--border)] backdrop-blur-md shadow-[0_4px_20px_var(--shadow-color),inset_0_0_0_1px_var(--border)] transition-all duration-300 hover:bg-[var(--surface)] hover:border-[var(--accent-transparent)] hover:-translate-y-[2px]">
               <span className="animate-bounce-subtle">✨</span>
-              <span className="text-sm font-medium text-[var(--muted)] tracking-wide">
+              <span className="text-sm font-medium tracking-wide text-[var(--muted)]">
                 Welcome to Quipay 2.0
               </span>
             </div>
@@ -367,16 +386,16 @@ const Home: React.FC = () => {
             </span>
           </h1>
 
-          <p className="text-[clamp(1rem,2vw,1.25rem)] leading-relaxed text-[var(--muted)] max-w-2xl mx-auto mb-10">
+          <p className="mx-auto mb-10 max-w-2xl text-[clamp(1rem,2vw,1.25rem)] leading-relaxed text-[var(--muted)]">
             Experience seamless, continuous streaming payments built on Stellar.
             Manage your treasury automatically with AI-driven compliance.
             Empower your workforce with real-time capital access.
           </p>
 
-          <div className="flex flex-col sm:flex-row justify-center gap-4">
+          <div className="flex flex-col justify-center gap-4 sm:flex-row">
             <Link
               to="/dashboard"
-              className="group relative inline-flex items-center justify-center gap-3 px-8 py-4 rounded-xl bg-gradient-to-br from-indigo-600 to-pink-500 text-white font-semibold text-lg overflow-hidden transition-all duration-300 shadow-[0_10px_30px_-10px_rgba(236,72,153,0.5)] hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_20px_40px_-10px_rgba(236,72,153,0.6)]"
+              className="group relative inline-flex min-h-11 items-center justify-center gap-3 overflow-hidden rounded-xl bg-gradient-to-br from-indigo-600 to-pink-500 px-8 py-4 text-lg font-semibold text-white transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_20px_40px_-10px_rgba(236,72,153,0.6)] shadow-[0_10px_30px_-10px_rgba(236,72,153,0.5)]"
             >
               <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-indigo-500 to-pink-400 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
               <span className="relative z-10">Launch App</span>
@@ -397,7 +416,7 @@ const Home: React.FC = () => {
 
             <Link
               to="/help"
-              className="inline-flex items-center justify-center px-8 py-4 rounded-xl bg-[var(--surface-subtle)] border border-[var(--border)] text-[var(--text)] font-semibold text-lg backdrop-blur-md transition-all duration-300 hover:bg-[var(--surface)] hover:border-[var(--accent-transparent)] hover:-translate-y-1 hover:shadow-[0_10px_30px_-10px_var(--shadow-color)]"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] px-8 py-4 text-lg font-semibold text-[var(--text)] backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-[var(--accent-transparent)] hover:bg-[var(--surface)] hover:shadow-[0_10px_30px_-10px_var(--shadow-color)]"
             >
               View Documentation
             </Link>
@@ -405,10 +424,10 @@ const Home: React.FC = () => {
         </section>
 
         <section
-          className="w-full flex justify-center my-8 mb-20"
+          className="my-8 mb-20 flex w-full justify-center"
           style={{ perspective: "1000px" }}
         >
-          <div className="w-full max-w-2xl bg-[var(--surface)]/80 border border-[var(--border)] rounded-3xl backdrop-blur-xl shadow-[0_30px_60px_-15px_var(--shadow-color),inset_0_1px_0_var(--border)] overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:border-[var(--accent-transparent)] hover:shadow-[0_40px_80px_-20px_var(--shadow-color)] animate-float-panel">
+          <div className="hidden w-full max-w-2xl animate-float-panel overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)]/80 shadow-[0_30px_60px_-15px_var(--shadow-color),inset_0_1px_0_var(--border)] backdrop-blur-xl transition-all duration-500 hover:-translate-y-2 hover:border-[var(--accent-transparent)] hover:shadow-[0_40px_80px_-20px_var(--shadow-color)] md:block">
             <div className="flex items-center px-5 py-3 bg-[var(--surface-subtle)] border-b border-[var(--border)]">
               <div className="flex gap-1.5 mr-auto">
                 <div className="w-2.5 h-2.5 rounded-full bg-[var(--sds-color-feedback-error)]" />
@@ -440,9 +459,31 @@ const Home: React.FC = () => {
               </div>
             </div>
           </div>
+
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]/90 shadow-[0_20px_40px_-20px_var(--shadow-color)] backdrop-blur md:hidden">
+            <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2">
+              <span className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
+                Live Payroll
+              </span>
+              <span className="text-xs font-mono text-emerald-400">● LIVE</span>
+            </div>
+            <div className="space-y-2 p-3">
+              {mockStreams.slice(0, 2).map((stream) => (
+                <MobileStreamCard key={stream.id} stream={stream} />
+              ))}
+            </div>
+            <div className="border-t border-[var(--border)] px-3 py-2.5">
+              <p className="text-xs text-[var(--muted)]">
+                Total streaming this month
+              </p>
+              <p className="font-mono text-sm font-semibold text-indigo-400">
+                $12,847.50 USDC
+              </p>
+            </div>
+          </div>
         </section>
 
-        <section ref={featuresRef} className="w-full py-16 pb-24">
+        <section ref={featuresRef} className="w-full pb-24 pt-12 sm:pt-16">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-[var(--text)] mb-4">
               Why Choose Quipay?

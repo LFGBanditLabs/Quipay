@@ -64,7 +64,7 @@ const Navbar: React.FC = () => {
                   to={link.to}
                   onClick={closeMenu}
                   className={({ isActive }) =>
-                    `relative px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                    `relative inline-flex min-h-11 items-center rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 ${
                       isActive
                         ? "text-[var(--text)] bg-[var(--surface-subtle)]"
                         : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-subtle)]/50"
@@ -93,7 +93,7 @@ const Navbar: React.FC = () => {
                 <ConnectAccount />
                 <button
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  className="p-2 rounded-lg text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-subtle)] transition-all duration-200"
+                  className="min-h-11 min-w-11 rounded-lg p-2 text-[var(--muted)] transition-all duration-200 hover:bg-[var(--surface-subtle)] hover:text-[var(--text)]"
                   aria-label={isMenuOpen ? "Close menu" : "Open menu"}
                   aria-expanded={isMenuOpen}
                 >
@@ -154,7 +154,7 @@ const Navbar: React.FC = () => {
                 to={link.to}
                 onClick={closeMenu}
                 className={({ isActive }) =>
-                  `flex items-center px-4 py-3 rounded-xl text-base font-medium transition-all duration-200 ${
+                  `flex min-h-11 items-center rounded-xl px-4 py-3 text-base font-medium transition-all duration-200 ${
                     isActive
                       ? "text-[var(--text)] bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-[var(--border)]"
                       : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-subtle)]"
