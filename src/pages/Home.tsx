@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
+import SocialProof from "../components/landing/SocialProof";
 
 interface Stream {
   id: number;
@@ -403,6 +404,7 @@ const Home: React.FC = () => {
             </Link>
           </div>
         </section>
+        <SocialProof />
 
         <section
           className="w-full flex justify-center my-8 mb-20"
