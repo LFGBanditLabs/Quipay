@@ -241,6 +241,38 @@ const FeatureCard: React.FC<{
   </div>
 );
 
+const WorkflowStep: React.FC<{
+  number: string;
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  isActive: boolean;
+  index: number;
+}> = ({ number, title, description, icon, isActive, index }) => (
+  <div
+    className={`relative flex flex-col items-center text-center transition-all duration-1000 ${
+      isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"
+    }`}
+    style={{ transitionDelay: `${index * 200}ms` }}
+  >
+    <div className="relative mb-6 group">
+      <div className="absolute inset-0 bg-indigo-500/20 blur-xl rounded-full scale-0 group-hover:scale-150 transition-transform duration-500 opacity-50" />
+      <div className="relative z-10 w-20 h-20 flex items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-400/20 text-indigo-400 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-sm transition-all duration-500 group-hover:scale-110 group-hover:rotate-3 group-hover:border-indigo-400/40 group-hover:shadow-indigo-500/20 group-hover:shadow-2xl">
+        {icon}
+      </div>
+      <div className="absolute -top-3 -right-3 z-20 w-8 h-8 flex items-center justify-center rounded-full bg-indigo-600 text-white text-sm font-bold border-4 border-[var(--bg)] shadow-lg group-hover:scale-110 transition-transform duration-300">
+        {number}
+      </div>
+    </div>
+    <h3 className="text-xl font-bold mb-3 text-[var(--text)] transition-colors duration-300 group-hover:text-indigo-400">
+      {title}
+    </h3>
+    <p className="text-sm text-[var(--muted)] max-w-[200px] leading-relaxed">
+      {description}
+    </p>
+  </div>
+);
+
 interface StatMetric {
   id: string;
   label: string;
@@ -352,9 +384,11 @@ const AnimatedStat: React.FC<{
 const Home: React.FC = () => {
   const [scrollY, setScrollY] = useState(0);
   const [featuresVisible, setFeaturesVisible] = useState(false);
+  const [workflowVisible, setWorkflowVisible] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
   const [statsResetKey, setStatsResetKey] = useState(0);
   const featuresRef = useRef<HTMLDivElement>(null);
+  const workflowRef = useRef<HTMLDivElement>(null);
   const statsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -367,6 +401,17 @@ const Home: React.FC = () => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             setFeaturesVisible(true);
+          }
+        });
+      },
+      { threshold: 0.2 },
+    );
+
+    const workflowObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setWorkflowVisible(true);
           }
         });
       },
@@ -392,6 +437,9 @@ const Home: React.FC = () => {
     if (featuresRef.current) {
       observer.observe(featuresRef.current);
     }
+    if (workflowRef.current) {
+      workflowObserver.observe(workflowRef.current);
+    }
     if (statsRef.current) {
       statsObserver.observe(statsRef.current);
     }
@@ -399,6 +447,7 @@ const Home: React.FC = () => {
     return () => {
       window.removeEventListener("scroll", handleScroll);
       observer.disconnect();
+      workflowObserver.disconnect();
       statsObserver.disconnect();
     };
   }, []);
@@ -632,6 +681,135 @@ const Home: React.FC = () => {
                 resetKey={statsResetKey}
               />
             ))}
+          </div>
+        </section>
+
+        <section
+          ref={workflowRef}
+          className="w-full py-20 relative overflow-hidden"
+        >
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-extrabold text-[var(--text)] mb-4">
+              How Quipay Works
+            </h2>
+            <p className="text-lg text-[var(--muted)] max-w-2xl mx-auto">
+              A streamlined, automated payroll experience in 4 simple steps
+            </p>
+          </div>
+
+          <div className="relative grid grid-cols-1 md:grid-cols-4 gap-16 md:gap-8 px-4">
+            {/* Connecting Lines for Desktop */}
+            <div className="hidden md:block absolute top-[40px] left-[15%] right-[15%] h-[2px] bg-gradient-to-r from-indigo-500/10 via-purple-500/20 to-pink-500/10 z-0">
+              <div
+                className={`h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-[2000ms] ease-out shadow-[0_0_10px_var(--accent)] ${
+                  workflowVisible ? "w-full" : "w-0"
+                }`}
+              />
+            </div>
+
+            {/* Step 1: Fund Your Treasury */}
+            <WorkflowStep
+              number="01"
+              title="Fund Your Treasury"
+              description="Securely deposit assets into our audited multi-sig smart contract vaults."
+              icon={
+                <svg
+                  className="w-10 h-10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M12 3v3m0 12v3M3 12h3m12 0h3" />
+                </svg>
+              }
+              isActive={workflowVisible}
+              index={0}
+            />
+
+            {/* Mobile Divider 1 */}
+            <div className="md:hidden flex justify-center -my-8 opacity-20">
+              <div className="w-[2px] h-16 bg-gradient-to-b from-indigo-500 to-purple-500" />
+            </div>
+
+            {/* Step 2: Create Payment Streams */}
+            <WorkflowStep
+              number="02"
+              title="Create Payment Streams"
+              description="Set up continuous, real-time token flows for your global contributors."
+              icon={
+                <svg
+                  className="w-10 h-10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M22 12l-2 0m-16 0l-2 0m10-10l0 2m0 16l0 2" />
+                </svg>
+              }
+              isActive={workflowVisible}
+              index={1}
+            />
+
+            {/* Mobile Divider 2 */}
+            <div className="md:hidden flex justify-center -my-8 opacity-20">
+              <div className="w-[2px] h-16 bg-gradient-to-b from-purple-500 to-pink-500" />
+            </div>
+
+            {/* Step 3: Workers Withdraw Anytime */}
+            <WorkflowStep
+              number="03"
+              title="Workers Withdraw Anytime"
+              description="Empower your team with instant access to their earned capital, 24/7."
+              icon={
+                <svg
+                  className="w-10 h-10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
+                  <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
+                  <path d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
+                </svg>
+              }
+              isActive={workflowVisible}
+              index={2}
+            />
+
+            {/* Mobile Divider 3 */}
+            <div className="md:hidden flex justify-center -my-8 opacity-20">
+              <div className="w-[2px] h-16 bg-gradient-to-b from-pink-500 to-indigo-500" />
+            </div>
+
+            {/* Step 4: AI Manages Everything */}
+            <WorkflowStep
+              number="04"
+              title="AI Manages Everything"
+              description="Autonomous agents handle tax rules, solvency, and payroll compliance."
+              icon={
+                <svg
+                  className="w-10 h-10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M12 8V4H8" />
+                  <rect x="5" y="8" width="14" height="12" rx="2" />
+                  <path d="M9 13h.01M15 13h.01" />
+                  <path d="M12 20v2" />
+                </svg>
+              }
+              isActive={workflowVisible}
+              index={3}
+            />
           </div>
         </section>
 
