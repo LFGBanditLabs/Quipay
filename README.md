@@ -141,6 +141,22 @@ cargo test
 npm test
 ```
 
+### PR Preview Deployments (Frontend)
+
+This repository includes an optional **Frontend Preview Deploy** GitHub Action that builds the Vite dApp and deploys each pull request to **Cloudflare Pages** using Soroban **Testnet** defaults.
+
+To enable preview deployments:
+
+1. **Create a Cloudflare Pages project** for the Quipay frontend (build command `npm run build`, output directory `dist`).
+2. **Add the following repository secrets** in GitHub:
+   - `CLOUDFLARE_API_TOKEN` – API token with “Cloudflare Pages — Edit” permission.
+   - `CLOUDFLARE_ACCOUNT_ID` – your Cloudflare account ID.
+   - `CLOUDFLARE_PAGES_PROJECT` – the Cloudflare Pages project name.
+3. Open or update a pull request that touches the frontend. The `Frontend Preview Deploy` workflow will:
+   - Build the dApp with `PUBLIC_STELLAR_*` env vars set to Testnet endpoints.
+   - Deploy a per-PR preview to Cloudflare Pages.
+   - **Comment on the PR with the preview URL** so reviewers can visually test the changes.
+
 ---
 
 ## 📁 Project Structure
