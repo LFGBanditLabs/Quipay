@@ -241,10 +241,121 @@ const FeatureCard: React.FC<{
   </div>
 );
 
+interface StatMetric {
+  id: string;
+  label: string;
+  value: number;
+  format: "number" | "currency" | "duration";
+  suffix?: string;
+}
+
+const stats: StatMetric[] = [
+  {
+    id: "streams",
+    label: "Total Streams",
+    value: 12480,
+    format: "number",
+  },
+  {
+    id: "value-streamed",
+    label: "Total Value Streamed",
+    value: 3847500,
+    format: "currency",
+    suffix: " USDC",
+  },
+  {
+    id: "active-workers",
+    label: "Active Workers",
+    value: 1820,
+    format: "number",
+  },
+  {
+    id: "avg-duration",
+    label: "Avg. Stream Duration",
+    value: 6.4,
+    format: "duration",
+    suffix: " hrs",
+  },
+];
+
+const formatStatValue = (value: number, format: StatMetric["format"]) => {
+  if (format === "currency") {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+
+  if (format === "duration") {
+    return new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    }).format(value);
+  }
+
+  return new Intl.NumberFormat("en-US").format(Math.round(value));
+};
+
+const AnimatedStat: React.FC<{
+  metric: StatMetric;
+  isActive: boolean;
+  resetKey: number;
+  index: number;
+}> = ({ metric, isActive, resetKey, index }) => {
+  const [displayValue, setDisplayValue] = useState(0);
+  const renderedValue = isActive ? displayValue : 0;
+
+  useEffect(() => {
+    if (!isActive) return;
+
+    const duration = 1300 + index * 150;
+    const start = performance.now();
+    let frameId = 0;
+
+    const animate = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - (1 - progress) * (1 - progress);
+      setDisplayValue(metric.value * eased);
+
+      if (progress < 1) {
+        frameId = requestAnimationFrame(animate);
+      }
+    };
+
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
+  }, [index, isActive, metric.value, resetKey]);
+
+  return (
+    <article className="group relative overflow-hidden rounded-2xl border border-white/15 bg-[var(--surface)]/90 p-5 shadow-[0_12px_35px_-20px_var(--shadow-color)] backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-indigo-400/40 sm:p-6">
+      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/15 via-transparent to-pink-500/15 opacity-70 transition-opacity duration-300 group-hover:opacity-100" />
+      <div className="absolute -inset-[1px] rounded-2xl border border-indigo-400/20 opacity-50 transition-opacity duration-300 group-hover:opacity-90" />
+      <div className="absolute -left-8 top-1/2 h-16 w-16 -translate-y-1/2 rounded-full bg-indigo-500/20 blur-2xl" />
+      <div className="relative">
+        <p className="mb-3 text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
+          {metric.label}
+        </p>
+        <p className="font-mono text-2xl font-semibold tabular-nums text-[var(--text)] sm:text-3xl">
+          {formatStatValue(renderedValue, metric.format)}
+          {metric.suffix ? (
+            <span className="ml-1 text-sm font-medium text-[var(--muted)] sm:text-base">
+              {metric.suffix}
+            </span>
+          ) : null}
+        </p>
+      </div>
+    </article>
+  );
+};
+
 const Home: React.FC = () => {
   const [scrollY, setScrollY] = useState(0);
   const [featuresVisible, setFeaturesVisible] = useState(false);
+  const [statsVisible, setStatsVisible] = useState(false);
+  const [statsResetKey, setStatsResetKey] = useState(0);
   const featuresRef = useRef<HTMLDivElement>(null);
+  const statsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -262,15 +373,33 @@ const Home: React.FC = () => {
       { threshold: 0.2 },
     );
 
+    const statsObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setStatsVisible(true);
+            setStatsResetKey((prev) => prev + 1);
+            return;
+          }
+          setStatsVisible(false);
+        });
+      },
+      { threshold: 0.35 },
+    );
+
     window.addEventListener("scroll", handleScroll, { passive: true });
 
     if (featuresRef.current) {
       observer.observe(featuresRef.current);
     }
+    if (statsRef.current) {
+      statsObserver.observe(statsRef.current);
+    }
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
       observer.disconnect();
+      statsObserver.disconnect();
     };
   }, []);
 
@@ -480,6 +609,29 @@ const Home: React.FC = () => {
                 $12,847.50 USDC
               </p>
             </div>
+          </div>
+        </section>
+
+        <section ref={statsRef} className="w-full pb-10 pt-4 sm:pb-14 sm:pt-6">
+          <div className="mb-8 text-center">
+            <h2 className="mb-3 text-2xl font-bold text-[var(--text)] sm:text-3xl">
+              Protocol By The Numbers
+            </h2>
+            <p className="mx-auto max-w-2xl text-sm text-[var(--muted)] sm:text-base">
+              Real-time metrics from Quipay streams across teams, treasuries,
+              and active contributors.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {stats.map((metric, index) => (
+              <AnimatedStat
+                key={metric.id}
+                index={index}
+                isActive={statsVisible}
+                metric={metric}
+                resetKey={statsResetKey}
+              />
+            ))}
           </div>
         </section>
 
