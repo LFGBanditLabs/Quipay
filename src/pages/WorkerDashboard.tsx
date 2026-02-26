@@ -31,11 +31,13 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
   );
 
   return (
-    <div className="relative overflow-hidden rounded-[20px] border border-white/10 bg-white/5 p-6">
+    <div className="relative overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface-subtle)] p-6">
       <div className="mb-4 flex items-start justify-between">
         <div>
-          <div className="text-lg font-semibold">{stream.employerName}</div>
-          <div className="font-mono text-xs text-zinc-500">
+          <div className="text-lg font-semibold text-[var(--text)]">
+            {stream.employerName}
+          </div>
+          <div className="font-mono text-xs text-[var(--muted)]">
             {stream.employerAddress}
           </div>
         </div>
@@ -48,15 +50,15 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
         <div className="mb-2 text-sm uppercase tracking-[0.05em] text-[var(--muted)]">
           Current Earnings
         </div>
-        <div className="text-[1.75rem] font-bold text-white">
+        <div className="text-[1.75rem] font-bold text-[var(--text)]">
           {currentEarnings.toFixed(7)} {stream.tokenSymbol}
         </div>
-        <div className="mt-1 text-sm text-zinc-500">
+        <div className="mt-1 text-sm text-[var(--muted)]">
           of {stream.totalAmount} {stream.tokenSymbol} total
         </div>
       </div>
 
-      <div className="my-4 h-2 overflow-hidden rounded bg-white/5">
+      <div className="my-4 h-2 overflow-hidden rounded bg-[var(--surface)]">
         <div
           className="h-full bg-gradient-to-r from-indigo-600 to-sky-500 transition-[width] duration-500"
           style={{ width: `${Math.min(100, percentage)}%` }}
@@ -94,9 +96,7 @@ const WorkerDashboard: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div
-        style={{ display: "flex", justifyContent: "center", padding: "100px" }}
-      >
+      <div className="flex justify-center py-24">
         <Loader />
       </div>
     );
@@ -104,10 +104,7 @@ const WorkerDashboard: React.FC = () => {
 
   if (!address) {
     return (
-      <div
-        className="mx-auto max-w-[1200px] px-8 py-8 text-[var(--text)] text-center"
-        style={{ textAlign: "center", padding: "100px" }}
-      >
+      <div className="mx-auto max-w-[1200px] px-8 py-24 text-[var(--text)] text-center">
         <Text as="h2" size="lg">
           Please connect your wallet to view your dashboard
         </Text>
@@ -129,11 +126,11 @@ const WorkerDashboard: React.FC = () => {
             <EarningsDisplay streams={streams} />
           </section>
 
-          <h2 className="mb-6 text-2xl font-semibold text-white">
+          <h2 className="mb-6 text-2xl font-semibold text-[var(--text)]">
             Your Active Streams
           </h2>
           {streams.length === 0 ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-12 text-center backdrop-blur">
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-12 text-center backdrop-blur">
               <p style={{ color: "var(--muted)" }}>
                 No active streams found for this address.
               </p>
@@ -146,23 +143,23 @@ const WorkerDashboard: React.FC = () => {
             </div>
           )}
 
-          <h2 className="mb-6 text-2xl font-semibold text-white">
+          <h2 className="mb-6 text-2xl font-semibold text-[var(--text)]">
             Withdrawal History
           </h2>
-          <div className="overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02]">
+          <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)]">
             <table className="w-full border-collapse max-[768px]:block max-[768px]:overflow-x-auto">
               <thead>
                 <tr>
-                  <th className="bg-white/5 p-4 text-left text-sm font-medium text-[#a5a5a5]">
+                  <th className="bg-[var(--surface-subtle)] p-4 text-left text-sm font-medium text-[var(--muted)]">
                     Date
                   </th>
-                  <th className="bg-white/5 p-4 text-left text-sm font-medium text-[#a5a5a5]">
+                  <th className="bg-[var(--surface-subtle)] p-4 text-left text-sm font-medium text-[var(--muted)]">
                     Amount
                   </th>
-                  <th className="bg-white/5 p-4 text-left text-sm font-medium text-[#a5a5a5]">
+                  <th className="bg-[var(--surface-subtle)] p-4 text-left text-sm font-medium text-[var(--muted)]">
                     Token
                   </th>
-                  <th className="bg-white/5 p-4 text-left text-sm font-medium text-[#a5a5a5]">
+                  <th className="bg-[var(--surface-subtle)] p-4 text-left text-sm font-medium text-[var(--muted)]">
                     Transaction
                   </th>
                 </tr>
@@ -171,7 +168,7 @@ const WorkerDashboard: React.FC = () => {
                 {withdrawalHistory.map((record) => (
                   <tr
                     key={record.id}
-                    className="[&:not(:last-child)>td]:border-b [&:not(:last-child)>td]:border-white/5"
+                    className="[&:not(:last-child)>td]:border-b [&:not(:last-child)>td]:border-[var(--border)]"
                   >
                     <td className="p-4 text-sm">{record.date}</td>
                     <td className="p-4 text-sm font-semibold">
@@ -181,7 +178,7 @@ const WorkerDashboard: React.FC = () => {
                     <td className="p-4 text-sm">
                       <a
                         href={`#${record.txHash}`}
-                        className="font-mono text-indigo-600 no-underline"
+                        className="font-mono text-[var(--accent)] no-underline"
                       >
                         {record.txHash}
                       </a>
