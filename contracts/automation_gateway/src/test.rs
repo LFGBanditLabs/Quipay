@@ -1,12 +1,12 @@
 #![cfg(test)]
 use super::*;
-use soroban_sdk::{testutils::Address as _, vec, Address, Bytes, Env};
 use quipay_common::QuipayError;
+use soroban_sdk::{Address, Bytes, Env, testutils::Address as _, vec};
 
 // Dummy PayrollStream contract for testing gateway integration
 mod dummy_payroll_stream {
-    use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Vec};
     use quipay_common::QuipayError;
+    use soroban_sdk::{Address, Env, Vec, contract, contractimpl, contracttype};
 
     #[contracttype]
     #[derive(Clone)]
@@ -119,11 +119,8 @@ fn test_already_initialized() {
 
     client.init(&admin);
     let result = client.try_init(&admin);
-    
-    assert_eq!(
-        result,
-        Err(Ok(QuipayError::AlreadyInitialized))
-    );
+
+    assert_eq!(result, Err(Ok(QuipayError::AlreadyInitialized)));
 }
 
 #[test]
@@ -159,17 +156,14 @@ fn test_execute_automation_unauthorized() {
     client.register_agent(&agent, &vec![&env, Permission::RebalanceTreasury]);
 
     // Unauthorized action
-    let result = client.try_execute_automation(&agent, &Permission::CreateStream, &Bytes::new(&env));
-    
-    assert_eq!(
-        result,
-        Err(Ok(QuipayError::InsufficientPermissions))
-    );
+    let result =
+        client.try_execute_automation(&agent, &Permission::CreateStream, &Bytes::new(&env));
+
+    assert_eq!(result, Err(Ok(QuipayError::InsufficientPermissions)));
 }
 
 #[test]
 fn test_agent_create_stream_authorized() {
-
     let env = Env::default();
     env.mock_all_auths();
 
@@ -181,7 +175,8 @@ fn test_agent_create_stream_authorized() {
 
     // Register PayrollStream contract
     let payroll_stream_id = env.register_contract(None, dummy_payroll_stream::DummyPayrollStream);
-    let payroll_client = dummy_payroll_stream::DummyPayrollStreamClient::new(&env, &payroll_stream_id);
+    let payroll_client =
+        dummy_payroll_stream::DummyPayrollStreamClient::new(&env, &payroll_stream_id);
     payroll_client.init();
 
     // Register AutomationGateway
@@ -197,14 +192,7 @@ fn test_agent_create_stream_authorized() {
 
     // Agent creates stream on behalf of employer
     let stream_id = gateway_client.agent_create_stream(
-        &agent,
-        &employer,
-        &worker,
-        &token,
-        &100i128,
-        &0u64,
-        &10u64,
-        &100u64,
+        &agent, &employer, &worker, &token, &100i128, &0u64, &10u64, &100u64,
     );
 
     assert_eq!(stream_id, 1u64);
@@ -223,7 +211,8 @@ fn test_agent_create_stream_unauthorized() {
 
     // Register PayrollStream contract
     let payroll_stream_id = env.register_contract(None, dummy_payroll_stream::DummyPayrollStream);
-    let payroll_client = dummy_payroll_stream::DummyPayrollStreamClient::new(&env, &payroll_stream_id);
+    let payroll_client =
+        dummy_payroll_stream::DummyPayrollStreamClient::new(&env, &payroll_stream_id);
     payroll_client.init();
 
     // Register AutomationGateway
@@ -239,20 +228,10 @@ fn test_agent_create_stream_unauthorized() {
 
     // Agent tries to create stream but is unauthorized
     let result = gateway_client.try_agent_create_stream(
-        &agent,
-        &employer,
-        &worker,
-        &token,
-        &100i128,
-        &0u64,
-        &10u64,
-        &100u64,
+        &agent, &employer, &worker, &token, &100i128, &0u64, &10u64, &100u64,
     );
 
-    assert_eq!(
-        result,
-        Err(Ok(QuipayError::InsufficientPermissions))
-    );
+    assert_eq!(result, Err(Ok(QuipayError::InsufficientPermissions)));
 }
 
 #[test]
@@ -268,7 +247,8 @@ fn test_agent_cancel_stream_authorized() {
 
     // Register PayrollStream contract
     let payroll_stream_id = env.register_contract(None, dummy_payroll_stream::DummyPayrollStream);
-    let payroll_client = dummy_payroll_stream::DummyPayrollStreamClient::new(&env, &payroll_stream_id);
+    let payroll_client =
+        dummy_payroll_stream::DummyPayrollStreamClient::new(&env, &payroll_stream_id);
     payroll_client.init();
 
     // Register AutomationGateway
@@ -280,18 +260,14 @@ fn test_agent_cancel_stream_authorized() {
     payroll_client.set_gateway(&gateway_id);
 
     // Register agent with both CreateStream and CancelStream permissions
-    gateway_client.register_agent(&agent, &vec![&env, Permission::CreateStream, Permission::CancelStream]);
+    gateway_client.register_agent(
+        &agent,
+        &vec![&env, Permission::CreateStream, Permission::CancelStream],
+    );
 
     // First, create a stream
     let stream_id = gateway_client.agent_create_stream(
-        &agent,
-        &employer,
-        &worker,
-        &token,
-        &100i128,
-        &0u64,
-        &10u64,
-        &100u64,
+        &agent, &employer, &worker, &token, &100i128, &0u64, &10u64, &100u64,
     );
 
     // Then cancel it
@@ -311,7 +287,8 @@ fn test_agent_cancel_stream_unauthorized() {
 
     // Register PayrollStream contract
     let payroll_stream_id = env.register_contract(None, dummy_payroll_stream::DummyPayrollStream);
-    let payroll_client = dummy_payroll_stream::DummyPayrollStreamClient::new(&env, &payroll_stream_id);
+    let payroll_client =
+        dummy_payroll_stream::DummyPayrollStreamClient::new(&env, &payroll_stream_id);
     payroll_client.init();
 
     // Register AutomationGateway
@@ -327,23 +304,13 @@ fn test_agent_cancel_stream_unauthorized() {
 
     // First, create a stream
     let stream_id = gateway_client.agent_create_stream(
-        &agent,
-        &employer,
-        &worker,
-        &token,
-        &100i128,
-        &0u64,
-        &10u64,
-        &100u64,
+        &agent, &employer, &worker, &token, &100i128, &0u64, &10u64, &100u64,
     );
 
     // Agent tries to cancel stream but is unauthorized
     let result = gateway_client.try_agent_cancel_stream(&agent, &stream_id, &employer);
 
-    assert_eq!(
-        result,
-        Err(Ok(QuipayError::InsufficientPermissions))
-    );
+    assert_eq!(result, Err(Ok(QuipayError::InsufficientPermissions)));
 }
 
 #[test]
@@ -359,7 +326,8 @@ fn test_revoked_agent_blocked() {
 
     // Register PayrollStream contract
     let payroll_stream_id = env.register_contract(None, dummy_payroll_stream::DummyPayrollStream);
-    let payroll_client = dummy_payroll_stream::DummyPayrollStreamClient::new(&env, &payroll_stream_id);
+    let payroll_client =
+        dummy_payroll_stream::DummyPayrollStreamClient::new(&env, &payroll_stream_id);
     payroll_client.init();
 
     // Register AutomationGateway
@@ -378,20 +346,10 @@ fn test_revoked_agent_blocked() {
 
     // Revoked agent tries to create stream
     let result = gateway_client.try_agent_create_stream(
-        &agent,
-        &employer,
-        &worker,
-        &token,
-        &100i128,
-        &0u64,
-        &10u64,
-        &100u64,
+        &agent, &employer, &worker, &token, &100i128, &0u64, &10u64, &100u64,
     );
 
-    assert_eq!(
-        result,
-        Err(Ok(QuipayError::InsufficientPermissions))
-    );
+    assert_eq!(result, Err(Ok(QuipayError::InsufficientPermissions)));
 }
 
 #[test]
@@ -412,7 +370,10 @@ fn test_create_stream_permission_types() {
     // Register agents with different permissions
     gateway_client.register_agent(&agent_create, &vec![&env, Permission::CreateStream]);
     gateway_client.register_agent(&agent_cancel, &vec![&env, Permission::CancelStream]);
-    gateway_client.register_agent(&agent_both, &vec![&env, Permission::CreateStream, Permission::CancelStream]);
+    gateway_client.register_agent(
+        &agent_both,
+        &vec![&env, Permission::CreateStream, Permission::CancelStream],
+    );
 
     // Verify permissions
     assert!(gateway_client.is_authorized(&agent_create, &Permission::CreateStream));

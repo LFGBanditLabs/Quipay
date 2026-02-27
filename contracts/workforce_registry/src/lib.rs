@@ -1,6 +1,6 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env, String, Symbol, Vec,
+    Address, Env, String, Symbol, Vec, contract, contractimpl, contracttype, symbol_short,
 };
 
 #[contracttype]
@@ -26,7 +26,7 @@ pub struct WorkforceRegistryContract;
 #[contractimpl]
 impl WorkforceRegistryContract {
     /// Registers a new worker profile.
-    /// 
+    ///
     /// # Arguments
     /// * `e` - The environment.
     /// * `worker` - The address of the worker registering.
@@ -39,18 +39,18 @@ impl WorkforceRegistryContract {
         metadata_hash: String,
     ) {
         worker.require_auth();
-        
+
         let key = DataKey::Worker(worker.clone());
         if e.storage().persistent().has(&key) {
             panic!("Worker already registered");
         }
-        
+
         let profile = WorkerProfile {
             wallet: worker.clone(),
             preferred_token: preferred_token.clone(),
             metadata_hash: metadata_hash.clone(),
         };
-        
+
         e.storage().persistent().set(&key, &profile);
 
         e.events().publish(
@@ -65,31 +65,26 @@ impl WorkforceRegistryContract {
     }
 
     /// Updates an existing worker profile.
-    /// 
+    ///
     /// # Arguments
     /// * `e` - The environment.
     /// * `worker` - The address of the worker updating their profile.
     /// * `preferred_token` - The new preferred payment token address.
     /// * `metadata_hash` - The new metadata hash string.
-    pub fn update_worker(
-        e: Env,
-        worker: Address,
-        preferred_token: Address,
-        metadata_hash: String,
-    ) {
+    pub fn update_worker(e: Env, worker: Address, preferred_token: Address, metadata_hash: String) {
         worker.require_auth();
-        
+
         let key = DataKey::Worker(worker.clone());
         if !e.storage().persistent().has(&key) {
             panic!("Worker not registered");
         }
-        
+
         let profile = WorkerProfile {
             wallet: worker.clone(),
             preferred_token: preferred_token.clone(),
             metadata_hash: metadata_hash.clone(),
         };
-        
+
         e.storage().persistent().set(&key, &profile);
 
         e.events().publish(
@@ -104,11 +99,11 @@ impl WorkforceRegistryContract {
     }
 
     /// Retrieves a worker's profile.
-    /// 
+    ///
     /// # Arguments
     /// * `e` - The environment.
     /// * `worker` - The address of the worker to look up.
-    /// 
+    ///
     /// # Returns
     /// * `Option<WorkerProfile>` - The worker profile if found, None otherwise.
     pub fn get_worker(e: Env, worker: Address) -> Option<WorkerProfile> {
@@ -117,11 +112,11 @@ impl WorkforceRegistryContract {
     }
 
     /// Checks if a worker is registered.
-    /// 
+    ///
     /// # Arguments
     /// * `e` - The environment.
     /// * `worker` - The address of the worker to check.
-    /// 
+    ///
     /// # Returns
     /// * `bool` - True if registered, False otherwise.
     pub fn is_registered(e: Env, worker: Address) -> bool {
@@ -184,13 +179,14 @@ impl WorkforceRegistryContract {
                 let last_key = DataKey::EmployerActiveWorkerByIndex(employer.clone(), last_pos);
                 let last_worker: Address = e.storage().persistent().get(&last_key).unwrap();
 
-                let remove_key =
-                    DataKey::EmployerActiveWorkerByIndex(employer.clone(), remove_pos);
+                let remove_key = DataKey::EmployerActiveWorkerByIndex(employer.clone(), remove_pos);
                 e.storage().persistent().set(&remove_key, &last_worker);
 
                 let last_worker_idx_key =
                     DataKey::EmployerActiveWorkerIndex(employer.clone(), last_worker.clone());
-                e.storage().persistent().set(&last_worker_idx_key, &(remove_pos + 1));
+                e.storage()
+                    .persistent()
+                    .set(&last_worker_idx_key, &(remove_pos + 1));
 
                 e.storage().persistent().remove(&last_key);
             } else {
@@ -213,7 +209,12 @@ impl WorkforceRegistryContract {
         }
     }
 
-    pub fn get_workers_by_employer(e: Env, employer: Address, start: u32, limit: u32) -> Vec<WorkerProfile> {
+    pub fn get_workers_by_employer(
+        e: Env,
+        employer: Address,
+        start: u32,
+        limit: u32,
+    ) -> Vec<WorkerProfile> {
         let count_key = DataKey::EmployerActiveWorkerCount(employer.clone());
         let count: u32 = e.storage().persistent().get(&count_key).unwrap_or(0);
 

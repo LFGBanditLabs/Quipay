@@ -3,7 +3,7 @@
 extern crate std;
 
 use super::*;
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{Address, Env, String, testutils::Address as _};
 use std::vec::Vec as StdVec;
 
 #[test]
@@ -26,7 +26,7 @@ fn test_register_and_get_worker() {
 
     // Verify registration
     assert_eq!(client.is_registered(&worker), true);
-    
+
     let profile = client.get_worker(&worker).unwrap();
     assert_eq!(profile.wallet, worker);
     assert_eq!(profile.preferred_token, preferred_token);
@@ -47,7 +47,7 @@ fn test_update_worker() {
     let hash2 = String::from_str(&e, "QmHash2");
 
     client.register_worker(&worker, &token1, &hash1);
-    
+
     // Update profile
     client.update_worker(&worker, &token2, &hash2);
 
@@ -110,12 +110,21 @@ fn test_get_workers_by_employer_pagination() {
 
     let page1 = client.get_workers_by_employer(&employer, &0u32, &3u32);
     assert_eq!(page1.len(), 3);
-    assert_eq!(page1.get(0).unwrap().wallet, workers.get(0).unwrap().clone());
-    assert_eq!(page1.get(2).unwrap().wallet, workers.get(2).unwrap().clone());
+    assert_eq!(
+        page1.get(0).unwrap().wallet,
+        workers.get(0).unwrap().clone()
+    );
+    assert_eq!(
+        page1.get(2).unwrap().wallet,
+        workers.get(2).unwrap().clone()
+    );
 
     let page2 = client.get_workers_by_employer(&employer, &3u32, &3u32);
     assert_eq!(page2.len(), 3);
-    assert_eq!(page2.get(0).unwrap().wallet, workers.get(3).unwrap().clone());
+    assert_eq!(
+        page2.get(0).unwrap().wallet,
+        workers.get(3).unwrap().clone()
+    );
 
     let tail = client.get_workers_by_employer(&employer, &9u32, &10u32);
     assert_eq!(tail.len(), 1);

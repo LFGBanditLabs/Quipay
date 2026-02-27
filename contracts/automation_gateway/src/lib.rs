@@ -1,6 +1,9 @@
 #![no_std]
-use soroban_sdk::{Address, Bytes, Env, Vec, contract, contractimpl, contracttype, symbol_short, Symbol, vec, IntoVal};
 use quipay_common::{QuipayError, require};
+use soroban_sdk::{
+    Address, Bytes, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype, symbol_short,
+    vec,
+};
 
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -46,7 +49,11 @@ impl AutomationGateway {
 
     /// Replace an agent's permissions.
     /// Only the admin can call this.
-    pub fn set_agent_permissions(env: Env, agent_address: Address, permissions: Vec<Permission>) -> Result<(), QuipayError> {
+    pub fn set_agent_permissions(
+        env: Env,
+        agent_address: Address,
+        permissions: Vec<Permission>,
+    ) -> Result<(), QuipayError> {
         let admin = Self::get_admin(env.clone())?;
         admin.require_auth();
 
@@ -57,7 +64,9 @@ impl AutomationGateway {
             .ok_or(QuipayError::AgentNotFound)?;
 
         agent.permissions = permissions.clone();
-        env.storage().instance().set(&DataKey::Agent(agent_address.clone()), &agent);
+        env.storage()
+            .instance()
+            .set(&DataKey::Agent(agent_address.clone()), &agent);
 
         env.events().publish(
             (
@@ -74,7 +83,11 @@ impl AutomationGateway {
 
     /// Grant a single permission to an agent.
     /// Only the admin can call this.
-    pub fn grant_permission(env: Env, agent_address: Address, permission: Permission) -> Result<(), QuipayError> {
+    pub fn grant_permission(
+        env: Env,
+        agent_address: Address,
+        permission: Permission,
+    ) -> Result<(), QuipayError> {
         let admin = Self::get_admin(env.clone())?;
         admin.require_auth();
 
@@ -86,7 +99,9 @@ impl AutomationGateway {
 
         if !agent.permissions.contains(permission) {
             agent.permissions.push_back(permission);
-            env.storage().instance().set(&DataKey::Agent(agent_address.clone()), &agent);
+            env.storage()
+                .instance()
+                .set(&DataKey::Agent(agent_address.clone()), &agent);
         }
 
         env.events().publish(
@@ -104,7 +119,11 @@ impl AutomationGateway {
 
     /// Revoke a single permission from an agent.
     /// Only the admin can call this.
-    pub fn revoke_permission(env: Env, agent_address: Address, permission: Permission) -> Result<(), QuipayError> {
+    pub fn revoke_permission(
+        env: Env,
+        agent_address: Address,
+        permission: Permission,
+    ) -> Result<(), QuipayError> {
         let admin = Self::get_admin(env.clone())?;
         admin.require_auth();
 
@@ -124,7 +143,9 @@ impl AutomationGateway {
             i += 1;
         }
         agent.permissions = new_perms;
-        env.storage().instance().set(&DataKey::Agent(agent_address.clone()), &agent);
+        env.storage()
+            .instance()
+            .set(&DataKey::Agent(agent_address.clone()), &agent);
 
         env.events().publish(
             (
@@ -141,7 +162,11 @@ impl AutomationGateway {
 
     /// Register a new AI agent with specific permissions.
     /// Only the admin can call this.
-    pub fn register_agent(env: Env, agent_address: Address, permissions: Vec<Permission>) -> Result<(), QuipayError> {
+    pub fn register_agent(
+        env: Env,
+        agent_address: Address,
+        permissions: Vec<Permission>,
+    ) -> Result<(), QuipayError> {
         let admin = Self::get_admin(env.clone())?;
         admin.require_auth();
 
@@ -204,7 +229,12 @@ impl AutomationGateway {
 
     /// Route an automated action.
     /// For now, this is a placeholder that verifies authorization.
-    pub fn execute_automation(env: Env, agent: Address, action: Permission, _data: Bytes) -> Result<(), QuipayError> {
+    pub fn execute_automation(
+        env: Env,
+        agent: Address,
+        action: Permission,
+        _data: Bytes,
+    ) -> Result<(), QuipayError> {
         agent.require_auth();
 
         require!(
@@ -247,9 +277,7 @@ impl AutomationGateway {
 
     /// Get the PayrollStream contract address.
     pub fn get_payroll_stream(env: Env) -> Option<Address> {
-        env.storage()
-            .instance()
-            .get(&DataKey::PayrollStream)
+        env.storage().instance().get(&DataKey::PayrollStream)
     }
 
     /// Create a stream on behalf of an employer through an authorized agent.
@@ -272,8 +300,8 @@ impl AutomationGateway {
             QuipayError::InsufficientPermissions
         );
 
-        let payroll_stream = Self::get_payroll_stream(env.clone())
-            .ok_or(QuipayError::NotInitialized)?;
+        let payroll_stream =
+            Self::get_payroll_stream(env.clone()).ok_or(QuipayError::NotInitialized)?;
 
         // Invoke create_stream_via_gateway on PayrollStream contract
         let stream_id: u64 = env.invoke_contract(
@@ -319,18 +347,14 @@ impl AutomationGateway {
             QuipayError::InsufficientPermissions
         );
 
-        let payroll_stream = Self::get_payroll_stream(env.clone())
-            .ok_or(QuipayError::NotInitialized)?;
+        let payroll_stream =
+            Self::get_payroll_stream(env.clone()).ok_or(QuipayError::NotInitialized)?;
 
         // Invoke cancel_stream_via_gateway on PayrollStream contract
         env.invoke_contract::<()>(
             &payroll_stream,
             &Symbol::new(&env, "cancel_stream_via_gateway"),
-            vec![
-                &env,
-                stream_id.into_val(&env),
-                employer.into_val(&env),
-            ],
+            vec![&env, stream_id.into_val(&env), employer.into_val(&env)],
         );
 
         env.events().publish(

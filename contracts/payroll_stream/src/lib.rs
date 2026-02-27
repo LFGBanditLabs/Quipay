@@ -133,9 +133,15 @@ impl PayrollStream {
 
         // Call the internal create stream logic
         let stream_id = Self::create_stream_internal(
-            env.clone(), employer.clone(), worker.clone(), token.clone(), rate, cliff_ts, start_ts, end_ts,
+            env.clone(),
+            employer.clone(),
+            worker.clone(),
+            token.clone(),
+            rate,
+            cliff_ts,
+            start_ts,
+            end_ts,
         )?;
-
 
         env.events().publish(
             (
@@ -445,9 +451,7 @@ impl PayrollStream {
 
     /// Get the authorized AutomationGateway contract address.
     pub fn get_gateway(env: Env) -> Option<Address> {
-        env.storage()
-            .instance()
-            .get(&DataKey::Gateway)
+        env.storage().instance().get(&DataKey::Gateway)
     }
 
     /// Create a stream via an authorized AutomationGateway on behalf of an employer.
@@ -565,7 +569,7 @@ impl PayrollStream {
             .get(&DataKey::Vault)
             .ok_or(QuipayError::NotInitialized)?;
 
-        use soroban_sdk::{vec, IntoVal, Symbol};
+        use soroban_sdk::{IntoVal, Symbol, vec};
 
         // Block stream creation if treasury would be insolvent
         let solvent: bool = env.invoke_contract(
@@ -582,7 +586,11 @@ impl PayrollStream {
         env.invoke_contract::<()>(
             &vault,
             &Symbol::new(&env, "add_liability"),
-            vec![&env, token.clone().into_val(&env), total_amount.into_val(&env)],
+            vec![
+                &env,
+                token.clone().into_val(&env),
+                total_amount.into_val(&env),
+            ],
         );
 
         let mut next_id: u64 = env
@@ -807,7 +815,9 @@ impl PayrollStream {
             return 0;
         }
 
-        if effective_ts >= stream.end_ts || (stream.status == StreamStatus::Completed && effective_ts >= stream.closed_at) {
+        if effective_ts >= stream.end_ts
+            || (stream.status == StreamStatus::Completed && effective_ts >= stream.closed_at)
+        {
             return stream.total_amount;
         }
         if is_closed && stream.status == StreamStatus::Canceled {
