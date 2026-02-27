@@ -1,5 +1,5 @@
-import { Helmet } from "react-helmet";
-import { SITE_NAME, toAbsoluteUrl } from "../../seo/siteMeta";
+// import { Helmet } from "react-helmet";
+// import { SITE_NAME, toAbsoluteUrl } from "../../seo/siteMeta";
 
 export interface SeoHelmetProps {
   title: string;
@@ -10,14 +10,9 @@ export interface SeoHelmetProps {
   type?: "website" | "article";
 }
 
-export function SeoHelmet({
-  title,
-  description,
-  path,
-  imagePath,
-  robots = "index,follow",
-  type = "website",
-}: SeoHelmetProps) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function SeoHelmet(_props: SeoHelmetProps) {
+  /*
   const fullTitle = title.includes(SITE_NAME)
     ? title
     : `${title} | ${SITE_NAME}`;
@@ -26,8 +21,11 @@ export function SeoHelmet({
   const imageType = imagePath.toLowerCase().endsWith(".png")
     ? "image/png"
     : "image/svg+xml";
+  */
 
   return (
+    <>
+      {/* 
     <Helmet>
       <title>{fullTitle}</title>
       <link rel="canonical" href={pageUrl} />
@@ -53,5 +51,7 @@ export function SeoHelmet({
       <meta name="twitter:image" content={imageUrl} />
       <meta name="twitter:image:alt" content={`${SITE_NAME} social preview`} />
     </Helmet>
+    */}
+    </>
   );
 }

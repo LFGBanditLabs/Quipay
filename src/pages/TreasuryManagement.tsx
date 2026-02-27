@@ -4,9 +4,23 @@ import { useNavigate } from "react-router-dom";
 import { usePayroll } from "../hooks/usePayroll";
 import Tooltip from "../components/Tooltip";
 import CollapsibleSection from "../components/CollapsibleSection";
-import styles from "./TreasuryManagement.module.css";
 
 const TreasuryManagement: React.FC = () => {
+  const tw = {
+    treasuryHeader:
+      "mb-8 flex items-start justify-between max-[768px]:flex-col max-[768px]:gap-4",
+    cardGrid: "mb-8 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-6",
+    card: "rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-[0_1px_2px_var(--shadow-color)]",
+    cardTitle: "mb-4 flex items-center gap-2 text-[var(--muted)]",
+    balanceValue: "text-3xl font-bold text-[var(--text)]",
+    actions: "mt-6 flex gap-4",
+    settingsSection: "mt-12 border-t border-[var(--border)] pt-8",
+    formGroup: "mb-6",
+    label: "mb-2 block text-sm font-medium text-[var(--text)]",
+    input:
+      "w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5 text-sm text-[var(--text)]",
+  };
+
   const navigate = useNavigate();
   const { treasuryBalances, totalLiabilities } = usePayroll();
   const [retentionSecs, setRetentionSecs] = useState("2592000"); // 30 days
@@ -14,12 +28,12 @@ const TreasuryManagement: React.FC = () => {
   return (
     <Layout.Content>
       <Layout.Inset>
-        <div className={styles.treasuryHeader}>
+        <div className={tw.treasuryHeader}>
           <div>
             <Text as="h1" size="xl" weight="bold">
               Treasury Management
             </Text>
-            <Text as="p" size="md" style={{ color: "var(--gray-500)" }}>
+            <Text as="p" size="md" style={{ color: "var(--muted)" }}>
               Manage your protocol's funds and global settings.
             </Text>
           </div>
@@ -34,10 +48,10 @@ const TreasuryManagement: React.FC = () => {
           </Button>
         </div>
 
-        <div className={styles.cardGrid}>
+        <div className={tw.cardGrid}>
           {/* Treasury Balances */}
-          <div className={styles.card}>
-            <div className={styles.cardTitle}>
+          <div className={tw.card}>
+            <div className={tw.cardTitle}>
               <Icon.ChevronRight size="md" />
               <Text as="span" size="sm" weight="medium">
                 Total Treasury Balance
@@ -46,12 +60,12 @@ const TreasuryManagement: React.FC = () => {
             </div>
             {treasuryBalances.map((balance) => (
               <div key={balance.tokenSymbol} style={{ marginBottom: "0.5rem" }}>
-                <span className={styles.balanceValue}>
+                <span className={tw.balanceValue}>
                   {balance.balance} {balance.tokenSymbol}
                 </span>
               </div>
             ))}
-            <div className={styles.actions}>
+            <div className={tw.actions}>
               <Button variant="primary" size="md">
                 Deposit Funds
               </Button>
@@ -62,17 +76,17 @@ const TreasuryManagement: React.FC = () => {
           </div>
 
           {/* Liabilities */}
-          <div className={styles.card}>
-            <div className={styles.cardTitle}>
+          <div className={tw.card}>
+            <div className={tw.cardTitle}>
               <Icon.ChevronRight size="md" />
               <Text as="span" size="sm" weight="medium">
                 Monthly Liabilities
               </Text>
               <Tooltip content="Projected outgoing payments for the next 30 days" />
             </div>
-            <span className={styles.balanceValue}>{totalLiabilities}</span>
+            <span className={tw.balanceValue}>{totalLiabilities}</span>
             <div style={{ marginTop: "1rem" }}>
-              <Text as="p" size="sm" style={{ color: "var(--gray-500)" }}>
+              <Text as="p" size="sm" style={{ color: "var(--muted)" }}>
                 Ensure your treasury balance exceeds your liabilities to prevent
                 stream interruptions.
               </Text>
@@ -80,7 +94,7 @@ const TreasuryManagement: React.FC = () => {
           </div>
         </div>
 
-        <div className={styles.settingsSection}>
+        <div className={tw.settingsSection}>
           <Text
             as="h2"
             size="lg"
@@ -92,33 +106,33 @@ const TreasuryManagement: React.FC = () => {
           <Text
             as="p"
             size="md"
-            style={{ color: "var(--gray-500)", marginBottom: "1.5rem" }}
+            style={{ color: "var(--muted)", marginBottom: "1.5rem" }}
           >
             Configure global parameters for your payroll protocol.
           </Text>
 
           <CollapsibleSection title="Advanced Protocol Configuration">
-            <div className={styles.formGroup}>
-              <label className={styles.label}>
+            <div className={tw.formGroup}>
+              <label className={tw.label}>
                 Retention Period (Seconds)
                 <Tooltip content="How long cancelled stream data is kept on-chain before it can be cleaned up" />
               </label>
               <input
                 type="number"
-                className={styles.input}
+                className={tw.input}
                 value={retentionSecs}
                 onChange={(e) => setRetentionSecs(e.target.value)}
               />
             </div>
 
-            <div className={styles.formGroup}>
-              <label className={styles.label}>
+            <div className={tw.formGroup}>
+              <label className={tw.label}>
                 Admin Address
                 <Tooltip content="The address with authority to pause the protocol or change settings" />
               </label>
               <input
                 type="text"
-                className={styles.input}
+                className={tw.input}
                 value="G..."
                 readOnly
                 disabled
@@ -140,23 +154,26 @@ const TreasuryManagement: React.FC = () => {
             <div
               style={{
                 padding: "1rem",
-                border: "1px solid var(--red-200)",
+                border: "1px solid var(--sds-color-feedback-error-transparent)",
                 borderRadius: "0.5rem",
-                backgroundColor: "var(--red-50)",
+                backgroundColor: "var(--error-transparent)",
               }}
             >
               <Text
                 as="h3"
                 size="md"
                 weight="bold"
-                style={{ color: "var(--red-700)" }}
+                style={{ color: "var(--sds-color-feedback-error)" }}
               >
                 Pause Protocol
               </Text>
               <Text
                 as="p"
                 size="sm"
-                style={{ color: "var(--red-600)", marginBottom: "1rem" }}
+                style={{
+                  color: "var(--sds-color-feedback-error)",
+                  marginBottom: "1rem",
+                }}
               >
                 Pausing the protocol will stop all real-time streams and prevent
                 new withdrawals. Only use this in emergencies.
@@ -164,7 +181,7 @@ const TreasuryManagement: React.FC = () => {
               <Button
                 variant="primary"
                 size="md"
-                style={{ backgroundColor: "var(--red-600)" }}
+                style={{ backgroundColor: "var(--sds-color-feedback-error)" }}
               >
                 Pause All Streams
               </Button>

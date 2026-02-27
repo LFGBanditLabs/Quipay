@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Icon } from "@stellar/design-system";
-import styles from "./CollapsibleSection.module.css";
 
 interface CollapsibleSectionProps {
   title: string;
@@ -16,19 +15,23 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   return (
-    <div className={styles.container}>
+    <div className="my-4 overflow-hidden rounded-lg border border-[var(--border)]">
       <button
-        className={styles.header}
+        className="flex w-full items-center justify-between bg-[var(--surface-subtle)] px-4 py-3 text-left transition-colors hover:bg-[var(--surface)]"
         onClick={() => setIsExpanded(!isExpanded)}
         aria-expanded={isExpanded}
       >
-        <span className={styles.title}>{title}</span>
+        <span className="text-sm font-medium text-[var(--text)]">{title}</span>
         <Icon.ChevronDown
           size="sm"
-          className={`${styles.icon} ${isExpanded ? styles.iconExpanded : ""}`}
+          className={`text-[var(--muted)] transition-transform ${isExpanded ? "rotate-180" : ""}`}
         />
       </button>
-      {isExpanded && <div className={styles.content}>{children}</div>}
+      {isExpanded && (
+        <div className="border-t border-[var(--border)] bg-[var(--surface)] p-4">
+          {children}
+        </div>
+      )}
     </div>
   );
 };

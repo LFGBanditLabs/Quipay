@@ -167,7 +167,7 @@ const Debugger: React.FC = () => {
         {failedContracts[selectedContract] && (
           <Layout.Inset>
             <h2>{selectedContract}</h2>
-            <p style={{ color: "red" }}>
+            <p style={{ color: "var(--sds-color-feedback-error)" }}>
               Failed to import contract: {failedContracts[selectedContract]}
             </p>
           </Layout.Inset>

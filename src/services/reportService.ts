@@ -1,0 +1,601 @@
+/**
+ * Report Service — CSV & PDF generation for Quipay.
+ *
+ * Provides:
+ *  - CSV export of transaction history
+ *  - Professional PDF paycheck stubs
+ *  - Monthly summary PDF reports (suitable for tax filing)
+ */
+
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import type {
+  PayrollTransaction,
+  MonthlySummary,
+  DepartmentBreakdown,
+} from "../types/reports";
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                           */
+/* ------------------------------------------------------------------ */
+
+function formatCurrency(amount: number, currency = "USDC"): string {
+  return `${amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ${currency}`;
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function shortHash(hash: string): string {
+  if (hash.length <= 16) return hash;
+  return `${hash.slice(0, 8)}…${hash.slice(-8)}`;
+}
+
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ------------------------------------------------------------------ */
+/*  CSV Export                                                        */
+/* ------------------------------------------------------------------ */
+
+export function exportTransactionsCSV(
+  transactions: PayrollTransaction[],
+  filename = "quipay-transaction-history.csv",
+) {
+  const headers = [
+    "Transaction ID",
+    "Date",
+    "Employee Name",
+    "Employee ID",
+    "Wallet Address",
+    "Amount",
+    "Currency",
+    "TX Hash",
+    "Status",
+    "Description",
+  ];
+
+  const escapeCSV = (val: string | number): string => {
+    const str = String(val);
+    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const rows = transactions.map((tx) =>
+    [
+      tx.id,
+      tx.date,
+      tx.employeeName,
+      tx.employeeId,
+      tx.walletAddress,
+      tx.amount,
+      tx.currency,
+      tx.txHash,
+      tx.status,
+      tx.description,
+    ]
+      .map(escapeCSV)
+      .join(","),
+  );
+
+  const csv = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  triggerDownload(blob, filename);
+}
+
+/* ------------------------------------------------------------------ */
+/*  PDF – Common styling helpers                                      */
+/* ------------------------------------------------------------------ */
+
+const BRAND = {
+  primary: [30, 64, 175] as [number, number, number], // Indigo-700
+  secondary: [99, 102, 241] as [number, number, number], // Indigo-500
+  accent: [79, 70, 229] as [number, number, number], // Indigo-600
+  dark: [15, 23, 42] as [number, number, number], // Slate-900
+  muted: [100, 116, 139] as [number, number, number], // Slate-500
+  light: [241, 245, 249] as [number, number, number], // Slate-100
+  success: [22, 163, 74] as [number, number, number],
+  danger: [220, 38, 38] as [number, number, number],
+  warning: [234, 179, 8] as [number, number, number],
+};
+
+function addHeader(doc: jsPDF, title: string, subtitle?: string) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Brand bar
+  doc.setFillColor(...BRAND.primary);
+  doc.rect(0, 0, pageWidth, 38, "F");
+
+  // Accent stripe
+  doc.setFillColor(...BRAND.secondary);
+  doc.rect(0, 38, pageWidth, 3, "F");
+
+  // Logo text
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(22);
+  doc.setTextColor(255, 255, 255);
+  doc.text("QUIPAY", 16, 18);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(200, 210, 255);
+  doc.text("Stellar-Powered Payroll Platform", 16, 28);
+
+  // Title
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(255, 255, 255);
+  doc.text(title, pageWidth - 16, 18, { align: "right" });
+
+  if (subtitle) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(200, 210, 255);
+    doc.text(subtitle, pageWidth - 16, 28, { align: "right" });
+  }
+
+  return 52; // y-offset after header
+}
+
+function addFooter(doc: jsPDF, pageNum: number, totalPages: number) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  doc.setFillColor(...BRAND.light);
+  doc.rect(0, pageHeight - 20, pageWidth, 20, "F");
+
+  doc.setDrawColor(...BRAND.secondary);
+  doc.setLineWidth(0.5);
+  doc.line(0, pageHeight - 20, pageWidth, pageHeight - 20);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(...BRAND.muted);
+  doc.text(
+    `Generated by Quipay • ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}`,
+    16,
+    pageHeight - 10,
+  );
+  doc.text(
+    `Page ${pageNum} of ${totalPages}`,
+    pageWidth - 16,
+    pageHeight - 10,
+    { align: "right" },
+  );
+}
+
+function statusColor(status: string): [number, number, number] {
+  switch (status) {
+    case "completed":
+      return BRAND.success;
+    case "pending":
+      return BRAND.warning;
+    case "failed":
+      return BRAND.danger;
+    default:
+      return BRAND.muted;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  PDF – Transaction History                                         */
+/* ------------------------------------------------------------------ */
+
+export function exportTransactionsPDF(
+  transactions: PayrollTransaction[],
+  filename = "quipay-transaction-history.pdf",
+) {
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  let startY = addHeader(
+    doc,
+    "Transaction History",
+    `${transactions.length} transactions`,
+  );
+
+  // Summary strip
+  const completed = transactions.filter((t) => t.status === "completed");
+  const totalAmount = completed.reduce((s, t) => s + t.amount, 0);
+
+  doc.setFillColor(...BRAND.light);
+  doc.roundedRect(14, startY, pageWidth - 28, 14, 3, 3, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(...BRAND.dark);
+  doc.text(`Total Paid: ${formatCurrency(totalAmount)}`, 20, startY + 9);
+  doc.text(
+    `Completed: ${completed.length}  |  Pending: ${transactions.filter((t) => t.status === "pending").length}  |  Failed: ${transactions.filter((t) => t.status === "failed").length}`,
+    pageWidth - 20,
+    startY + 9,
+    { align: "right" },
+  );
+  startY += 20;
+
+  // Table
+  autoTable(doc, {
+    startY,
+    head: [
+      [
+        "Date",
+        "Employee",
+        "Employee ID",
+        "Amount",
+        "Currency",
+        "TX Hash",
+        "Status",
+        "Description",
+      ],
+    ],
+    body: transactions.map((tx) => [
+      formatDate(tx.date),
+      tx.employeeName,
+      tx.employeeId,
+      formatCurrency(tx.amount, ""),
+      tx.currency,
+      shortHash(tx.txHash),
+      tx.status.toUpperCase(),
+      tx.description,
+    ]),
+    styles: {
+      fontSize: 8,
+      cellPadding: 3,
+      lineColor: [226, 232, 240],
+      lineWidth: 0.25,
+    },
+    headStyles: {
+      fillColor: BRAND.primary,
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+      fontSize: 8,
+    },
+    alternateRowStyles: {
+      fillColor: [248, 250, 252],
+    },
+    columnStyles: {
+      3: { halign: "right", fontStyle: "bold" },
+      6: { halign: "center" },
+    },
+    didParseCell(data) {
+      if (data.section === "body" && data.column.index === 6) {
+        const raw = data.cell.raw;
+        const val =
+          typeof raw === "string" || typeof raw === "number"
+            ? String(raw).toLowerCase()
+            : "";
+        data.cell.styles.textColor = statusColor(val);
+        data.cell.styles.fontStyle = "bold";
+      }
+    },
+    margin: { left: 14, right: 14 },
+  });
+
+  // Footers
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    addFooter(doc, i, totalPages);
+  }
+
+  doc.save(filename);
+}
+
+/* ------------------------------------------------------------------ */
+/*  PDF – Professional Paycheck Stub                                  */
+/* ------------------------------------------------------------------ */
+
+export function exportPaycheckPDF(tx: PayrollTransaction, filename?: string) {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  let y = addHeader(doc, "Paycheck Statement", `#${tx.id}`);
+
+  // Pay period info box
+  doc.setFillColor(...BRAND.light);
+  doc.roundedRect(14, y, pageWidth - 28, 36, 3, 3, "F");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(...BRAND.muted);
+  doc.text("EMPLOYEE", 22, y + 10);
+  doc.text("PAYMENT DATE", pageWidth / 2, y + 10);
+
+  doc.setFontSize(11);
+  doc.setTextColor(...BRAND.dark);
+  doc.text(tx.employeeName, 22, y + 18);
+  doc.text(formatDate(tx.date), pageWidth / 2, y + 18);
+
+  doc.setFontSize(8);
+  doc.setTextColor(...BRAND.muted);
+  doc.text(`ID: ${tx.employeeId}`, 22, y + 26);
+  doc.text(`Wallet: ${shortHash(tx.walletAddress)}`, 22, y + 32);
+  y += 44;
+
+  // Large amount
+  doc.setFillColor(...BRAND.primary);
+  doc.roundedRect(14, y, pageWidth - 28, 28, 3, 3, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(200, 210, 255);
+  doc.text("NET PAY", 22, y + 10);
+  doc.setFontSize(22);
+  doc.setTextColor(255, 255, 255);
+  doc.text(formatCurrency(tx.amount, tx.currency), 22, y + 22);
+
+  const [sr, sg, sb] = statusColor(tx.status);
+  doc.setFillColor(sr, sg, sb);
+  doc.roundedRect(pageWidth - 50, y + 8, 30, 12, 2, 2, "F");
+  doc.setFontSize(8);
+  doc.setTextColor(255, 255, 255);
+  doc.text(tx.status.toUpperCase(), pageWidth - 35, y + 16, {
+    align: "center",
+  });
+  y += 36;
+
+  // Details table
+  autoTable(doc, {
+    startY: y,
+    head: [["Detail", "Value"]],
+    body: [
+      ["Transaction ID", tx.id],
+      ["Description", tx.description],
+      ["Blockchain TX Hash", tx.txHash],
+      ["Currency", tx.currency],
+      ["Network", "Stellar"],
+      ["Status", tx.status.charAt(0).toUpperCase() + tx.status.slice(1)],
+    ],
+    styles: {
+      fontSize: 9,
+      cellPadding: 5,
+      lineColor: [226, 232, 240],
+      lineWidth: 0.25,
+    },
+    headStyles: {
+      fillColor: BRAND.accent,
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+    },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: {
+      0: { fontStyle: "bold", cellWidth: 55 },
+    },
+    margin: { left: 14, right: 14 },
+  });
+
+  // Disclaimer
+  const finalY =
+    (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable
+      ?.finalY ?? y + 80;
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(7);
+  doc.setTextColor(...BRAND.muted);
+  doc.text(
+    "This document is generated automatically by Quipay and serves as a digital paycheck record.",
+    pageWidth / 2,
+    finalY + 12,
+    { align: "center" },
+  );
+  doc.text(
+    "For verification, use the TX Hash to look up the transaction on Stellar Expert or StellarChain.",
+    pageWidth / 2,
+    finalY + 17,
+    { align: "center" },
+  );
+
+  addFooter(doc, 1, 1);
+
+  const fname =
+    filename ??
+    `quipay-paycheck-${tx.employeeName.replace(/\s+/g, "-").toLowerCase()}-${tx.date.slice(0, 10)}.pdf`;
+  doc.save(fname);
+}
+
+/* ------------------------------------------------------------------ */
+/*  PDF – Monthly Summary Report                                      */
+/* ------------------------------------------------------------------ */
+
+export function exportMonthlySummaryPDF(
+  summary: MonthlySummary,
+  transactions: PayrollTransaction[],
+  filename?: string,
+) {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  let y = addHeader(doc, "Monthly Payroll Summary", summary.month);
+
+  // ── KPI cards ──
+  const cardWidth = (pageWidth - 28 - 12) / 3; // 3 cards with gaps
+  const cards = [
+    {
+      label: "TOTAL PAYROLL",
+      value: formatCurrency(summary.totalPayroll, summary.currency),
+      color: BRAND.primary,
+    },
+    {
+      label: "TRANSACTIONS",
+      value: String(summary.totalTransactions),
+      color: BRAND.accent,
+    },
+    {
+      label: "AVG PAYMENT",
+      value: formatCurrency(summary.averagePayment, summary.currency),
+      color: BRAND.secondary,
+    },
+  ];
+
+  cards.forEach((card, i) => {
+    const x = 14 + i * (cardWidth + 6);
+    doc.setFillColor(...card.color);
+    doc.roundedRect(x, y, cardWidth, 26, 3, 3, "F");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(200, 210, 255);
+    doc.text(card.label, x + 8, y + 10);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(255, 255, 255);
+    doc.text(card.value, x + 8, y + 21);
+  });
+  y += 34;
+
+  // ── Status breakdown ──
+  doc.setFillColor(...BRAND.light);
+  doc.roundedRect(14, y, pageWidth - 28, 16, 3, 3, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+
+  const statuses = [
+    {
+      label: "Completed",
+      count: summary.completedTransactions,
+      color: BRAND.success,
+    },
+    {
+      label: "Pending",
+      count: summary.pendingTransactions,
+      color: BRAND.warning,
+    },
+    { label: "Failed", count: summary.failedTransactions, color: BRAND.danger },
+  ];
+
+  let sx = 22;
+  statuses.forEach((s) => {
+    doc.setFillColor(...s.color);
+    doc.circle(sx, y + 8, 2.5, "F");
+    doc.setTextColor(...BRAND.dark);
+    doc.text(`${s.label}: ${s.count}`, sx + 5, y + 10);
+    sx += 54;
+  });
+
+  doc.setTextColor(...BRAND.muted);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.text(
+    `Range: ${formatCurrency(summary.smallestPayment, summary.currency)} – ${formatCurrency(summary.largestPayment, summary.currency)}`,
+    pageWidth - 20,
+    y + 10,
+    { align: "right" },
+  );
+  y += 24;
+
+  // ── Department breakdown ──
+  if (summary.breakdown.length > 0) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...BRAND.dark);
+    doc.text("Department Breakdown", 14, y);
+    y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Department", "Employees", "Transactions", "Total Amount"]],
+      body: summary.breakdown.map((d: DepartmentBreakdown) => [
+        d.department,
+        String(d.employeeCount),
+        String(d.transactionCount),
+        formatCurrency(d.totalAmount, summary.currency),
+      ]),
+      styles: {
+        fontSize: 9,
+        cellPadding: 4,
+        lineColor: [226, 232, 240],
+        lineWidth: 0.25,
+      },
+      headStyles: {
+        fillColor: BRAND.accent,
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+      },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        1: { halign: "center" },
+        2: { halign: "center" },
+        3: { halign: "right", fontStyle: "bold" },
+      },
+      margin: { left: 14, right: 14 },
+    });
+
+    y =
+      (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable
+        ?.finalY ?? y + 40;
+    y += 8;
+  }
+
+  // ── Transactions list ──
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(...BRAND.dark);
+  doc.text("Transaction Details", 14, y);
+  y += 6;
+
+  autoTable(doc, {
+    startY: y,
+    head: [["Date", "Employee", "Amount", "Status", "TX Hash"]],
+    body: transactions.map((tx) => [
+      formatDate(tx.date),
+      tx.employeeName,
+      formatCurrency(tx.amount, tx.currency),
+      tx.status.toUpperCase(),
+      shortHash(tx.txHash),
+    ]),
+    styles: {
+      fontSize: 8,
+      cellPadding: 3,
+      lineColor: [226, 232, 240],
+      lineWidth: 0.25,
+    },
+    headStyles: {
+      fillColor: BRAND.primary,
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+    },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: {
+      2: { halign: "right", fontStyle: "bold" },
+      3: { halign: "center" },
+    },
+    didParseCell(data) {
+      if (data.section === "body" && data.column.index === 3) {
+        const raw = data.cell.raw;
+        const val =
+          typeof raw === "string" || typeof raw === "number"
+            ? String(raw).toLowerCase()
+            : "";
+        data.cell.styles.textColor = statusColor(val);
+        data.cell.styles.fontStyle = "bold";
+      }
+    },
+    margin: { left: 14, right: 14 },
+  });
+
+  // Footers on all pages
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    addFooter(doc, i, totalPages);
+  }
+
+  const fname =
+    filename ??
+    `quipay-monthly-summary-${summary.month.replace(/\s+/g, "-").toLowerCase()}.pdf`;
+  doc.save(fname);
+}

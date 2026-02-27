@@ -9,6 +9,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { SimulationResult, TokenBalance } from "../util/simulationUtils";
+import type { AppError } from "../util/errors";
+import { translateError } from "../util/errors";
+import { ErrorMessage } from "./ErrorMessage";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -71,23 +74,6 @@ const IconGas = () => (
     <path d="M15 8h2a2 2 0 0 1 2 2v3a2 2 0 0 0 2 2h0" />
     <line x1="3" y1="22" x2="21" y2="22" />
     <line x1="7" y1="10" x2="11" y2="10" />
-  </svg>
-);
-
-const IconAlert = () => (
-  <svg
-    width="20"
-    height="20"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-    <line x1="12" y1="9" x2="12" y2="13" />
-    <line x1="12" y1="17" x2="12.01" y2="17" />
   </svg>
 );
 
@@ -217,7 +203,13 @@ function BalanceRow({ b }: { b: TokenBalance }) {
 
 // ─── Status Banner ────────────────────────────────────────────────────────────
 
-function StatusBanner({ result }: { result: SimulationResult }) {
+function StatusBanner({
+  result,
+  onRetry,
+}: {
+  result: SimulationResult;
+  onRetry?: () => void;
+}) {
   if (result.status === "success") {
     return (
       <div className="tsm-banner tsm-banner-success">
@@ -242,16 +234,11 @@ function StatusBanner({ result }: { result: SimulationResult }) {
     );
   }
 
+  const appError: AppError = translateError(result.errorMessage);
+
   return (
-    <div className="tsm-banner tsm-banner-error">
-      <IconAlert />
-      <div>
-        <strong>Transaction will likely fail</strong>
-        <p>
-          {result.errorMessage ??
-            "Simulation returned an error. Signing may waste gas."}
-        </p>
-      </div>
+    <div style={{ marginBottom: "-16px" }}>
+      <ErrorMessage error={appError} onRetry={onRetry} />
     </div>
   );
 }
@@ -333,35 +320,35 @@ export default function TransactionSimulationModal({
 
         .tsm-overlay {
           position: fixed; inset: 0; z-index: 9999;
-          background: rgba(5,4,12,.75);
-          backdrop-filter: blur(6px);
+          background: rgba(5,4,12,.6);
+          backdrop-filter: blur(8px);
           display: flex; align-items: center; justify-content: center;
           padding: 20px;
           animation: tsmFadeIn .2s ease both;
         }
 
         .tsm-modal {
-          --bg:       #0f0d1a;
-          --surface:  #161325;
-          --border:   rgba(255,255,255,0.08);
-          --accent:   #6E56CF;
-          --accent2:  #9b85f5;
-          --text:     #eceaf8;
-          --muted:    #6b6480;
-          --green:    #34d399;
-          --red:      #f87171;
-          --yellow:   #fbbf24;
-          --radius:   16px;
+          --tsm-bg:       var(--surface);
+          --tsm-surface:  var(--bg);
+          --tsm-border:   var(--border);
+          --tsm-accent:   var(--accent);
+          --tsm-accent2:  #9b85f5;
+          --tsm-text:     var(--text);
+          --tsm-muted:    var(--muted);
+          --tsm-green:    #10b981;
+          --tsm-red:      var(--sds-color-feedback-error, #ef4444);
+          --tsm-yellow:   #f59e0b;
+          --tsm-radius:   16px;
 
           font-family: 'Mona Sans', sans-serif;
-          background: var(--bg);
-          border: 1.5px solid var(--border);
-          border-radius: var(--radius);
+          background: var(--tsm-tsm-bg);
+          border: 1.5px solid var(--tsm-tsm-border);
+          border-radius: var(--tsm-tsm-radius);
           width: 100%;
           max-width: 500px;
           max-height: 90vh;
           overflow-y: auto;
-          color: var(--text);
+          color: var(--tsm-text);
           box-shadow: 0 32px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(110,86,207,.15);
           animation: tsmSlideUp .3s cubic-bezier(.16,1,.3,1) both;
           scrollbar-width: thin;
@@ -371,14 +358,14 @@ export default function TransactionSimulationModal({
         /* ── Header ── */
         .tsm-header {
           padding: 22px 24px 18px;
-          border-bottom: 1px solid var(--border);
+          border-bottom: 1px solid var(--tsm-border);
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
           gap: 12px;
           position: sticky;
           top: 0;
-          background: var(--bg);
+          background: var(--tsm-bg);
           z-index: 1;
         }
         .tsm-header-left {
@@ -390,36 +377,36 @@ export default function TransactionSimulationModal({
           width: 40px; height: 40px;
           border-radius: 10px;
           background: rgba(110,86,207,.15);
-          color: var(--accent2);
+          color: var(--tsm-accent2);
           display: flex; align-items: center; justify-content: center;
           flex-shrink: 0;
         }
         .tsm-title {
           font-size: 15px;
           font-weight: 700;
-          color: var(--text);
+          color: var(--tsm-text);
           line-height: 1.2;
         }
         .tsm-subtitle {
           font-size: 12px;
-          color: var(--muted);
+          color: var(--tsm-muted);
           margin-top: 2px;
         }
         .tsm-close {
           background: none; border: none; cursor: pointer;
-          color: var(--muted); display: flex; padding: 4px;
+          color: var(--tsm-muted); display: flex; padding: 4px;
           border-radius: 6px; transition: color .15s;
           flex-shrink: 0;
         }
-        .tsm-close:hover { color: var(--text); }
+        .tsm-close:hover { color: var(--tsm-text); }
 
         /* ── Body ── */
         .tsm-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; }
 
         /* ── Tx summary pill ── */
         .tsm-tx-summary {
-          background: var(--surface);
-          border: 1px solid var(--border);
+          background: var(--tsm-surface);
+          border: 1px solid var(--tsm-border);
           border-radius: 12px;
           padding: 14px 16px;
           display: flex;
@@ -432,11 +419,11 @@ export default function TransactionSimulationModal({
           align-items: center;
           font-size: 13px;
         }
-        .tsm-tx-label { color: var(--muted); font-weight: 500; }
+        .tsm-tx-label { color: var(--tsm-muted); font-weight: 500; }
         .tsm-tx-val {
           font-family: 'DM Mono', monospace;
           font-size: 12px;
-          color: var(--text);
+          color: var(--tsm-text);
           background: rgba(255,255,255,.04);
           padding: 3px 8px;
           border-radius: 6px;
@@ -448,9 +435,9 @@ export default function TransactionSimulationModal({
         .tsm-tx-desc {
           font-size: 14px;
           font-weight: 700;
-          color: var(--text);
+          color: var(--tsm-text);
           padding-bottom: 8px;
-          border-bottom: 1px solid var(--border);
+          border-bottom: 1px solid var(--tsm-border);
           margin-bottom: 2px;
         }
 
@@ -460,7 +447,7 @@ export default function TransactionSimulationModal({
           font-weight: 700;
           letter-spacing: .12em;
           text-transform: uppercase;
-          color: var(--muted);
+          color: var(--tsm-muted);
           margin-bottom: 10px;
         }
 
@@ -471,7 +458,7 @@ export default function TransactionSimulationModal({
           align-items: center;
           gap: 12px;
           padding: 28px 0;
-          color: var(--muted);
+          color: var(--tsm-muted);
           font-size: 13px;
         }
         .tsm-loading-bar {
@@ -484,7 +471,7 @@ export default function TransactionSimulationModal({
         .tsm-loading-fill {
           height: 100%;
           width: 40%;
-          background: linear-gradient(90deg, transparent, var(--accent), transparent);
+          background: linear-gradient(90deg, transparent, var(--tsm-accent), transparent);
           background-size: 200% auto;
           animation: tsmShimmer 1.2s linear infinite;
         }
@@ -504,23 +491,23 @@ export default function TransactionSimulationModal({
         .tsm-banner-success {
           background: rgba(52,211,153,.08);
           border: 1px solid rgba(52,211,153,.25);
-          color: var(--green);
+          color: var(--tsm-green);
         }
         .tsm-banner-error {
           background: rgba(248,113,113,.08);
           border: 1px solid rgba(248,113,113,.25);
-          color: var(--red);
+          color: var(--tsm-red);
         }
         .tsm-banner-warning {
           background: rgba(251,191,36,.08);
           border: 1px solid rgba(251,191,36,.25);
-          color: var(--yellow);
+          color: var(--tsm-yellow);
         }
 
         /* ── Gas card ── */
         .tsm-gas-card {
-          background: var(--surface);
-          border: 1px solid var(--border);
+          background: var(--tsm-surface);
+          border: 1px solid var(--tsm-border);
           border-radius: 12px;
           padding: 16px;
           display: grid;
@@ -533,7 +520,7 @@ export default function TransactionSimulationModal({
           font-weight: 700;
           letter-spacing: .1em;
           text-transform: uppercase;
-          color: var(--muted);
+          color: var(--tsm-muted);
           display: flex;
           align-items: center;
           gap: 5px;
@@ -542,11 +529,11 @@ export default function TransactionSimulationModal({
           font-family: 'DM Mono', monospace;
           font-size: 16px;
           font-weight: 500;
-          color: var(--text);
+          color: var(--tsm-text);
         }
         .tsm-gas-sub {
           font-size: 11px;
-          color: var(--muted);
+          color: var(--tsm-muted);
         }
 
         /* ── Resources grid ── */
@@ -556,16 +543,16 @@ export default function TransactionSimulationModal({
           gap: 8px;
         }
         .tsm-resource-item {
-          background: var(--surface);
-          border: 1px solid var(--border);
+          background: var(--tsm-surface);
+          border: 1px solid var(--tsm-border);
           border-radius: 8px;
           padding: 10px 12px;
           display: flex;
           flex-direction: column;
           gap: 2px;
         }
-        .tsm-resource-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
-        .tsm-resource-val { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--text); font-weight: 500; }
+        .tsm-resource-label { font-size: 10px; color: var(--tsm-muted); text-transform: uppercase; letter-spacing: .08em; }
+        .tsm-resource-val { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--tsm-text); font-weight: 500; }
 
         /* ── Balances ── */
         .tsm-balance-row {
@@ -575,8 +562,8 @@ export default function TransactionSimulationModal({
           gap: 8px;
           padding: 10px 14px;
           border-radius: 10px;
-          background: var(--surface);
-          border: 1px solid var(--border);
+          background: var(--tsm-surface);
+          border: 1px solid var(--tsm-border);
           margin-bottom: 6px;
           font-size: 13px;
         }
@@ -585,16 +572,16 @@ export default function TransactionSimulationModal({
           font-size: 11px;
           font-weight: 500;
           background: rgba(110,86,207,.15);
-          color: var(--accent2);
+          color: var(--tsm-accent2);
           padding: 3px 8px;
           border-radius: 6px;
           text-align: center;
         }
         .tsm-balance-val { font-family: 'DM Mono', monospace; font-size: 13px; }
-        .tsm-balance-arrow { color: var(--muted); display: flex; }
-        .tsm-muted  { color: var(--muted); }
-        .tsm-green  { color: var(--green); }
-        .tsm-red    { color: var(--red); }
+        .tsm-balance-arrow { color: var(--tsm-muted); display: flex; }
+        .tsm-muted  { color: var(--tsm-muted); }
+        .tsm-green  { color: var(--tsm-green); }
+        .tsm-red    { color: var(--tsm-red); }
         .tsm-delta-pill {
           font-family: 'DM Mono', monospace;
           font-size: 11px;
@@ -603,22 +590,22 @@ export default function TransactionSimulationModal({
           border-radius: 6px;
           white-space: nowrap;
         }
-        .tsm-delta-red     { background: rgba(248,113,113,.1);  color: var(--red);   }
-        .tsm-delta-green   { background: rgba(52,211,153,.1);   color: var(--green); }
-        .tsm-delta-neutral { background: rgba(255,255,255,.04); color: var(--muted); }
+        .tsm-delta-red     { background: rgba(248,113,113,.1);  color: var(--tsm-red);   }
+        .tsm-delta-green   { background: rgba(52,211,153,.1);   color: var(--tsm-green); }
+        .tsm-delta-neutral { background: rgba(255,255,255,.04); color: var(--tsm-muted); }
 
         /* ── Sim error ── */
         .tsm-sim-error {
           text-align: center;
           padding: 20px;
-          color: var(--red);
+          color: var(--tsm-red);
           font-size: 13px;
         }
         .tsm-sim-error button {
           margin-top: 12px;
           background: rgba(248,113,113,.1);
           border: 1px solid rgba(248,113,113,.25);
-          color: var(--red);
+          color: var(--tsm-red);
           padding: 7px 16px;
           border-radius: 8px;
           font-family: 'Mona Sans', sans-serif;
@@ -630,12 +617,12 @@ export default function TransactionSimulationModal({
         /* ── Footer ── */
         .tsm-footer {
           padding: 18px 24px;
-          border-top: 1px solid var(--border);
+          border-top: 1px solid var(--tsm-border);
           display: flex;
           gap: 10px;
           position: sticky;
           bottom: 0;
-          background: var(--bg);
+          background: var(--tsm-bg);
         }
         .tsm-btn {
           flex: 1;
@@ -654,12 +641,12 @@ export default function TransactionSimulationModal({
         }
         .tsm-btn-cancel {
           background: rgba(255,255,255,.05);
-          color: var(--muted);
-          border: 1.5px solid var(--border);
+          color: var(--tsm-muted);
+          border: 1.5px solid var(--tsm-border);
         }
-        .tsm-btn-cancel:hover { background: rgba(255,255,255,.08); color: var(--text); }
+        .tsm-btn-cancel:hover { background: rgba(255,255,255,.08); color: var(--tsm-text); }
         .tsm-btn-confirm {
-          background: var(--accent);
+          background: var(--tsm-accent);
           color: #fff;
           box-shadow: 0 4px 20px rgba(110,86,207,.35);
         }
@@ -674,7 +661,7 @@ export default function TransactionSimulationModal({
         }
         .tsm-btn-danger {
           background: rgba(248,113,113,.15);
-          color: var(--red);
+          color: var(--tsm-red);
           border: 1.5px solid rgba(248,113,113,.3);
         }
         .tsm-btn-danger:hover:not(:disabled) {
@@ -684,7 +671,7 @@ export default function TransactionSimulationModal({
         /* ── Fail override notice ── */
         .tsm-fail-notice {
           font-size: 11px;
-          color: var(--muted);
+          color: var(--tsm-muted);
           text-align: center;
           margin-top: -8px;
           padding: 0 24px 12px;
@@ -765,7 +752,12 @@ export default function TransactionSimulationModal({
             {simResult && !simLoading && (
               <>
                 {/* Status banner */}
-                <StatusBanner result={simResult} />
+                <StatusBanner
+                  result={simResult}
+                  onRetry={() => {
+                    void runSim();
+                  }}
+                />
 
                 {/* Gas cost */}
                 <div>

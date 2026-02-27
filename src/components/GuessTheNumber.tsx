@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button, Code, Input, Text } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
-import game from "../contracts/guess_the_number";
+// import game from "../contracts/guess_the_number";
 // // @ts-ignore: contract bindings may not be locally generated yet
 
 // import game from "../contracts/guess_the_number";
@@ -38,7 +38,6 @@ export const GuessTheNumber = () => {
     }
     */
   };
-  /* eslint-enable @typescript-eslint/no-unsafe-argument */
 
   return (
     <form

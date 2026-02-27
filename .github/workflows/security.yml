@@ -31,4 +31,4 @@ jobs:
       - name: Run Kani Proofs
         run: |
           cd contracts/payroll_vault
-          cargo kani
+          cargo kani --features testutils

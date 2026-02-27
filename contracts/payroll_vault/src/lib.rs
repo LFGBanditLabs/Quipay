@@ -67,8 +67,8 @@ impl PayrollVault {
         };
         e.storage().persistent().set(&StateKey::Version, &initial_version);
         
-        // Authorized contract starts as None - must be set by admin later.
-        // Per-token balances/liabilities are stored lazily; no initialization needed.
+        // Authorized contract starts as None - must be set by admin later
+        // No need to initialize balances/liabilities as they are maps
         Ok(())
     }
 
@@ -362,6 +362,46 @@ impl PayrollVault {
         Ok(())
     }
 
+    pub fn payout_liability(e: Env, to: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
+        let authorized: Address = e.storage().persistent().get(&StateKey::AuthorizedContract)
+            .expect("authorized contract not set");
+        authorized.require_auth();
+        
+        require_positive_amount!(amount);
+        
+        let balance_key = StateKey::TreasuryBalance(token.clone());
+        let liability_key = StateKey::TotalLiability(token.clone());
+        
+        let balance: i128 = e.storage().persistent().get(&balance_key).unwrap_or(0);
+        let liability: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
+        
+        if amount > balance {
+             return Err(QuipayError::InsufficientBalance);
+        }
+        
+        if amount > liability {
+             return Err(QuipayError::InvalidAmount);
+        }
+        
+        e.storage().persistent().set(&liability_key, &(liability - amount));
+        e.storage().persistent().set(&balance_key, &(balance - amount));
+
+        let token_client = token::Client::new(&e, &token);
+        token_client.transfer(&e.current_contract_address(), &to, &amount);
+        
+        e.events().publish(
+            (
+                symbol_short!("vault"),
+                symbol_short!("payout"),
+                to.clone(),
+                token.clone(),
+            ),
+            (amount),
+        );
+
+        Ok(())
+    }
+
     pub fn get_balance(e: Env, token: Address) -> i128 {
         let token_client = token::Client::new(&e, &token);
         token_client.balance(&e.current_contract_address())
@@ -401,14 +441,9 @@ impl PayrollVault {
             panic!("insufficient funds for liability");
         }
         
-        let key = StateKey::TotalLiability(token.clone());
+        let key = StateKey::TotalLiability(token);
         let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
         e.storage().persistent().set(&key, &(current + amount));
-        
-        // Also update total liability for this token
-        let total_key = StateKey::TotalLiability(token);
-        let total: i128 = e.storage().persistent().get(&total_key).unwrap_or(0);
-        e.storage().persistent().set(&total_key, &(total + amount));
     }
 
     /// Remove liability for a specific token
@@ -423,19 +458,12 @@ impl PayrollVault {
             panic!("removal amount must be positive");
         }
         
-        let key = StateKey::TotalLiability(token.clone());
+        let key = StateKey::TotalLiability(token);
         let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
-        
         if amount > current {
             panic!("cannot remove more liability than exists");
         }
-        
         e.storage().persistent().set(&key, &(current - amount));
-        
-        // Also update total liability for this token
-        let total_key = StateKey::TotalLiability(token);
-        let total: i128 = e.storage().persistent().get(&total_key).unwrap_or(0);
-        e.storage().persistent().set(&total_key, &(total - amount));
     }
 
     /// Get the liability for a specific token

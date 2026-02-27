@@ -1,5 +1,4 @@
 import React from "react";
-import styles from "./Skeleton.module.css";
 
 /* ── Skeleton ────────────────────────────────────────────────────────────────── */
 
@@ -28,7 +27,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
   animate = true,
   className,
 }) => {
-  const baseClass = `${styles.skeleton} ${!animate ? styles.noAnimate : ""} ${className ?? ""}`;
+  const baseClass = `rounded bg-[linear-gradient(90deg,var(--surface-subtle)_25%,var(--border)_50%,var(--surface-subtle)_75%)] bg-[length:200%_100%] ${animate ? "[animation:shimmer_1.4s_ease-in-out_infinite]" : "bg-[var(--surface-subtle)]"} ${className ?? ""}`;
 
   if (variant === "text" && lines > 1) {
     return (
@@ -36,7 +35,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
         {Array.from({ length: lines }).map((_, i) => (
           <div
             key={`skeleton-line-${String(i)}`}
-            className={`${baseClass} ${styles.text}`}
+            className={`${baseClass} mb-2 h-[14px] w-full`}
             style={{ width: i === lines - 1 ? "60%" : width }}
           />
         ))}
@@ -46,7 +45,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
 
   return (
     <div
-      className={`${baseClass} ${variant === "circle" ? styles.circle : variant === "text" ? styles.text : ""}`}
+      className={`${baseClass} ${variant === "circle" ? "rounded-full" : variant === "text" ? "mb-2 h-[14px] w-full" : ""}`}
       style={{ width, height }}
     />
   );
@@ -70,7 +69,9 @@ export const SkeletonCard: React.FC<SkeletonCardProps> = ({
   className,
   children,
 }) => (
-  <div className={`${styles.card} ${className ?? ""}`}>
+  <div
+    className={`flex flex-col gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_2px_4px_rgba(0,0,0,0.05)] ${className ?? ""}`}
+  >
     {children ?? (
       <>
         <Skeleton variant="text" width="40%" height="12px" />
@@ -91,12 +92,14 @@ export interface SkeletonRowProps {
  * Row-shaped skeleton that matches stream list items.
  */
 export const SkeletonRow: React.FC<SkeletonRowProps> = ({ className }) => (
-  <div className={`${styles.row} ${className ?? ""}`}>
-    <div className={styles.rowGroup}>
+  <div
+    className={`flex items-center justify-between gap-4 rounded-md border border-[var(--border)] bg-[var(--bg)] p-[15px] ${className ?? ""}`}
+  >
+    <div className="flex flex-1 flex-col gap-[6px]">
       <Skeleton variant="text" width="120px" height="14px" />
       <Skeleton variant="text" width="180px" height="12px" />
     </div>
-    <div className={styles.rowGroup}>
+    <div className="flex flex-1 flex-col gap-[6px]">
       <Skeleton variant="text" width="140px" height="12px" />
       <Skeleton variant="text" width="100px" height="12px" />
     </div>

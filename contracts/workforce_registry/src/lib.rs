@@ -1,6 +1,6 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env, String, Vec,
+    contract, contractimpl, contracttype, symbol_short, Address, Env, String, Symbol, Vec,
 };
 
 #[contracttype]
@@ -56,11 +56,11 @@ impl WorkforceRegistryContract {
         e.events().publish(
             (
                 symbol_short!("registry"),
-                symbol_short!("registered"),
+                symbol_short!("register"),
                 worker.clone(),
                 preferred_token.clone(),
             ),
-            (metadata_hash.clone()),
+            metadata_hash.clone(),
         );
     }
 
@@ -99,7 +99,7 @@ impl WorkforceRegistryContract {
                 worker.clone(),
                 preferred_token.clone(),
             ),
-            (metadata_hash),
+            metadata_hash,
         );
     }
 

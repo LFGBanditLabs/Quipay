@@ -33,6 +33,7 @@ default = true
 payroll_vault = { id = "CCVIZ7256UFV2TKVTQ6ANU6S75IFFSXMLJOXOXW5QZOUXBTWDIRXGEUJ" }
 payroll_stream = { id = "CAQ5IXSFW74FXUZ6M7OURK36JFEGTJ5NC5GITPRSZBSY2FWOTRVAGVPV" }
 automation_gateway = { id = "CDYO5HXZ7K5XP2U52DW5PCYRTG6NVXDG525ZFYVRGOKD6BRERM44AVRO" }
+workforce_registry = { id = "CBUSAUR4GSZVJMSUEPD6WSB6PKDAAATSPUUMCZU7HFU4P6ID45H7F547" }
 # soroban-atomic-swap-contract = { id = "C123..." }
 # soroban-auth-contract = { id = "C234..." }
 # soroban-errors-contract = { id = "C345..." }
