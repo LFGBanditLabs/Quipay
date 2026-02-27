@@ -16,6 +16,7 @@
   "type": "commonjs",
   "dependencies": {
     "@stellar/stellar-sdk": "^14.5.0",
+    "@types/pg": "^8.16.0",
     "axios": "^1.13.5",
     "cors": "^2.8.6",
     "discord-interactions": "^4.4.0",

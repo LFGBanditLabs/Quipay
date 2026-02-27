@@ -97,3 +97,49 @@ CREATE TABLE IF NOT EXISTS scheduler_logs (
 CREATE INDEX IF NOT EXISTS idx_scheduler_logs_schedule ON scheduler_logs (schedule_id);
 CREATE INDEX IF NOT EXISTS idx_scheduler_logs_status  ON scheduler_logs (status);
 CREATE INDEX IF NOT EXISTS idx_scheduler_logs_day     ON scheduler_logs (date_trunc('day', created_at));
+
+-- Treasury balances (employer deposits)
+CREATE TABLE IF NOT EXISTS treasury_balances (
+    employer        TEXT        PRIMARY KEY,
+    balance         NUMERIC     NOT NULL DEFAULT 0,
+    token           TEXT        NOT NULL DEFAULT 'USDC',
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Treasury monitor logs
+CREATE TABLE IF NOT EXISTS treasury_monitor_log (
+    id              BIGSERIAL   PRIMARY KEY,
+    employer        TEXT        NOT NULL,
+    balance         NUMERIC     NOT NULL,
+    liabilities     NUMERIC     NOT NULL,
+    runway_days     NUMERIC,
+    alert_sent      BOOLEAN     NOT NULL DEFAULT false,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_monitor_log_employer ON treasury_monitor_log (employer);
+CREATE INDEX IF NOT EXISTS idx_monitor_log_created  ON treasury_monitor_log (created_at DESC);
+
+-- Audit logs for comprehensive action tracking
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id              BIGSERIAL   PRIMARY KEY,
+    timestamp       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    log_level       TEXT        NOT NULL CHECK (log_level IN ('INFO', 'WARN', 'ERROR')),
+    message         TEXT        NOT NULL,
+    action_type     TEXT        NOT NULL,
+    employer        TEXT,
+    context         JSONB       NOT NULL DEFAULT '{}',
+    transaction_hash TEXT,
+    block_number    BIGINT,
+    error_message   TEXT,
+    error_code      TEXT,
+    error_stack     TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_level ON audit_logs (log_level);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_employer ON audit_logs (employer);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action_type ON audit_logs (action_type);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_context ON audit_logs USING GIN (context);

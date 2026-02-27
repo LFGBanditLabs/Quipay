@@ -64,7 +64,7 @@ export interface CurrentBalance {
 
 const SOROBAN_RPC_URL: string =
   (typeof process !== "undefined" &&
-    process.env["NEXT_PUBLIC_SOROBAN_RPC_URL"]) ??
+    process.env["NEXT_PUBLIC_SOROBAN_RPC_URL"]) ||
   "https://soroban-testnet.stellar.org";
 
 const STROOPS_PER_XLM = 10_000_000;

@@ -5,27 +5,30 @@ import {
   logMonitorEvent,
   TreasuryBalance,
   TreasuryLiability,
+  getStreamsByEmployer,
+  StreamRecord,
 } from "../db/queries";
 import { sendTreasuryAlert } from "../notifier/notifier";
+import { getAuditLogger, isAuditLoggerInitialized } from "../audit/init";
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
 /**
- * Minimum balance (in stroops) before an alert is fired.
- * Defaults to 5_000_000 stroops (0.5 XLM equivalent).
- * Override via TREASURY_ALERT_THRESHOLD env var.
+ * Minimum runway days before an alert is fired.
+ * Defaults to 7 days.
+ * Override via TREASURY_RUNWAY_ALERT_DAYS env var.
  */
-const ALERT_THRESHOLD = parseInt(
-  process.env.TREASURY_ALERT_THRESHOLD || "5000000",
+const RUNWAY_ALERT_DAYS = parseInt(
+  process.env.TREASURY_RUNWAY_ALERT_DAYS || "7",
   10,
 );
 
 /**
  * How often the monitor cycle runs (milliseconds).
- * Defaults to 60 000 ms (1 minute).
+ * Defaults to 300_000 ms (5 minutes).
  */
 const POLL_INTERVAL_MS = parseInt(
-  process.env.MONITOR_INTERVAL_MS || "60000",
+  process.env.MONITOR_INTERVAL_MS || "300000",
   10,
 );
 
@@ -35,44 +38,77 @@ export interface EmployerTreasuryStatus {
   employer: string;
   balance: number; // stroops
   liabilities: number; // stroops
+  daily_burn_rate: number; // stroops per day
   runway_days: number | null; // null = unlimited (no active streams)
+  funds_exhaustion_date: string | null; // ISO date string
   alert_sent: boolean;
 }
 
 // ─── Core logic ──────────────────────────────────────────────────────────────
 
 /**
- * Calculates the runway in days for a given employer.
+ * Calculates the daily burn rate based on active streams.
  *
- * Runway = balance / daily burn rate
+ * For each active stream, we calculate how much is being paid per day:
+ *   daily_rate = remaining_amount / remaining_days
  *
- * Daily burn rate is approximated as:
- *   totalLiabilities / avgStreamDurationDays
+ * Total burn rate = sum of all active stream daily rates
  *
- * For simplicity (without per-stream duration data readily available here),
- * we use a safe conservative formula:
- *   daily burn = liabilities / 30   (assumes avg 30-day stream)
- *
- * This is overridable via MONITOR_BURN_WINDOW_DAYS env var.
+ * @param streams Array of active streams with their details
+ * @returns Daily burn rate in stroops
  */
-const BURN_WINDOW_DAYS = parseInt(
-  process.env.MONITOR_BURN_WINDOW_DAYS || "30",
-  10,
-);
+export const calculateDailyBurnRate = (
+  streams: Array<{
+    total_amount: number;
+    withdrawn_amount: number;
+    start_ts: number;
+    end_ts: number;
+  }>,
+): number => {
+  const now = Math.floor(Date.now() / 1000); // current unix timestamp
+  let totalDailyBurn = 0;
 
-export const calculateRunwayDays = (
-  balance: number,
-  liabilities: number,
-): number | null => {
-  if (liabilities <= 0) return null; // no active streams → unlimited runway
-  const dailyBurn = liabilities / BURN_WINDOW_DAYS;
-  if (dailyBurn <= 0) return null;
-  return balance / dailyBurn;
+  for (const stream of streams) {
+    const remaining = stream.total_amount - stream.withdrawn_amount;
+    if (remaining <= 0) continue;
+
+    const remainingSeconds = Math.max(0, stream.end_ts - now);
+    if (remainingSeconds === 0) continue;
+
+    const remainingDays = remainingSeconds / 86400; // seconds per day
+    const dailyRate = remaining / remainingDays;
+    totalDailyBurn += dailyRate;
+  }
+
+  return totalDailyBurn;
 };
 
 /**
- * Queries the DB for all employer treasury balances and liabilities,
- * merges them, and returns a status snapshot per employer.
+ * Calculates the runway in days and funds exhaustion date.
+ *
+ * Runway = balance / daily burn rate
+ * Exhaustion Date = current date + runway days
+ */
+export const calculateRunwayDays = (
+  balance: number,
+  dailyBurnRate: number,
+): number | null => {
+  if (dailyBurnRate <= 0) return null; // no active burn → unlimited runway
+  return balance / dailyBurnRate;
+};
+
+export const calculateExhaustionDate = (
+  runwayDays: number | null,
+): string | null => {
+  if (runwayDays === null) return null;
+  const exhaustionDate = new Date();
+  exhaustionDate.setDate(exhaustionDate.getDate() + runwayDays);
+  return exhaustionDate.toISOString();
+};
+
+/**
+ * Queries the DB for all employer treasury balances and active streams,
+ * calculates accurate burn rates, and returns a status snapshot per employer.
  */
 export const computeTreasuryStatus = async (): Promise<
   EmployerTreasuryStatus[]
@@ -99,25 +135,45 @@ export const computeTreasuryStatus = async (): Promise<
     ...liabilityMap.keys(),
   ]);
 
-  return Array.from(employers).map((employer) => {
+  const statuses: EmployerTreasuryStatus[] = [];
+
+  for (const employer of employers) {
     const balance = balanceMap.get(employer) ?? 0;
     const liab = liabilityMap.get(employer) ?? 0;
-    const runway_days = calculateRunwayDays(balance, liab);
-    return {
+
+    // Fetch active streams for this employer to calculate accurate burn rate
+    const activeStreams = await getStreamsByEmployer(employer, "active", 1000);
+
+    const streamData = activeStreams.map((s: StreamRecord) => ({
+      total_amount: parseFloat(s.total_amount),
+      withdrawn_amount: parseFloat(s.withdrawn_amount),
+      start_ts: s.start_ts,
+      end_ts: s.end_ts,
+    }));
+
+    const daily_burn_rate = calculateDailyBurnRate(streamData);
+    const runway_days = calculateRunwayDays(balance, daily_burn_rate);
+    const funds_exhaustion_date = calculateExhaustionDate(runway_days);
+
+    statuses.push({
       employer,
       balance,
       liabilities: liab,
+      daily_burn_rate,
       runway_days,
+      funds_exhaustion_date,
       alert_sent: false,
-    };
-  });
+    });
+  }
+
+  return statuses;
 };
 
 /**
  * Runs one monitoring cycle:
  * 1. Fetches and computes treasury status for all employers.
  * 2. Logs every entry to treasury_monitor_log.
- * 3. Sends an alert when balance < ALERT_THRESHOLD.
+ * 3. Sends an alert when runway < RUNWAY_ALERT_DAYS.
  *
  * Returns the full status snapshot (useful for the API endpoint).
  */
@@ -140,28 +196,55 @@ export const runMonitorCycle = async (): Promise<EmployerTreasuryStatus[]> => {
   }
 
   for (const status of statuses) {
-    const alertNeeded = status.balance < ALERT_THRESHOLD;
+    // Alert when runway is less than threshold (default 7 days)
+    const alertNeeded =
+      status.runway_days !== null && status.runway_days < RUNWAY_ALERT_DAYS;
 
     // Fire alert first so we can mark it before logging
     if (alertNeeded) {
       console.warn(
-        `[Monitor] ⚠️  Employer ${status.employer} has low balance: ` +
-          `${status.balance} stroops (threshold: ${ALERT_THRESHOLD}), ` +
-          `runway: ${status.runway_days?.toFixed(1) ?? "∞"} days`,
+        `[Monitor] ⚠️  Employer ${status.employer} has low runway: ` +
+          `${status.runway_days?.toFixed(1)} days (threshold: ${RUNWAY_ALERT_DAYS} days), ` +
+          `balance: ${status.balance} stroops, ` +
+          `daily burn: ${status.daily_burn_rate.toFixed(2)} stroops/day, ` +
+          `exhaustion date: ${status.funds_exhaustion_date}`,
       );
       try {
-        await sendTreasuryAlert(
-          status.employer,
-          status.balance,
-          status.liabilities,
-          status.runway_days,
-          ALERT_THRESHOLD,
-        );
+        await sendTreasuryAlert({
+          employer: status.employer,
+          balance: status.balance,
+          liabilities: status.liabilities,
+          dailyBurnRate: status.daily_burn_rate,
+          runwayDays: status.runway_days,
+          exhaustionDate: status.funds_exhaustion_date,
+          alertThresholdDays: RUNWAY_ALERT_DAYS,
+        });
         status.alert_sent = true;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(
           `[Monitor] Alert delivery failed for ${status.employer}: ${msg}`,
+        );
+      }
+    }
+
+    // Log to audit system
+    if (isAuditLoggerInitialized()) {
+      try {
+        const auditLogger = getAuditLogger();
+        await auditLogger.logMonitorEvent({
+          employer: status.employer,
+          balance: status.balance,
+          liabilities: status.liabilities,
+          dailyBurnRate: status.daily_burn_rate,
+          runwayDays: status.runway_days,
+          alertSent: status.alert_sent,
+          checkType: "routine",
+        });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(
+          `[Monitor] Failed to log audit event for ${status.employer}: ${msg}`,
         );
       }
     }
@@ -205,7 +288,7 @@ export const startMonitor = async (): Promise<void> => {
 
   console.log(
     `[Monitor] 🏦 Treasury monitor started (interval: ${POLL_INTERVAL_MS}ms, ` +
-      `threshold: ${ALERT_THRESHOLD} stroops)`,
+      `runway alert threshold: ${RUNWAY_ALERT_DAYS} days)`,
   );
 
   const tick = async () => {

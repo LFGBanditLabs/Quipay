@@ -4,9 +4,22 @@ import { useNavigate } from "react-router-dom";
 import Wizard from "../components/Wizard";
 import Tooltip from "../components/Tooltip";
 import CollapsibleSection from "../components/CollapsibleSection";
-import styles from "./CreateStream.module.css";
 
 const CreateStream: React.FC = () => {
+  const tw = {
+    formGroup: "mb-6",
+    label: "mb-2 block text-sm font-medium text-[var(--text)]",
+    input:
+      "w-full rounded-lg border border-[var(--border)] px-3.5 py-2.5 text-sm transition focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-transparent)] focus:outline-none",
+    select:
+      "w-full rounded-lg border border-[var(--border)] px-3.5 py-2.5 text-sm transition focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-transparent)] focus:outline-none",
+    reviewItem:
+      "flex justify-between border-b border-[var(--border)] py-3 max-[480px]:flex-col max-[480px]:items-start max-[480px]:gap-1",
+    reviewLabel: "text-sm text-[var(--muted)] max-[480px]:text-xs",
+    reviewValue:
+      "text-sm font-medium text-[var(--text)] max-[480px]:break-all max-[480px]:text-sm",
+  };
+
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     workerAddress: "",
@@ -31,27 +44,27 @@ const CreateStream: React.FC = () => {
       title: "Recipient",
       component: (
         <div>
-          <div className={styles.formGroup}>
-            <label className={styles.label}>
+          <div className={tw.formGroup}>
+            <label className={tw.label}>
               Worker Name
               <Tooltip content="Friendly name to identify this stream" />
             </label>
             <input
               type="text"
-              className={styles.input}
+              className={tw.input}
               placeholder="e.g. John Doe"
               value={formData.workerName}
               onChange={(e) => updateFormData("workerName", e.target.value)}
             />
           </div>
-          <div className={styles.formGroup}>
-            <label className={styles.label}>
+          <div className={tw.formGroup}>
+            <label className={tw.label}>
               Worker Wallet Address
               <Tooltip content="The Stellar G... address where funds will be streamed" />
             </label>
             <input
               type="text"
-              className={styles.input}
+              className={tw.input}
               placeholder="G..."
               value={formData.workerAddress}
               onChange={(e) => updateFormData("workerAddress", e.target.value)}
@@ -66,23 +79,23 @@ const CreateStream: React.FC = () => {
       title: "Payment",
       component: (
         <div>
-          <div className={styles.formGroup}>
-            <label className={styles.label}>
+          <div className={tw.formGroup}>
+            <label className={tw.label}>
               Total Amount
               <Tooltip content="The total amount of tokens to be streamed over the duration" />
             </label>
             <input
               type="number"
-              className={styles.input}
+              className={tw.input}
               placeholder="0.00"
               value={formData.amount}
               onChange={(e) => updateFormData("amount", e.target.value)}
             />
           </div>
-          <div className={styles.formGroup}>
-            <label className={styles.label}>Token</label>
+          <div className={tw.formGroup}>
+            <label className={tw.label}>Token</label>
             <select
-              className={styles.select}
+              className={tw.select}
               value={formData.token}
               onChange={(e) => updateFormData("token", e.target.value)}
             >
@@ -98,27 +111,27 @@ const CreateStream: React.FC = () => {
       title: "Schedule",
       component: (
         <div>
-          <div className={styles.formGroup}>
-            <label className={styles.label}>Start Date</label>
+          <div className={tw.formGroup}>
+            <label className={tw.label}>Start Date</label>
             <input
               type="date"
-              className={styles.input}
+              className={tw.input}
               value={formData.startDate}
               onChange={(e) => updateFormData("startDate", e.target.value)}
             />
           </div>
-          <div className={styles.formGroup}>
-            <label className={styles.label}>End Date</label>
+          <div className={tw.formGroup}>
+            <label className={tw.label}>End Date</label>
             <input
               type="date"
-              className={styles.input}
+              className={tw.input}
               value={formData.endDate}
               onChange={(e) => updateFormData("endDate", e.target.value)}
             />
           </div>
           <CollapsibleSection title="Advanced Schedule Options">
-            <div className={styles.formGroup}>
-              <label className={styles.label}>
+            <div className={tw.formGroup}>
+              <label className={tw.label}>
                 Enable Cliff
                 <Tooltip content="Funds will only be withdrawable after this date" />
               </label>
@@ -134,11 +147,11 @@ const CreateStream: React.FC = () => {
               />
             </div>
             {formData.advancedOptions.enableCliff && (
-              <div className={styles.formGroup}>
-                <label className={styles.label}>Cliff Date</label>
+              <div className={tw.formGroup}>
+                <label className={tw.label}>Cliff Date</label>
                 <input
                   type="date"
-                  className={styles.input}
+                  className={tw.input}
                   value={formData.advancedOptions.cliffDate}
                   onChange={(e) =>
                     updateFormData("advancedOptions", {
@@ -158,30 +171,30 @@ const CreateStream: React.FC = () => {
       title: "Review",
       component: (
         <div>
-          <div className={styles.reviewItem}>
-            <span className={styles.reviewLabel}>Recipient</span>
-            <span className={styles.reviewValue}>{formData.workerName}</span>
+          <div className={tw.reviewItem}>
+            <span className={tw.reviewLabel}>Recipient</span>
+            <span className={tw.reviewValue}>{formData.workerName}</span>
           </div>
-          <div className={styles.reviewItem}>
-            <span className={styles.reviewLabel}>Address</span>
-            <span className={styles.reviewValue}>{formData.workerAddress}</span>
+          <div className={tw.reviewItem}>
+            <span className={tw.reviewLabel}>Address</span>
+            <span className={tw.reviewValue}>{formData.workerAddress}</span>
           </div>
-          <div className={styles.reviewItem}>
-            <span className={styles.reviewLabel}>Amount</span>
-            <span className={styles.reviewValue}>
+          <div className={tw.reviewItem}>
+            <span className={tw.reviewLabel}>Amount</span>
+            <span className={tw.reviewValue}>
               {formData.amount} {formData.token}
             </span>
           </div>
-          <div className={styles.reviewItem}>
-            <span className={styles.reviewLabel}>Schedule</span>
-            <span className={styles.reviewValue}>
+          <div className={tw.reviewItem}>
+            <span className={tw.reviewLabel}>Schedule</span>
+            <span className={tw.reviewValue}>
               {formData.startDate} to {formData.endDate}
             </span>
           </div>
           {formData.advancedOptions.enableCliff && (
-            <div className={styles.reviewItem}>
-              <span className={styles.reviewLabel}>Cliff Date</span>
-              <span className={styles.reviewValue}>
+            <div className={tw.reviewItem}>
+              <span className={tw.reviewLabel}>Cliff Date</span>
+              <span className={tw.reviewValue}>
                 {formData.advancedOptions.cliffDate}
               </span>
             </div>
@@ -205,7 +218,7 @@ const CreateStream: React.FC = () => {
           <Text as="h1" size="xl" weight="bold">
             Create New Payment Stream
           </Text>
-          <Text as="p" size="md" style={{ color: "var(--gray-500)" }}>
+          <Text as="p" size="md" style={{ color: "var(--muted)" }}>
             Set up a continuous, real-time payment for your worker.
           </Text>
         </div>
@@ -219,9 +232,9 @@ const CreateStream: React.FC = () => {
         />
 
         <div style={{ marginTop: "3rem", textAlign: "center" }}>
-          <Text as="p" size="sm" style={{ color: "var(--gray-500)" }}>
+          <Text as="p" size="sm" style={{ color: "var(--muted)" }}>
             Need help? Check out our{" "}
-            <a href="#" style={{ color: "var(--blue-500)" }}>
+            <a href="#" style={{ color: "var(--accent)" }}>
               documentation on streams
             </a>
             .

@@ -28,9 +28,11 @@ export const useStreams = (workerAddress: string | undefined) => {
 
   useEffect(() => {
     if (!workerAddress) {
-      setStreams([]);
-      setWithdrawalHistory([]);
-      setIsLoading(false);
+      setTimeout(() => {
+        setStreams([]);
+        setWithdrawalHistory([]);
+        setIsLoading(false);
+      }, 0);
       return;
     }
 

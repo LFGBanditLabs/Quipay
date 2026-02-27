@@ -5,9 +5,17 @@ import { metricsManager } from "./metrics";
 import { webhookRouter } from "./webhooks";
 import { slackRouter } from "./slack";
 import { discordRouter } from "./discord";
+import { aiRouter } from "./ai"; // Added aiRouter import
 import { startStellarListener } from "./stellarListener";
 import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
+import { startMonitor, runMonitorCycle } from "./monitor/monitor";
 import { NonceManager } from "./services/nonceManager";
+import { initAuditLogger, getAuditLogger } from "./audit/init";
+import {
+  createLoggingMiddleware,
+  createErrorLoggingMiddleware,
+} from "./audit/middleware";
+import { initDb } from "./db/pool";
 
 dotenv.config();
 
@@ -17,10 +25,49 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// Initialize database and audit logger
+async function initializeServices() {
+  await initDb();
+  const auditLogger = initAuditLogger();
+
+  // Add audit logging middleware for contract interactions
+  app.use(createLoggingMiddleware(auditLogger));
+
+  return auditLogger;
+}
+
+// Initialize services before starting routes
+let auditLogger: ReturnType<typeof getAuditLogger>;
+initializeServices()
+  .then((logger) => {
+    auditLogger = logger;
+    console.log("[Backend] ✅ Services initialized");
+  })
+  .catch((err) => {
+    console.error("[Backend] Failed to initialize services:", err);
+  });
+
 app.use("/webhooks", webhookRouter);
 app.use("/slack", slackRouter);
 // Note: discordRouter utilizes native express payloads natively bypassing body buffers mapping local examples
 app.use("/discord", discordRouter);
+app.use("/ai", aiRouter); // Added aiRouter use
+
+// Error logging middleware (should be after routes)
+app.use(
+  (
+    err: Error,
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    if (auditLogger) {
+      createErrorLoggingMiddleware(auditLogger)(err, req, res, next);
+    } else {
+      next(err);
+    }
+  },
+);
 
 // Start time for uptime calculation
 const startTime = Date.now();
@@ -89,6 +136,23 @@ app.get("/scheduler/status", (req, res) => {
 });
 
 /**
+ * @api {get} /monitor/status Treasury monitor status endpoint
+ * @apiDescription Returns the current treasury health status for all employers.
+ */
+app.get("/monitor/status", async (req, res) => {
+  try {
+    const statuses = await runMonitorCycle();
+    res.json({
+      status: "ok",
+      employers: statuses,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (ex: any) {
+    res.status(500).json({ error: ex.message });
+  }
+});
+
+/**
  * @api {post} /test/concurrent-tx Simulated high-throughput endpoint
  * @apiDescription Requests 50 concurrent nonces to demonstrate the Nonce Manager bottleneck fix.
  */
@@ -124,4 +188,5 @@ app.listen(port, () => {
   );
   startStellarListener();
   startScheduler();
+  startMonitor();
 });

@@ -1,5 +1,6 @@
 import * as cron from "node-cron";
 import { getPool } from "../db/pool";
+import { getAuditLogger, isAuditLoggerInitialized } from "../audit/init";
 
 interface SchedulerScheduledTask {
   start: () => void;
@@ -107,6 +108,21 @@ const executeScheduledPayroll = async (
   let streamId: number | undefined;
   let errorMessage: string | undefined;
 
+  // Log task started
+  if (isAuditLoggerInitialized()) {
+    try {
+      const auditLogger = getAuditLogger();
+      await auditLogger.logSchedulerEvent({
+        scheduleId: schedule.id,
+        action: "task_started",
+        taskName: `payroll-schedule-${schedule.id}`,
+        employer: schedule.employer,
+      });
+    } catch (err) {
+      logError("Failed to log scheduler task start", err);
+    }
+  }
+
   try {
     log(`Executing scheduled payroll for schedule ${schedule.id}`);
 
@@ -131,6 +147,23 @@ const executeScheduledPayroll = async (
       lastRunAt: now,
       nextRunAt: nextRun || undefined,
     });
+
+    // Log task completed
+    if (isAuditLoggerInitialized()) {
+      try {
+        const auditLogger = getAuditLogger();
+        const executionTime = Date.now() - startTime;
+        await auditLogger.logSchedulerEvent({
+          scheduleId: schedule.id,
+          action: "task_completed",
+          taskName: `payroll-schedule-${schedule.id}`,
+          employer: schedule.employer,
+          executionTime,
+        });
+      } catch (err) {
+        logError("Failed to log scheduler task completion", err);
+      }
+    }
   } catch (error) {
     status = "failed";
     errorMessage = error instanceof Error ? error.message : String(error);
@@ -138,6 +171,22 @@ const executeScheduledPayroll = async (
       `Failed to execute scheduled payroll for schedule ${schedule.id}`,
       error,
     );
+
+    // Log task failed
+    if (isAuditLoggerInitialized()) {
+      try {
+        const auditLogger = getAuditLogger();
+        await auditLogger.logSchedulerEvent({
+          scheduleId: schedule.id,
+          action: "task_failed",
+          taskName: `payroll-schedule-${schedule.id}`,
+          employer: schedule.employer,
+          error: error instanceof Error ? error : new Error(String(error)),
+        });
+      } catch (err) {
+        logError("Failed to log scheduler task failure", err);
+      }
+    }
 
     try {
       await updatePayrollSchedule({

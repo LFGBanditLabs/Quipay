@@ -1,0 +1,98 @@
+name: Frontend Preview Deploy
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "vite.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig*.json"
+      - ".github/workflows/frontend-preview.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+  deployments: write
+
+concurrency:
+  group: frontend-preview-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    # Only run when Cloudflare secrets are configured; otherwise skip gracefully.
+    if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' && secrets.CLOUDFLARE_PAGES_PROJECT != '' }}
+    runs-on: ubuntu-latest
+    env:
+      # Soroban / Stellar Testnet defaults for preview builds
+      PUBLIC_STELLAR_NETWORK: TESTNET
+      PUBLIC_STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
+      PUBLIC_STELLAR_RPC_URL: "https://soroban-testnet.stellar.org"
+      PUBLIC_STELLAR_HORIZON_URL: "https://horizon-testnet.stellar.org"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build dApp for preview (Testnet)
+        run: npm run build
+
+      - name: Publish to Cloudflare Pages
+        id: pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: ${{ secrets.CLOUDFLARE_PAGES_PROJECT }}
+          directory: dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          # Use the PR head branch for per-PR preview environments
+          branch: ${{ github.head_ref || github.ref_name }}
+
+      - name: Comment preview URL on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const alias = '${{ steps.pages.outputs.alias }}';
+            const url = '${{ steps.pages.outputs.url }}';
+            const previewUrl = alias || url;
+
+            if (!previewUrl) {
+              core.info('No preview URL found from Cloudflare Pages action, skipping comment.');
+              return;
+            }
+
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              core.info('No pull_request in event payload, skipping comment.');
+              return;
+            }
+
+            const body = [
+              '🚀 **Frontend Preview Deployment Ready**',
+              '',
+              `Preview URL: ${previewUrl}`,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body,
+            });
