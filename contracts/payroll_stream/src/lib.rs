@@ -132,87 +132,16 @@ impl PayrollStream {
         employer.require_auth();
 
         // Call the internal create stream logic
-        Self::create_stream_internal(
-            env, employer, worker, token, rate, cliff_ts, start_ts, end_ts,
-        )?;
-
-        // Publish the standard creation event
-        let stream_id = env
-            .storage()
-            .instance()
-            .get::<DataKey, u64>(&DataKey::NextStreamId)
-            .unwrap_or(1u64)
-            .saturating_sub(1);
-            .get(&DataKey::Vault)
-            .expect("vault not configured");
-
-        use soroban_sdk::{IntoVal, Symbol, vec};
-        // Block stream creation if treasury would be insolvent
-        let solvent: bool = env.invoke_contract(
-            &vault,
-            &Symbol::new(&env, "check_solvency"),
-            vec![
-                &env,
-                token.clone().into_val(&env),
-                total_amount.into_val(&env),
-            ],
-        );
-        require!(solvent, QuipayError::InsufficientBalance);
-
-        env.invoke_contract::<()>(
-            &vault,
-            &Symbol::new(&env, "add_liability"),
-            vec![&env, token.into_val(&env), total_amount.into_val(&env)],
-        );
-
-        let mut next_id: u64 = env
-            .storage()
-            .instance()
-            .get(&DataKey::NextStreamId)
-            .unwrap_or(1u64);
-        let stream_id = next_id;
-        next_id = next_id.checked_add(1).expect("stream id overflow");
-        env.storage()
-            .instance()
-            .set(&DataKey::NextStreamId, &next_id);
-
-        let stream = Stream {
-            employer: employer.clone(),
-            worker: worker.clone(),
-            token: token.clone(),
+        let stream_id = Self::create_stream_internal(
+            env.clone(),
+            employer.clone(),
+            worker.clone(),
+            token.clone(),
             rate,
-            cliff_ts: effective_cliff,
+            cliff_ts,
             start_ts,
             end_ts,
-            total_amount,
-            withdrawn_amount: 0,
-            last_withdrawal_ts: 0,
-            status: StreamStatus::Active,
-            created_at: now,
-            closed_at: 0,
-        };
-
-        env.storage()
-            .persistent()
-            .set(&StreamKey::Stream(stream_id), &stream);
-
-        let emp_key = StreamKey::EmployerStreams(employer.clone());
-        let mut emp_ids: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&emp_key)
-            .unwrap_or_else(|| Vec::new(&env));
-        emp_ids.push_back(stream_id);
-        env.storage().persistent().set(&emp_key, &emp_ids);
-
-        let wrk_key = StreamKey::WorkerStreams(worker.clone());
-        let mut wrk_ids: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&wrk_key)
-            .unwrap_or_else(|| Vec::new(&env));
-        wrk_ids.push_back(stream_id);
-        env.storage().persistent().set(&wrk_key, &wrk_ids);
+        )?;
 
         env.events().publish(
             (
@@ -522,9 +451,7 @@ impl PayrollStream {
 
     /// Get the authorized AutomationGateway contract address.
     pub fn get_gateway(env: Env) -> Option<Address> {
-        env.storage()
-            .instance()
-            .get(&DataKey::Gateway)
+        env.storage().instance().get(&DataKey::Gateway)
     }
 
     /// Create a stream via an authorized AutomationGateway on behalf of an employer.
@@ -642,11 +569,28 @@ impl PayrollStream {
             .get(&DataKey::Vault)
             .ok_or(QuipayError::NotInitialized)?;
 
-        use soroban_sdk::{vec, IntoVal, Symbol};
+        use soroban_sdk::{IntoVal, Symbol, vec};
+
+        // Block stream creation if treasury would be insolvent
+        let solvent: bool = env.invoke_contract(
+            &vault,
+            &Symbol::new(&env, "check_solvency"),
+            vec![
+                &env,
+                token.clone().into_val(&env),
+                total_amount.into_val(&env),
+            ],
+        );
+        require!(solvent, QuipayError::InsufficientBalance);
+
         env.invoke_contract::<()>(
             &vault,
             &Symbol::new(&env, "add_liability"),
-            vec![&env, token.clone().into_val(&env), total_amount.into_val(&env)],
+            vec![
+                &env,
+                token.clone().into_val(&env),
+                total_amount.into_val(&env),
+            ],
         );
 
         let mut next_id: u64 = env
@@ -734,8 +678,6 @@ impl PayrollStream {
         vested.checked_sub(stream.withdrawn_amount).unwrap_or(0)
     }
 
-    pub fn get_employer_streams(env: Env, employer: Address) -> Vec<u64> {
-        env.storage()
     pub fn get_streams_by_employer(
         env: Env,
         employer: Address,
@@ -859,8 +801,6 @@ impl PayrollStream {
     }
 
     fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
-        let is_closed = stream.status == StreamStatus::Canceled || stream.status == StreamStatus::Completed;
-
         let is_closed = Self::is_closed(stream);
         let effective_ts = if is_closed {
             core::cmp::min(timestamp, stream.closed_at)
@@ -869,15 +809,15 @@ impl PayrollStream {
         };
 
         if effective_ts < stream.cliff_ts {
-        if timestamp < stream.cliff_ts {
             return 0;
         }
         if effective_ts <= stream.start_ts {
             return 0;
         }
 
-        if effective_ts >= stream.end_ts || (stream.status == StreamStatus::Completed && effective_ts >= stream.closed_at) {
-        if effective_ts >= stream.end_ts {
+        if effective_ts >= stream.end_ts
+            || (stream.status == StreamStatus::Completed && effective_ts >= stream.closed_at)
+        {
             return stream.total_amount;
         }
         if is_closed && stream.status == StreamStatus::Canceled {

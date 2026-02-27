@@ -31,8 +31,6 @@ pub enum QuipayError {
     Custom = 1999,
 }
 
-
-
 /// Macro for requiring a condition to be true, returning an error if false
 #[macro_export]
 macro_rules! require {

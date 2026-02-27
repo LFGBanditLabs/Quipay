@@ -1,9 +1,9 @@
 #![no_main]
 
-use libfuzzer_sys::fuzz_target;
 use arbitrary::Arbitrary;
+use libfuzzer_sys::fuzz_target;
 use payroll_vault::{PayrollVault, PayrollVaultClient};
-use soroban_sdk::{testutils::Address as _, token, Address, Env};
+use soroban_sdk::{Address, Env, testutils::Address as _, token};
 
 #[derive(Arbitrary, Debug)]
 pub enum FuzzAction {
@@ -68,7 +68,11 @@ fuzz_target!(|actions: Vec<FuzzAction>| {
             FuzzAction::TransferAdmin { new_admin } => {
                 if is_initialized {
                     env.mock_all_auths();
-                    let new_addr = if new_admin { Address::generate(&env) } else { user.clone() };
+                    let new_addr = if new_admin {
+                        Address::generate(&env)
+                    } else {
+                        user.clone()
+                    };
                     let _ = client.transfer_admin(&new_addr);
                 }
             }
@@ -79,10 +83,13 @@ fuzz_target!(|actions: Vec<FuzzAction>| {
             let treasury = client.get_treasury_balance(&token_id);
             let total_liability = client.get_total_liability(&token_id);
             let contract_token_balance = token_client.balance(&contract_id);
-            
+
             // Invariant: Tracked treasury should always be <= actual token balance
-            assert!(treasury <= contract_token_balance, "Treasury exceeded actual token balance");
-            
+            assert!(
+                treasury <= contract_token_balance,
+                "Treasury exceeded actual token balance"
+            );
+
             // Invariant: Treasury and Liability are non-negative
             assert!(treasury >= 0, "Treasury balance became negative");
             assert!(total_liability >= 0, "Total liability became negative");
