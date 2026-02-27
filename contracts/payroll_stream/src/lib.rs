@@ -136,6 +136,7 @@ impl PayrollStream {
             env.clone(), employer.clone(), worker.clone(), token.clone(), rate, cliff_ts, start_ts, end_ts,
         )?;
 
+
         env.events().publish(
             (
                 Symbol::new(&env, "stream"),

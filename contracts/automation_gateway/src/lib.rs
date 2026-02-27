@@ -6,12 +6,12 @@ use quipay_common::{QuipayError, require};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u32)]
 pub enum Permission {
-    CreateStream = 1,
-    CancelStream = 2,
-    RebalanceTreasury = 3,
-    ExecutePayroll = 4,
-    ManageTreasury = 5,
-    RegisterAgent = 6,
+    ExecutePayroll = 1,
+    ManageTreasury = 2,
+    RegisterAgent = 3,
+    CreateStream = 4,
+    CancelStream = 5,
+    RebalanceTreasury = 6,
 }
 
 #[contracttype]

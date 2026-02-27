@@ -169,6 +169,7 @@ fn test_execute_automation_unauthorized() {
 
 #[test]
 fn test_agent_create_stream_authorized() {
+
     let env = Env::default();
     env.mock_all_auths();
 
