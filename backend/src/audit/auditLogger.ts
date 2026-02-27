@@ -15,6 +15,7 @@ import {
   MonitorEventParams,
   LogQueryFilters,
   ExportFilters,
+  ActionType,
 } from "./types";
 import { getPool } from "../db/pool";
 import { RedactionEngine } from "./redactionEngine";
@@ -72,7 +73,7 @@ export class AuditLogger {
       log_level: level,
       message,
       context,
-      action_type: context.action_type || "system",
+      action_type: (context.action_type as ActionType) || "system",
     });
 
     // Validate JSON structure
