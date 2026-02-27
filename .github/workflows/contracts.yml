@@ -25,6 +25,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-
       - run: sudo apt-get install -y libudev-dev libdbus-1-dev pkg-config
       - run: rustup target add wasm32v1-none
+      - run: rustup component add rustfmt
       - run: cargo fmt --check
       - run: cargo clippy
       - run: cargo test
