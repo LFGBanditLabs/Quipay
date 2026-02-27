@@ -27,6 +27,6 @@ jobs:
       - run: rustup target add wasm32v1-none
       - run: rustup component add rustfmt clippy
       - run: cargo fmt --check
-      - run: cargo clippy
-      - run: cargo test
-      - run: cargo build --target wasm32v1-none --release
+      - run: cargo clippy --workspace --exclude quipay-fuzz
+      - run: cargo test --workspace --exclude quipay-fuzz
+      - run: cargo build --target wasm32v1-none --release --workspace --exclude quipay-fuzz
