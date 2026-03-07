@@ -23,6 +23,7 @@ import { standardRateLimiter } from "./middleware/rateLimiter";
 import { getPool } from "./db/pool";
 import Redis from "ioredis";
 import { rpc } from "@stellar/stellar-sdk";
+import { secretsBootstrap } from "./services/secretsBootstrap";
 
 dotenv.config();
 
@@ -35,6 +36,7 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" })); // For Slack form
 
 // Initialize database and audit logger
 async function initializeServices() {
+  await secretsBootstrap.initialize();
   await initDb();
   const auditLogger = initAuditLogger();
 
@@ -215,6 +217,39 @@ app.get("/metrics", async (req, res) => {
     res.end(await metricsManager.register.metrics());
   } catch (ex) {
     res.status(500).end(ex);
+  }
+});
+
+/**
+ * @api {get} /secrets/status Vault secrets management status
+ * @apiDescription Returns the status of the secrets management system.
+ */
+app.get("/secrets/status", async (req, res) => {
+  const vaultHealthy = secretsBootstrap.isVaultHealthy();
+  res.json({
+    status: vaultHealthy ? "ok" : "degraded",
+    vaultAvailable: vaultHealthy,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
+ * @api {post} /secrets/refresh Refresh secrets from Vault
+ * @apiDescription Manually trigger a refresh of secrets from Vault.
+ */
+app.post("/secrets/refresh", async (req, res) => {
+  try {
+    await secretsBootstrap.refreshAllSecrets();
+    res.json({
+      status: "ok",
+      message: "Secrets refreshed successfully",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
   }
 });
 
