@@ -8,7 +8,9 @@
     "start": "node dist/index.js",
     "build": "tsc",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "test:integration": "jest --testPathPatterns=integration",
+    "test:unit": "jest --testPathPatterns=__tests__ --testPathIgnorePatterns=integration"
   },
   "keywords": [],
   "author": "",
@@ -35,6 +37,7 @@
   },
   "devDependencies": {
     "@jest/globals": "^30.2.0",
+    "@testcontainers/postgresql": "^10.17.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
@@ -43,6 +46,7 @@
     "@types/pg": "^8.16.0",
     "@types/qs": "^6.14.0",
     "jest": "^30.2.0",
+    "testcontainers": "^10.17.0",
     "ts-jest": "^29.4.6",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3"
