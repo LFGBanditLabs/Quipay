@@ -9,8 +9,8 @@
     "build": "tsc",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:integration": "jest --testPathPattern=integration",
-    "test:unit": "jest --testPathPattern=__tests__ --testPathIgnorePatterns=integration"
+    "test:integration": "jest --testPathPatterns=integration",
+    "test:unit": "jest --testPathPatterns=__tests__ --testPathIgnorePatterns=integration"
   },
   "keywords": [],
   "author": "",
