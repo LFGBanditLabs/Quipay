@@ -37,6 +37,13 @@ Successfully implemented a comprehensive containerized integration testing strat
 - Provides connection pooling
 - Handles cleanup and teardown
 - Supports test isolation
+- **Injects test pool into db/pool module** for proper test database usage
+
+#### Database Pool Module (`src/db/pool.ts`)
+
+- Added `setPool()` function for test injection
+- Allows tests to override the singleton pool
+- Ensures all queries use the test database
 
 #### Integration Test Suites
 
@@ -95,7 +102,8 @@ Created GitHub Actions workflow (`.github/workflows/integration-tests.yml`):
 - Runs on push/PR to main/develop
 - Automatic Docker setup
 - Test result artifacts
-- PR comments with results
+- Graceful error handling for artifact uploads
+- No PR comment permissions required
 
 ## Features Implemented
 
@@ -154,10 +162,15 @@ Created GitHub Actions workflow (`.github/workflows/integration-tests.yml`):
 
 ### Core Implementation
 
-- `backend/src/__tests__/helpers/testcontainer.ts` - Container management
+- `backend/src/__tests__/helpers/testcontainer.ts` - Container management with pool injection
 - `backend/src/__tests__/integration/auditLogger.integration.test.ts` - Audit tests
 - `backend/src/__tests__/integration/analytics.integration.test.ts` - Analytics tests
 - `backend/src/__tests__/setup.ts` - Jest setup
+
+### Modified Files
+
+- `backend/src/db/pool.ts` - Added `setPool()` for test injection
+- `backend/src/db/schema.sql` - Removed problematic date_trunc indexes
 
 ### Documentation
 
@@ -268,13 +281,15 @@ describe("My Integration Tests", () => {
 2. **Port conflicts**: Testcontainers uses random ports
 3. **Timeout errors**: Increase test timeout
 4. **Memory issues**: Increase Docker memory limit
+5. **Pool injection issues**: Ensure `setPool()` is called before tests run
 
-### Solutions Documented
+### Solutions Implemented
 
-- Comprehensive troubleshooting section in main docs
-- Quick start guide with common fixes
-- CI/CD integration examples
-- Docker cleanup commands
+- Pool injection via `setPool()` function in db/pool module
+- Removed problematic date_trunc indexes from schema.sql
+- Fixed Jest CLI option from `--testPathPattern` to `--testPathPatterns`
+- Removed GitHub Actions PR comment step (permissions issue)
+- Added continue-on-error for artifact uploads
 
 ## Future Enhancements
 
