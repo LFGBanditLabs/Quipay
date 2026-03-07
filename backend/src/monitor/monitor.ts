@@ -1,4 +1,5 @@
 import { getPool } from "../db/pool";
+import { withAdvisoryLock } from "../utils/lock";
 import {
   getTreasuryBalances,
   getActiveLiabilities,
@@ -178,97 +179,105 @@ export const computeTreasuryStatus = async (): Promise<
  * Returns the full status snapshot (useful for the API endpoint).
  */
 export const runMonitorCycle = async (): Promise<EmployerTreasuryStatus[]> => {
-  console.log("[Monitor] 🔍 Running treasury monitor cycle…");
+  const LOCK_ID_MONITOR = 999999;
+  let statuses: EmployerTreasuryStatus[] = [];
 
-  let statuses: EmployerTreasuryStatus[];
+  await withAdvisoryLock(
+    LOCK_ID_MONITOR,
+    async () => {
+      console.log("[Monitor] 🔍 Running treasury monitor cycle…");
 
-  try {
-    statuses = await computeTreasuryStatus();
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[Monitor] Failed to compute treasury status: ${msg}`);
-    return [];
-  }
-
-  if (statuses.length === 0) {
-    console.log("[Monitor] ℹ️  No employer treasury data found.");
-    return [];
-  }
-
-  for (const status of statuses) {
-    // Alert when runway is less than threshold (default 7 days)
-    const alertNeeded =
-      status.runway_days !== null && status.runway_days < RUNWAY_ALERT_DAYS;
-
-    // Fire alert first so we can mark it before logging
-    if (alertNeeded) {
-      console.warn(
-        `[Monitor] ⚠️  Employer ${status.employer} has low runway: ` +
-          `${status.runway_days?.toFixed(1)} days (threshold: ${RUNWAY_ALERT_DAYS} days), ` +
-          `balance: ${status.balance} stroops, ` +
-          `daily burn: ${status.daily_burn_rate.toFixed(2)} stroops/day, ` +
-          `exhaustion date: ${status.funds_exhaustion_date}`,
-      );
       try {
-        await sendTreasuryAlert({
-          employer: status.employer,
-          balance: status.balance,
-          liabilities: status.liabilities,
-          dailyBurnRate: status.daily_burn_rate,
-          runwayDays: status.runway_days,
-          exhaustionDate: status.funds_exhaustion_date,
-          alertThresholdDays: RUNWAY_ALERT_DAYS,
-        });
-        status.alert_sent = true;
+        statuses = await computeTreasuryStatus();
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(
-          `[Monitor] Alert delivery failed for ${status.employer}: ${msg}`,
-        );
+        console.error(`[Monitor] Failed to compute treasury status: ${msg}`);
+        return;
       }
-    }
 
-    // Log to audit system
-    if (isAuditLoggerInitialized()) {
-      try {
-        const auditLogger = getAuditLogger();
-        await auditLogger.logMonitorEvent({
-          employer: status.employer,
-          balance: status.balance,
-          liabilities: status.liabilities,
-          dailyBurnRate: status.daily_burn_rate,
-          runwayDays: status.runway_days,
-          alertSent: status.alert_sent,
-          checkType: "routine",
-        });
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(
-          `[Monitor] Failed to log audit event for ${status.employer}: ${msg}`,
-        );
+      if (statuses.length === 0) {
+        console.log("[Monitor] ℹ️  No employer treasury data found.");
+        return;
       }
-    }
 
-    // Persist to DB regardless of alert status
-    try {
-      await logMonitorEvent({
-        employer: status.employer,
-        balance: status.balance,
-        liabilities: status.liabilities,
-        runwayDays: status.runway_days,
-        alertSent: status.alert_sent,
-      });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(
-        `[Monitor] Failed to log event for ${status.employer}: ${msg}`,
+      for (const status of statuses) {
+        // Alert when runway is less than threshold (default 7 days)
+        const alertNeeded =
+          status.runway_days !== null && status.runway_days < RUNWAY_ALERT_DAYS;
+
+        // Fire alert first so we can mark it before logging
+        if (alertNeeded) {
+          console.warn(
+            `[Monitor] ⚠️  Employer ${status.employer} has low runway: ` +
+              `${status.runway_days?.toFixed(1)} days (threshold: ${RUNWAY_ALERT_DAYS} days), ` +
+              `balance: ${status.balance} stroops, ` +
+              `daily burn: ${status.daily_burn_rate.toFixed(2)} stroops/day, ` +
+              `exhaustion date: ${status.funds_exhaustion_date}`,
+          );
+          try {
+            await sendTreasuryAlert({
+              employer: status.employer,
+              balance: status.balance,
+              liabilities: status.liabilities,
+              dailyBurnRate: status.daily_burn_rate,
+              runwayDays: status.runway_days,
+              exhaustionDate: status.funds_exhaustion_date,
+              alertThresholdDays: RUNWAY_ALERT_DAYS,
+            });
+            status.alert_sent = true;
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error(
+              `[Monitor] Alert delivery failed for ${status.employer}: ${msg}`,
+            );
+          }
+        }
+
+        // Log to audit system
+        if (isAuditLoggerInitialized()) {
+          try {
+            const auditLogger = getAuditLogger();
+            await auditLogger.logMonitorEvent({
+              employer: status.employer,
+              balance: status.balance,
+              liabilities: status.liabilities,
+              dailyBurnRate: status.daily_burn_rate,
+              runwayDays: status.runway_days,
+              alertSent: status.alert_sent,
+              checkType: "routine",
+            });
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error(
+              `[Monitor] Failed to log audit event for ${status.employer}: ${msg}`,
+            );
+          }
+        }
+
+        // Persist to DB regardless of alert status
+        try {
+          await logMonitorEvent({
+            employer: status.employer,
+            balance: status.balance,
+            liabilities: status.liabilities,
+            runwayDays: status.runway_days,
+            alertSent: status.alert_sent,
+          });
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(
+            `[Monitor] Failed to log event for ${status.employer}: ${msg}`,
+          );
+        }
+      }
+
+      console.log(
+        `[Monitor] ✅ Cycle complete — checked ${statuses.length} employer(s)`,
       );
-    }
-  }
-
-  console.log(
-    `[Monitor] ✅ Cycle complete — checked ${statuses.length} employer(s)`,
+    },
+    "treasury-monitor",
   );
+
   return statuses;
 };
 
