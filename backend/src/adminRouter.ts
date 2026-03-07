@@ -1,10 +1,10 @@
 import { Router, Response } from "express";
 import {
-    authenticateRequest,
-    requireAdmin,
-    requireSuperAdmin,
-    requireUser,
-    AuthenticatedRequest,
+  authenticateRequest,
+  requireAdmin,
+  requireSuperAdmin,
+  requireUser,
+  AuthenticatedRequest,
 } from "./middleware/rbac";
 
 export const adminRouter = Router();
@@ -17,14 +17,14 @@ adminRouter.use(authenticateRequest);
  * Admin-only: list all registered users (paginated in production).
  */
 adminRouter.get(
-    "/users",
-    requireAdmin,
-    (req: AuthenticatedRequest, res: Response) => {
-        res.json({
-            message: "User list (stub) – replace with real DB query",
-            requestedBy: req.user,
-        });
-    },
+  "/users",
+  requireAdmin,
+  (req: AuthenticatedRequest, res: Response) => {
+    res.json({
+      message: "User list (stub) – replace with real DB query",
+      requestedBy: req.user,
+    });
+  },
 );
 
 /**
@@ -32,14 +32,15 @@ adminRouter.get(
  * Admin-only: view aggregated analytics for all employers.
  */
 adminRouter.get(
-    "/analytics",
-    requireAdmin,
-    (req: AuthenticatedRequest, res: Response) => {
-        res.json({
-            message: "Aggregated analytics (stub) – replace with real analytics query",
-            requestedBy: req.user,
-        });
-    },
+  "/analytics",
+  requireAdmin,
+  (req: AuthenticatedRequest, res: Response) => {
+    res.json({
+      message:
+        "Aggregated analytics (stub) – replace with real analytics query",
+      requestedBy: req.user,
+    });
+  },
 );
 
 /**
@@ -47,15 +48,15 @@ adminRouter.get(
  * SuperAdmin-only: suspend a user account.
  */
 adminRouter.post(
-    "/users/:id/suspend",
-    requireSuperAdmin,
-    (req: AuthenticatedRequest, res: Response) => {
-        const { id } = req.params;
-        res.json({
-            message: `User ${id} suspended (stub) – replace with real DB mutation`,
-            requestedBy: req.user,
-        });
-    },
+  "/users/:id/suspend",
+  requireSuperAdmin,
+  (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    res.json({
+      message: `User ${id} suspended (stub) – replace with real DB mutation`,
+      requestedBy: req.user,
+    });
+  },
 );
 
 /**
@@ -63,15 +64,15 @@ adminRouter.post(
  * SuperAdmin-only: permanently delete a user account (dangerous override).
  */
 adminRouter.delete(
-    "/users/:id",
-    requireSuperAdmin,
-    (req: AuthenticatedRequest, res: Response) => {
-        const { id } = req.params;
-        res.json({
-            message: `User ${id} deleted (stub) – replace with real DB mutation`,
-            requestedBy: req.user,
-        });
-    },
+  "/users/:id",
+  requireSuperAdmin,
+  (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    res.json({
+      message: `User ${id} deleted (stub) – replace with real DB mutation`,
+      requestedBy: req.user,
+    });
+  },
 );
 
 /**
@@ -79,14 +80,14 @@ adminRouter.delete(
  * Admin-only: view pending manual override jobs.
  */
 adminRouter.get(
-    "/scheduler/override",
-    requireAdmin,
-    (req: AuthenticatedRequest, res: Response) => {
-        res.json({
-            message: "Scheduler override queue (stub)",
-            requestedBy: req.user,
-        });
-    },
+  "/scheduler/override",
+  requireAdmin,
+  (req: AuthenticatedRequest, res: Response) => {
+    res.json({
+      message: "Scheduler override queue (stub)",
+      requestedBy: req.user,
+    });
+  },
 );
 
 /**
@@ -94,15 +95,15 @@ adminRouter.get(
  * SuperAdmin-only: create a manual payroll override.
  */
 adminRouter.post(
-    "/scheduler/override",
-    requireSuperAdmin,
-    (req: AuthenticatedRequest, res: Response) => {
-        res.json({
-            message: "Manual payroll override applied (stub)",
-            requestedBy: req.user,
-            body: req.body,
-        });
-    },
+  "/scheduler/override",
+  requireSuperAdmin,
+  (req: AuthenticatedRequest, res: Response) => {
+    res.json({
+      message: "Manual payroll override applied (stub)",
+      requestedBy: req.user,
+      body: req.body,
+    });
+  },
 );
 
 /**
@@ -110,9 +111,9 @@ adminRouter.post(
  * Any authenticated user: returns the currently authenticated user's info.
  */
 adminRouter.get(
-    "/me",
-    requireUser,
-    (req: AuthenticatedRequest, res: Response) => {
-        res.json({ user: req.user });
-    },
+  "/me",
+  requireUser,
+  (req: AuthenticatedRequest, res: Response) => {
+    res.json({ user: req.user });
+  },
 );

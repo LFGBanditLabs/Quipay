@@ -7,16 +7,16 @@ import { Request, Response, NextFunction } from "express";
  * Use bitmask-compatible powers of 2 to allow composing permissions.
  */
 export enum Role {
-    User = 1,        // Standard authenticated user
-    Admin = 2,       // Has access to admin management endpoints
-    SuperAdmin = 4,  // Full access including dangerous overrides
+  User = 1, // Standard authenticated user
+  Admin = 2, // Has access to admin management endpoints
+  SuperAdmin = 4, // Full access including dangerous overrides
 }
 
 // Human-readable string to Role mapping (used when decoding JWT/API-key claims)
 export const ROLE_MAP: Record<string, Role> = {
-    user: Role.User,
-    admin: Role.Admin,
-    superadmin: Role.SuperAdmin,
+  user: Role.User,
+  admin: Role.Admin,
+  superadmin: Role.SuperAdmin,
 };
 
 // ─── Extended Request ─────────────────────────────────────────────────────────
@@ -26,11 +26,11 @@ export const ROLE_MAP: Record<string, Role> = {
  * Populated by `authenticateRequest` middleware above the RBAC check.
  */
 export interface AuthenticatedRequest extends Request {
-    user?: {
-        id: string;
-        role: Role;
-        email?: string;
-    };
+  user?: {
+    id: string;
+    role: Role;
+    email?: string;
+  };
 }
 
 // ─── Auth Extraction ──────────────────────────────────────────────────────────
@@ -45,17 +45,17 @@ export interface AuthenticatedRequest extends Request {
  * Replace this function body with your real JWT/session verification logic.
  */
 function extractUser(
-    req: AuthenticatedRequest,
+  req: AuthenticatedRequest,
 ): { id: string; role: Role } | null {
-    const roleHeader = req.headers["x-user-role"] as string | undefined;
-    const userId = req.headers["x-user-id"] as string | undefined;
+  const roleHeader = req.headers["x-user-role"] as string | undefined;
+  const userId = req.headers["x-user-id"] as string | undefined;
 
-    if (!roleHeader || !userId) return null;
+  if (!roleHeader || !userId) return null;
 
-    const role = ROLE_MAP[roleHeader.toLowerCase()];
-    if (role === undefined) return null;
+  const role = ROLE_MAP[roleHeader.toLowerCase()];
+  if (role === undefined) return null;
 
-    return { id: userId, role };
+  return { id: userId, role };
 }
 
 // ─── Middleware Factories ────────────────────────────────────────────────────
@@ -67,17 +67,19 @@ function extractUser(
  * Must be placed before any `requireRole` middleware on a route.
  */
 export function authenticateRequest(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction,
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
 ): void {
-    const user = extractUser(req);
-    if (!user) {
-        res.status(401).json({ error: "Unauthorized: missing or invalid credentials" });
-        return;
-    }
-    req.user = user;
-    next();
+  const user = extractUser(req);
+  if (!user) {
+    res
+      .status(401)
+      .json({ error: "Unauthorized: missing or invalid credentials" });
+    return;
+  }
+  req.user = user;
+  next();
 }
 
 /**
@@ -94,30 +96,30 @@ export function authenticateRequest(
  *   router.get("/analytics", authenticateRequest, requireRole(Role.Admin, Role.SuperAdmin), handler);
  */
 export function requireRole(...allowedRoles: Role[]) {
-    const allowedMask = allowedRoles.reduce((acc, r) => acc | r, 0);
+  const allowedMask = allowedRoles.reduce((acc, r) => acc | r, 0);
 
-    return (
-        req: AuthenticatedRequest,
-        res: Response,
-        next: NextFunction,
-    ): void => {
-        if (!req.user) {
-            res.status(401).json({ error: "Unauthorized: not authenticated" });
-            return;
-        }
+  return (
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction,
+  ): void => {
+    if (!req.user) {
+      res.status(401).json({ error: "Unauthorized: not authenticated" });
+      return;
+    }
 
-        const hasPermission = (req.user.role & allowedMask) !== 0;
-        if (!hasPermission) {
-            res.status(403).json({
-                error: "Forbidden: insufficient permissions",
-                required: allowedRoles.map((r) => Role[r]),
-                actual: Role[req.user.role],
-            });
-            return;
-        }
+    const hasPermission = (req.user.role & allowedMask) !== 0;
+    if (!hasPermission) {
+      res.status(403).json({
+        error: "Forbidden: insufficient permissions",
+        required: allowedRoles.map((r) => Role[r]),
+        actual: Role[req.user.role],
+      });
+      return;
+    }
 
-        next();
-    };
+    next();
+  };
 }
 
 /**
