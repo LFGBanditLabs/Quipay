@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use crate::{PayrollVault, PayrollVaultClient};
-use soroban_sdk::{testutils::Address as _, token, Address, Env};
+use soroban_sdk::{Address, Env, testutils::Address as _, token};
 
 pub fn run_fuzz_iteration(
     env: &Env,
@@ -30,7 +30,7 @@ pub fn run_fuzz_iteration(
             if amount > 0 && amount <= 1000000 {
                 env.mock_all_auths();
                 let _ = client.deposit(user, token_id, &amount);
-                
+
                 // Invariant: Contract balance should reflect deposit
                 assert!(token_client.balance(&contract_id) >= amount);
                 assert_eq!(client.get_treasury_balance(token_id), amount);
@@ -45,10 +45,16 @@ pub fn run_fuzz_iteration(
 
             if amount > 0 && amount <= deposit_amount {
                 let _ = client.payout(recipient, token_id, &amount);
-                
+
                 // Invariants
-                assert_eq!(client.get_total_liability(token_id), deposit_amount - amount);
-                assert_eq!(client.get_treasury_balance(token_id), deposit_amount - amount);
+                assert_eq!(
+                    client.get_total_liability(token_id),
+                    deposit_amount - amount
+                );
+                assert_eq!(
+                    client.get_treasury_balance(token_id),
+                    deposit_amount - amount
+                );
                 assert_eq!(token_client.balance(recipient), amount);
             }
         }
@@ -67,7 +73,7 @@ fn test_manual_fuzz() {
         let admin = Address::generate(&env);
         let user = Address::generate(&env);
         let recipient = Address::generate(&env);
-        
+
         // Setup token
         let token_admin = Address::generate(&env);
         let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());

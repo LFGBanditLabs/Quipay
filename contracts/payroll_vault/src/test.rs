@@ -2,9 +2,9 @@
 extern crate std;
 
 use super::*;
-use soroban_sdk::{testutils::Address as _, Address, BytesN, Env, TryIntoVal, token, xdr};
-use soroban_sdk::xdr::{ReadXdr, ToXdr};
 use quipay_common::QuipayError;
+use soroban_sdk::xdr::{ReadXdr, ToXdr};
+use soroban_sdk::{Address, BytesN, Env, TryIntoVal, testutils::Address as _, token, xdr};
 
 fn register_native_token_contract(env: &Env, admin: Address) -> Address {
     let _ = admin;
@@ -42,7 +42,9 @@ fn fund_account_with_xlm(env: &Env, account: &Address, balance: i64) {
         _ => panic!("expected account address"),
     };
 
-    let k = std::rc::Rc::new(xdr::LedgerKey::Account(xdr::LedgerKeyAccount { account_id: account_id.clone() }));
+    let k = std::rc::Rc::new(xdr::LedgerKey::Account(xdr::LedgerKeyAccount {
+        account_id: account_id.clone(),
+    }));
 
     if env.host().get_ledger_entry(&k).unwrap().is_none() {
         let v = std::rc::Rc::new(xdr::LedgerEntry {
@@ -99,7 +101,7 @@ fn test_xlm_deposit_withdraw_and_payout() {
     client.withdraw(&user, &xlm_token_id, &1_000);
     assert_eq!(xlm_token_client.balance(&user), 4_000);
     assert_eq!(client.get_treasury_balance(&xlm_token_id), 3_500);
- }
+}
 
 #[test]
 fn test_solvency_enforcement() {
@@ -109,7 +111,7 @@ fn test_solvency_enforcement() {
     let contract_id = env.register(PayrollVault, ());
     let client = PayrollVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    
+
     client.initialize(&admin);
 
     let token_admin = Address::generate(&env);
@@ -143,7 +145,7 @@ fn test_release_funds() {
     let contract_id = env.register(PayrollVault, ());
     let client = PayrollVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    
+
     client.initialize(&admin);
 
     let token_admin = Address::generate(&env);
@@ -177,7 +179,7 @@ fn test_multi_token_tracking() {
     let contract_id = env.register(PayrollVault, ());
     let client = PayrollVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
-    
+
     client.initialize(&admin);
 
     // Setup Token A
@@ -310,11 +312,8 @@ fn test_already_initialized() {
 
     client.initialize(&admin);
     let result = client.try_initialize(&admin);
-    
-    assert_eq!(
-        result,
-        Err(Ok(QuipayError::AlreadyInitialized))
-    );
+
+    assert_eq!(result, Err(Ok(QuipayError::AlreadyInitialized)));
 }
 
 #[test]
@@ -325,15 +324,14 @@ fn test_insufficient_balance() {
     let client = PayrollVaultClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
     let recipient = Address::generate(&env);
-    let token_id = env.register_stellar_asset_contract_v2(admin.clone()).address();
+    let token_id = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
 
     client.initialize(&admin);
-    
+
     let result = client.try_payout(&recipient, &token_id, &100);
-    assert_eq!(
-        result,
-        Err(Ok(QuipayError::InsufficientBalance))
-    );
+    assert_eq!(result, Err(Ok(QuipayError::InsufficientBalance)));
 }
 
 #[test]
@@ -354,7 +352,8 @@ fn test_liability_tracking() {
     let token_admin_client = token::StellarAssetClient::new(&env, &token);
 
     let another_token_admin = Address::generate(&env);
-    let another_token_contract = env.register_stellar_asset_contract_v2(another_token_admin.clone());
+    let another_token_contract =
+        env.register_stellar_asset_contract_v2(another_token_admin.clone());
     let another_token = another_token_contract.address();
     let another_token_admin_client = token::StellarAssetClient::new(&env, &another_token);
 
@@ -363,7 +362,10 @@ fn test_liability_tracking() {
 
     // Set authorized contract
     client.set_authorized_contract(&authorized_contract);
-    assert_eq!(client.get_authorized_contract(), Some(authorized_contract.clone()));
+    assert_eq!(
+        client.get_authorized_contract(),
+        Some(authorized_contract.clone())
+    );
 
     // Fund vault so solvency checks pass
     token_admin_client.mint(&depositor, &10_000);
@@ -620,7 +622,7 @@ fn test_require_auth_enforces_admin_authorization() {
     token_admin_client.mint(&depositor, &1000);
     client.deposit(&depositor, &token, &1000);
     client.allocate_funds(&token, &100);
-    
+
     // Without mock_all_auths, operations fail (simulates insufficient signatures)
     // Note: We can't easily test this in a separate env due to address incompatibility
     // In production, multisig threshold validation happens at Stellar network level
@@ -741,7 +743,10 @@ fn test_require_auth_for_set_authorized_contract_with_multisig() {
 
     // Admin can set authorized contract (authorized - mock_all_auths simulates multisig threshold met)
     client.set_authorized_contract(&authorized_contract);
-    assert_eq!(client.get_authorized_contract(), Some(authorized_contract.clone()));
+    assert_eq!(
+        client.get_authorized_contract(),
+        Some(authorized_contract.clone())
+    );
 
     // Try to set authorized contract without admin auth - should panic
     // This simulates a transaction that doesn't meet multisig threshold

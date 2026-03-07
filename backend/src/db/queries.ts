@@ -1,4 +1,5 @@
 import { query, getPool } from "./pool";
+import { globalCache } from "../utils/cache";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -144,6 +145,12 @@ export const upsertStream = async (params: {
       params.ledger,
     ],
   );
+
+  // Invalidate global analytics cache
+  globalCache.del("analytics:summary");
+  globalCache.invalidateByPrefix("analytics:trends:");
+  globalCache.del(`analytics:address:${params.employer}`);
+  globalCache.del(`analytics:address:${params.worker}`);
 };
 
 export const recordWithdrawal = async (params: {
@@ -165,6 +172,10 @@ export const recordWithdrawal = async (params: {
       params.ledgerTs,
     ],
   );
+
+  // Invalidate worker analytics cache
+  globalCache.del(`analytics:address:${params.worker}`);
+  globalCache.del("analytics:summary"); // total withdrawn changes
 };
 
 export const recordVaultEvent = async (params: {

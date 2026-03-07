@@ -1,7 +1,6 @@
 import React from "react";
 import { Layout, Text, Button } from "@stellar/design-system";
 import { usePayroll } from "../hooks/usePayroll";
-import styles from "./EmployerDashboard.module.css";
 import { useNavigate } from "react-router-dom";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import WithdrawButton from "../components/WithdrawButton";
@@ -9,6 +8,21 @@ import EmptyState from "../components/EmptyState";
 import { SkeletonCard, SkeletonRow } from "../components/Loading";
 
 const EmployerDashboard: React.FC = () => {
+  const tw = {
+    dashboardGrid:
+      "mb-[30px] grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-5 max-[768px]:grid-cols-1 max-[768px]:gap-4",
+    streamsSection: "mt-10",
+    streamsHeader:
+      "mb-5 flex flex-wrap items-center justify-between gap-3 max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-4",
+    streamsList: "flex flex-col gap-2.5",
+    card: "rounded-lg border border-[var(--sds-color-neutral-border)] bg-[var(--sds-color-neutral-subtle)] p-5 shadow-[0_2px_4px_rgba(0,0,0,0.05)] max-[480px]:p-4",
+    cardHeader: "mb-2.5 block font-bold",
+    metricValue:
+      "text-2xl font-semibold text-[var(--sds-color-content-primary)] max-[768px]:text-xl",
+    streamItem:
+      "flex items-center justify-between gap-3.5 rounded-md border border-[var(--sds-color-neutral-border)] bg-[var(--sds-color-background-primary)] p-[15px] max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:p-4",
+  };
+
   const {
     treasuryBalances,
     totalLiabilities,
@@ -37,18 +51,18 @@ const EmployerDashboard: React.FC = () => {
             <Text as="h1" size="xl" weight="medium">
               Employer Dashboard
             </Text>
-            <div className={styles.dashboardGrid}>
+            <div className={tw.dashboardGrid}>
               <SkeletonCard lines={3} />
               <SkeletonCard lines={2} />
               <SkeletonCard lines={2} />
             </div>
-            <div className={styles.streamsSection}>
-              <div className={styles.streamsHeader}>
+            <div className={tw.streamsSection}>
+              <div className={tw.streamsHeader}>
                 <Text as="h2" size="lg">
                   Active Streams
                 </Text>
               </div>
-              <div className={styles.streamsList}>
+              <div className={tw.streamsList}>
                 <SkeletonRow />
                 <SkeletonRow />
               </div>
@@ -79,7 +93,7 @@ const EmployerDashboard: React.FC = () => {
           Employer Dashboard
         </Text>
 
-        <div className={styles.dashboardGrid}>
+        <div className={tw.dashboardGrid}>
           <WithdrawButton
             walletAddress="0xYourWalletAddress"
             contract={demoContract}
@@ -88,18 +102,18 @@ const EmployerDashboard: React.FC = () => {
           />
 
           {/* Treasury Balance */}
-          <div className={styles.card} id="tour-treasury-balance">
+          <div className={tw.card} id="tour-treasury-balance">
             <Text
               as="h2"
               size="md"
               weight="semi-bold"
-              className={styles.cardHeader}
+              className={tw.cardHeader}
             >
               Treasury Balance
             </Text>
             {treasuryBalances.map((balance) => (
               <div key={balance.tokenSymbol}>
-                <Text as="div" size="lg" className={styles.metricValue}>
+                <Text as="div" size="lg" className={tw.metricValue}>
                   {balance.balance} {balance.tokenSymbol}
                 </Text>
               </div>
@@ -133,16 +147,16 @@ const EmployerDashboard: React.FC = () => {
           </div>
 
           {/* Total Liabilities */}
-          <div className={styles.card}>
+          <div className={tw.card}>
             <Text
               as="span"
               size="md"
               weight="semi-bold"
-              className={styles.cardHeader}
+              className={tw.cardHeader}
             >
               Total Liabilities
             </Text>
-            <Text as="div" size="lg" className={styles.metricValue}>
+            <Text as="div" size="lg" className={tw.metricValue}>
               {totalLiabilities}
             </Text>
             <Text as="p" size="sm" style={{ color: "var(--muted)" }}>
@@ -151,23 +165,23 @@ const EmployerDashboard: React.FC = () => {
           </div>
 
           {/* Active Streams Count */}
-          <div className={styles.card}>
+          <div className={tw.card}>
             <Text
               as="span"
               size="md"
               weight="semi-bold"
-              className={styles.cardHeader}
+              className={tw.cardHeader}
             >
               Active Streams
             </Text>
-            <Text as="div" size="lg" className={styles.metricValue}>
+            <Text as="div" size="lg" className={tw.metricValue}>
               {activeStreamsCount}
             </Text>
           </div>
         </div>
 
-        <div className={styles.streamsSection}>
-          <div className={styles.streamsHeader}>
+        <div className={tw.streamsSection}>
+          <div className={tw.streamsHeader}>
             <Text as="h2" size="lg">
               Active Streams
             </Text>
@@ -193,11 +207,11 @@ const EmployerDashboard: React.FC = () => {
               }}
             />
           ) : (
-            <div className={styles.streamsList}>
+            <div className={tw.streamsList}>
               {activeStreams.map((stream) => (
                 <div
                   key={stream.id}
-                  className={styles.streamItem}
+                  className={tw.streamItem}
                   onClick={() => {
                     void navigate(`/stream/${stream.id}`);
                   }}

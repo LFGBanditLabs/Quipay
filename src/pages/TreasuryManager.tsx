@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Layout, Text, Input } from "@stellar/design-system";
 import { useNavigate } from "react-router-dom";
-import styles from "./TreasuryManager.module.css";
 import { useWallet } from "../hooks/useWallet";
 import {
   payrollVaultClient,
@@ -18,6 +17,27 @@ const toDisplayAmount = (amount: number): string => amount.toFixed(2);
 const STELLAR_ASSET_CODE_REGEX = /^[A-Z0-9]{1,12}$/;
 
 const TreasuryManager: React.FC = () => {
+  const tw = {
+    headerRow: "mb-5 flex items-center justify-between",
+    description: "mb-6 max-w-[760px]",
+    balancesGrid:
+      "mb-7 grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4",
+    card: "rounded-[10px] border border-[var(--border)] bg-[var(--surface-subtle)] p-4",
+    metricLabel: "text-[13px] text-[var(--muted)]",
+    metricValue: "mb-2 mt-1",
+    formsGrid: "mb-7 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4",
+    fieldGroup: "flex flex-col gap-3",
+    selectInput:
+      "rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text)]",
+    historyList: "flex flex-col gap-2",
+    historyItem:
+      "flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] p-3",
+    historyMeta: "text-[var(--muted)]",
+    emptyState: "py-3 text-[var(--muted)]",
+    errorText: "text-[var(--sds-color-feedback-error)]",
+    successText: "text-[var(--sds-color-feedback-success)]",
+  };
+
   const navigate = useNavigate();
   const { address } = useWallet();
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -128,16 +148,16 @@ const TreasuryManager: React.FC = () => {
     return (
       <Layout.Content>
         <Layout.Inset>
-          <div className={styles.headerRow}>
+          <div className={tw.headerRow}>
             <Skeleton variant="rect" width="220px" height="28px" />
             <Skeleton variant="rect" width="140px" height="32px" />
           </div>
           <Skeleton variant="text" width="80%" height="14px" />
-          <div className={styles.balancesGrid} style={{ marginTop: "16px" }}>
+          <div className={tw.balancesGrid} style={{ marginTop: "16px" }}>
             <SkeletonCard lines={3} />
             <SkeletonCard lines={3} />
           </div>
-          <div className={styles.formsGrid} style={{ marginTop: "16px" }}>
+          <div className={tw.formsGrid} style={{ marginTop: "16px" }}>
             <SkeletonCard lines={4} />
             <SkeletonCard lines={4} />
           </div>
@@ -150,7 +170,7 @@ const TreasuryManager: React.FC = () => {
   return (
     <Layout.Content>
       <Layout.Inset>
-        <div className={styles.headerRow}>
+        <div className={tw.headerRow}>
           <Text as="h1" size="xl" weight="medium">
             Treasury Management
           </Text>
@@ -165,28 +185,28 @@ const TreasuryManager: React.FC = () => {
           </Button>
         </div>
 
-        <Text as="p" size="md" className={styles.description}>
+        <Text as="p" size="md" className={tw.description}>
           Manage treasury funds per token, review solvency, and track every
           treasury operation. Available balance is calculated as treasury
           balance minus total liabilities.
         </Text>
 
-        <div className={styles.balancesGrid}>
+        <div className={tw.balancesGrid}>
           {viewTokenState.map((token: TreasuryViewTokenState) => (
-            <div key={token.tokenSymbol} className={styles.card}>
+            <div key={token.tokenSymbol} className={tw.card}>
               <Text as="div" size="md" weight="semi-bold">
                 {token.tokenSymbol}
               </Text>
-              <div className={styles.metricValue}>
-                <Text as="div" size="sm" className={styles.metricLabel}>
+              <div className={tw.metricValue}>
+                <Text as="div" size="sm" className={tw.metricLabel}>
                   Treasury Balance
                 </Text>
                 <Text as="div" size="md">
                   {toDisplayAmount(token.treasuryBalance)} {token.tokenSymbol}
                 </Text>
               </div>
-              <div className={styles.metricValue}>
-                <Text as="div" size="sm" className={styles.metricLabel}>
+              <div className={tw.metricValue}>
+                <Text as="div" size="sm" className={tw.metricLabel}>
                   Total Liability
                 </Text>
                 <Text as="div" size="md">
@@ -194,7 +214,7 @@ const TreasuryManager: React.FC = () => {
                 </Text>
               </div>
               <div>
-                <Text as="div" size="sm" className={styles.metricLabel}>
+                <Text as="div" size="sm" className={tw.metricLabel}>
                   Available Balance
                 </Text>
                 <Text as="div" size="md">
@@ -208,24 +228,24 @@ const TreasuryManager: React.FC = () => {
         {(errorMessage || successMessage) && (
           <div style={{ marginBottom: "16px" }}>
             {errorMessage && (
-              <Text as="p" size="sm" className={styles.errorText}>
+              <Text as="p" size="sm" className={tw.errorText}>
                 {errorMessage}
               </Text>
             )}
             {successMessage && (
-              <Text as="p" size="sm" className={styles.successText}>
+              <Text as="p" size="sm" className={tw.successText}>
                 {successMessage}
               </Text>
             )}
           </div>
         )}
 
-        <div className={styles.formsGrid}>
-          <div className={styles.card}>
+        <div className={tw.formsGrid}>
+          <div className={tw.card}>
             <Text as="h2" size="lg" weight="medium">
               Deposit Funds
             </Text>
-            <div className={styles.fieldGroup}>
+            <div className={tw.fieldGroup}>
               <label htmlFor="deposit-token">
                 <Text as="span" size="sm">
                   Asset Code (Any Stellar Asset)
@@ -265,11 +285,11 @@ const TreasuryManager: React.FC = () => {
             </div>
           </div>
 
-          <div className={styles.card}>
+          <div className={tw.card}>
             <Text as="h2" size="lg" weight="medium">
               Withdraw Funds
             </Text>
-            <div className={styles.fieldGroup}>
+            <div className={tw.fieldGroup}>
               <label htmlFor="withdraw-token">
                 <Text as="span" size="sm">
                   Token
@@ -277,7 +297,7 @@ const TreasuryManager: React.FC = () => {
               </label>
               <select
                 id="withdraw-token"
-                className={styles.selectInput}
+                className={tw.selectInput}
                 value={selectedWithdrawalToken}
                 onChange={(event: React.ChangeEvent<HTMLSelectElement>) =>
                   setSelectedWithdrawalToken(event.target.value)
@@ -314,18 +334,18 @@ const TreasuryManager: React.FC = () => {
           </div>
         </div>
 
-        <div className={styles.card}>
+        <div className={tw.card}>
           <Text as="h2" size="lg" weight="medium">
             Transaction History
           </Text>
           {history.length === 0 ? (
-            <Text as="p" size="sm" className={styles.emptyState}>
+            <Text as="p" size="sm" className={tw.emptyState}>
               No transactions yet.
             </Text>
           ) : (
-            <div className={styles.historyList}>
+            <div className={tw.historyList}>
               {history.map((transaction: TreasuryTransaction) => (
-                <div className={styles.historyItem} key={transaction.id}>
+                <div className={tw.historyItem} key={transaction.id}>
                   <div>
                     <Text as="div" size="sm" weight="semi-bold">
                       {transaction.type === "deposit"
@@ -334,11 +354,11 @@ const TreasuryManager: React.FC = () => {
                       {toDisplayAmount(transaction.amount)}{" "}
                       {transaction.tokenSymbol}
                     </Text>
-                    <Text as="div" size="sm" className={styles.historyMeta}>
+                    <Text as="div" size="sm" className={tw.historyMeta}>
                       {new Date(transaction.timestamp).toLocaleString()}
                     </Text>
                   </div>
-                  <Text as="div" size="sm" className={styles.successText}>
+                  <Text as="div" size="sm" className={tw.successText}>
                     {transaction.status}
                   </Text>
                 </div>

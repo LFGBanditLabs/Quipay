@@ -6,6 +6,7 @@ import { webhookRouter } from "./webhooks";
 import { slackRouter } from "./slack";
 import { discordRouter } from "./discord";
 import { aiRouter } from "./ai"; // Added aiRouter import
+import { adminRouter } from "./adminRouter";
 import { startStellarListener } from "./stellarListener";
 import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
 import { startMonitor, runMonitorCycle } from "./monitor/monitor";
@@ -16,6 +17,7 @@ import {
   createErrorLoggingMiddleware,
 } from "./audit/middleware";
 import { initDb } from "./db/pool";
+import { globalErrorHandler, notFoundHandler } from "./errors";
 
 dotenv.config();
 
@@ -52,6 +54,7 @@ app.use("/slack", slackRouter);
 // Note: discordRouter utilizes native express payloads natively bypassing body buffers mapping local examples
 app.use("/discord", discordRouter);
 app.use("/ai", aiRouter); // Added aiRouter use
+app.use("/admin", adminRouter); // RBAC-protected admin endpoints
 
 // Error logging middleware (should be after routes)
 app.use(
@@ -68,6 +71,12 @@ app.use(
     }
   },
 );
+
+// Catch undefined routes - must come after all route registrations
+app.use(notFoundHandler);
+
+// Global centralized error handler - must be the very last middleware
+app.use(globalErrorHandler);
 
 // Start time for uptime calculation
 const startTime = Date.now();

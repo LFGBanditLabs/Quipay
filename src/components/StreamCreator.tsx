@@ -39,8 +39,32 @@ import {
   PAYROLL_STREAM_CONTRACT_ID,
   type CreateStreamParams,
 } from "../contracts/payroll_stream";
-import styles from "./StreamCreator.module.css";
 import { TransactionProgress } from "./Loading";
+
+const tw = {
+  wrapper: "mx-auto max-w-[680px]",
+  card: "rounded-xl border border-[var(--sds-color-neutral-border,#e2e8f0)] bg-[var(--sds-color-background-primary,#fff)] p-8 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,0,0,0.04)]",
+  header: "mb-7",
+  title:
+    "mb-1.5 text-[1.375rem] font-bold text-[var(--sds-color-content-primary,#0f172a)]",
+  subtitle: "m-0 text-sm text-[var(--sds-color-content-secondary,#4b5563)]",
+  form: "flex flex-col gap-5",
+  fieldGroup: "flex flex-col gap-1.5",
+  fieldRow: "grid grid-cols-2 gap-4 max-[540px]:grid-cols-1",
+  label:
+    "text-[0.8125rem] font-semibold tracking-[0.01em] text-[var(--sds-color-content-primary,#0f172a)]",
+  required: "ml-0.5 text-[var(--sds-color-feedback-error,#ef4444)]",
+  input:
+    "box-border w-full appearance-none rounded-lg border-[1.5px] border-[var(--sds-color-neutral-border,#cbd5e1)] bg-[var(--sds-color-background-primary,#fff)] px-[14px] py-2.5 text-[0.9375rem] text-[var(--sds-color-content-primary,#0f172a)] transition-all duration-150 placeholder:text-[var(--sds-color-content-placeholder,#94a3b8)] hover:border-[var(--sds-color-neutral-border-hover,#94a3b8)] focus:border-[var(--sds-color-brand-primary,#6366f1)] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.15)] focus:outline-none",
+  inputError:
+    "!border-[var(--sds-color-feedback-error,#ef4444)] !shadow-[0_0_0_3px_rgba(239,68,68,0.12)]",
+  footer: "mt-1 flex items-center justify-end gap-3",
+  spinner:
+    "inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/50 border-t-white align-middle",
+  walletNotice:
+    "flex items-start gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-sm text-[var(--muted)]",
+  walletNoticeIcon: "text-base leading-6",
+};
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -439,10 +463,10 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
 
   if (!address) {
     return (
-      <div className={styles.wrapper}>
-        <div className={styles.card}>
-          <div className={styles.walletNotice}>
-            <span className={styles.walletNoticeIcon}>💼</span>
+      <div className={tw.wrapper}>
+        <div className={tw.card}>
+          <div className={tw.walletNotice}>
+            <span className={tw.walletNoticeIcon}>💼</span>
             <p>Connect your wallet to create a payroll stream.</p>
           </div>
         </div>
@@ -451,30 +475,28 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
   }
 
   return (
-    <div className={styles.wrapper}>
-      <div className={styles.card}>
-        <div className={styles.header}>
-          <h2 className={styles.title}>Create Payroll Stream</h2>
-          <p className={styles.subtitle}>
-            Continuous payment flow for workers.
-          </p>
+    <div className={tw.wrapper}>
+      <div className={tw.card}>
+        <div className={tw.header}>
+          <h2 className={tw.title}>Create Payroll Stream</h2>
+          <p className={tw.subtitle}>Continuous payment flow for workers.</p>
         </div>
 
         <form
           id={id("form")}
           onSubmit={(e) => void handleSubmit(e)}
           noValidate
-          className={styles.form}
+          className={tw.form}
         >
-          <div className={styles.fieldGroup}>
-            <label htmlFor={id("workerAddress")} className={styles.label}>
-              Worker Address <span className={styles.required}>*</span>
+          <div className={tw.fieldGroup}>
+            <label htmlFor={id("workerAddress")} className={tw.label}>
+              Worker Address <span className={tw.required}>*</span>
             </label>
             <input
               id={id("workerAddress")}
               name="workerAddress"
               type="text"
-              className={`${styles.input} ${errors.workerAddress ? styles.inputError : ""}`}
+              className={`${tw.input} ${errors.workerAddress ? tw.inputError : ""}`}
               placeholder="G..."
               value={values.workerAddress}
               onChange={handleChange}
@@ -492,17 +514,17 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
 
           {/* ... existing token field ... */}
 
-          <div className={styles.fieldGroup}>
-            <label htmlFor={id("rate")} className={styles.label}>
+          <div className={tw.fieldGroup}>
+            <label htmlFor={id("rate")} className={tw.label}>
               Flow Rate ({tokenSymbol}/sec){" "}
-              <span className={styles.required}>*</span>
+              <span className={tw.required}>*</span>
             </label>
             <input
               id={id("rate")}
               name="rate"
               type="number"
               step="any"
-              className={`${styles.input} ${errors.rate ? styles.inputError : ""}`}
+              className={`${tw.input} ${errors.rate ? tw.inputError : ""}`}
               placeholder="e.g. 0.0001"
               value={values.rate}
               onChange={handleChange}
@@ -515,9 +537,9 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
             </div>
           </div>
 
-          <div className={styles.fieldRow}>
-            <div className={styles.fieldGroup}>
-              <label htmlFor={id("startDate")} className={styles.label}>
+          <div className={tw.fieldRow}>
+            <div className={tw.fieldGroup}>
+              <label htmlFor={id("startDate")} className={tw.label}>
                 Start Date
               </label>
               <input
@@ -525,14 +547,14 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
                 name="startDate"
                 type="date"
                 min={todayStr()}
-                className={styles.input}
+                className={tw.input}
                 value={values.startDate}
                 onChange={handleChange}
                 disabled={isBusy}
               />
             </div>
-            <div className={styles.fieldGroup}>
-              <label htmlFor={id("endDate")} className={styles.label}>
+            <div className={tw.fieldGroup}>
+              <label htmlFor={id("endDate")} className={tw.label}>
                 End Date
               </label>
               <input
@@ -540,7 +562,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
                 name="endDate"
                 type="date"
                 min={values.startDate || todayStr()}
-                className={styles.input}
+                className={tw.input}
                 value={values.endDate}
                 onChange={handleChange}
                 disabled={isBusy}
@@ -613,7 +635,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
             />
           )}
 
-          <div className={styles.footer}>
+          <div className={tw.footer}>
             {onCancel && (
               <Button
                 variant="secondary"
@@ -631,7 +653,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               type="submit"
               disabled={isBusy || txPhase.kind === "success"}
             >
-              {isBusy ? <span className={styles.spinner} /> : "Create Stream"}
+              {isBusy ? <span className={tw.spinner} /> : "Create Stream"}
             </Button>
           </div>
         </form>
