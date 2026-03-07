@@ -3,7 +3,14 @@
  * Tests database writes and query functionality with real PostgreSQL
  */
 
-import { describe, it, expect, beforeAll, afterAll, afterEach } from "@jest/globals";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  afterEach,
+} from "@jest/globals";
 import {
   setupTestDatabase,
   cleanTestDatabase,
@@ -15,7 +22,9 @@ import { LogLevel, AuditLoggerConfig } from "../../audit/types";
 import { Pool } from "pg";
 
 // Helper to create test config
-function createTestConfig(overrides: Partial<AuditLoggerConfig> = {}): AuditLoggerConfig {
+function createTestConfig(
+  overrides: Partial<AuditLoggerConfig> = {},
+): AuditLoggerConfig {
   return {
     minLogLevel: "INFO",
     asyncWrites: true, // Enable async writes so logs are actually written

@@ -3,7 +3,10 @@
  * Manages PostgreSQL container lifecycle for integration tests
  */
 
-import { PostgreSqlContainer, StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import {
+  PostgreSqlContainer,
+  StartedPostgreSqlContainer,
+} from "@testcontainers/postgresql";
 import { Pool } from "pg";
 import fs from "fs";
 import path from "path";

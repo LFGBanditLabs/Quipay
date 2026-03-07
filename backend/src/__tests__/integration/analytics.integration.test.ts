@@ -3,7 +3,15 @@
  * Tests database queries and caching with real PostgreSQL
  */
 
-import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach } from "@jest/globals";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  afterEach,
+  beforeEach,
+} from "@jest/globals";
 import {
   setupTestDatabase,
   cleanTestDatabase,
