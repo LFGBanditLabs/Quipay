@@ -17,6 +17,7 @@ import {
   createErrorLoggingMiddleware,
 } from "./audit/middleware";
 import { initDb } from "./db/pool";
+import { globalErrorHandler, notFoundHandler } from "./errors";
 
 dotenv.config();
 
@@ -70,6 +71,12 @@ app.use(
     }
   },
 );
+
+// Catch undefined routes - must come after all route registrations
+app.use(notFoundHandler);
+
+// Global centralized error handler - must be the very last middleware
+app.use(globalErrorHandler);
 
 // Start time for uptime calculation
 const startTime = Date.now();
