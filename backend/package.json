@@ -10,7 +10,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:integration": "jest --testPathPatterns=integration",
-    "test:unit": "jest --testPathPatterns=__tests__ --testPathIgnorePatterns=integration"
+    "test:unit": "jest --testPathPatterns=__tests__ --testPathIgnorePatterns=integration",
+    "test:explain-analyze": "ts-node src/db/explain-analyze-tests.ts"
   },
   "keywords": [],
   "author": "",
