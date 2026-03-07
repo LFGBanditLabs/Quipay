@@ -7,6 +7,7 @@ import {
   getPayrollTrends,
   getAddressStats,
 } from "./db/queries";
+import { globalCache } from "./utils/cache";
 
 export const analyticsRouter = Router();
 
@@ -45,8 +46,19 @@ const timed = async <T>(
  */
 analyticsRouter.get("/summary", async (_req: Request, res: Response) => {
   try {
+    const cacheKey = "analytics:summary";
+    const cached = globalCache.get(cacheKey);
+    if (cached) {
+      return res.set("X-Cache", "HIT").json({ ok: true, data: cached });
+    }
+
     const { data, ms } = await timed(getOverallStats);
-    res.set("X-Query-Time-Ms", String(ms)).json({ ok: true, data });
+    globalCache.set(cacheKey, data, 5 * 60 * 1000); // 5m TTL
+
+    res
+      .set("X-Cache", "MISS")
+      .set("X-Query-Time-Ms", String(ms))
+      .json({ ok: true, data });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     res.status(500).json({ ok: false, error: msg });
@@ -104,10 +116,19 @@ analyticsRouter.get("/trends", async (req: Request, res: Response) => {
     >;
     const gran = granularity === "weekly" ? "weekly" : "daily";
 
+    const cacheKey = `analytics:trends:${address || "all"}:${gran}`;
+    const cached = globalCache.get(cacheKey);
+    if (cached) {
+      return res.set("X-Cache", "HIT").json({ ok: true, data: cached });
+    }
+
     const { data, ms } = await timed(() =>
       getPayrollTrends(address || null, gran),
     );
+    globalCache.set(cacheKey, data, 5 * 60 * 1000); // 5m TTL
+
     res
+      .set("X-Cache", "MISS")
       .set("X-Query-Time-Ms", String(ms))
       .json({ ok: true, data, meta: { granularity: gran } });
   } catch (err: unknown) {
@@ -125,15 +146,36 @@ analyticsRouter.get(
   async (req: Request, res: Response) => {
     try {
       const address = req.params.address as string;
+      const cacheKey = `analytics:address:${address}`;
+      const cached = globalCache.get<Awaited<ReturnType<typeof getAddressStats>>>(
+        cacheKey,
+      );
+
+      if (cached) {
+        return res.set("X-Cache", "HIT").json({
+          ok: true,
+          data: {
+            address,
+            ...cached.asEmployer,
+            recentWithdrawals: cached.recentWithdrawals,
+          },
+        });
+      }
+
       const { data, ms } = await timed(() => getAddressStats(address));
-      res.set("X-Query-Time-Ms", String(ms)).json({
-        ok: true,
-        data: {
-          address,
-          ...data.asEmployer,
-          recentWithdrawals: data.recentWithdrawals,
-        },
-      });
+      globalCache.set(cacheKey, data, 1 * 60 * 1000); // 1m TTL
+
+      res
+        .set("X-Cache", "MISS")
+        .set("X-Query-Time-Ms", String(ms))
+        .json({
+          ok: true,
+          data: {
+            address,
+            ...data.asEmployer,
+            recentWithdrawals: data.recentWithdrawals,
+          },
+        });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       res.status(500).json({ ok: false, error: msg });
@@ -150,15 +192,36 @@ analyticsRouter.get(
   async (req: Request, res: Response) => {
     try {
       const address = req.params.address as string;
+      const cacheKey = `analytics:address:${address}`;
+      const cached = globalCache.get<Awaited<ReturnType<typeof getAddressStats>>>(
+        cacheKey,
+      );
+
+      if (cached) {
+        return res.set("X-Cache", "HIT").json({
+          ok: true,
+          data: {
+            address,
+            ...cached.asWorker,
+            recentWithdrawals: cached.recentWithdrawals,
+          },
+        });
+      }
+
       const { data, ms } = await timed(() => getAddressStats(address));
-      res.set("X-Query-Time-Ms", String(ms)).json({
-        ok: true,
-        data: {
-          address,
-          ...data.asWorker,
-          recentWithdrawals: data.recentWithdrawals,
-        },
-      });
+      globalCache.set(cacheKey, data, 1 * 60 * 1000); // 1m TTL
+
+      res
+        .set("X-Cache", "MISS")
+        .set("X-Query-Time-Ms", String(ms))
+        .json({
+          ok: true,
+          data: {
+            address,
+            ...data.asWorker,
+            recentWithdrawals: data.recentWithdrawals,
+          },
+        });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       res.status(500).json({ ok: false, error: msg });
