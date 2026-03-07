@@ -52,8 +52,8 @@ describe("AuditLogger Integration Tests", () => {
     // Set DATABASE_URL for the audit logger
     process.env.DATABASE_URL = testDb.getConnectionString();
 
-    // DO NOT call initDb() here - it would create a new pool
-    // The test database pool is already initialized
+    // CRITICAL: Inject the test pool BEFORE creating any AuditLogger instances
+    testDb.injectPoolIntoDbModule();
   }, 60000); // 60s timeout for container startup
 
   afterEach(async () => {

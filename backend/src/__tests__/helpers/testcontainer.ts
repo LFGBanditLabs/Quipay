@@ -53,18 +53,22 @@ export class TestDatabase {
 
     await this.pool.query(schemaSql);
     console.log("[TestDB] ✅ Schema initialized");
-
-    // Inject the test pool into the db/pool module
-    this.injectPoolIntoDbModule();
   }
 
   /**
    * Inject test pool into the db/pool module so queries use the test database
+   * This must be called AFTER the pool is created but BEFORE any code uses getPool()
    */
-  private injectPoolIntoDbModule(): void {
-    if (!this.pool) return;
+  injectPoolIntoDbModule(): void {
+    if (!this.pool) {
+      throw new Error("Pool not initialized - call start() first");
+    }
 
-    // Use the setPool function to inject our test pool
+    // Clear the module cache to ensure fresh imports
+    const poolModulePath = require.resolve("../../db/pool");
+    delete require.cache[poolModulePath];
+
+    // Now require and set the pool
     const { setPool } = require("../../db/pool");
     setPool(this.pool);
 

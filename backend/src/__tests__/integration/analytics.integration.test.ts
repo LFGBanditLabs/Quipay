@@ -33,8 +33,8 @@ describe("Analytics Integration Tests", () => {
     // Set DATABASE_URL
     process.env.DATABASE_URL = testDb.getConnectionString();
 
-    // DO NOT call initDb() here - it would create a new pool
-    // The test database pool is already initialized
+    // CRITICAL: Inject the test pool BEFORE any queries are made
+    testDb.injectPoolIntoDbModule();
   }, 60000);
 
   afterEach(async () => {
