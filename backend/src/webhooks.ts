@@ -1,5 +1,15 @@
 import { Router, Request, Response } from "express";
 import crypto from "crypto";
+import { validateRequest } from "./middleware/validation";
+import {
+  webhookRegistrationLimiter,
+  standardRateLimiter,
+} from "./middleware/rateLimiter";
+import {
+  webhookRegistrationSchema,
+  webhookIdSchema,
+} from "./schemas/webhooks.schema";
+import { createProblemDetails } from "./middleware/errorHandler";
 
 export interface WebhookSubscription {
   id: string;
@@ -17,40 +27,38 @@ export const webhookRouter = Router();
  * @api {post} /webhooks Register a new webhook
  * @apiDescription Subscribes an endpoint to receive real-time notifications for Quipay events.
  */
-webhookRouter.post("/", (req: Request, res: Response) => {
-  const { url, events } = req.body;
+webhookRouter.post(
+  "/",
+  webhookRegistrationLimiter,
+  validateRequest({ body: webhookRegistrationSchema }),
+  (req: Request, res: Response) => {
+    const { url, events } = req.body;
 
-  if (!url || typeof url !== "string") {
-    return res.status(400).json({ error: "A valid URL is required." });
-  }
+    // Default to all known events if not explicitly provided
+    const subscribedEvents = events || ["withdrawal", "new_stream"];
 
-  // Default to all known events if not explicitly provided
-  const subscribedEvents =
-    Array.isArray(events) && events.length > 0
-      ? events
-      : ["withdrawal", "new_stream"];
+    const id = crypto.randomUUID();
 
-  const id = crypto.randomUUID();
+    const subscription: WebhookSubscription = {
+      id,
+      url,
+      events: subscribedEvents,
+      createdAt: new Date(),
+    };
 
-  const subscription: WebhookSubscription = {
-    id,
-    url,
-    events: subscribedEvents,
-    createdAt: new Date(),
-  };
+    webhookStore.set(id, subscription);
 
-  webhookStore.set(id, subscription);
-
-  res.status(201).json({
-    message: "Webhook registered successfully.",
-    subscription,
-  });
-});
+    res.status(201).json({
+      message: "Webhook registered successfully.",
+      subscription,
+    });
+  },
+);
 
 /**
  * @api {get} /webhooks List registered webhooks
  */
-webhookRouter.get("/", (req: Request, res: Response) => {
+webhookRouter.get("/", standardRateLimiter, (req: Request, res: Response) => {
   const subscriptions = Array.from(webhookStore.values());
   res.json({ subscriptions });
 });
@@ -58,13 +66,25 @@ webhookRouter.get("/", (req: Request, res: Response) => {
 /**
  * @api {delete} /webhooks/:id Remove a webhook
  */
-webhookRouter.delete("/:id", (req: Request, res: Response) => {
-  const id = req.params.id as string;
+webhookRouter.delete(
+  "/:id",
+  standardRateLimiter,
+  validateRequest({ params: webhookIdSchema }),
+  (req: Request, res: Response) => {
+    const id = req.params.id as string;
 
-  if (webhookStore.has(id)) {
-    webhookStore.delete(id);
-    res.json({ message: "Webhook deleted successfully." });
-  } else {
-    res.status(404).json({ error: "Webhook not found." });
-  }
-});
+    if (webhookStore.has(id)) {
+      webhookStore.delete(id);
+      res.json({ message: "Webhook deleted successfully." });
+    } else {
+      const problem = createProblemDetails({
+        type: "not-found",
+        title: "Webhook Not Found",
+        status: 404,
+        detail: `Webhook with ID '${id}' was not found`,
+        instance: req.originalUrl,
+      });
+      res.status(404).json(problem);
+    }
+  },
+);

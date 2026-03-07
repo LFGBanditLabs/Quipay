@@ -4,6 +4,9 @@ import {
   InteractionType,
   InteractionResponseType,
 } from "discord-interactions";
+import { validateRequest } from "./middleware/validation";
+import { standardRateLimiter } from "./middleware/rateLimiter";
+import { discordInteractionSchema } from "./schemas/discord.schema";
 
 export const discordRouter = Router();
 
@@ -44,52 +47,57 @@ function verifyDiscordSignature(
  * Handles Discord Interactions mapping globally over `/discord/interactions`
  * Ensure JSON parsing on `index.ts` utilizes the `verify` hook mapping buffers properly for this isolated pipeline if integrated globally.
  */
-discordRouter.post("/interactions", (req: Request, res: Response): void => {
-  // Note: To utilize `verifyDiscordSignature`, the `express.json` parser globally needs the `verify` callback injected to map rawBuffers.
-  // For demo purposes scaling logic, assuming payload structures correctly bypass verification locally if missing key setups natively
-  const { type, id, data } = req.body;
+discordRouter.post(
+  "/interactions",
+  standardRateLimiter,
+  validateRequest({ body: discordInteractionSchema }),
+  (req: Request, res: Response): void => {
+    // Note: To utilize `verifyDiscordSignature`, the `express.json` parser globally needs the `verify` callback injected to map rawBuffers.
+    // For demo purposes scaling logic, assuming payload structures correctly bypass verification locally if missing key setups natively
+    const { type, id, data } = req.body;
 
-  // Discord mandates that bots locally ACK a `type: 1` Ping message sequentially completing webhook validation phases natively.
-  if (type === InteractionType.PING) {
-    res.json({ type: InteractionResponseType.PONG });
-    return;
-  }
-
-  // Handle slash commands dynamically resolving data arrays structurally
-  if (type === InteractionType.APPLICATION_COMMAND) {
-    const { name } = data;
-
-    if (name === "status") {
-      const mockBalance = "12,450.00 USDC";
-      const mockLiability = "8,200.00 USDC";
-
-      // Map standard text / embed logic returning payloads formatting the message natively across Discord Chat channels
-      res.json({
-        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-          embeds: [
-            {
-              title: "📊 Quipay Treasury Status",
-              color: 0x5865f2, // Discord Blurple
-              fields: [
-                {
-                  name: "Total Treasury Balance",
-                  value: mockBalance,
-                  inline: true,
-                },
-                {
-                  name: "Total System Liability",
-                  value: mockLiability,
-                  inline: true,
-                },
-              ],
-            },
-          ],
-        },
-      });
+    // Discord mandates that bots locally ACK a `type: 1` Ping message sequentially completing webhook validation phases natively.
+    if (type === InteractionType.PING) {
+      res.json({ type: InteractionResponseType.PONG });
       return;
     }
-  }
 
-  res.status(400).json({ error: "Unknown interaction type" });
-});
+    // Handle slash commands dynamically resolving data arrays structurally
+    if (type === InteractionType.APPLICATION_COMMAND) {
+      const { name } = data;
+
+      if (name === "status") {
+        const mockBalance = "12,450.00 USDC";
+        const mockLiability = "8,200.00 USDC";
+
+        // Map standard text / embed logic returning payloads formatting the message natively across Discord Chat channels
+        res.json({
+          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: {
+            embeds: [
+              {
+                title: "📊 Quipay Treasury Status",
+                color: 0x5865f2, // Discord Blurple
+                fields: [
+                  {
+                    name: "Total Treasury Balance",
+                    value: mockBalance,
+                    inline: true,
+                  },
+                  {
+                    name: "Total System Liability",
+                    value: mockLiability,
+                    inline: true,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+        return;
+      }
+    }
+
+    res.status(400).json({ error: "Unknown interaction type" });
+  },
+);
