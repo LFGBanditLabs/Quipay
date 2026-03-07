@@ -64,15 +64,11 @@ export class TestDatabase {
   private injectPoolIntoDbModule(): void {
     if (!this.pool) return;
 
-    // Dynamically require and patch the pool module
-    const poolModule = require("../../db/pool");
-    
-    // Replace the pool getter to return our test pool
-    const originalGetPool = poolModule.getPool;
-    poolModule.getPool = () => this.pool;
+    // Use the setPool function to inject our test pool
+    const { setPool } = require("../../db/pool");
+    setPool(this.pool);
 
-    // Store original for cleanup
-    (this as any)._originalGetPool = originalGetPool;
+    console.log("[TestDB] ✅ Pool injected into db/pool module");
   }
 
   /**
@@ -120,11 +116,9 @@ export class TestDatabase {
    * Stop container and cleanup
    */
   async stop(): Promise<void> {
-    // Restore original pool getter
-    if ((this as any)._originalGetPool) {
-      const poolModule = require("../../db/pool");
-      poolModule.getPool = (this as any)._originalGetPool;
-    }
+    // Restore pool to null
+    const { setPool } = require("../../db/pool");
+    setPool(null);
 
     if (this.pool) {
       await this.pool.end();
