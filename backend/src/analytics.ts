@@ -147,9 +147,8 @@ analyticsRouter.get(
     try {
       const address = req.params.address as string;
       const cacheKey = `analytics:address:${address}`;
-      const cached = globalCache.get<Awaited<ReturnType<typeof getAddressStats>>>(
-        cacheKey,
-      );
+      const cached =
+        globalCache.get<Awaited<ReturnType<typeof getAddressStats>>>(cacheKey);
 
       if (cached) {
         return res.set("X-Cache", "HIT").json({
@@ -193,9 +192,8 @@ analyticsRouter.get(
     try {
       const address = req.params.address as string;
       const cacheKey = `analytics:address:${address}`;
-      const cached = globalCache.get<Awaited<ReturnType<typeof getAddressStats>>>(
-        cacheKey,
-      );
+      const cached =
+        globalCache.get<Awaited<ReturnType<typeof getAddressStats>>>(cacheKey);
 
       if (cached) {
         return res.set("X-Cache", "HIT").json({
