@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 
 CREATE INDEX IF NOT EXISTS idx_withdrawals_stream ON withdrawals (stream_id);
 CREATE INDEX IF NOT EXISTS idx_withdrawals_worker ON withdrawals (worker);
-CREATE INDEX IF NOT EXISTS idx_withdrawals_day    ON withdrawals (date_trunc('day', created_at));
+CREATE INDEX IF NOT EXISTS idx_withdrawals_created_at ON withdrawals (created_at DESC);
 
 -- Vault deposit / payout events
 CREATE TABLE IF NOT EXISTS vault_events (
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS vault_events (
 
 CREATE INDEX IF NOT EXISTS idx_vault_address    ON vault_events (address);
 CREATE INDEX IF NOT EXISTS idx_vault_event_type ON vault_events (event_type);
-CREATE INDEX IF NOT EXISTS idx_vault_day        ON vault_events (date_trunc('day', created_at));
+CREATE INDEX IF NOT EXISTS idx_vault_created_at ON vault_events (created_at DESC);
 
 -- Payroll schedules for automated stream creation
 CREATE TABLE IF NOT EXISTS payroll_schedules (
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS scheduler_logs (
 
 CREATE INDEX IF NOT EXISTS idx_scheduler_logs_schedule ON scheduler_logs (schedule_id);
 CREATE INDEX IF NOT EXISTS idx_scheduler_logs_status  ON scheduler_logs (status);
-CREATE INDEX IF NOT EXISTS idx_scheduler_logs_day     ON scheduler_logs (date_trunc('day', created_at));
+CREATE INDEX IF NOT EXISTS idx_scheduler_logs_created_at ON scheduler_logs (created_at DESC);
 
 -- Treasury balances (employer deposits)
 CREATE TABLE IF NOT EXISTS treasury_balances (
