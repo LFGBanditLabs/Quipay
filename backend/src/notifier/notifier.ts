@@ -1,4 +1,4 @@
-import axios from "axios";
+import { httpPost } from "../utils/httpClient";
 import { sendWebhookNotification } from "../delivery";
 
 const ALERT_WEBHOOK_URL = process.env.ALERT_WEBHOOK_URL || "";
@@ -90,7 +90,7 @@ const sendWebhookAlert = async (
   payload: TreasuryAlertPayload,
 ): Promise<void> => {
   try {
-    await axios.post(ALERT_WEBHOOK_URL, payload, { timeout: 5_000 });
+    await httpPost(ALERT_WEBHOOK_URL, payload, { timeout: 5_000 });
     console.log(`[Notifier] ✅ Webhook alert sent to ${ALERT_WEBHOOK_URL}`);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -171,7 +171,7 @@ const sendSlackAlert = async (payload: TreasuryAlertPayload): Promise<void> => {
   };
 
   try {
-    await axios.post(slackWebhookUrl, slackPayload, { timeout: 5_000 });
+    await httpPost(slackWebhookUrl, slackPayload, { timeout: 5_000 });
     console.log(`[Notifier] ✅ Slack alert sent`);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

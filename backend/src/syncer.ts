@@ -1,4 +1,5 @@
 import { rpc } from "@stellar/stellar-sdk";
+import { executeWithBreaker } from "./utils/circuitBreaker";
 import { getPool } from "./db/pool";
 import { withAdvisoryLock } from "./utils/lock";
 import {
@@ -132,7 +133,13 @@ const runSync = async (): Promise<number> => {
       const lastSynced = await getLastSyncedLedger(CONTRACT_ID || "default");
       const startLedger = Math.max(lastSynced + 1, SYNC_START_LEDGER + 1);
 
-      const latestRes = await server.getLatestLedger();
+      const latestRes = await executeWithBreaker(
+        "stellar_rpc",
+        async () => server.getLatestLedger(),
+        [],
+        undefined,
+        { timeout: 5000 },
+      );
       latestLedger = latestRes.sequence;
 
       if (startLedger > latestLedger) {
@@ -144,13 +151,20 @@ const runSync = async (): Promise<number> => {
 
       while (cursor <= latestLedger) {
         try {
-          const eventsRes = await server.getEvents({
-            startLedger: cursor,
-            filters: CONTRACT_ID
-              ? [{ type: "contract", contractIds: [CONTRACT_ID] }]
-              : [],
-            limit: BATCH_SIZE,
-          });
+          const eventsRes = await executeWithBreaker(
+            "stellar_rpc",
+            async () =>
+              server.getEvents({
+                startLedger: cursor,
+                filters: CONTRACT_ID
+                  ? [{ type: "contract", contractIds: [CONTRACT_ID] }]
+                  : [],
+                limit: BATCH_SIZE,
+              }),
+            [],
+            undefined,
+            { timeout: 8000 },
+          );
 
           await ingestEvents(eventsRes.events);
           totalIngested += eventsRes.events.length;

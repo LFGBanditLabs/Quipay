@@ -1,4 +1,5 @@
 import { rpc } from "@stellar/stellar-sdk";
+import { executeWithBreaker } from "./utils/circuitBreaker";
 import { sendWebhookNotification } from "./delivery";
 
 const SOROBAN_RPC_URL =
@@ -32,16 +33,23 @@ export const startStellarListener = async () => {
         const currentLedger = await getLatestLedger();
         if (currentLedger <= latestLedger) return;
 
-        const eventsResponse = await server.getEvents({
-          startLedger: latestLedger + 1,
-          filters: [
-            {
-              type: "contract",
-              contractIds: [QUIPAY_CONTRACT_ID],
-            },
-          ],
-          limit: 100,
-        });
+        const eventsResponse = await executeWithBreaker(
+          "stellar_rpc",
+          async () =>
+            server.getEvents({
+              startLedger: latestLedger + 1,
+              filters: [
+                {
+                  type: "contract",
+                  contractIds: [QUIPAY_CONTRACT_ID],
+                },
+              ],
+              limit: 100,
+            }),
+          [],
+          undefined,
+          { timeout: 8000 },
+        );
 
         eventsResponse.events.forEach((event) => {
           parseAndDeliverEvent(event);
@@ -60,7 +68,13 @@ export const startStellarListener = async () => {
 };
 
 const getLatestLedger = async (): Promise<number> => {
-  const health = await server.getLatestLedger();
+  const health = await executeWithBreaker(
+    "stellar_rpc",
+    async () => server.getLatestLedger(),
+    [],
+    undefined,
+    { timeout: 5000 },
+  );
   return health.sequence;
 };
 

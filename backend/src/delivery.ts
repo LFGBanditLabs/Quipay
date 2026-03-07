@@ -1,4 +1,4 @@
-import axios from "axios";
+import { httpPost } from "./utils/httpClient";
 import { webhookStore, WebhookSubscription } from "./webhooks";
 import { metricsManager } from "./metrics";
 
@@ -81,9 +81,7 @@ const attemptDelivery = async (
       };
     }
 
-    await axios.post(sub.url, outgoingPayload, {
-      timeout: 5000, // 5 seconds timeout
-    });
+    await httpPost(sub.url, outgoingPayload, { timeout: 5000 });
 
     const latency = (Date.now() - startTime) / 1000;
     metricsManager.trackTransaction("success", latency);
