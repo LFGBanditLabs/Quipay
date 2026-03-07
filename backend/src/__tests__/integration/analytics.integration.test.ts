@@ -26,15 +26,12 @@ describe("Analytics Integration Tests", () => {
   let pool: Pool;
 
   beforeAll(async () => {
-    // Start PostgreSQL container
+    // Start PostgreSQL container and inject pool
     testDb = await setupTestDatabase();
     pool = testDb.getPool();
 
     // Set DATABASE_URL
     process.env.DATABASE_URL = testDb.getConnectionString();
-
-    // CRITICAL: Inject the test pool BEFORE any queries are made
-    testDb.injectPoolIntoDbModule();
   }, 60000);
 
   afterEach(async () => {

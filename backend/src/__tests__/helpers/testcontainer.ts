@@ -152,6 +152,8 @@ export async function setupTestDatabase(): Promise<TestDatabase> {
   if (!globalTestDb) {
     globalTestDb = new TestDatabase();
     await globalTestDb.start();
+    // Inject the pool immediately after starting
+    globalTestDb.injectPoolIntoDbModule();
   }
   return globalTestDb;
 }
