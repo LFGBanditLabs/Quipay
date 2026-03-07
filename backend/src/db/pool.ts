@@ -10,14 +10,6 @@ let pool: Pool | null = null;
 export const getPool = (): Pool | null => pool;
 
 /**
- * Set the pool instance (for testing purposes only)
- * @internal
- */
-export const setPool = (newPool: Pool | null): void => {
-  pool = newPool;
-};
-
-/**
  * Initializes the connection pool and ensures the schema exists.
  * Safe to call multiple times — subsequent calls are no-ops.
  */

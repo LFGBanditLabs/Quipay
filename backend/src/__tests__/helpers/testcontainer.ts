@@ -31,6 +31,9 @@ export class TestDatabase {
     const connectionString = this.container.getConnectionUri();
     console.log("[TestDB] ✅ Container started");
 
+    // Set DATABASE_URL BEFORE creating pool
+    process.env.DATABASE_URL = connectionString;
+
     // Create connection pool
     this.pool = new Pool({ connectionString });
 
@@ -56,23 +59,19 @@ export class TestDatabase {
   }
 
   /**
-   * Inject test pool into the db/pool module so queries use the test database
-   * This must be called AFTER the pool is created but BEFORE any code uses getPool()
+   * Initialize the db/pool module with the test database
+   * This ensures all code using getPool() gets the test pool
    */
-  injectPoolIntoDbModule(): void {
-    if (!this.pool) {
-      throw new Error("Pool not initialized - call start() first");
-    }
-
-    // Clear the module cache to ensure fresh imports
+  async initializeDbPool(): Promise<void> {
+    // Clear module cache for db/pool to ensure fresh import
     const poolModulePath = require.resolve("../../db/pool");
     delete require.cache[poolModulePath];
 
-    // Now require and set the pool
-    const { setPool } = require("../../db/pool");
-    setPool(this.pool);
+    // Import and call initDb() which will use the DATABASE_URL we set
+    const { initDb } = require("../../db/pool");
+    await initDb();
 
-    console.log("[TestDB] ✅ Pool injected into db/pool module");
+    console.log("[TestDB] ✅ db/pool module initialized with test database");
   }
 
   /**
@@ -120,10 +119,6 @@ export class TestDatabase {
    * Stop container and cleanup
    */
   async stop(): Promise<void> {
-    // Restore pool to null
-    const { setPool } = require("../../db/pool");
-    setPool(null);
-
     if (this.pool) {
       await this.pool.end();
       this.pool = null;
@@ -152,8 +147,8 @@ export async function setupTestDatabase(): Promise<TestDatabase> {
   if (!globalTestDb) {
     globalTestDb = new TestDatabase();
     await globalTestDb.start();
-    // Inject the pool immediately after starting
-    globalTestDb.injectPoolIntoDbModule();
+    // Initialize db/pool module with test database
+    await globalTestDb.initializeDbPool();
   }
   return globalTestDb;
 }

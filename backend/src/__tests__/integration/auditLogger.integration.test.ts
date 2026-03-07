@@ -45,12 +45,9 @@ describe("AuditLogger Integration Tests", () => {
   let auditLogger: AuditLogger;
 
   beforeAll(async () => {
-    // Start PostgreSQL container and inject pool
+    // Start PostgreSQL container and initialize db/pool module
     testDb = await setupTestDatabase();
     pool = testDb.getPool();
-
-    // Set DATABASE_URL for the audit logger
-    process.env.DATABASE_URL = testDb.getConnectionString();
   }, 60000); // 60s timeout for container startup
 
   afterEach(async () => {

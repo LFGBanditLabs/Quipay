@@ -26,12 +26,9 @@ describe("Analytics Integration Tests", () => {
   let pool: Pool;
 
   beforeAll(async () => {
-    // Start PostgreSQL container and inject pool
+    // Start PostgreSQL container and initialize db/pool module
     testDb = await setupTestDatabase();
     pool = testDb.getPool();
-
-    // Set DATABASE_URL
-    process.env.DATABASE_URL = testDb.getConnectionString();
   }, 60000);
 
   afterEach(async () => {
