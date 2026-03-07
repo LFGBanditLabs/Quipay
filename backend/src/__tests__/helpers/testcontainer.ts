@@ -21,6 +21,7 @@ export class TestDatabase {
     // Start PostgreSQL container
     this.container = await new PostgreSqlContainer("postgres:16-alpine")
       .withExposedPorts(5432)
+      .withExposedPorts(5432)
       .withEnvironment({
         POSTGRES_DB: "quipay_test",
         POSTGRES_USER: "test_user",
@@ -31,13 +32,21 @@ export class TestDatabase {
     const connectionString = this.container.getConnectionUri();
     console.log("[TestDB] ✅ Container started");
 
-    // Set DATABASE_URL BEFORE creating pool
+    // Set DATABASE_URL BEFORE calling initDb
     process.env.DATABASE_URL = connectionString;
 
-    // Create connection pool
-    this.pool = new Pool({ connectionString });
+    // Let initDb() create the pool
+    await this.initializeDbPool();
 
-    // Initialize schema
+    // Get the pool that initDb() created
+    const { getPool } = require("../../db/pool");
+    this.pool = getPool();
+
+    if (!this.pool) {
+      throw new Error("Failed to initialize database pool");
+    }
+
+    // Initialize schema using the pool from initDb()
     await this.initializeSchema();
 
     return { connectionString, pool: this.pool };
@@ -147,8 +156,6 @@ export async function setupTestDatabase(): Promise<TestDatabase> {
   if (!globalTestDb) {
     globalTestDb = new TestDatabase();
     await globalTestDb.start();
-    // Initialize db/pool module with test database
-    await globalTestDb.initializeDbPool();
   }
   return globalTestDb;
 }
