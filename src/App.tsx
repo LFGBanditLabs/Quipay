@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { Routes, Route, Outlet } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import Navbar from "./components/layout/Navbar";
 import OnboardingTour from "./components/OnboardingTour";
 import Footer from "./components/layout/Footer";
@@ -17,10 +18,11 @@ const WithdrawPage = lazy(() => import("./pages/withdrawPage.tsx"));
 const Reports = lazy(() => import("./pages/Reports.tsx"));
 
 function AppLayout() {
+  const { t } = useTranslation();
   return (
     <div className={styles.appShell}>
       <a href="#main-content" className="skip-link">
-        Skip to main content
+        {t("common.skip_to_content")}
       </a>
       <Navbar />
 
@@ -34,10 +36,13 @@ function AppLayout() {
 }
 
 function App() {
+  const { t } = useTranslation();
   return (
     <Suspense
       fallback={
-        <div style={{ padding: "2rem", textAlign: "center" }}>Loading...</div>
+        <div style={{ padding: "2rem", textAlign: "center" }}>
+          {t("common.loading")}
+        </div>
       }
     >
       <Routes>

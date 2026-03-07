@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import styles from "./SocialProof.module.css";
 
 interface AnimatedCounterProps {
@@ -16,6 +17,7 @@ const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
   suffix = "",
   duration = 2000,
 }) => {
+  const { i18n } = useTranslation();
   const [count, setCount] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
   const elementRef = useRef<HTMLDivElement>(null);
@@ -67,7 +69,7 @@ const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
     <div ref={elementRef} className={styles.metricItem}>
       <div className={styles.metricValue}>
         {prefix}
-        {count.toLocaleString()}
+        {count.toLocaleString(i18n.language)}
         {suffix}
       </div>
       <div className={styles.metricLabel}>{label}</div>
@@ -100,12 +102,14 @@ const AlbedoLogo = () => (
 );
 
 const SocialProof: React.FC = () => {
+  const { t } = useTranslation();
   return (
     <div className={styles.container}>
       <div className={styles.banner}>
         <StellarLogo />
         <span className={styles.bannerText}>
-          Built on <strong>Stellar Network</strong>
+          {t("social_proof.built_on")}{" "}
+          <strong>{t("social_proof.stellar_network")}</strong>
         </span>
       </div>
 
@@ -135,10 +139,14 @@ const SocialProof: React.FC = () => {
       </div>
 
       <div className={styles.metricsContainer}>
-        <AnimatedCounter value={12480} label="Total Streams" suffix="+" />
+        <AnimatedCounter
+          value={12480}
+          label={t("social_proof.total_streams")}
+          suffix="+"
+        />
         <AnimatedCounter
           value={4250000}
-          label="Total Value Streamed"
+          label={t("social_proof.total_value")}
           prefix="$"
           duration={2500}
         />

@@ -1,20 +1,23 @@
 import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import ConnectAccount from "../ConnectAccount";
 import ThemeToggle from "../ThemeToggle";
-
-const navLinks = [
-  { to: "/dashboard", label: "Dashboard" },
-  { to: "/payroll", label: "Payroll" },
-  { to: "/treasury-management", label: "Treasury" },
-  { to: "/worker", label: "Worker" },
-  { to: "/reports", label: "Reports" },
-  { to: "/governance", label: "Governance" },
-];
+import LanguageSwitcher from "../LanguageSwitcher";
 
 const Navbar: React.FC = () => {
+  const { t } = useTranslation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+
+  const navLinks = [
+    { to: "/dashboard", label: t("nav.dashboard") },
+    { to: "/payroll", label: t("nav.payroll") },
+    { to: "/treasury-management", label: t("nav.treasury") },
+    { to: "/worker", label: t("nav.worker") },
+    { to: "/reports", label: t("nav.reports") },
+    { to: "/governance", label: t("nav.governance") },
+  ];
 
   const closeMenu = () => setIsMenuOpen(false);
 
@@ -85,6 +88,7 @@ const Navbar: React.FC = () => {
 
             <div className="flex items-center gap-3">
               <div className="hidden md:flex items-center gap-2">
+                <LanguageSwitcher />
                 <ThemeToggle />
                 <ConnectAccount />
               </div>
@@ -171,7 +175,8 @@ const Navbar: React.FC = () => {
                 )}
               </NavLink>
             ))}
-            <div className="flex items-center justify-center pt-4 mt-2 border-t border-[var(--border)]">
+            <div className="flex items-center justify-center gap-4 pt-4 mt-2 border-t border-[var(--border)]">
+              <LanguageSwitcher />
               <ThemeToggle />
             </div>
           </div>

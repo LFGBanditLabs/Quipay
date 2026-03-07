@@ -1,0 +1,39 @@
+{
+  "common": {
+    "loading": "Chargement...",
+    "skip_to_content": "Passer au contenu principal",
+    "welcome": "Bienvenue sur Quipay 2.0"
+  },
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "payroll": "Paie",
+    "treasury": "Trésorerie",
+    "worker": "Travailleur",
+    "reports": "Rapports",
+    "governance": "Gouvernance"
+  },
+  "home": {
+    "title": "L'avenir de la",
+    "subtitle": "Paie Décentralisée",
+    "description": "Faites l'expérience de paiements en streaming fluides et continus sur Stellar. Gérez votre trésorerie automatiquement grâce à la conformité pilotée par l'IA. Donnez à votre main-d'œuvre un accès au capital en temps réel.",
+    "launch_app": "Lancer l'application",
+    "view_docs": "Voir la documentation",
+    "active_streams": "Flux Actifs",
+    "live": "DIRECT",
+    "total_streaming": "Total streamé ce mois-ci",
+    "why_choose": "Pourquoi choisir Quipay ?",
+    "why_choose_desc": "Conçu pour l'avenir du travail, propulsé par une technologie blockchain de pointe",
+    "feature_1_title": "Streaming Continu",
+    "feature_1_desc": "L'argent coule de manière fluide dans les portefeuilles, éliminant l'attente pénible du jour de la paie. Regardez les revenus croître chaque seconde.",
+    "feature_2_title": "Trésorerie On-Chain",
+    "feature_2_desc": "Des coffres-forts de contrats intelligents totalement transparents propulsés par Soroban. Auto-garde avec zéro risque de contrepartie.",
+    "feature_3_title": "Agent IA Automatisé",
+    "feature_3_desc": "L'IA autonome gère les calculs de flux, les règles de pause dynamiques et les vérifications de solvabilité en temps réel."
+  },
+  "social_proof": {
+    "built_on": "Construit sur",
+    "stellar_network": "Réseau Stellar",
+    "total_streams": "Total des Flux",
+    "total_value": "Valeur Totale Streamée"
+  }
+}

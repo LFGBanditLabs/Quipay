@@ -1,0 +1,39 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "skip_to_content": "Skip to main content",
+    "welcome": "Welcome to Quipay 2.0"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "payroll": "Payroll",
+    "treasury": "Treasury",
+    "worker": "Worker",
+    "reports": "Reports",
+    "governance": "Governance"
+  },
+  "home": {
+    "title": "The Future of",
+    "subtitle": "Decentralized Payroll",
+    "description": "Experience seamless, continuous streaming payments built on Stellar. Manage your treasury automatically with AI-driven compliance. Empower your workforce with real-time capital access.",
+    "launch_app": "Launch App",
+    "view_docs": "View Documentation",
+    "active_streams": "Active Streams",
+    "live": "LIVE",
+    "total_streaming": "Total streaming this month",
+    "why_choose": "Why Choose Quipay?",
+    "why_choose_desc": "Built for the future of work, powered by cutting-edge blockchain technology",
+    "feature_1_title": "Continuous Streaming",
+    "feature_1_desc": "Money flows fluidly into wallets, eliminating the painful wait for payday. Watch earnings grow by the second.",
+    "feature_2_title": "On-Chain Treasury",
+    "feature_2_desc": "Fully transparent smart contract vaults powered by Soroban. Self-custody with zero counterparty risk.",
+    "feature_3_title": "Automated AI Agent",
+    "feature_3_desc": "Autonomous AI handles stream calculations, dynamic pause rules, and real-time solvency checks."
+  },
+  "social_proof": {
+    "built_on": "Built on",
+    "stellar_network": "Stellar Network",
+    "total_streams": "Total Streams",
+    "total_value": "Total Value Streamed"
+  }
+}

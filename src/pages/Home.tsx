@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import SocialProof from "../components/landing/SocialProof";
+import { useTranslation } from "react-i18next";
+import { formatCurrency } from "../util/formatters";
 
 interface Stream {
   id: number;
@@ -224,6 +226,7 @@ const FeatureCard: React.FC<{
 );
 
 const Home: React.FC = () => {
+  const { t } = useTranslation();
   const [scrollY, setScrollY] = useState(0);
   const [featuresVisible, setFeaturesVisible] = useState(false);
   const featuresRef = useRef<HTMLDivElement>(null);
@@ -272,15 +275,15 @@ const Home: React.FC = () => {
       />
 
       <div
-        className="absolute -top-[10%] -left-[10%] w-[50vw] h-[50vw] rounded-full blur-[100px] bg-[radial-gradient(circle,var(--accent-transparent-strong),transparent_70%)] opacity-30 z-0 animate-float"
+        className="absolute -top-[10%] -start-[10%] w-[50vw] h-[50vw] rounded-full blur-[100px] bg-[radial-gradient(circle,var(--accent-transparent-strong),transparent_70%)] opacity-30 z-0 animate-float"
         style={{ transform: `translateY(${scrollY * 0.05}px)` }}
       />
       <div
-        className="absolute -bottom-[20%] -right-[10%] w-[60vw] h-[60vw] rounded-full blur-[100px] bg-[radial-gradient(circle,rgba(236,72,153,0.15),transparent_70%)] opacity-20 z-0 animate-float"
+        className="absolute -bottom-[20%] -end-[10%] w-[60vw] h-[60vw] rounded-full blur-[100px] bg-[radial-gradient(circle,rgba(236,72,153,0.15),transparent_70%)] opacity-20 z-0 animate-float"
         style={{ transform: `translateY(${scrollY * -0.03}px)` }}
       />
       <div
-        className="absolute top-[40%] left-[30%] w-[40vw] h-[40vw] rounded-full blur-[100px] bg-[radial-gradient(circle,var(--success-transparent-strong),transparent_70%)] opacity-20 z-0 animate-float"
+        className="absolute top-[40%] start-[30%] w-[40vw] h-[40vw] rounded-full blur-[100px] bg-[radial-gradient(circle,var(--success-transparent-strong),transparent_70%)] opacity-20 z-0 animate-float"
         style={{ transform: `translateY(${scrollY * 0.02}px)` }}
       />
 
@@ -296,7 +299,7 @@ const Home: React.FC = () => {
         ))}
       </div>
 
-      <div className="absolute top-1/4 right-0 w-96 h-96 opacity-20 pointer-events-none z-0 hidden xl:block animate-spin-slow">
+      <div className="absolute top-1/4 end-0 w-96 h-96 opacity-20 pointer-events-none z-0 hidden xl:block animate-spin-slow">
         <svg viewBox="0 0 200 200" className="w-full h-full">
           <defs>
             <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -340,17 +343,17 @@ const Home: React.FC = () => {
             <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--surface-subtle)] border border-[var(--border)] backdrop-blur-md shadow-[0_4px_20px_var(--shadow-color),inset_0_0_0_1px_var(--border)] transition-all duration-300 hover:bg-[var(--surface)] hover:border-[var(--accent-transparent)] hover:-translate-y-[2px]">
               <span className="animate-bounce-subtle">✨</span>
               <span className="text-sm font-medium text-[var(--muted)] tracking-wide">
-                Welcome to Quipay 2.0
+                {t("common.welcome")}
               </span>
             </div>
           </div>
 
           <h1 className="text-[clamp(2.5rem,7vw,5rem)] font-extrabold leading-[1.1] tracking-tight mb-6 text-[var(--text)]">
-            The Future of
+            {t("home.title")}
             <br />
             <span className="relative inline-block">
               <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                Decentralized Payroll
+                {t("home.subtitle")}
               </span>
               <svg
                 className="absolute -bottom-2 left-0 w-full h-3 text-indigo-400/30"
@@ -369,9 +372,7 @@ const Home: React.FC = () => {
           </h1>
 
           <p className="text-[clamp(1rem,2vw,1.25rem)] leading-relaxed text-[var(--muted)] max-w-2xl mx-auto mb-10">
-            Experience seamless, continuous streaming payments built on Stellar.
-            Manage your treasury automatically with AI-driven compliance.
-            Empower your workforce with real-time capital access.
+            {t("home.description")}
           </p>
 
           <div className="flex flex-col sm:flex-row justify-center gap-4">
@@ -380,7 +381,7 @@ const Home: React.FC = () => {
               className="group relative inline-flex items-center justify-center gap-3 px-8 py-4 rounded-xl bg-gradient-to-br from-indigo-600 to-pink-500 text-white font-semibold text-lg overflow-hidden transition-all duration-300 shadow-[0_10px_30px_-10px_rgba(236,72,153,0.5)] hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_20px_40px_-10px_rgba(236,72,153,0.6)]"
             >
               <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-indigo-500 to-pink-400 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-              <span className="relative z-10">Launch App</span>
+              <span className="relative z-10">{t("home.launch_app")}</span>
               <svg
                 className="relative z-10 w-5 h-5 transition-transform duration-300 group-hover:translate-x-1"
                 viewBox="0 0 24 24"
@@ -400,7 +401,7 @@ const Home: React.FC = () => {
               to="/help"
               className="inline-flex items-center justify-center px-8 py-4 rounded-xl bg-[var(--surface-subtle)] border border-[var(--border)] text-[var(--text)] font-semibold text-lg backdrop-blur-md transition-all duration-300 hover:bg-[var(--surface)] hover:border-[var(--accent-transparent)] hover:-translate-y-1 hover:shadow-[0_10px_30px_-10px_var(--shadow-color)]"
             >
-              View Documentation
+              {t("home.view_docs")}
             </Link>
           </div>
         </section>
@@ -412,16 +413,16 @@ const Home: React.FC = () => {
         >
           <div className="w-full max-w-2xl bg-[var(--surface)]/80 border border-[var(--border)] rounded-3xl backdrop-blur-xl shadow-[0_30px_60px_-15px_var(--shadow-color),inset_0_1px_0_var(--border)] overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:border-[var(--accent-transparent)] hover:shadow-[0_40px_80px_-20px_var(--shadow-color)] animate-float-panel">
             <div className="flex items-center px-5 py-3 bg-[var(--surface-subtle)] border-b border-[var(--border)]">
-              <div className="flex gap-1.5 mr-auto">
+              <div className="flex gap-1.5 me-auto">
                 <div className="w-2.5 h-2.5 rounded-full bg-[var(--sds-color-feedback-error)]" />
                 <div className="w-2.5 h-2.5 rounded-full bg-[var(--sds-color-feedback-warning)]" />
                 <div className="w-2.5 h-2.5 rounded-full bg-[var(--sds-color-feedback-success)]" />
               </div>
-              <div className="text-xs font-medium text-[var(--muted)] tracking-wide uppercase mx-auto -translate-x-[24px]">
-                Active Streams
+              <div className="text-xs font-medium text-[var(--muted)] tracking-wide uppercase mx-auto -translate-x-[24px] rtl:translate-x-[24px]">
+                {t("home.active_streams")}
               </div>
               <span className="text-xs font-mono text-emerald-400 animate-counter-pulse">
-                ● LIVE
+                ● {t("home.live")}
               </span>
             </div>
 
@@ -434,10 +435,10 @@ const Home: React.FC = () => {
             <div className="px-4 pb-4">
               <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-indigo-500/5 to-pink-500/5 border border-[var(--border)]">
                 <span className="text-xs text-[var(--muted)]">
-                  Total streaming this month
+                  {t("home.total_streaming")}
                 </span>
                 <span className="font-mono text-sm font-semibold bg-gradient-to-r from-indigo-400 to-pink-400 bg-clip-text text-transparent">
-                  $12,847.50 USDC
+                  {formatCurrency(12847.5, "USD")} USDC
                 </span>
               </div>
             </div>
@@ -447,11 +448,10 @@ const Home: React.FC = () => {
         <section ref={featuresRef} className="w-full py-16 pb-24">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-[var(--text)] mb-4">
-              Why Choose Quipay?
+              {t("home.why_choose")}
             </h2>
             <p className="text-[var(--muted)] max-w-xl mx-auto">
-              Built for the future of work, powered by cutting-edge blockchain
-              technology
+              {t("home.why_choose_desc")}
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -469,8 +469,8 @@ const Home: React.FC = () => {
                   <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                 </svg>
               }
-              title="Continuous Streaming"
-              description="Money flows fluidly into wallets, eliminating the painful wait for payday. Watch earnings grow by the second."
+              title={t("home.feature_1_title")}
+              description={t("home.feature_1_desc")}
             />
             <FeatureCard
               index={1}
@@ -487,8 +487,8 @@ const Home: React.FC = () => {
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                 </svg>
               }
-              title="On-Chain Treasury"
-              description="Fully transparent smart contract vaults powered by Soroban. Self-custody with zero counterparty risk."
+              title={t("home.feature_2_title")}
+              description={t("home.feature_2_desc")}
             />
             <FeatureCard
               index={2}
@@ -506,8 +506,8 @@ const Home: React.FC = () => {
                   <line x1="12" y1="22.08" x2="12" y2="12" />
                 </svg>
               }
-              title="Automated AI Agent"
-              description="Autonomous AI handles stream calculations, dynamic pause rules, and real-time solvency checks."
+              title={t("home.feature_3_title")}
+              description={t("home.feature_3_desc")}
             />
           </div>
         </section>

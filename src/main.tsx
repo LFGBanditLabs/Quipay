@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import "./styles/accessibility.css";
+import "./i18n/config";
 import App from "./App.tsx";
 import { NotificationProvider } from "./providers/NotificationProvider.tsx";
 import { ThemeProvider } from "./providers/ThemeProvider.tsx";

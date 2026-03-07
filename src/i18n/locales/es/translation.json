@@ -1,0 +1,39 @@
+{
+  "common": {
+    "loading": "Cargando...",
+    "skip_to_content": "Saltar al contenido principal",
+    "welcome": "Bienvenido a Quipay 2.0"
+  },
+  "nav": {
+    "dashboard": "Tablero",
+    "payroll": "Nómina",
+    "treasury": "Tesorería",
+    "worker": "Trabajador",
+    "reports": "Informes",
+    "governance": "Gobernanza"
+  },
+  "home": {
+    "title": "El Futuro de la",
+    "subtitle": "Nómina Descentralizada",
+    "description": "Experimente pagos en streaming fluidos y continuos construidos sobre Stellar. Gestione su tesorería automáticamente con cumplimiento impulsado por IA. Empodere a su fuerza laboral con acceso a capital en tiempo real.",
+    "launch_app": "Iniciar Aplicación",
+    "view_docs": "Ver Documentación",
+    "active_streams": "Flujos Activos",
+    "live": "EN VIVO",
+    "total_streaming": "Total transmitido este mes",
+    "why_choose": "¿Por qué elegir Quipay?",
+    "why_choose_desc": "Construido para el futuro del trabajo, impulsado por tecnología blockchain de vanguardia",
+    "feature_1_title": "Streaming Continuo",
+    "feature_1_desc": "El dinero fluye de manera fluida hacia las billeteras, eliminando la dolorosa espera del día de pago. Vea cómo crecen las ganancias por segundo.",
+    "feature_2_title": "Tesorería On-Chain",
+    "feature_2_desc": "Bóvedas de contratos inteligentes totalmente transparentes impulsadas por Soroban. Autocustodia con cero riesgo de contraparte.",
+    "feature_3_title": "Agente de IA Automatizado",
+    "feature_3_desc": "La IA autónoma maneja cálculos de flujos, reglas de pausa dinámicas y verificaciones de solvencia en tiempo real."
+  },
+  "social_proof": {
+    "built_on": "Construido sobre",
+    "stellar_network": "Red Stellar",
+    "total_streams": "Total de Flujos",
+    "total_value": "Valor Total Transmitido"
+  }
+}
