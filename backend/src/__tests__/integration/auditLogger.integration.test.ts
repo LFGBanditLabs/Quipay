@@ -141,7 +141,7 @@ describe("AuditLogger Integration Tests", () => {
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0].employer).toBe("GEMPLOYER123");
       expect(result.rows[0].transaction_hash).toBe("abc123def456");
-      expect(result.rows[0].block_number).toBe(1000);
+      expect(Number(result.rows[0].block_number)).toBe(1000);
       expect(result.rows[0].context.worker).toBe("GWORKER456");
       expect(result.rows[0].context.stream_id).toBe(123);
     });
@@ -173,7 +173,7 @@ describe("AuditLogger Integration Tests", () => {
 
   describe("Log Level Filtering", () => {
     it("should respect minimum log level", async () => {
-      const config = createTestConfig();
+      const config = createTestConfig({ minLogLevel: "ERROR" });
 
       auditLogger = new AuditLogger(config);
 
@@ -193,13 +193,13 @@ describe("AuditLogger Integration Tests", () => {
     });
 
     it("should allow runtime log level changes", async () => {
-      const config = createTestConfig();
+      const config = createTestConfig({ minLogLevel: "ERROR" });
 
       auditLogger = new AuditLogger(config);
 
       await auditLogger.info("Info 1", { action_type: "system" });
 
-      // Change log level
+      // Change log level to INFO
       auditLogger.setMinLogLevel("INFO");
 
       await auditLogger.info("Info 2", { action_type: "system" });
@@ -374,8 +374,8 @@ describe("AuditLogger Integration Tests", () => {
       await auditLogger.info("Valid log 1", { action_type: "system" });
       await auditLogger.info("Valid log 2", { action_type: "system" });
 
-      // Wait for flush
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      // Force flush by shutting down
+      await auditLogger.shutdown();
 
       // Verify logs were written
       const result = await pool.query(
