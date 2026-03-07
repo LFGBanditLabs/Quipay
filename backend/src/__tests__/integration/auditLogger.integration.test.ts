@@ -18,7 +18,7 @@ import { Pool } from "pg";
 function createTestConfig(overrides: Partial<AuditLoggerConfig> = {}): AuditLoggerConfig {
   return {
     minLogLevel: "INFO",
-    asyncWrites: false,
+    asyncWrites: true, // Enable async writes so logs are actually written
     flushIntervalMs: 1000,
     maxQueueSize: 100,
     rotation: {

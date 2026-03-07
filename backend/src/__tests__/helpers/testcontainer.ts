@@ -21,7 +21,6 @@ export class TestDatabase {
     // Start PostgreSQL container
     this.container = await new PostgreSqlContainer("postgres:16-alpine")
       .withExposedPorts(5432)
-      .withExposedPorts(5432)
       .withEnvironment({
         POSTGRES_DB: "quipay_test",
         POSTGRES_USER: "test_user",
