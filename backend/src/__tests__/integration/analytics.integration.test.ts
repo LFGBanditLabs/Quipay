@@ -33,9 +33,8 @@ describe("Analytics Integration Tests", () => {
     // Set DATABASE_URL
     process.env.DATABASE_URL = testDb.getConnectionString();
 
-    // Reinitialize pool
-    const { initDb } = await import("../../db/pool");
-    await initDb();
+    // DO NOT call initDb() here - it would create a new pool
+    // The test database pool is already initialized
   }, 60000);
 
   afterEach(async () => {
@@ -141,7 +140,7 @@ describe("Analytics Integration Tests", () => {
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0].worker).toBe("GWORKER1");
       expect(result.rows[0].amount).toBe("100000000");
-      expect(result.rows[0].ledger).toBe(1001);
+      expect(Number(result.rows[0].ledger)).toBe(1001);
     });
   });
 

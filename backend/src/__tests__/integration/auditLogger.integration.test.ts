@@ -52,9 +52,8 @@ describe("AuditLogger Integration Tests", () => {
     // Set DATABASE_URL for the audit logger
     process.env.DATABASE_URL = testDb.getConnectionString();
 
-    // Reinitialize pool with test database
-    const { initDb } = await import("../../db/pool");
-    await initDb();
+    // DO NOT call initDb() here - it would create a new pool
+    // The test database pool is already initialized
   }, 60000); // 60s timeout for container startup
 
   afterEach(async () => {

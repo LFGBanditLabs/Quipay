@@ -53,6 +53,26 @@ export class TestDatabase {
 
     await this.pool.query(schemaSql);
     console.log("[TestDB] ✅ Schema initialized");
+
+    // Inject the test pool into the db/pool module
+    this.injectPoolIntoDbModule();
+  }
+
+  /**
+   * Inject test pool into the db/pool module so queries use the test database
+   */
+  private injectPoolIntoDbModule(): void {
+    if (!this.pool) return;
+
+    // Dynamically require and patch the pool module
+    const poolModule = require("../../db/pool");
+    
+    // Replace the pool getter to return our test pool
+    const originalGetPool = poolModule.getPool;
+    poolModule.getPool = () => this.pool;
+
+    // Store original for cleanup
+    (this as any)._originalGetPool = originalGetPool;
   }
 
   /**
@@ -100,6 +120,12 @@ export class TestDatabase {
    * Stop container and cleanup
    */
   async stop(): Promise<void> {
+    // Restore original pool getter
+    if ((this as any)._originalGetPool) {
+      const poolModule = require("../../db/pool");
+      poolModule.getPool = (this as any)._originalGetPool;
+    }
+
     if (this.pool) {
       await this.pool.end();
       this.pool = null;
