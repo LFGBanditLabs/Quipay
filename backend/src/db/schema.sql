@@ -143,3 +143,40 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_employer ON audit_logs (employer);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action_type ON audit_logs (action_type);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_context ON audit_logs USING GIN (context);
+
+-- Outbound webhook delivery reliability
+-- Stores one row per intended delivery (subscription + event payload)
+CREATE TABLE IF NOT EXISTS webhook_outbound_events (
+    id                 UUID        PRIMARY KEY,
+    owner_id           TEXT        NOT NULL,
+    subscription_id    TEXT        NOT NULL,
+    url                TEXT        NOT NULL,
+    event_type         TEXT        NOT NULL,
+    request_payload    JSONB       NOT NULL,
+    status             TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'success', 'failed')),
+    attempt_count      INTEGER     NOT NULL DEFAULT 0,
+    last_response_code INTEGER,
+    last_error         TEXT,
+    next_retry_at      TIMESTAMPTZ,
+    last_attempt_at    TIMESTAMPTZ,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_events_owner ON webhook_outbound_events (owner_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_events_status_retry ON webhook_outbound_events (status, next_retry_at);
+CREATE INDEX IF NOT EXISTS idx_webhook_events_created_at ON webhook_outbound_events (created_at DESC);
+
+-- Stores one row per delivery attempt (HTTP response code, timestamp, error)
+CREATE TABLE IF NOT EXISTS webhook_outbound_attempts (
+    id                 BIGSERIAL   PRIMARY KEY,
+    event_id           UUID        NOT NULL REFERENCES webhook_outbound_events (id) ON DELETE CASCADE,
+    attempt_number     INTEGER     NOT NULL,
+    response_code      INTEGER,
+    response_body      TEXT,
+    error_message      TEXT,
+    duration_ms        INTEGER,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_attempts_event_id ON webhook_outbound_attempts (event_id);
