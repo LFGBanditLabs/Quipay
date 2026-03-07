@@ -56,12 +56,7 @@ export const standardRateLimiter = rateLimit({
   handler: rateLimitHandler,
   skip: (req: Request) => {
     // Skip rate limiting for health checks
-    return (
-      req.path === "/health" ||
-      req.path === "/health/live" ||
-      req.path === "/health/ready" ||
-      req.path === "/metrics"
-    );
+    return req.path === "/health" || req.path === "/metrics";
   },
   ...(redisClient && {
     store: new RedisStore({

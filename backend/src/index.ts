@@ -20,9 +20,6 @@ import { initDb } from "./db/pool";
 import { globalErrorHandler } from "./errors";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { standardRateLimiter } from "./middleware/rateLimiter";
-import { getPool } from "./db/pool";
-import Redis from "ioredis";
-import { rpc } from "@stellar/stellar-sdk";
 
 dotenv.config();
 
@@ -114,94 +111,6 @@ app.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
     version: process.env.npm_package_version || "0.0.1",
     service: "quipay-automation-engine",
-  });
-});
-
-app.get("/health/live", (req, res) => {
-  res.status(200).send("OK");
-});
-
-const withTimeout = async <T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  timeoutMessage: string,
-): Promise<T> => {
-  let timeoutId: NodeJS.Timeout | undefined;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
-  });
-
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-  }
-};
-
-app.get("/health/ready", async (req, res) => {
-  const timeoutMs = Number(process.env.HEALTH_READY_TIMEOUT_MS || 2000);
-  const checks: Record<string, { ok: boolean; detail?: string }> = {};
-
-  // Database: only required if configured
-  const pool = getPool();
-  if (!process.env.DATABASE_URL) {
-    checks.db = { ok: true, detail: "skipped" };
-  } else if (!pool) {
-    checks.db = { ok: false, detail: "not_initialized" };
-  } else {
-    try {
-      await withTimeout(pool.query("SELECT 1"), timeoutMs, "db_timeout");
-      checks.db = { ok: true };
-    } catch (e: any) {
-      checks.db = { ok: false, detail: e?.message || "db_error" };
-    }
-  }
-
-  // Redis: only required if configured
-  if (!process.env.REDIS_URL) {
-    checks.redis = { ok: true, detail: "skipped" };
-  } else {
-    const redis = new Redis(process.env.REDIS_URL, {
-      enableOfflineQueue: false,
-      maxRetriesPerRequest: 1,
-      lazyConnect: true,
-    });
-
-    try {
-      await withTimeout(redis.connect(), timeoutMs, "redis_connect_timeout");
-      const pong = await withTimeout(redis.ping(), timeoutMs, "redis_ping_timeout");
-      checks.redis = { ok: pong === "PONG" };
-      if (pong !== "PONG") checks.redis.detail = "unexpected_response";
-    } catch (e: any) {
-      checks.redis = { ok: false, detail: e?.message || "redis_error" };
-    } finally {
-      try {
-        redis.disconnect();
-      } catch {
-        // ignore
-      }
-    }
-  }
-
-  // Stellar Soroban RPC reachability
-  const sorobanUrl =
-    process.env.PUBLIC_STELLAR_RPC_URL ||
-    process.env.STELLAR_RPC_URL ||
-    "https://soroban-testnet.stellar.org";
-
-  try {
-    const server = new rpc.Server(sorobanUrl);
-    await withTimeout(server.getLatestLedger(), timeoutMs, "stellar_rpc_timeout");
-    checks.stellarRpc = { ok: true };
-  } catch (e: any) {
-    checks.stellarRpc = { ok: false, detail: e?.message || "stellar_rpc_error" };
-  }
-
-  const allOk = Object.values(checks).every((c) => c.ok);
-  res.status(allOk ? 200 : 503).json({
-    status: allOk ? "ok" : "not_ready",
-    timestamp: new Date().toISOString(),
-    checks,
   });
 });
 
