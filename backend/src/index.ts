@@ -17,7 +17,9 @@ import {
   createErrorLoggingMiddleware,
 } from "./audit/middleware";
 import { initDb } from "./db/pool";
-import { globalErrorHandler, notFoundHandler } from "./errors";
+import { globalErrorHandler } from "./errors";
+import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
+import { standardRateLimiter } from "./middleware/rateLimiter";
 
 dotenv.config();
 
@@ -25,7 +27,8 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "1mb" })); // Limit payload size to prevent memory exhaustion
+app.use(express.urlencoded({ extended: true, limit: "1mb" })); // For Slack form data
 
 // Initialize database and audit logger
 async function initializeServices() {
@@ -48,6 +51,9 @@ initializeServices()
   .catch((err) => {
     console.error("[Backend] Failed to initialize services:", err);
   });
+
+// Apply rate limiting to all routes except health/metrics
+app.use(standardRateLimiter);
 
 app.use("/webhooks", webhookRouter);
 app.use("/slack", slackRouter);
@@ -190,6 +196,12 @@ app.post("/test/concurrent-tx", async (req, res) => {
     res.status(500).json({ error: ex.message });
   }
 });
+
+// 404 handler - must be after all routes
+app.use(notFoundHandler);
+
+// Global error handler - must be last
+app.use(errorHandler);
 
 app.listen(port, () => {
   console.log(
