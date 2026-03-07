@@ -1,7 +1,10 @@
 import { Router, Request, Response } from "express";
 import crypto from "crypto";
 import { validateRequest } from "./middleware/validation";
-import { webhookRegistrationLimiter, standardRateLimiter } from "./middleware/rateLimiter";
+import {
+  webhookRegistrationLimiter,
+  standardRateLimiter,
+} from "./middleware/rateLimiter";
 import {
   webhookRegistrationSchema,
   webhookIdSchema,

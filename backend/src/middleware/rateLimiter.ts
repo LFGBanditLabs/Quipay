@@ -60,7 +60,8 @@ export const standardRateLimiter = rateLimit({
   },
   ...(redisClient && {
     store: new RedisStore({
-      sendCommand: (async (...args: any[]) => await redisClient!.call(...(args as [any, ...any[]]))) as any,
+      sendCommand: (async (...args: any[]) =>
+        await redisClient!.call(...(args as [any, ...any[]]))) as any,
       prefix: "rl:standard:",
     }),
   }),
@@ -78,7 +79,8 @@ export const strictRateLimiter = rateLimit({
   handler: rateLimitHandler,
   ...(redisClient && {
     store: new RedisStore({
-      sendCommand: (async (...args: any[]) => await redisClient!.call(...(args as [any, ...any[]]))) as any,
+      sendCommand: (async (...args: any[]) =>
+        await redisClient!.call(...(args as [any, ...any[]]))) as any,
       prefix: "rl:strict:",
     }),
   }),
@@ -96,7 +98,8 @@ export const webhookRegistrationLimiter = rateLimit({
   handler: rateLimitHandler,
   ...(redisClient && {
     store: new RedisStore({
-      sendCommand: (async (...args: any[]) => await redisClient!.call(...(args as [any, ...any[]]))) as any,
+      sendCommand: (async (...args: any[]) =>
+        await redisClient!.call(...(args as [any, ...any[]]))) as any,
       prefix: "rl:webhook:",
     }),
   }),
@@ -106,7 +109,10 @@ export const webhookRegistrationLimiter = rateLimit({
  * API key-based rate limiter (for future use with API keys)
  * Can be extended to track by API key instead of IP
  */
-export const createApiKeyRateLimiter = (maxRequests: number, windowMs: number) => {
+export const createApiKeyRateLimiter = (
+  maxRequests: number,
+  windowMs: number,
+) => {
   return rateLimit({
     windowMs,
     max: maxRequests,
@@ -120,7 +126,8 @@ export const createApiKeyRateLimiter = (maxRequests: number, windowMs: number) =
     },
     ...(redisClient && {
       store: new RedisStore({
-        sendCommand: (async (...args: any[]) => await redisClient!.call(...(args as [any, ...any[]]))) as any,
+        sendCommand: (async (...args: any[]) =>
+          await redisClient!.call(...(args as [any, ...any[]]))) as any,
         prefix: "rl:apikey:",
       }),
     }),

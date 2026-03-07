@@ -16,10 +16,7 @@ export {
   type AiExecuteCommandInput,
 } from "./ai.schema";
 
-export {
-  slackCommandSchema,
-  type SlackCommandInput,
-} from "./slack.schema";
+export { slackCommandSchema, type SlackCommandInput } from "./slack.schema";
 
 export {
   discordInteractionSchema,
