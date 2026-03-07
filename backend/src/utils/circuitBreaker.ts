@@ -75,10 +75,13 @@ export function getOrCreateBreaker<T extends (...args: any[]) => Promise<any>>(
       } catch {
         // ignore errors while shutting down old breaker
       }
-      const newBreaker = new CircuitBreaker(action as any, {
-        ...baseOptions,
-        ...opts,
-      } as any);
+      const newBreaker = new CircuitBreaker(
+        action as any,
+        {
+          ...baseOptions,
+          ...opts,
+        } as any,
+      );
       attachMetrics(service, newBreaker);
       const newEntry: BreakerEntry = { breaker: newBreaker, action };
       breakers.set(key, newEntry);
@@ -86,10 +89,13 @@ export function getOrCreateBreaker<T extends (...args: any[]) => Promise<any>>(
     }
     return entry.breaker;
   }
-  const breaker = new CircuitBreaker(action as any, {
-    ...baseOptions,
-    ...opts,
-  } as any);
+  const breaker = new CircuitBreaker(
+    action as any,
+    {
+      ...baseOptions,
+      ...opts,
+    } as any,
+  );
   attachMetrics(service, breaker);
   breakers.set(key, { breaker, action });
   return breaker as any;
