@@ -8,6 +8,7 @@ const Home = lazy(() => import("./pages/Home"));
 const Debugger = lazy(() => import("./pages/Debugger"));
 const EmployerDashboard = lazy(() => import("./pages/EmployerDashboard"));
 const GovernanceOverview = lazy(() => import("./pages/GovernanceOverview"));
+const Settings = lazy(() => import("./pages/Settings"));
 const CreateStream = lazy(() => import("./pages/CreateStream"));
 const HelpPage = lazy(() => import("./pages/HelpPage"));
 const PayrollDashboard = lazy(() => import("./pages/PayrollDashboard"));
@@ -41,6 +42,7 @@ function AppRoutes({ location }: { location: ReturnType<typeof useLocation> }) {
       <Route path="/treasury-management" element={<TreasuryManager />} />
       <Route path="/create-stream" element={<CreateStream />} />
       <Route path="/governance" element={<GovernanceOverview />} />
+      <Route path="/settings" element={<Settings />} />
       <Route path="/reports" element={<Reports />} />
       <Route path="/help" element={<HelpPage />} />
       <Route path="/debug" element={<Debugger />} />

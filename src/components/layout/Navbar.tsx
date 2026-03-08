@@ -7,9 +7,9 @@ const navLinks = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/payroll", label: "Payroll" },
   { to: "/treasury-management", label: "Treasury" },
-  { to: "/worker", label: "Worker" },
   { to: "/reports", label: "Reports" },
   { to: "/governance", label: "Governance" },
+  { to: "/settings", label: "Settings" },
 ];
 
 const Navbar: React.FC = () => {
