@@ -180,3 +180,31 @@ CREATE TABLE IF NOT EXISTS webhook_outbound_attempts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_webhook_attempts_event_id ON webhook_outbound_attempts (event_id);
+-- Composite indexes for frequently queried field combinations
+-- payroll_streams: employer + status for filtered stream lookups
+CREATE INDEX IF NOT EXISTS idx_streams_employer_status ON payroll_streams (employer, status);
+-- payroll_streams: worker + status for worker stream lookups
+CREATE INDEX IF NOT EXISTS idx_streams_worker_status ON payroll_streams (worker, status);
+-- payroll_streams: employer + created_at for time-based employer queries
+CREATE INDEX IF NOT EXISTS idx_streams_employer_created ON payroll_streams (employer, created_at DESC);
+-- payroll_streams: worker + created_at for time-based worker queries
+CREATE INDEX IF NOT EXISTS idx_streams_worker_created ON payroll_streams (worker, created_at DESC);
+-- payroll_streams: employer + worker for combined lookups
+CREATE INDEX IF NOT EXISTS idx_streams_employer_worker ON payroll_streams (employer, worker);
+
+-- withdrawals: worker + created_at for recent withdrawals by worker
+CREATE INDEX IF NOT EXISTS idx_withdrawals_worker_created ON withdrawals (worker, created_at DESC);
+-- withdrawals: stream_id + created_at for ordered withdrawal history
+CREATE INDEX IF NOT EXISTS idx_withdrawals_stream_created ON withdrawals (stream_id, created_at DESC);
+
+-- scheduler_logs: schedule_id + created_at for execution history ordering
+CREATE INDEX IF NOT EXISTS idx_scheduler_logs_schedule_created ON scheduler_logs (schedule_id, created_at DESC);
+
+-- audit_logs: employer + timestamp for time-based employer filtering
+CREATE INDEX IF NOT EXISTS idx_audit_logs_employer_timestamp ON audit_logs (employer, timestamp DESC);
+-- audit_logs: action_type + created_at for action-based filtering
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action_created ON audit_logs (action_type, created_at DESC);
+
+-- Hash index for exact status matches (faster than B-Tree for equality)
+CREATE INDEX IF NOT EXISTS idx_vault_address_hash ON vault_events USING HASH (address);
+

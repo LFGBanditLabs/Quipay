@@ -23,3 +23,27 @@ jobs:
         working-directory: backend
       - run: npm test
         working-directory: backend
+
+  query-performance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Start PostgreSQL
+        uses: harmon758/postgresql-action@v1
+        with:
+          postgresql db: testdb
+          postgresql user: testuser
+          postgresql password: testpass
+      - name: Set DATABASE_URL
+        run: echo "DATABASE_URL=postgres://testuser:testpass@localhost:5432/testdb" >> $GITHUB_ENV
+      - run: npm ci
+        working-directory: backend
+      - run: npm run test:explain-analyze
+        working-directory: backend
+        env:
+          DATABASE_URL: postgres://testuser:testpass@localhost:5432/testdb
