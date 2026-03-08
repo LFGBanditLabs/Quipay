@@ -1,57 +1,62 @@
 import axios from "axios";
 import { webhookStore, WebhookSubscription } from "./webhooks";
 import { metricsManager } from "./metrics";
+import crypto from "crypto";
+import {
+  createWebhookOutboundEvent,
+  getWebhookOutboundEventById,
+  insertWebhookOutboundAttempt,
+  updateWebhookOutboundEventAfterAttempt,
+} from "./db/queries";
+import { getPool } from "./db/pool";
 
 // Maximum attempts for exponential backoff retries
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 6;
 
-import { enqueueJob } from "./queue/asyncQueue";
+const computeBackoffMs = (attemptNumber: number): number => {
+  const baseMs = 1_000;
+  const maxMs = 10 * 60 * 1_000;
+  const exponential = Math.pow(2, Math.max(0, attemptNumber - 1)) * baseMs;
+  return Math.min(exponential, maxMs);
+};
 
-/**
- * Sends a notification payload to all webhook URLs subscribed to the event type.
- */
-export const sendWebhookNotification = async (
-  eventType: string,
-  payload: any,
-) => {
-  const subscriptions = Array.from(webhookStore.values()).filter((sub) =>
-    sub.events.includes(eventType),
-  );
+const getErrorMessage = (err: unknown): string => {
+  if (err instanceof Error) return err.message;
+  return String(err);
+};
 
-  if (subscriptions.length === 0) {
-    return;
-  }
+const getHttpStatusFromAxiosError = (err: any): number | null => {
+  const status = err?.response?.status;
+  return typeof status === "number" ? status : null;
+};
 
-  console.log(
-    `[Webhooks] Enqueueing event '${eventType}' to ${subscriptions.length} subscribers...`,
-  );
-
-  for (const sub of subscriptions) {
-    enqueueJob(
-      () => attemptDelivery(sub, eventType, payload),
-      {
-        jobType: "webhook_delivery",
-        payload: { eventType, subUrl: sub.url, originalPayload: payload },
-        context: { url: sub.url },
-        maxRetries: 3,
-        baseDelayMs: 2000,
-      }
-    ).catch(() => { }); // catch handled internal to enqueueJob
+const getResponseBodyFromAxiosError = (err: any): string | null => {
+  const data = err?.response?.data;
+  if (data === undefined || data === null) return null;
+  if (typeof data === "string") return data;
+  try {
+    return JSON.stringify(data);
+  } catch {
+    return null;
   }
 };
 
-/**
- * Attempts delivery to a single webhook, throwing an error if it fails
- * so the asyncQueue can automatically retry or send it to the DLQ.
- */
-const attemptDelivery = async (
+const isRetryableServerFailure = (
+  statusCode: number | null,
+  err: any,
+): boolean => {
+  if (statusCode !== null) {
+    return statusCode >= 500;
+  }
+  // Network / timeout / DNS errors etc. Treat as retryable.
+  return Boolean(err);
+};
+
+const buildOutgoingPayload = (
   sub: WebhookSubscription,
   eventType: string,
   payload: any,
-): Promise<void> => {
-  const startTime = Date.now();
-
-  // Dynamically override payloads resolving Webhook destinations formatting chat bot payloads automatically
+): any => {
   let outgoingPayload: any = {
     event: eventType,
     data: payload,
@@ -90,20 +95,170 @@ const attemptDelivery = async (
     };
   }
 
+  return outgoingPayload;
+};
+
+const attemptDeliveryOnce = async (params: {
+  eventId: string;
+  url: string;
+  eventType: string;
+  outgoingPayload: any;
+  attemptNumber: number;
+}): Promise<void> => {
+  const startTime = Date.now();
+  let statusCode: number | null = null;
+  let responseBody: string | null = null;
+  let errorMessage: string | null = null;
+  let rawError: any = null;
+
   try {
-    await axios.post(sub.url, outgoingPayload, {
-      timeout: 5000, // 5 seconds timeout
+    const response = await axios.post(params.url, params.outgoingPayload, {
+      timeout: 5000,
+      validateStatus: () => true,
+    });
+    statusCode = response.status;
+    if (response.data !== undefined) {
+      responseBody =
+        typeof response.data === "string"
+          ? response.data
+          : JSON.stringify(response.data);
+    }
+  } catch (err: any) {
+    rawError = err;
+    statusCode = getHttpStatusFromAxiosError(err);
+    responseBody = getResponseBodyFromAxiosError(err);
+    errorMessage = getErrorMessage(err);
+  }
+
+  const durationMs = Date.now() - startTime;
+  const succeeded =
+    statusCode !== null && statusCode >= 200 && statusCode < 300;
+  const retryable =
+    !succeeded && isRetryableServerFailure(statusCode, rawError);
+  const hasMoreRetries = params.attemptNumber < MAX_RETRIES;
+  const nextRetryAt =
+    retryable && hasMoreRetries
+      ? new Date(Date.now() + computeBackoffMs(params.attemptNumber))
+      : null;
+
+  if (getPool()) {
+    await insertWebhookOutboundAttempt({
+      eventId: params.eventId,
+      attemptNumber: params.attemptNumber,
+      responseCode: statusCode,
+      responseBody,
+      errorMessage,
+      durationMs,
     });
 
-    const latency = (Date.now() - startTime) / 1000;
-    metricsManager.trackTransaction("success", latency);
-
-    console.log(
-      `[Webhooks] ✅ Successfully delivered '${eventType}' to ${sub.url}`,
-    );
-  } catch (err: any) {
-    // We throw the error heavily to the wrapper so that enqueueJob does the retry
-    metricsManager.trackTransaction("failure", 0);
-    throw new Error(`Delivery to ${sub.url} failed: ${err.message}`);
+    await updateWebhookOutboundEventAfterAttempt({
+      eventId: params.eventId,
+      status: succeeded ? "success" : nextRetryAt ? "pending" : "failed",
+      attemptCount: params.attemptNumber,
+      lastResponseCode: statusCode,
+      lastError: errorMessage,
+      nextRetryAt,
+    });
   }
+
+  if (succeeded) {
+    metricsManager.trackTransaction("success", durationMs / 1000);
+    console.log(
+      `[Webhooks] ✅ Successfully delivered '${params.eventType}' to ${params.url}`,
+    );
+    return;
+  }
+
+  if (retryable && hasMoreRetries) {
+    console.error(
+      `[Webhooks] ❌ Delivery failed '${params.eventType}' to ${params.url}. Scheduled retry ${params.attemptNumber}/${MAX_RETRIES} at ${nextRetryAt?.toISOString()}.`,
+    );
+    metricsManager.trackTransaction("failure", 0);
+    return;
+  }
+
+  console.error(
+    `[Webhooks] 🚫 Delivery permanently failed '${params.eventType}' to ${params.url} after ${params.attemptNumber}/${MAX_RETRIES}.`,
+  );
+  metricsManager.trackTransaction("failure", 0);
+};
+
+import { enqueueJob } from "./queue/asyncQueue";
+
+/**
+ * Sends a notification payload to all webhook URLs subscribed to the event type.
+ */
+export const sendWebhookNotification = async (
+  eventType: string,
+  payload: any,
+) => {
+  const subscriptions = Array.from(webhookStore.values()).filter((sub) =>
+    sub.events.includes(eventType),
+  );
+
+  if (subscriptions.length === 0) {
+    return;
+  }
+
+  console.log(
+    `[Webhooks] Enqueueing event '${eventType}' to ${subscriptions.length} subscribers...`,
+  );
+
+  const deliveryPromises = subscriptions.map(async (sub) => {
+    const outgoingPayload = buildOutgoingPayload(sub, eventType, payload);
+    const eventId = crypto.randomUUID();
+
+    if (getPool()) {
+      await createWebhookOutboundEvent({
+        id: eventId,
+        ownerId: sub.ownerId,
+        subscriptionId: sub.id,
+        url: sub.url,
+        eventType,
+        requestPayload: outgoingPayload,
+      });
+    }
+
+    return attemptDeliveryOnce({
+      eventId,
+      url: sub.url,
+      eventType,
+      outgoingPayload,
+      attemptNumber: 1,
+    });
+  });
+  await Promise.allSettled(deliveryPromises);
+};
+
+export const retryWebhookEvent = async (eventId: string): Promise<void> => {
+  if (!getPool()) {
+    throw new Error("Database not configured");
+  }
+  const ev = await getWebhookOutboundEventById(eventId);
+  if (!ev) {
+    throw new Error("Webhook event not found");
+  }
+
+  // Re-resolve subscription at runtime; if missing, mark failed.
+  const sub = webhookStore.get(ev.subscription_id);
+  if (!sub) {
+    await updateWebhookOutboundEventAfterAttempt({
+      eventId,
+      status: "failed",
+      attemptCount: ev.attempt_count,
+      lastResponseCode: ev.last_response_code,
+      lastError: "Subscription not found (deleted or not loaded)",
+      nextRetryAt: null,
+    });
+    return;
+  }
+
+  const attemptNumber = (ev.attempt_count ?? 0) + 1;
+  await attemptDeliveryOnce({
+    eventId,
+    url: ev.url,
+    eventType: ev.event_type,
+    outgoingPayload: ev.request_payload,
+    attemptNumber,
+  });
 };

@@ -1,5 +1,6 @@
 import { rpc } from "@stellar/stellar-sdk";
 import { getPool } from "./db/pool";
+import { withAdvisoryLock } from "./utils/lock";
 import {
   getLastSyncedLedger,
   updateSyncCursor,
@@ -123,66 +124,75 @@ const ingestEvents = async (events: rpc.Api.EventResponse[]): Promise<void> => {
 // ─── Core sync loop ────────────────────────────────────────────────────────────
 
 const runSync = async (): Promise<number> => {
-  const lastSynced = await getLastSyncedLedger(CONTRACT_ID || "default");
-  const startLedger = Math.max(lastSynced + 1, SYNC_START_LEDGER + 1);
+  const LOCK_ID_SYNCER = 888888;
+  let latestLedger = 0;
 
-  const latestRes = await server.getLatestLedger();
-  const latestLedger = latestRes.sequence;
+  await withAdvisoryLock(
+    LOCK_ID_SYNCER,
+    async () => {
+      const lastSynced = await getLastSyncedLedger(CONTRACT_ID || "default");
+      const startLedger = Math.max(lastSynced + 1, SYNC_START_LEDGER + 1);
 
-  if (startLedger > latestLedger) {
-    return latestLedger; // already up to date
-  }
+      const latestRes = await server.getLatestLedger();
+      latestLedger = latestRes.sequence;
 
-  let cursor = startLedger;
-  let totalIngested = 0;
+      if (startLedger > latestLedger) {
+        return;
+      }
 
-  while (cursor <= latestLedger) {
-    try {
-      await enqueueJob(
-        async () => {
-          const eventsRes = await server.getEvents({
-            startLedger: cursor,
-            filters: CONTRACT_ID
-              ? [{ type: "contract", contractIds: [CONTRACT_ID] }]
-              : [],
-            limit: BATCH_SIZE,
-          });
+      let cursor = startLedger;
+      let totalIngested = 0;
 
-          await ingestEvents(eventsRes.events);
-          totalIngested += eventsRes.events.length;
+      while (cursor <= latestLedger) {
+        try {
+          await enqueueJob(
+            async () => {
+              const eventsRes = await server.getEvents({
+                startLedger: cursor,
+                filters: CONTRACT_ID
+                  ? [{ type: "contract", contractIds: [CONTRACT_ID] }]
+                  : [],
+                limit: BATCH_SIZE,
+              });
 
-          // Advance cursor past the batch inside the successful closure
-          if (eventsRes.events.length > 0) {
-            cursor = eventsRes.events[eventsRes.events.length - 1].ledger + 1;
-          } else {
-            cursor = latestLedger + 1; // no more events
-          }
-        },
-        {
-          jobType: "ledger_sync_batch",
-          payload: { startLedger: cursor, limit: BATCH_SIZE, contract: CONTRACT_ID },
-          maxRetries: 3,
-          baseDelayMs: 3000,
+              await ingestEvents(eventsRes.events);
+              totalIngested += eventsRes.events.length;
+
+              // Advance cursor past the batch inside the successful closure
+              if (eventsRes.events.length > 0) {
+                cursor = eventsRes.events[eventsRes.events.length - 1].ledger + 1;
+              } else {
+                cursor = latestLedger + 1; // no more events
+              }
+            },
+            {
+              jobType: "ledger_sync_batch",
+              payload: { startLedger: cursor, limit: BATCH_SIZE, contract: CONTRACT_ID },
+              maxRetries: 3,
+              baseDelayMs: 3000,
+            }
+          );
+        } catch (err: unknown) {
+          // If enqueueJob fails after all retries (and goes to DLQ), we still advance the cursor 
+          // so the syncer isn't permanently stuck on a bad ledger batch.
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(
+            `[Syncer] Persistent error fetching events at ledger ${cursor}. Batch sent to DLQ. Skipping ahead. ${msg}`,
+          );
+          cursor += BATCH_SIZE; // Skip this batch to prevent halting the entire pipeline
         }
-      );
-    } catch (err: unknown) {
-      // If enqueueJob fails after all retries (and goes to DLQ), we still advance the cursor 
-      // so the syncer isn't permanently stuck on a bad ledger batch.
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(
-        `[Syncer] Persistent error fetching events at ledger ${cursor}. Batch sent to DLQ. Skipping ahead. ${msg}`,
-      );
-      cursor += BATCH_SIZE; // Skip this batch to prevent halting the entire pipeline
-    }
-  }
+      }
 
-  await updateSyncCursor(CONTRACT_ID || "default", latestLedger);
+      await updateSyncCursor(CONTRACT_ID || "default", latestLedger);
 
-  if (totalIngested > 0) {
-    console.log(
-      `[Syncer] ✅ Ingested ${totalIngested} events up to ledger ${latestLedger}`,
-    );
-  }
+      if (totalIngested > 0) {
+        console.log(
+          `[Syncer] ✅ Ingested ${totalIngested} events up to ledger ${latestLedger}`,
+        );
+      }
+    },
+    "event-syncer",
+  );
 
   return latestLedger;
 };

@@ -17,6 +17,13 @@ import {
   createErrorLoggingMiddleware,
 } from "./audit/middleware";
 import { initDb } from "./db/pool";
+import { globalErrorHandler } from "./errors";
+import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
+import { standardRateLimiter } from "./middleware/rateLimiter";
+import { getPool } from "./db/pool";
+import Redis from "ioredis";
+import { rpc } from "@stellar/stellar-sdk";
+import { secretsBootstrap } from "./services/secretsBootstrap";
 
 dotenv.config();
 
@@ -24,10 +31,27 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json());
+app.use(
+  express.json({
+    limit: "1mb",
+    verify: (req: any, res: any, buf: Buffer) => {
+      req.rawBody = buf;
+    },
+  }),
+); // Limit payload size to prevent memory exhaustion
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: "1mb",
+    verify: (req: any, res: any, buf: Buffer) => {
+      req.rawBody = buf;
+    },
+  }),
+); // For Slack form data
 
 // Initialize database and audit logger
 async function initializeServices() {
+  await secretsBootstrap.initialize();
   await initDb();
   const auditLogger = initAuditLogger();
 
@@ -47,6 +71,9 @@ initializeServices()
   .catch((err) => {
     console.error("[Backend] Failed to initialize services:", err);
   });
+
+// Apply rate limiting to all routes except health/metrics
+app.use(standardRateLimiter);
 
 app.use("/webhooks", webhookRouter);
 app.use("/slack", slackRouter);
@@ -70,6 +97,12 @@ app.use(
     }
   },
 );
+
+// Catch undefined routes - must come after all route registrations
+app.use(notFoundHandler);
+
+// Global centralized error handler - must be the very last middleware
+app.use(globalErrorHandler);
 
 // Start time for uptime calculation
 const startTime = Date.now();
@@ -111,6 +144,39 @@ app.get("/metrics", async (req, res) => {
     res.end(await metricsManager.register.metrics());
   } catch (ex) {
     res.status(500).end(ex);
+  }
+});
+
+/**
+ * @api {get} /secrets/status Vault secrets management status
+ * @apiDescription Returns the status of the secrets management system.
+ */
+app.get("/secrets/status", async (req, res) => {
+  const vaultHealthy = secretsBootstrap.isVaultHealthy();
+  res.json({
+    status: vaultHealthy ? "ok" : "degraded",
+    vaultAvailable: vaultHealthy,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
+ * @api {post} /secrets/refresh Refresh secrets from Vault
+ * @apiDescription Manually trigger a refresh of secrets from Vault.
+ */
+app.post("/secrets/refresh", async (req, res) => {
+  try {
+    await secretsBootstrap.refreshAllSecrets();
+    res.json({
+      status: "ok",
+      message: "Secrets refreshed successfully",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
   }
 });
 
@@ -183,6 +249,12 @@ app.post("/test/concurrent-tx", async (req, res) => {
     res.status(500).json({ error: ex.message });
   }
 });
+
+// 404 handler - must be after all routes
+app.use(notFoundHandler);
+
+// Global error handler - must be last
+app.use(errorHandler);
 
 app.listen(port, () => {
   console.log(
