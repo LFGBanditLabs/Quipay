@@ -16,6 +16,9 @@ const TreasuryManager = lazy(() => import("./pages/TreasuryManager"));
 const WithdrawPage = lazy(() => import("./pages/withdrawPage"));
 const Reports = lazy(() => import("./pages/Reports"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const DashboardCustomization = lazy(
+  () => import("./pages/DashboardCustomization"),
+);
 
 const TRANSITION_MS = 280;
 
@@ -46,6 +49,10 @@ function AppRoutes({ location }: { location: ReturnType<typeof useLocation> }) {
       <Route path="/reports" element={<Reports />} />
       <Route path="/help" element={<HelpPage />} />
       <Route path="/debug" element={<Debugger />} />
+      <Route
+        path="/dashboard-customization"
+        element={<DashboardCustomization />}
+      />
       <Route path="/debug/:contractName" element={<Debugger />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
