@@ -124,7 +124,6 @@ export const renderOneOf = ({
             <option
               id={oneOf?.title}
               value={oneOf?.title}
-              // eslint-disable-next-line react-x/no-array-index-key -- Schema items may have duplicate titles
               key={`${oneOf?.title}-${index}`}
             >
               {oneOf?.title}
@@ -134,17 +133,17 @@ export const renderOneOf = ({
       </Select>
 
       {selectedSchema &&
-      jsonSchema.isSchemaObject(selectedSchema as AnyObject) &&
-      jsonSchema.isTaggedUnion(selectedSchema as JSONSchema7)
+        jsonSchema.isSchemaObject(selectedSchema as AnyObject) &&
+        jsonSchema.isTaggedUnion(selectedSchema as JSONSchema7)
         ? renderTupleType({
-            path,
-            schema: selectedSchema as JSONSchema7,
-            onChange,
-            parsedSorobanOperation,
-            renderer,
-            formError,
-            setFormError,
-          })
+          path,
+          schema: selectedSchema as JSONSchema7,
+          onChange,
+          parsedSorobanOperation,
+          renderer,
+          formError,
+          setFormError,
+        })
         : null}
     </Box>
   );

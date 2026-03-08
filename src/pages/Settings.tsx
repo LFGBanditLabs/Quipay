@@ -1,4 +1,3 @@
-// @ts-nocheck — @stellar/design-system types are incomplete for Badge, Card, Modal, Icon
 import React, { useState } from "react";
 import {
     Layout,
@@ -37,6 +36,8 @@ interface AuditLog {
     status: "success" | "failure" | "pending";
 }
 
+type TabId = "team" | "roles" | "audit" | "approvals";
+
 const AVAILABLE_PERMISSIONS = [
     { id: "view_only", name: "View Only", description: "Can view all data but cannot perform any actions" },
     { id: "payroll_submit", name: "Payroll Submitter", description: "Can create and propose new payroll streams" },
@@ -46,7 +47,7 @@ const AVAILABLE_PERMISSIONS = [
 ];
 
 const Settings: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<"team" | "roles" | "audit" | "approvals">("team");
+    const [activeTab, setActiveTab] = useState<TabId>("team");
     const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
     const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
     const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -317,6 +318,13 @@ const Settings: React.FC = () => {
         </div>
     );
 
+    const tabs: { id: TabId; label: string; icon: string }[] = [
+        { id: "team", label: "Team", icon: "user" },
+        { id: "roles", label: "Roles", icon: "settings" },
+        { id: "approvals", label: "Approvals", icon: "check" },
+        { id: "audit", label: "Audit Log", icon: "fileText" },
+    ];
+
     return (
         <Layout.Content>
             <SeoHelmet
@@ -342,15 +350,10 @@ const Settings: React.FC = () => {
 
                 {/* Glassmorphism Navigation */}
                 <nav className="flex items-center gap-1 p-1 mb-10 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--border)] overflow-x-auto no-scrollbar scroll-smooth shadow-inner">
-                    {[
-                        { id: "team", label: "Team", icon: "user" },
-                        { id: "roles", label: "Roles", icon: "settings" },
-                        { id: "approvals", label: "Approvals", icon: "check" },
-                        { id: "audit", label: "Audit Log", icon: "fileText" },
-                    ].map((tab) => (
+                    {tabs.map((tab) => (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
+                            onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center gap-2 px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-300 whitespace-nowrap ${activeTab === tab.id
                                 ? "bg-[var(--surface)] text-[var(--text)] shadow-lg shadow-indigo-500/10 border border-[var(--border)] translate-y-[-1px]"
                                 : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface)]/50"

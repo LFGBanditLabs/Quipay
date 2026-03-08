@@ -1,4 +1,3 @@
-/* eslint-disable react-x/no-array-index-key */
 import type { JSONSchema7 } from "json-schema";
 import { Button, Card, Icon, Text } from "@stellar/design-system";
 import { get } from "lodash";
@@ -91,7 +90,7 @@ export const renderArrayType = ({
                 <Box gap="md" key={`${name}-${index}`}>
                   {/* Map Type (scSpecTypeMap) */}
                   {jsonSchema.isSchemaObject(schema.items as AnyObject) &&
-                  (schema.items as AnyObject).type === "object" ? (
+                    (schema.items as AnyObject).type === "object" ? (
                     <>
                       <LabelHeading size="lg">{argHeader}</LabelHeading>
 
