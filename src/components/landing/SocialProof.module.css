@@ -1,0 +1,27 @@
+.bannerText {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+
+.bannerText strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.metricsContainer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4rem;
+  width: 100%;
+  max-width: 600px;
+}
+
+@media (max-width: 480px) {
+  .metricsContainer {
+    gap: 2.5rem;
+  }
+}
