@@ -10,8 +10,8 @@ const MAX_RETRIES = 3;
  */
 export const sendWebhookNotification = async (
   eventType: string,
-  payload: any,
-) => {
+  payload: unknown,
+): Promise<void> => {
   const subscriptions = Array.from(webhookStore.values()).filter((sub) =>
     sub.events.includes(eventType),
   );
@@ -36,14 +36,14 @@ export const sendWebhookNotification = async (
 const attemptDelivery = async (
   sub: WebhookSubscription,
   eventType: string,
-  payload: any,
+  payload: unknown,
   attemptNumber: number,
 ): Promise<void> => {
   try {
     const startTime = Date.now();
 
     // Dynamically override payloads resolving Webhook destinations formatting chat bot payloads automatically
-    let outgoingPayload: any = {
+    let outgoingPayload: Record<string, unknown> = {
       event: eventType,
       data: payload,
       timestamp: new Date().toISOString(),
