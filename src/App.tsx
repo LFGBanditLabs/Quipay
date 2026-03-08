@@ -9,6 +9,7 @@ const Home = lazy(() => import("./pages/Home"));
 const Debugger = lazy(() => import("./pages/Debugger"));
 const EmployerDashboard = lazy(() => import("./pages/EmployerDashboard"));
 const GovernanceOverview = lazy(() => import("./pages/GovernanceOverview"));
+const Settings = lazy(() => import("./pages/Settings"));
 const CreateStream = lazy(() => import("./pages/CreateStream"));
 const HelpPage = lazy(() => import("./pages/HelpPage"));
 const PayrollDashboard = lazy(() => import("./pages/PayrollDashboard"));
