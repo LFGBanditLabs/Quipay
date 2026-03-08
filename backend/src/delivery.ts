@@ -5,6 +5,8 @@ import { metricsManager } from "./metrics";
 // Maximum attempts for exponential backoff retries
 const MAX_RETRIES = 3;
 
+import { enqueueJob } from "./queue/asyncQueue";
+
 /**
  * Sends a notification payload to all webhook URLs subscribed to the event type.
  */
@@ -21,66 +23,74 @@ export const sendWebhookNotification = async (
   }
 
   console.log(
-    `[Webhooks] Sending event '${eventType}' to ${subscriptions.length} subscribers...`,
+    `[Webhooks] Enqueueing event '${eventType}' to ${subscriptions.length} subscribers...`,
   );
 
-  const deliveryPromises = subscriptions.map((sub) =>
-    attemptDelivery(sub, eventType, payload, 1),
-  );
-  await Promise.allSettled(deliveryPromises);
+  for (const sub of subscriptions) {
+    enqueueJob(
+      () => attemptDelivery(sub, eventType, payload),
+      {
+        jobType: "webhook_delivery",
+        payload: { eventType, subUrl: sub.url, originalPayload: payload },
+        context: { url: sub.url },
+        maxRetries: 3,
+        baseDelayMs: 2000,
+      }
+    ).catch(() => { }); // catch handled internal to enqueueJob
+  }
 };
 
 /**
- * Attempts delivery to a single webhook, utilizing exponential backoff retry logic on failure.
+ * Attempts delivery to a single webhook, throwing an error if it fails
+ * so the asyncQueue can automatically retry or send it to the DLQ.
  */
 const attemptDelivery = async (
   sub: WebhookSubscription,
   eventType: string,
   payload: any,
-  attemptNumber: number,
 ): Promise<void> => {
-  try {
-    const startTime = Date.now();
+  const startTime = Date.now();
 
-    // Dynamically override payloads resolving Webhook destinations formatting chat bot payloads automatically
-    let outgoingPayload: any = {
-      event: eventType,
-      data: payload,
-      timestamp: new Date().toISOString(),
+  // Dynamically override payloads resolving Webhook destinations formatting chat bot payloads automatically
+  let outgoingPayload: any = {
+    event: eventType,
+    data: payload,
+    timestamp: new Date().toISOString(),
+  };
+
+  if (sub.url.includes("discord.com/api/webhooks")) {
+    outgoingPayload = {
+      embeds: [
+        {
+          title: `Quipay Notification: ${eventType.toUpperCase()}`,
+          description: `\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``,
+          color: 0x5865f2,
+          timestamp: new Date().toISOString(),
+        },
+      ],
     };
+  } else if (sub.url.includes("hooks.slack.com")) {
+    outgoingPayload = {
+      blocks: [
+        {
+          type: "header",
+          text: {
+            type: "plain_text",
+            text: `Quipay Notification: ${eventType.toUpperCase()}`,
+          },
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "```" + JSON.stringify(payload, null, 2) + "```",
+          },
+        },
+      ],
+    };
+  }
 
-    if (sub.url.includes("discord.com/api/webhooks")) {
-      outgoingPayload = {
-        embeds: [
-          {
-            title: `Quipay Notification: ${eventType.toUpperCase()}`,
-            description: `\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``,
-            color: 0x5865f2,
-            timestamp: new Date().toISOString(),
-          },
-        ],
-      };
-    } else if (sub.url.includes("hooks.slack.com")) {
-      outgoingPayload = {
-        blocks: [
-          {
-            type: "header",
-            text: {
-              type: "plain_text",
-              text: `Quipay Notification: ${eventType.toUpperCase()}`,
-            },
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "```" + JSON.stringify(payload, null, 2) + "```",
-            },
-          },
-        ],
-      };
-    }
-
+  try {
     await axios.post(sub.url, outgoingPayload, {
       timeout: 5000, // 5 seconds timeout
     });
@@ -91,24 +101,9 @@ const attemptDelivery = async (
     console.log(
       `[Webhooks] ✅ Successfully delivered '${eventType}' to ${sub.url}`,
     );
-  } catch (error: any) {
-    console.error(
-      `[Webhooks] ❌ Failed to deliver '${eventType}' to ${sub.url} (Attempt ${attemptNumber}/${MAX_RETRIES}). Error: ${error.message}`,
-    );
-
-    if (attemptNumber < MAX_RETRIES) {
-      const delayMs = Math.pow(2, attemptNumber) * 1000; // 2s, 4s backoff
-      console.log(
-        `[Webhooks] Scheduled retry for ${sub.url} in ${delayMs}ms...`,
-      );
-
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-      return attemptDelivery(sub, eventType, payload, attemptNumber + 1);
-    } else {
-      console.error(
-        `[Webhooks] 🚫 Exhausted retries for ${sub.url}. Delivery permanently failed.`,
-      );
-      metricsManager.trackTransaction("failure", 0);
-    }
+  } catch (err: any) {
+    // We throw the error heavily to the wrapper so that enqueueJob does the retry
+    metricsManager.trackTransaction("failure", 0);
+    throw new Error(`Delivery to ${sub.url} failed: ${err.message}`);
   }
 };
