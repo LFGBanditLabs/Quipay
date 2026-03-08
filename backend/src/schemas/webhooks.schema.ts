@@ -52,7 +52,9 @@ export type WebhookRegistrationInput = z.infer<
   typeof webhookRegistrationSchema
 >;
 export type WebhookIdInput = z.infer<typeof webhookIdSchema>;
-export type WebhookOutboundEventIdInput = z.infer<typeof webhookOutboundEventIdSchema>;
+export type WebhookOutboundEventIdInput = z.infer<
+  typeof webhookOutboundEventIdSchema
+>;
 export type WebhookOutboundEventListQueryInput = z.infer<
   typeof webhookOutboundEventListQuerySchema
 >;

@@ -8,7 +8,6 @@ import {
   StartedPostgreSqlContainer,
 } from "@testcontainers/postgresql";
 import { Pool } from "pg";
-import fs from "fs";
 import path from "path";
 
 export class TestDatabase {
@@ -37,7 +36,7 @@ export class TestDatabase {
     // Set DATABASE_URL BEFORE calling initDb
     process.env.DATABASE_URL = connectionString;
 
-    // Let initDb() create the pool
+    // Let initDb() create the pool and run migrations
     await this.initializeDbPool();
 
     // Get the pool that initDb() created
@@ -48,25 +47,7 @@ export class TestDatabase {
       throw new Error("Failed to initialize database pool");
     }
 
-    // Initialize schema using the pool from initDb()
-    await this.initializeSchema();
-
     return { connectionString, pool: this.pool };
-  }
-
-  /**
-   * Initialize database schema from schema.sql
-   */
-  private async initializeSchema(): Promise<void> {
-    if (!this.pool) {
-      throw new Error("Pool not initialized");
-    }
-
-    const schemaPath = path.join(__dirname, "../../db/schema.sql");
-    const schemaSql = fs.readFileSync(schemaPath, "utf-8");
-
-    await this.pool.query(schemaSql);
-    console.log("[TestDB] ✅ Schema initialized");
   }
 
   /**

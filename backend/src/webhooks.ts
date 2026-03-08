@@ -47,7 +47,8 @@ webhookRouter.post(
   (req: Request, res: Response) => {
     const { url, events } = req.body;
 
-    const ownerId = (req.headers["x-user-id"] as string | undefined) || "anonymous";
+    const ownerId =
+      (req.headers["x-user-id"] as string | undefined) || "anonymous";
 
     // Default to all known events if not explicitly provided
     const subscribedEvents = events || ["withdrawal", "new_stream"];
@@ -92,7 +93,10 @@ webhookRouter.get(
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const { page, limit } = (req as any).query as { page: number; limit: number };
+    const { page, limit } = (req as any).query as {
+      page: number;
+      limit: number;
+    };
     const offset = (Number(page) - 1) * Number(limit);
     const events = await listWebhookOutboundEventsByOwner({
       ownerId: req.user.id,
