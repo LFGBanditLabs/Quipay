@@ -39,7 +39,22 @@ export const webhookIdSchema = z.object({
   id: z.string().uuid({ message: "Invalid webhook ID format" }),
 });
 
+export const webhookOutboundEventIdSchema = z.object({
+  id: z.string().uuid({ message: "Invalid webhook event ID format" }),
+});
+
+export const webhookOutboundEventListQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+});
+
 export type WebhookRegistrationInput = z.infer<
   typeof webhookRegistrationSchema
 >;
 export type WebhookIdInput = z.infer<typeof webhookIdSchema>;
+export type WebhookOutboundEventIdInput = z.infer<
+  typeof webhookOutboundEventIdSchema
+>;
+export type WebhookOutboundEventListQueryInput = z.infer<
+  typeof webhookOutboundEventListQuerySchema
+>;
