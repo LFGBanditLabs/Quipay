@@ -1,6 +1,8 @@
 import axios from "axios";
 import { webhookStore, WebhookSubscription } from "./webhooks";
 import { metricsManager } from "./metrics";
+import { logger } from "./utils/logger";
+import { getCurrentCorrelationId } from "./middleware/correlationId";
 
 // Maximum attempts for exponential backoff retries
 const MAX_RETRIES = 3;
@@ -20,8 +22,9 @@ export const sendWebhookNotification = async (
     return;
   }
 
-  console.log(
+  logger.info(
     `[Webhooks] Sending event '${eventType}' to ${subscriptions.length} subscribers...`,
+    { eventType, subscriptionCount: subscriptions.length },
   );
 
   const deliveryPromises = subscriptions.map((sub) =>
@@ -81,32 +84,45 @@ const attemptDelivery = async (
       };
     }
 
+    // Add correlation ID to outgoing payload if available
+    const correlationId = getCurrentCorrelationId();
+    if (correlationId) {
+      outgoingPayload.correlationId = correlationId;
+    }
+
     await axios.post(sub.url, outgoingPayload, {
       timeout: 5000, // 5 seconds timeout
+      headers: {
+        'X-Correlation-ID': correlationId || '',
+      },
     });
 
     const latency = (Date.now() - startTime) / 1000;
     metricsManager.trackTransaction("success", latency);
 
-    console.log(
+    logger.info(
       `[Webhooks] ✅ Successfully delivered '${eventType}' to ${sub.url}`,
+      { eventType, url: sub.url, latency },
     );
   } catch (error: any) {
-    console.error(
+    logger.error(
       `[Webhooks] ❌ Failed to deliver '${eventType}' to ${sub.url} (Attempt ${attemptNumber}/${MAX_RETRIES}). Error: ${error.message}`,
+      { eventType, url: sub.url, attemptNumber, error },
     );
 
     if (attemptNumber < MAX_RETRIES) {
       const delayMs = Math.pow(2, attemptNumber) * 1000; // 2s, 4s backoff
-      console.log(
+      logger.info(
         `[Webhooks] Scheduled retry for ${sub.url} in ${delayMs}ms...`,
+        { url: sub.url, delayMs, attemptNumber },
       );
 
       await new Promise((resolve) => setTimeout(resolve, delayMs));
       return attemptDelivery(sub, eventType, payload, attemptNumber + 1);
     } else {
-      console.error(
+      logger.error(
         `[Webhooks] 🚫 Exhausted retries for ${sub.url}. Delivery permanently failed.`,
+        { url: sub.url, eventType },
       );
       metricsManager.trackTransaction("failure", 0);
     }

@@ -20,7 +20,9 @@ import { initDb } from "./db/pool";
 import { globalErrorHandler } from "./errors";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { standardRateLimiter } from "./middleware/rateLimiter";
+import { correlationIdMiddleware } from "./middleware/correlationId";
 import { secretsBootstrap } from "./services/secretsBootstrap";
+import { logger } from "./utils/logger";
 
 dotenv.config();
 
@@ -30,6 +32,9 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json({ limit: "1mb" })); // Limit payload size to prevent memory exhaustion
 app.use(express.urlencoded({ extended: true, limit: "1mb" })); // For Slack form data
+
+// Add correlation ID middleware early to capture all requests
+app.use(correlationIdMiddleware);
 
 // Initialize database and audit logger
 async function initializeServices() {
@@ -45,14 +50,17 @@ async function initializeServices() {
 
 // Initialize services before starting routes
 let auditLogger: ReturnType<typeof getAuditLogger>;
-initializeServices()
-  .then((logger) => {
-    auditLogger = logger;
-    console.log("[Backend] ✅ Services initialized");
-  })
-  .catch((err) => {
-    console.error("[Backend] Failed to initialize services:", err);
-  });
+
+async function startServer() {
+  try {
+    auditLogger = await initializeServices();
+    logger.info("[Backend] ✅ Services initialized");
+  } catch (err) {
+    logger.error("[Backend] Failed to initialize services", { error: err });
+  }
+}
+
+startServer();
 
 // Apply rate limiting to all routes except health/metrics
 app.use(standardRateLimiter);
@@ -239,7 +247,7 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 app.listen(port, () => {
-  console.log(
+  logger.info(
     `🚀 Quipay Automation Engine Status API listening at http://localhost:${port}`,
   );
   startStellarListener();
