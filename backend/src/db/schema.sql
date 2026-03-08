@@ -144,6 +144,22 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_action_type ON audit_logs (action_type
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_context ON audit_logs USING GIN (context);
 
+-- Dead Letter Queue (DLQ) for terminally failed async jobs
+CREATE TABLE IF NOT EXISTS dead_letter_queue (
+    id              BIGSERIAL   PRIMARY KEY,
+    job_type        TEXT        NOT NULL,
+    payload         JSONB       NOT NULL,
+    error_stack     TEXT,
+    context         JSONB       NOT NULL DEFAULT '{}',
+    status          TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'replayed', 'discarded')),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_dlq_job_type ON dead_letter_queue (job_type);
+CREATE INDEX IF NOT EXISTS idx_dlq_status   ON dead_letter_queue (status);
+CREATE INDEX IF NOT EXISTS idx_dlq_created  ON dead_letter_queue (created_at DESC);
+
 -- Outbound webhook delivery reliability
 -- Stores one row per intended delivery (subscription + event payload)
 CREATE TABLE IF NOT EXISTS webhook_outbound_events (
