@@ -1,13 +1,20 @@
 import { Pool, QueryResult, QueryResultRow } from "pg";
-import fs from "fs";
-import path from "path";
+import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
+import * as schema from "./schema";
+import { runMigrations } from "./migrate";
 
 let pool: Pool | null = null;
+let db: NodePgDatabase<typeof schema> | null = null;
 
 /**
  * Returns the singleton pool (null when DATABASE_URL is not configured).
  */
 export const getPool = (): Pool | null => pool;
+
+/**
+ * Returns the Drizzle database instance.
+ */
+export const getDb = (): NodePgDatabase<typeof schema> | null => db;
 
 /**
  * Initializes the connection pool and ensures the schema exists.
@@ -25,17 +32,16 @@ export const initDb = async (): Promise<void> => {
   if (pool) return; // already initialized
 
   pool = new Pool({ connectionString: url });
+  db = drizzle(pool, { schema });
 
   pool.on("error", (err: Error) => {
     console.error("[DB] Unexpected pool error:", err.message);
   });
 
-  // Run schema DDL (idempotent CREATE IF NOT EXISTS)
-  const schemaPath = path.join(__dirname, "schema.sql");
-  const schemaSql = fs.readFileSync(schemaPath, "utf-8");
-  await pool.query(schemaSql);
+  // Run migrations
+  await runMigrations();
 
-  console.log("[DB] ✅ Database initialized and schema verified.");
+  console.log("[DB] ✅ Database initialized and migrations applied.");
 };
 
 /**
