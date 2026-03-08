@@ -1,5 +1,7 @@
 import { rpc } from "@stellar/stellar-sdk";
 import { sendWebhookNotification } from "./delivery";
+import { logger } from "./utils/logger";
+import { withCorrelationContext } from "./middleware/correlationId";
 
 const SOROBAN_RPC_URL =
   process.env.PUBLIC_STELLAR_RPC_URL || "https://soroban-testnet.stellar.org";
@@ -12,14 +14,14 @@ const server = new rpc.Server(SOROBAN_RPC_URL);
  */
 export const startStellarListener = async () => {
   if (!QUIPAY_CONTRACT_ID) {
-    console.warn(
+    logger.warn(
       "[Stellar Listener] ⚠️ QUIPAY_CONTRACT_ID is not set. The listener will simulate events for testing.",
     );
     simulateEvents();
     return;
   }
 
-  console.log(
+  logger.info(
     `[Stellar Listener] 📡 Listening for events on contract: ${QUIPAY_CONTRACT_ID}`,
   );
 
@@ -49,13 +51,16 @@ export const startStellarListener = async () => {
 
         latestLedger = currentLedger;
       } catch (err: any) {
-        console.error(
+        logger.error(
           `[Stellar Listener] Error polling events: ${err.message}`,
+          { error: err },
         );
       }
     }, 5000);
   } catch (err: any) {
-    console.error(`[Stellar Listener] Initialization failed: ${err.message}`);
+    logger.error(`[Stellar Listener] Initialization failed: ${err.message}`, {
+      error: err,
+    });
   }
 };
 
@@ -100,10 +105,17 @@ const parseAndDeliverEvent = (event: rpc.Api.EventResponse) => {
     };
 
     if (eventType !== "unknown") {
-      sendWebhookNotification(eventType, payload);
+      // Generate correlation ID for event processing
+      const correlationId = `stellar-${event.id}-${Date.now()}`;
+
+      withCorrelationContext(correlationId, () => {
+        sendWebhookNotification(eventType, payload);
+      });
     }
   } catch (e) {
-    console.error("[Stellar Listener] Failed to parse event topic", e);
+    logger.error("[Stellar Listener] Failed to parse event topic", {
+      error: e,
+    });
   }
 };
 
@@ -126,7 +138,13 @@ const simulateEvents = () => {
       asset: "USDC",
     };
 
-    console.log(`[Stellar Listener] 🧪 Simulating ${randomType} event...`);
-    sendWebhookNotification(randomType, payload);
+    logger.info(`[Stellar Listener] 🧪 Simulating ${randomType} event...`);
+
+    // Generate correlation ID for simulated events
+    const correlationId = `sim-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
+    withCorrelationContext(correlationId, () => {
+      sendWebhookNotification(randomType, payload);
+    });
   }, 15000); // Simulate an event every 15 seconds
 };
