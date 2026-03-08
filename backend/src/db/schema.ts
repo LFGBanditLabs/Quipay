@@ -51,8 +51,14 @@ export const payrollStreams = pgTable(
     index("idx_streams_start_ts").on(table.startTs),
     index("idx_streams_employer_status").on(table.employer, table.status),
     index("idx_streams_worker_status").on(table.worker, table.status),
-    index("idx_streams_employer_created").on(table.employer, table.createdAt.desc()),
-    index("idx_streams_worker_created").on(table.worker, table.createdAt.desc()),
+    index("idx_streams_employer_created").on(
+      table.employer,
+      table.createdAt.desc(),
+    ),
+    index("idx_streams_worker_created").on(
+      table.worker,
+      table.createdAt.desc(),
+    ),
     index("idx_streams_employer_worker").on(table.employer, table.worker),
   ],
 );
@@ -77,8 +83,14 @@ export const withdrawals = pgTable(
     index("idx_withdrawals_stream").on(table.streamId),
     index("idx_withdrawals_worker").on(table.worker),
     index("idx_withdrawals_created_at").on(table.createdAt.desc()),
-    index("idx_withdrawals_worker_created").on(table.worker, table.createdAt.desc()),
-    index("idx_withdrawals_stream_created").on(table.streamId, table.createdAt.desc()),
+    index("idx_withdrawals_worker_created").on(
+      table.worker,
+      table.createdAt.desc(),
+    ),
+    index("idx_withdrawals_stream_created").on(
+      table.streamId,
+      table.createdAt.desc(),
+    ),
   ],
 );
 
@@ -154,7 +166,10 @@ export const schedulerLogs = pgTable(
     index("idx_scheduler_logs_schedule").on(table.scheduleId),
     index("idx_scheduler_logs_status").on(table.status),
     index("idx_scheduler_logs_created_at").on(table.createdAt.desc()),
-    index("idx_scheduler_logs_schedule_created").on(table.scheduleId, table.createdAt.desc()),
+    index("idx_scheduler_logs_schedule_created").on(
+      table.scheduleId,
+      table.createdAt.desc(),
+    ),
   ],
 );
 
@@ -217,8 +232,14 @@ export const auditLogs = pgTable(
     index("idx_audit_logs_action_type").on(table.actionType),
     index("idx_audit_logs_created_at").on(table.createdAt.desc()),
     index("idx_audit_logs_context").using("gin", table.context),
-    index("idx_audit_logs_employer_timestamp").on(table.employer, table.timestamp.desc()),
-    index("idx_audit_logs_action_created").on(table.actionType, table.createdAt.desc()),
+    index("idx_audit_logs_employer_timestamp").on(
+      table.employer,
+      table.timestamp.desc(),
+    ),
+    index("idx_audit_logs_action_created").on(
+      table.actionType,
+      table.createdAt.desc(),
+    ),
     check("log_level_check", sql`log_level IN ('INFO', 'WARN', 'ERROR')`),
   ],
 );

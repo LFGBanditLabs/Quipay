@@ -13,7 +13,9 @@ dotenv.config();
 export const runMigrations = async () => {
   const url = process.env.DATABASE_URL;
   if (!url) {
-    console.warn("[Migration] ⚠️  DATABASE_URL is not set. Skipping migrations.");
+    console.warn(
+      "[Migration] ⚠️  DATABASE_URL is not set. Skipping migrations.",
+    );
     return;
   }
 
@@ -25,9 +27,9 @@ export const runMigrations = async () => {
   try {
     // Migration files are generated into the 'drizzle' directory at the root
     const migrationsFolder = path.join(process.cwd(), "drizzle");
-    
+
     await migrate(db, { migrationsFolder });
-    
+
     console.log("[Migration] ✅ Migrations completed successfully.");
   } catch (error) {
     console.error("[Migration] ❌ Migration failed:", error);

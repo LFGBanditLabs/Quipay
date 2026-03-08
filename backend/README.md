@@ -136,29 +136,27 @@ The audit logging system automatically redacts:
 
 Transaction hashes and public addresses are preserved for audit purposes.
 
-### Database Schema
+### Database Migrations
 
-Logs are stored in the `audit_logs` table:
+Database schema is managed using **Drizzle ORM**. This provides version-controlled migrations and a type-safe schema definition in TypeScript.
 
-```sql
-CREATE TABLE audit_logs (
-    id              BIGSERIAL   PRIMARY KEY,
-    timestamp       TIMESTAMPTZ NOT NULL,
-    log_level       TEXT        NOT NULL,
-    message         TEXT        NOT NULL,
-    action_type     TEXT        NOT NULL,
-    employer        TEXT,
-    context         JSONB       NOT NULL,
-    transaction_hash TEXT,
-    block_number    BIGINT,
-    error_message   TEXT,
-    error_code      TEXT,
-    error_stack     TEXT,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+- **Schema Definition**: [src/db/schema.ts](file:///Users/inhousecodes/Documents/QuicPay/Quipay/backend/src/db/schema.ts)
+- **Migration Files**: `backend/drizzle/`
+
+Migrations are automatically applied on application startup via `initDb()`.
+
+#### Migration Commands
+
+```bash
+# Generate a new migration after schema changes
+npm run migration:generate
+
+# Manually run migrations (typically handled by app startup)
+npm run migration:run
+
+# Push schema changes directly to DB (development only - bypasses migration files)
+npm run migration:push
 ```
-
-Indexes are created on `timestamp`, `log_level`, `employer`, `action_type`, and `context` (GIN) for fast queries.
 
 ## Development
 
@@ -166,8 +164,11 @@ Indexes are created on `timestamp`, `log_level`, `employer`, `action_type`, and 
 # Install dependencies
 npm install
 
-# Run tests
+# Run tests (automatically sets up test DB with migrations)
 npm test
+
+# Generate migrations after editing src/db/schema.ts
+npm run migration:generate
 
 # Start development server
 npm run dev
