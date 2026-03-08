@@ -1,10 +1,8 @@
 import { Router, Request, Response } from "express";
-import qs from "qs";
 import { validateRequest } from "./middleware/validation";
 import { standardRateLimiter } from "./middleware/rateLimiter";
 import { slackCommandSchema } from "./schemas/slack.schema";
-// Optionally import services resolving the physical contract ledger interactions if mapped natively
-// import { fetchTreasuryBalance } from './stellarListener'
+import { verifySlackSignature } from "./middleware/security";
 
 export const slackRouter = Router();
 
@@ -14,6 +12,7 @@ export const slackRouter = Router();
 slackRouter.post(
   "/command",
   standardRateLimiter,
+  verifySlackSignature,
   validateRequest({ body: slackCommandSchema }),
   (req: Request, res: Response): void => {
     // Slack sends application/x-www-form-urlencoded
