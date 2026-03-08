@@ -82,7 +82,7 @@ const EmployerDashboard: React.FC = () => {
       await new Promise((res) => setTimeout(res, 2000)); // simulate delay
       return {
         hash: "0xabc123def456abc123def456abc123def456abc123def456abc123def456abc1",
-        wait: async () => { },
+        wait: async () => {},
       };
     },
   };
