@@ -1,4 +1,3 @@
-/* eslint-disable react-x/no-array-index-key */
 import React, { useState } from "react";
 import { Icon, Link, Loader } from "@stellar/design-system";
 
