@@ -14,4 +14,8 @@ module.exports = {
   maxWorkers: 1,
   // Setup files
   setupFilesAfterEnv: ["<rootDir>/src/__tests__/setup.ts"],
+  // Transform ignore patterns for UUID and other ES modules
+  transformIgnorePatterns: [
+    'node_modules/(?!(uuid|@stellar)/)',
+  ],
 };

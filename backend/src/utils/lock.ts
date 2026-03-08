@@ -1,4 +1,5 @@
 import { query } from "../db/pool";
+import { logger } from "./logger";
 
 /**
  * Executes a task within a PostgreSQL advisory lock.
@@ -23,24 +24,25 @@ export async function withAdvisoryLock(
     const acquired = result.rows[0]?.pg_try_advisory_lock;
 
     if (!acquired) {
-      console.log(
+      logger.info(
         `[Lock] 🔒 Task "${taskName}" skipped: lock ${lockId} held by another instance.`,
+        { lockId, taskName },
       );
       return;
     }
 
     try {
-      console.log(`[Lock] 🔑 Acquired lock ${lockId} for task "${taskName}".`);
+      logger.info(`[Lock] 🔑 Acquired lock ${lockId} for task "${taskName}".`, { lockId, taskName });
       await task();
     } finally {
       // Release the lock
       await query("SELECT pg_advisory_unlock($1)", [lockId]);
-      console.log(`[Lock] 🔓 Released lock ${lockId} for task "${taskName}".`);
+      logger.info(`[Lock] 🔓 Released lock ${lockId} for task "${taskName}".`, { lockId, taskName });
     }
   } catch (err) {
-    console.error(
-      `[Lock] ❌ Error in withAdvisoryLock for task "${taskName}":`,
-      err,
+    logger.error(
+      `[Lock] ❌ Error in withAdvisoryLock for task "${taskName}"`,
+      { error: err, taskName, lockId },
     );
     throw err;
   }
