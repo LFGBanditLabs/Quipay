@@ -20,6 +20,9 @@ import { initDb } from "./db/pool";
 import { globalErrorHandler } from "./errors";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { standardRateLimiter } from "./middleware/rateLimiter";
+import { getPool } from "./db/pool";
+import Redis from "ioredis";
+import { rpc } from "@stellar/stellar-sdk";
 import { secretsBootstrap } from "./services/secretsBootstrap";
 
 dotenv.config();
