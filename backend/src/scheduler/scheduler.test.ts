@@ -15,6 +15,11 @@ jest.mock("../db/queries", () => ({
   getActivePayrollSchedules: jest.fn(),
   updatePayrollSchedule: jest.fn(),
   logSchedulerAction: jest.fn(),
+  listDueWebhookOutboundEvents: jest.fn().mockResolvedValue([]),
+}));
+
+jest.mock("../delivery", () => ({
+  retryWebhookEvent: jest.fn().mockResolvedValue(undefined),
 }));
 
 describe("Scheduler Module", () => {

@@ -1,6 +1,9 @@
 import * as cron from "node-cron";
 import { getPool } from "../db/pool";
 import { getAuditLogger, isAuditLoggerInitialized } from "../audit/init";
+import { withAdvisoryLock } from "../utils/lock";
+import { listDueWebhookOutboundEvents } from "../db/queries";
+import { retryWebhookEvent } from "../delivery";
 
 interface SchedulerScheduledTask {
   start: () => void;
@@ -27,6 +30,16 @@ const SCHEDULER_POLL_INTERVAL_MS = parseInt(
 );
 const AUTOMATION_GATEWAY_ADDRESS = process.env.AUTOMATION_GATEWAY_ADDRESS || "";
 const PAYROLL_STREAM_ADDRESS = process.env.PAYROLL_STREAM_ADDRESS || "";
+
+const WEBHOOK_RETRY_POLL_INTERVAL_MS = parseInt(
+  process.env.WEBHOOK_RETRY_POLL_MS || "10000",
+  10,
+);
+
+const WEBHOOK_RETRY_BATCH_SIZE = parseInt(
+  process.env.WEBHOOK_RETRY_BATCH_SIZE || "50",
+  10,
+);
 
 interface ScheduledJob {
   id: number;
@@ -103,111 +116,120 @@ const triggerStreamCreation = async (
 const executeScheduledPayroll = async (
   schedule: PayrollSchedule,
 ): Promise<void> => {
-  const startTime = Date.now();
-  let status: "success" | "failed" | "skipped" = "success";
-  let streamId: number | undefined;
-  let errorMessage: string | undefined;
+  const LOCK_BASE_ID = 100000;
+  const lockId = LOCK_BASE_ID + schedule.id;
 
-  // Log task started
-  if (isAuditLoggerInitialized()) {
-    try {
-      const auditLogger = getAuditLogger();
-      await auditLogger.logSchedulerEvent({
+  await withAdvisoryLock(
+    lockId,
+    async () => {
+      const startTime = Date.now();
+      let status: "success" | "failed" | "skipped" = "success";
+      let streamId: number | undefined;
+      let errorMessage: string | undefined;
+
+      // Log task started
+      if (isAuditLoggerInitialized()) {
+        try {
+          const auditLogger = getAuditLogger();
+          await auditLogger.logSchedulerEvent({
+            scheduleId: schedule.id,
+            action: "task_started",
+            taskName: `payroll-schedule-${schedule.id}`,
+            employer: schedule.employer,
+          });
+        } catch (err) {
+          logError("Failed to log scheduler task start", err);
+        }
+      }
+
+      try {
+        log(`Executing scheduled payroll for schedule ${schedule.id}`);
+
+        const now = new Date();
+        const durationSeconds = schedule.duration_days * 24 * 60 * 60;
+        const startTs = Math.floor(now.getTime() / 1000);
+        const endTs = startTs + durationSeconds;
+
+        log(`Stream parameters:`, {
+          startTs,
+          endTs,
+          durationDays: schedule.duration_days,
+        });
+
+        streamId = await triggerStreamCreation(schedule);
+
+        log(`Stream created successfully with ID: ${streamId}`);
+
+        const nextRun = calculateNextRun(schedule.cron_expression);
+        await updatePayrollSchedule({
+          id: schedule.id,
+          lastRunAt: now,
+          nextRunAt: nextRun || undefined,
+        });
+
+        // Log task completed
+        if (isAuditLoggerInitialized()) {
+          try {
+            const auditLogger = getAuditLogger();
+            const executionTime = Date.now() - startTime;
+            await auditLogger.logSchedulerEvent({
+              scheduleId: schedule.id,
+              action: "task_completed",
+              taskName: `payroll-schedule-${schedule.id}`,
+              employer: schedule.employer,
+              executionTime,
+            });
+          } catch (err) {
+            logError("Failed to log scheduler task completion", err);
+          }
+        }
+      } catch (error) {
+        status = "failed";
+        errorMessage = error instanceof Error ? error.message : String(error);
+        logError(
+          `Failed to execute scheduled payroll for schedule ${schedule.id}`,
+          error,
+        );
+
+        // Log task failed
+        if (isAuditLoggerInitialized()) {
+          try {
+            const auditLogger = getAuditLogger();
+            await auditLogger.logSchedulerEvent({
+              scheduleId: schedule.id,
+              action: "task_failed",
+              taskName: `payroll-schedule-${schedule.id}`,
+              employer: schedule.employer,
+              error: error instanceof Error ? error : new Error(String(error)),
+            });
+          } catch (err) {
+            logError("Failed to log scheduler task failure", err);
+          }
+        }
+
+        try {
+          await updatePayrollSchedule({
+            id: schedule.id,
+            lastRunAt: new Date(),
+          });
+        } catch (updateError) {
+          logError(`Failed to update schedule after error`, updateError);
+        }
+      }
+
+      const executionTime = Date.now() - startTime;
+
+      await logSchedulerAction({
         scheduleId: schedule.id,
-        action: "task_started",
-        taskName: `payroll-schedule-${schedule.id}`,
-        employer: schedule.employer,
+        action: "stream_creation",
+        status,
+        streamId,
+        errorMessage,
+        executionTime,
       });
-    } catch (err) {
-      logError("Failed to log scheduler task start", err);
-    }
-  }
-
-  try {
-    log(`Executing scheduled payroll for schedule ${schedule.id}`);
-
-    const now = new Date();
-    const durationSeconds = schedule.duration_days * 24 * 60 * 60;
-    const startTs = Math.floor(now.getTime() / 1000);
-    const endTs = startTs + durationSeconds;
-
-    log(`Stream parameters:`, {
-      startTs,
-      endTs,
-      durationDays: schedule.duration_days,
-    });
-
-    streamId = await triggerStreamCreation(schedule);
-
-    log(`Stream created successfully with ID: ${streamId}`);
-
-    const nextRun = calculateNextRun(schedule.cron_expression);
-    await updatePayrollSchedule({
-      id: schedule.id,
-      lastRunAt: now,
-      nextRunAt: nextRun || undefined,
-    });
-
-    // Log task completed
-    if (isAuditLoggerInitialized()) {
-      try {
-        const auditLogger = getAuditLogger();
-        const executionTime = Date.now() - startTime;
-        await auditLogger.logSchedulerEvent({
-          scheduleId: schedule.id,
-          action: "task_completed",
-          taskName: `payroll-schedule-${schedule.id}`,
-          employer: schedule.employer,
-          executionTime,
-        });
-      } catch (err) {
-        logError("Failed to log scheduler task completion", err);
-      }
-    }
-  } catch (error) {
-    status = "failed";
-    errorMessage = error instanceof Error ? error.message : String(error);
-    logError(
-      `Failed to execute scheduled payroll for schedule ${schedule.id}`,
-      error,
-    );
-
-    // Log task failed
-    if (isAuditLoggerInitialized()) {
-      try {
-        const auditLogger = getAuditLogger();
-        await auditLogger.logSchedulerEvent({
-          scheduleId: schedule.id,
-          action: "task_failed",
-          taskName: `payroll-schedule-${schedule.id}`,
-          employer: schedule.employer,
-          error: error instanceof Error ? error : new Error(String(error)),
-        });
-      } catch (err) {
-        logError("Failed to log scheduler task failure", err);
-      }
-    }
-
-    try {
-      await updatePayrollSchedule({
-        id: schedule.id,
-        lastRunAt: new Date(),
-      });
-    } catch (updateError) {
-      logError(`Failed to update schedule after error`, updateError);
-    }
-  }
-
-  const executionTime = Date.now() - startTime;
-
-  await logSchedulerAction({
-    scheduleId: schedule.id,
-    action: "stream_creation",
-    status,
-    streamId,
-    errorMessage,
-    executionTime,
-  });
+    },
+    `payroll-schedule-${schedule.id}`,
+  );
 };
 
 const validateCronExpression = (expression: string): boolean => {
@@ -314,6 +336,34 @@ const startHealthCheck = (): void => {
   );
 };
 
+const startWebhookRetryRunner = (): void => {
+  const LOCK_ID = 424242;
+  const taskName = "webhook-retry-runner";
+
+  setInterval(async () => {
+    if (!getPool()) return;
+    await withAdvisoryLock(
+      LOCK_ID,
+      async () => {
+        const due = await listDueWebhookOutboundEvents({
+          limit: WEBHOOK_RETRY_BATCH_SIZE,
+        });
+        if (due.length === 0) return;
+
+        log(`Retry runner processing ${due.length} due webhook event(s)`);
+        for (const ev of due) {
+          try {
+            await retryWebhookEvent(ev.id);
+          } catch (err) {
+            logError(`Webhook retry failed for event ${ev.id}`, err);
+          }
+        }
+      },
+      taskName,
+    );
+  }, WEBHOOK_RETRY_POLL_INTERVAL_MS);
+};
+
 export const startScheduler = async (): Promise<void> => {
   if (!getPool()) {
     console.warn(
@@ -327,6 +377,8 @@ export const startScheduler = async (): Promise<void> => {
   await refreshJobs();
 
   setInterval(refreshJobs, SCHEDULER_POLL_INTERVAL_MS);
+
+  startWebhookRetryRunner();
 
   startHealthCheck();
 
