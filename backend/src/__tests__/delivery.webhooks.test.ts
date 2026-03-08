@@ -6,7 +6,9 @@ jest.mock("../db/queries", () => ({
   createWebhookOutboundEvent: jest.fn().mockResolvedValue(undefined),
   getWebhookOutboundEventById: jest.fn(),
   insertWebhookOutboundAttempt: jest.fn().mockResolvedValue(undefined),
-  updateWebhookOutboundEventAfterAttempt: jest.fn().mockResolvedValue(undefined),
+  updateWebhookOutboundEventAfterAttempt: jest
+    .fn()
+    .mockResolvedValue(undefined),
 }));
 
 import axios from "axios";
@@ -64,7 +66,10 @@ describe("webhook delivery logging + retry scheduling", () => {
       createdAt: new Date(),
     });
 
-    mockedPost.mockResolvedValueOnce({ status: 500, data: { oops: true } } as any);
+    mockedPost.mockResolvedValueOnce({
+      status: 500,
+      data: { oops: true },
+    } as any);
 
     await sendWebhookNotification("withdrawal", { hello: "world" });
 
@@ -87,7 +92,10 @@ describe("webhook delivery logging + retry scheduling", () => {
       createdAt: new Date(),
     });
 
-    mockedPost.mockResolvedValueOnce({ status: 400, data: { bad: true } } as any);
+    mockedPost.mockResolvedValueOnce({
+      status: 400,
+      data: { bad: true },
+    } as any);
 
     await sendWebhookNotification("withdrawal", { hello: "world" });
 

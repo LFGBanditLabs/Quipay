@@ -169,7 +169,11 @@ app.get("/health/ready", async (req, res) => {
 
     try {
       await withTimeout(redis.connect(), timeoutMs, "redis_connect_timeout");
-      const pong = await withTimeout(redis.ping(), timeoutMs, "redis_ping_timeout");
+      const pong = await withTimeout(
+        redis.ping(),
+        timeoutMs,
+        "redis_ping_timeout",
+      );
       checks.redis = { ok: pong === "PONG" };
       if (pong !== "PONG") checks.redis.detail = "unexpected_response";
     } catch (e: any) {
@@ -191,10 +195,17 @@ app.get("/health/ready", async (req, res) => {
 
   try {
     const server = new rpc.Server(sorobanUrl);
-    await withTimeout(server.getLatestLedger(), timeoutMs, "stellar_rpc_timeout");
+    await withTimeout(
+      server.getLatestLedger(),
+      timeoutMs,
+      "stellar_rpc_timeout",
+    );
     checks.stellarRpc = { ok: true };
   } catch (e: any) {
-    checks.stellarRpc = { ok: false, detail: e?.message || "stellar_rpc_error" };
+    checks.stellarRpc = {
+      ok: false,
+      detail: e?.message || "stellar_rpc_error",
+    };
   }
 
   const allOk = Object.values(checks).every((c) => c.ok);

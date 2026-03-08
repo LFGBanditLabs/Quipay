@@ -41,7 +41,10 @@ const getResponseBodyFromAxiosError = (err: any): string | null => {
   }
 };
 
-const isRetryableServerFailure = (statusCode: number | null, err: any): boolean => {
+const isRetryableServerFailure = (
+  statusCode: number | null,
+  err: any,
+): boolean => {
   if (statusCode !== null) {
     return statusCode >= 500;
   }
@@ -128,8 +131,10 @@ const attemptDeliveryOnce = async (params: {
   }
 
   const durationMs = Date.now() - startTime;
-  const succeeded = statusCode !== null && statusCode >= 200 && statusCode < 300;
-  const retryable = !succeeded && isRetryableServerFailure(statusCode, rawError);
+  const succeeded =
+    statusCode !== null && statusCode >= 200 && statusCode < 300;
+  const retryable =
+    !succeeded && isRetryableServerFailure(statusCode, rawError);
   const hasMoreRetries = params.attemptNumber < MAX_RETRIES;
   const nextRetryAt =
     retryable && hasMoreRetries
