@@ -12,6 +12,7 @@ import {
 } from "@stellar/design-system";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 
+// Types for local state
 interface TeamMember {
     id: string;
     name: string;
@@ -37,6 +38,15 @@ interface AuditLog {
 }
 
 type TabId = "team" | "roles" | "audit" | "approvals";
+
+// SDS Type overrides/workarounds for incomplete types
+const SdsIcon = Icon as any;
+const SdsText = Text as any;
+const SdsBadge = Badge as any;
+const SdsNotification = Notification as any;
+const SdsSeoHelmet = SeoHelmet as any;
+const SdsCard = Card as any;
+const SdsButton = Button as any;
 
 const AVAILABLE_PERMISSIONS = [
     { id: "view_only", name: "View Only", description: "Can view all data but cannot perform any actions" },
@@ -88,14 +98,14 @@ const Settings: React.FC = () => {
             <div className="flex items-center justify-between">
                 <div>
                     <div className="flex items-center gap-2 mb-1">
-                        <Text as="h2" size="lg" weight="medium">Team Management</Text>
-                        <Badge variant="secondary" size="sm" className="opacity-70">{members.length} Members</Badge>
+                        <SdsText as="h2" size="lg" weight="medium">Team Management</SdsText>
+                        <SdsBadge variant="secondary" size="sm" className="opacity-70">{members.length} Members</SdsBadge>
                     </div>
-                    <Text as="p" size="sm" variant="secondary">Invite and manage members of your treasury vault.</Text>
+                    <SdsText as="p" size="sm" variant="secondary">Invite and manage members of your treasury vault.</SdsText>
                 </div>
-                <Button variant="primary" size="sm" onClick={() => setIsMemberModalOpen(true)}>
-                    <Icon name="add" size="sm" /> Add Member
-                </Button>
+                <SdsButton variant="primary" size="sm" onClick={() => setIsMemberModalOpen(true)}>
+                    <SdsIcon name="add" size="sm" /> Add Member
+                </SdsButton>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
@@ -103,7 +113,7 @@ const Settings: React.FC = () => {
                     <div key={member.id} className="group flex items-center justify-between p-5 rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] hover:bg-[var(--surface)] hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300">
                         <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center border border-indigo-500/10 group-hover:scale-110 transition-transform relative">
-                                <Icon name="user" size="md" className="text-indigo-400" />
+                                <SdsIcon name="user" size="md" className="text-indigo-400" />
                                 {member.role === "Owner" && (
                                     <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 rounded-full border-2 border-[var(--surface)] flex items-center justify-center">
                                         <div className="w-1.5 h-1.5 bg-white rounded-full shadow-sm" />
@@ -112,31 +122,31 @@ const Settings: React.FC = () => {
                             </div>
                             <div>
                                 <div className="flex items-center gap-2">
-                                    <Text as="span" size="md" weight="semi-bold">{member.name}</Text>
-                                    <Badge
+                                    <SdsText as="span" size="md" weight="semi-bold">{member.name}</SdsText>
+                                    <SdsBadge
                                         variant={member.role === "Owner" ? "success" : "secondary"}
                                         size="sm"
                                         className={member.role === "Owner" ? "" : "opacity-60"}
                                     >
                                         {member.role === "Owner" ? "Owner" : "Authorized Agent"}
-                                    </Badge>
-                                    {member.status === "pending" && <Badge variant="warning" size="sm">Pending</Badge>}
+                                    </SdsBadge>
+                                    {member.status === "pending" && <SdsBadge variant="warning" size="sm">Pending</SdsBadge>}
                                 </div>
                                 <div className="flex items-center gap-2 mt-0.5">
-                                    <Text as="p" size="xs" variant="secondary" className="font-mono opacity-60">{member.address}</Text>
+                                    <SdsText as="p" size="xs" variant="secondary" className="font-mono opacity-60">{member.address}</SdsText>
                                     <div className="w-1 h-1 bg-[var(--border)] rounded-full" />
-                                    <Text as="p" size="xs" variant="secondary" className="opacity-60">{member.role}</Text>
+                                    <SdsText as="p" size="xs" variant="secondary" className="opacity-60">{member.role}</SdsText>
                                 </div>
                             </div>
                         </div>
-                        <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-2">
                             <div className="hidden sm:flex flex-col items-end">
-                                <Text as="p" size="xs" variant="secondary" className="opacity-50 uppercase tracking-widest font-bold">Access Level</Text>
-                                <Text as="p" size="sm" weight="semi-bold" className="text-indigo-400">{member.role === "Owner" ? "Full Access" : "Limited Permissions"}</Text>
+                                <SdsText as="p" size="xs" variant="secondary" className="opacity-50 uppercase tracking-widest font-bold">Access Level</SdsText>
+                                <SdsText as="p" size="sm" weight="semi-bold" className="text-indigo-400">{member.role === "Owner" ? "Full Access" : "Limited Permissions"}</SdsText>
                             </div>
-                            <Button variant="secondary" size="xs">
-                                <Icon name="settings" size="xs" />
-                            </Button>
+                            <SdsButton variant="secondary" size="xs">
+                                <SdsIcon name="settings" size="xs" />
+                            </SdsButton>
                         </div>
                     </div>
                 ))}
@@ -148,36 +158,36 @@ const Settings: React.FC = () => {
         <div className="flex flex-col gap-6 animate-fade-in-up">
             <div className="flex items-center justify-between">
                 <div>
-                    <Text as="h2" size="lg" weight="medium">Custom Roles</Text>
-                    <Text as="p" size="sm" variant="secondary">Define granular permissions for different team responsibilities.</Text>
+                    <SdsText as="h2" size="lg" weight="medium">Custom Roles</SdsText>
+                    <SdsText as="p" size="sm" variant="secondary">Define granular permissions for different team responsibilities.</SdsText>
                 </div>
-                <Button variant="primary" size="sm" onClick={() => setIsRoleModalOpen(true)}>
-                    <Icon name="add" size="sm" /> Create Role
-                </Button>
+                <SdsButton variant="primary" size="sm" onClick={() => setIsRoleModalOpen(true)}>
+                    <SdsIcon name="add" size="sm" /> Create Role
+                </SdsButton>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {roles.map((role) => (
-                    <Card key={role.id} className="p-6 rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] hover:border-indigo-500/30 transition-all duration-300 group">
+                    <SdsCard key={role.id} className="p-6 rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] hover:border-indigo-500/30 transition-all duration-300 group">
                         <div className="flex items-start justify-between mb-4">
                             <div>
-                                <Text as="h3" size="md" weight="bold" className="group-hover:text-indigo-400 transition-colors">{role.name}</Text>
-                                <Text as="p" size="sm" variant="secondary" className="mt-1 leading-relaxed opacity-70">{role.description}</Text>
+                                <SdsText as="h3" size="md" weight="bold" className="group-hover:text-indigo-400 transition-colors">{role.name}</SdsText>
+                                <SdsText as="p" size="sm" variant="secondary" className="mt-1 leading-relaxed opacity-70">{role.description}</SdsText>
                             </div>
-                            <Button variant="secondary" size="xs">Edit</Button>
+                            <SdsButton variant="secondary" size="xs">Edit</SdsButton>
                         </div>
                         <div className="flex flex-wrap gap-2 mt-auto">
                             {role.permissions.map((p) => (
-                                <Badge key={p} size="sm" style={{
+                                <SdsBadge key={p} size="sm" style={{
                                     backgroundColor: "var(--accent-transparent-strong)",
                                     color: "var(--accent)",
                                     border: "1px solid var(--accent-transparent)"
                                 }}>
                                     {AVAILABLE_PERMISSIONS.find(ap => ap.id === p)?.name || p}
-                                </Badge>
+                                </SdsBadge>
                             ))}
                         </div>
-                    </Card>
+                    </SdsCard>
                 ))}
             </div>
         </div>
@@ -204,20 +214,20 @@ const Settings: React.FC = () => {
         <div className="flex flex-col gap-6 animate-fade-in-up">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <Text as="h2" size="lg" weight="medium">Audit Logs</Text>
-                    <Text as="p" size="sm" variant="secondary">A permanent, verifiable record of all actions performed by authorized wallets.</Text>
+                    <SdsText as="h2" size="lg" weight="medium">Audit Logs</SdsText>
+                    <SdsText as="p" size="sm" variant="secondary">A permanent, verifiable record of all actions performed by authorized wallets.</SdsText>
                 </div>
                 <div className="flex gap-3">
-                    <Button variant="secondary" size="sm" className="shadow-sm" onClick={handleExportCSV}>
-                        <Icon name="download" size="sm" /> Export CSV
-                    </Button>
+                    <SdsButton variant="secondary" size="sm" className="shadow-sm" onClick={handleExportCSV}>
+                        <SdsIcon name="download" size="sm" /> Export CSV
+                    </SdsButton>
                 </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-4 p-4 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--border)] shadow-inner">
                 <div className="flex-1 min-w-[240px] relative">
                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none">
-                        <Icon name="search" size="sm" />
+                        <SdsIcon name="search" size="sm" />
                     </div>
                     <input
                         type="text"
@@ -228,7 +238,7 @@ const Settings: React.FC = () => {
                     />
                 </div>
                 <div className="flex items-center gap-2">
-                    <Text as="span" size="sm" weight="medium" className="text-[var(--muted)] whitespace-nowrap">Status:</Text>
+                    <SdsText as="span" size="sm" weight="medium" className="text-[var(--muted)] whitespace-nowrap">Status:</SdsText>
                     <select
                         className="p-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
                         value={auditFilter}
@@ -242,38 +252,38 @@ const Settings: React.FC = () => {
                 </div>
             </div>
 
-            <Card className="overflow-hidden border-[var(--border)] rounded-2xl shadow-sm bg-[var(--surface)]">
+            <SdsCard className="overflow-hidden border-[var(--border)] rounded-2xl shadow-sm bg-[var(--surface)]">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-[var(--surface-subtle)] border-b border-[var(--border)]">
-                                <th className="p-4"><Text as="span" size="xs" weight="bold" variant="secondary" className="uppercase tracking-widest">Timestamp</Text></th>
-                                <th className="p-4"><Text as="span" size="xs" weight="bold" variant="secondary" className="uppercase tracking-widest">Wallet</Text></th>
-                                <th className="p-4"><Text as="span" size="xs" weight="bold" variant="secondary" className="uppercase tracking-widest">Action</Text></th>
-                                <th className="p-4"><Text as="span" size="xs" weight="bold" variant="secondary" className="uppercase tracking-widest">Details</Text></th>
-                                <th className="p-4"><Text as="span" size="xs" weight="bold" variant="secondary" className="uppercase tracking-widest">Status</Text></th>
+                                <th className="p-4"><SdsText as="span" size="xs" weight="bold" variant="secondary" className="uppercase tracking-widest">Timestamp</SdsText></th>
+                                <th className="p-4"><SdsText as="span" size="xs" weight="bold" variant="secondary" className="uppercase tracking-widest">Wallet</SdsText></th>
+                                <th className="p-4"><SdsText as="span" size="xs" weight="bold" variant="secondary" className="uppercase tracking-widest">Action</SdsText></th>
+                                <th className="p-4"><SdsText as="span" size="xs" weight="bold" variant="secondary" className="uppercase tracking-widest">Details</SdsText></th>
+                                <th className="p-4"><SdsText as="span" size="xs" weight="bold" variant="secondary" className="uppercase tracking-widest">Status</SdsText></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--border)]">
                             {filteredLogs.length > 0 ? filteredLogs.map((log) => (
                                 <tr key={log.id} className="hover:bg-indigo-500/5 transition-colors group">
-                                    <td className="p-4"><Text as="span" size="sm" className="font-mono text-[11px] opacity-70 group-hover:opacity-100 transition-opacity">{log.timestamp}</Text></td>
+                                    <td className="p-4"><SdsText as="span" size="sm" className="font-mono text-[11px] opacity-70 group-hover:opacity-100 transition-opacity">{log.timestamp}</SdsText></td>
                                     <td className="p-4">
                                         <div className="flex items-center gap-2">
                                             <div className="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-                                                <Icon name="user" size="xs" className="text-indigo-400" />
+                                                <SdsIcon name="user" size="xs" className="text-indigo-400" />
                                             </div>
-                                            <Text as="span" size="sm" className="font-mono text-xs hover:text-indigo-400 cursor-pointer transition-colors">{log.wallet}</Text>
+                                            <SdsText as="span" size="sm" className="font-mono text-xs hover:text-indigo-400 cursor-pointer transition-colors">{log.wallet}</SdsText>
                                         </div>
                                     </td>
-                                    <td className="p-4"><Badge size="sm" variant="secondary" className="font-medium">{log.action}</Badge></td>
-                                    <td className="p-4"><Text as="span" size="sm" weight="medium" className="opacity-90">{log.details}</Text></td>
+                                    <td className="p-4"><SdsBadge size="sm" variant="secondary" className="font-medium">{log.action}</SdsBadge></td>
+                                    <td className="p-4"><SdsText as="span" size="sm" weight="medium" className="opacity-90">{log.details}</SdsText></td>
                                     <td className="p-4">
                                         <div className="flex items-center gap-2">
                                             <div className={`w-2 h-2 rounded-full ${log.status === 'success' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]' :
                                                 log.status === 'failure' ? 'bg-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 'bg-amber-400'
                                                 } ${log.status === 'pending' ? 'animate-pulse' : ''}`} />
-                                            <Text as="span" size="sm" weight="semi-bold" className="capitalize group-hover:text-indigo-400 transition-colors">{log.status}</Text>
+                                            <SdsText as="span" size="sm" weight="semi-bold" className="capitalize group-hover:text-indigo-400 transition-colors">{log.status}</SdsText>
                                         </div>
                                     </td>
                                 </tr>
@@ -281,9 +291,9 @@ const Settings: React.FC = () => {
                                 <tr>
                                     <td colSpan={5} className="p-12 text-center">
                                         <div className="flex flex-col items-center gap-3">
-                                            <Icon name="search" size="lg" className="opacity-20" />
-                                            <Text as="p" size="md" variant="secondary">No logs found matching your filters.</Text>
-                                            <Button variant="secondary" size="xs" onClick={() => { setAuditSearch(""); setAuditFilter("all"); }}>Clear Filters</Button>
+                                            <SdsIcon name="search" size="lg" className="opacity-20" />
+                                            <SdsText as="p" size="md" variant="secondary">No logs found matching your filters.</SdsText>
+                                            <SdsButton variant="secondary" size="xs" onClick={() => { setAuditSearch(""); setAuditFilter("all"); }}>Clear Filters</SdsButton>
                                         </div>
                                     </td>
                                 </tr>
@@ -291,7 +301,7 @@ const Settings: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
-            </Card>
+            </SdsCard>
         </div>
     );
 
@@ -299,21 +309,21 @@ const Settings: React.FC = () => {
         <div className="flex flex-col gap-6 animate-fade-in-up">
             <div className="flex items-center justify-between">
                 <div>
-                    <Text as="h2" size="lg" weight="medium">Approval Requests</Text>
-                    <Text as="p" size="sm" variant="secondary">Queue of high-value treasury operations awaiting multi-sig authorization.</Text>
+                    <SdsText as="h2" size="lg" weight="medium">Approval Requests</SdsText>
+                    <SdsText as="p" size="sm" variant="secondary">Queue of high-value treasury operations awaiting multi-sig authorization.</SdsText>
                 </div>
             </div>
 
             <div className="py-20 flex flex-col items-center justify-center text-center rounded-3xl border-2 border-dashed border-[var(--border)] bg-[var(--surface-subtle)]/30 backdrop-blur-sm">
                 <div className="w-20 h-20 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-full flex items-center justify-center mb-6 relative">
                     <div className="absolute inset-0 bg-indigo-500/5 rounded-full animate-ping" />
-                    <Icon name="check" size="lg" className="text-indigo-400 relative z-10" />
+                    <SdsIcon name="check" size="lg" className="text-indigo-400 relative z-10" />
                 </div>
-                <Text as="h3" size="lg" weight="bold" className="mb-2">Queue is Empty</Text>
-                <Text as="p" size="md" variant="secondary" className="mb-8 max-w-xs leading-relaxed">No pending treasury actions currently require your digital signature.</Text>
-                <Button variant="secondary" size="sm" onClick={() => void window.open('/governance', '_blank')}>
+                <SdsText as="h3" size="lg" weight="bold" className="mb-2">Queue is Empty</SdsText>
+                <SdsText as="p" size="md" variant="secondary" className="mb-8 max-w-xs leading-relaxed">No pending treasury actions currently require your digital signature.</SdsText>
+                <SdsButton variant="secondary" size="sm" onClick={() => void window.open('/governance', '_blank')}>
                     View Governance Overview
-                </Button>
+                </SdsButton>
             </div>
         </div>
     );
@@ -327,25 +337,25 @@ const Settings: React.FC = () => {
 
     return (
         <Layout.Content>
-            <SeoHelmet
+            <SdsSeoHelmet
                 title="Security & Governance Settings | Quipay"
                 description="Manage team access, custom roles, multi-sig approvals, and view structured audit logs for your Quipay treasury."
             />
             <Layout.Inset>
                 <header className="mb-10">
-                    <Text as="h1" size="xl" weight="bold" className="mb-2 tracking-tight">Vault Settings</Text>
-                    <Text as="p" size="md" variant="secondary" className="max-w-2xl">Configure granular access controls, manage your treasury team, and monitor all organizational activity through structured audit trails.</Text>
+                    <SdsText as="h1" size="xl" weight="bold" className="mb-2 tracking-tight">Vault Settings</SdsText>
+                    <SdsText as="p" size="md" variant="secondary" className="max-w-2xl">Configure granular access controls, manage your treasury team, and monitor all organizational activity through structured audit trails.</SdsText>
                 </header>
 
                 {notification && (
-                    <Notification
+                    <SdsNotification
                         variant={notification.type}
                         onClose={() => setNotification(null)}
                         title={notification.type === "success" ? "Success" : "Error"}
                         className="mb-8 animate-slide-up"
                     >
                         {notification.message}
-                    </Notification>
+                    </SdsNotification>
                 )}
 
                 {/* Glassmorphism Navigation */}
@@ -359,7 +369,7 @@ const Settings: React.FC = () => {
                                 : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface)]/50"
                                 }`}
                         >
-                            <Icon name={tab.icon} size="sm" />
+                            <SdsIcon name={tab.icon} size="sm" />
                             {tab.label}
                         </button>
                     ))}
@@ -376,23 +386,23 @@ const Settings: React.FC = () => {
                 <Modal visible={isMemberModalOpen} onClose={() => setIsMemberModalOpen(false)}>
                     <div className="p-8 bg-[var(--surface)] text-[var(--text)] rounded-3xl shadow-2xl overflow-hidden relative">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full -mr-16 -mt-16 blur-3xl" />
-                        <Text as="h2" size="lg" weight="bold" className="mb-6">Invite Collaborator</Text>
+                        <SdsText as="h2" size="lg" weight="bold" className="mb-6">Invite Collaborator</SdsText>
                         <div className="flex flex-col gap-5">
                             <Input id="name" label="Display Name" placeholder="e.g. Sarah Connor" fieldSize="md" />
                             <Input id="address" label="Stellar Wallet Address" placeholder="G..." fieldSize="md" />
                             <div className="flex flex-col gap-2">
-                                <Text as="span" size="sm" weight="semi-bold" className="text-[var(--muted)]">Assign Role</Text>
+                                <SdsText as="span" size="sm" weight="semi-bold" className="text-[var(--muted)]">Assign Role</SdsText>
                                 <select className="w-full p-3.5 rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all">
                                     <option value="">Select a role...</option>
                                     {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                                 </select>
                             </div>
                             <div className="flex justify-end gap-3 mt-8">
-                                <Button variant="secondary" size="sm" onClick={() => setIsMemberModalOpen(false)}>Dismiss</Button>
-                                <Button variant="primary" size="sm" onClick={() => {
+                                <SdsButton variant="secondary" size="sm" onClick={() => setIsMemberModalOpen(false)}>Dismiss</SdsButton>
+                                <SdsButton variant="primary" size="sm" onClick={() => {
                                     setNotification({ message: "Invitation sent successfully!", type: "success" });
                                     setIsMemberModalOpen(false);
-                                }}>Send Invite</Button>
+                                }}>Send Invite</SdsButton>
                             </div>
                         </div>
                     </div>
@@ -401,23 +411,23 @@ const Settings: React.FC = () => {
                 <Modal visible={isRoleModalOpen} onClose={() => setIsRoleModalOpen(false)}>
                     <div className="p-8 bg-[var(--surface)] text-[var(--text)] max-w-lg rounded-3xl shadow-2xl relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-32 h-32 bg-purple-500/5 rounded-full -ml-16 -mt-16 blur-3xl" />
-                        <Text as="h2" size="lg" weight="bold" className="mb-6">Create Custom Role</Text>
+                        <SdsText as="h2" size="lg" weight="bold" className="mb-6">Create Custom Role</SdsText>
                         <div className="flex flex-col gap-5">
                             <Input id="roleName" label="Role Name" placeholder="e.g. Treasury Auditor" fieldSize="md" />
                             <Input id="roleDesc" label="Brief Description" placeholder="Purpose of this role" fieldSize="md" />
 
                             <div className="flex flex-col gap-3 mt-2">
-                                <Text as="span" size="sm" weight="semi-bold" className="text-[var(--muted)]">Capability Permissions</Text>
+                                <SdsText as="span" size="sm" weight="semi-bold" className="text-[var(--muted)]">Capability Permissions</SdsText>
                                 <div className="grid grid-cols-1 gap-3 max-h-[300px] overflow-y-auto pr-2 no-scrollbar">
                                     {AVAILABLE_PERMISSIONS.map(p => (
                                         <label key={p.id} className="group flex items-start gap-4 p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] hover:border-indigo-500/40 hover:bg-[var(--surface)] cursor-pointer transition-all duration-300">
                                             <div className="relative flex items-center mt-1">
                                                 <input type="checkbox" className="w-5 h-5 rounded-lg border-2 border-[var(--border)] appearance-none checked:bg-indigo-500 checked:border-indigo-500 transition-all cursor-pointer" />
-                                                <Icon name="check" size="xs" className="absolute left-1 text-white opacity-0 group-has-[:checked]:opacity-100 transition-opacity" />
+                                                <SdsIcon name="check" size="xs" className="absolute left-1 text-white opacity-0 group-has-[:checked]:opacity-100 transition-opacity" />
                                             </div>
                                             <div>
-                                                <Text as="p" size="sm" weight="bold" className="group-hover:text-indigo-400 transition-colors">{p.name}</Text>
-                                                <Text as="p" size="xs" variant="secondary" className="mt-0.5 leading-relaxed opacity-80">{p.description}</Text>
+                                                <SdsText as="p" size="sm" weight="bold" className="group-hover:text-indigo-400 transition-colors">{p.name}</SdsText>
+                                                <SdsText as="p" size="xs" variant="secondary" className="mt-0.5 leading-relaxed opacity-80">{p.description}</SdsText>
                                             </div>
                                         </label>
                                     ))}
@@ -425,11 +435,11 @@ const Settings: React.FC = () => {
                             </div>
 
                             <div className="flex justify-end gap-3 mt-8">
-                                <Button variant="secondary" size="sm" onClick={() => setIsRoleModalOpen(false)}>Cancel</Button>
-                                <Button variant="primary" size="sm" onClick={() => {
+                                <SdsButton variant="secondary" size="sm" onClick={() => setIsRoleModalOpen(false)}>Cancel</SdsButton>
+                                <SdsButton variant="primary" size="sm" onClick={() => {
                                     setNotification({ message: "Custom role created successfully!", type: "success" });
                                     setIsRoleModalOpen(false);
-                                }}>Define Role</Button>
+                                }}>Define Role</SdsButton>
                             </div>
                         </div>
                     </div>
