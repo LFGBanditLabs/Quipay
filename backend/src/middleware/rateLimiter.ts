@@ -3,6 +3,7 @@ import RedisStore from "rate-limit-redis";
 import Redis from "ioredis";
 import { Request, Response } from "express";
 import { createProblemDetails } from "./errorHandler";
+import { logger } from "../utils/logger";
 
 // Initialize Redis client (optional, falls back to memory store if not configured)
 let redisClient: Redis | null = null;
@@ -15,14 +16,14 @@ if (process.env.REDIS_URL) {
     });
 
     redisClient.on("error", (err: Error) => {
-      console.error("[RateLimiter] Redis connection error:", err);
+      logger.error("[RateLimiter] Redis connection error", { error: err });
     });
 
     redisClient.on("connect", () => {
-      console.log("[RateLimiter] ✅ Connected to Redis for rate limiting");
+      logger.info("[RateLimiter] ✅ Connected to Redis for rate limiting");
     });
   } catch (error) {
-    console.error("[RateLimiter] Failed to initialize Redis:", error);
+    logger.error("[RateLimiter] Failed to initialize Redis", { error });
     redisClient = null;
   }
 }
@@ -140,6 +141,6 @@ export const createApiKeyRateLimiter = (
 export const closeRateLimiterRedis = async () => {
   if (redisClient) {
     await redisClient.quit();
-    console.log("[RateLimiter] Redis connection closed");
+    logger.info("[RateLimiter] Redis connection closed");
   }
 };

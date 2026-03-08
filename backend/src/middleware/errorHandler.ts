@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { logger } from "../utils/logger";
 
 /**
  * RFC 7807 Problem Details interface
@@ -64,8 +65,8 @@ export function errorHandler(
     ...(err.errors && { errors: err.errors }), // Include validation errors if present
   });
 
-  // Log error for debugging (in production, use proper logging)
-  console.error("[ErrorHandler]", {
+  // Log error for debugging
+  logger.error("[ErrorHandler] Request failed", {
     error: err,
     stack: err.stack,
     url: req.originalUrl,
