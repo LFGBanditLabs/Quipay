@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Layout } from "react-grid-layout";
+import { LayoutItem } from "react-grid-layout";
 
 export type WidgetId =
   | "burn-rate"
@@ -10,8 +10,9 @@ export type WidgetId =
 export type UserRole = "manager" | "auditor";
 
 const STORAGE_KEY = "quipay-dashboard-layout";
+const PINNED_KEY = "quipay-dashboard-pinned";
 
-const DEFAULT_LAYOUTS: Record<UserRole, Layout[]> = {
+const DEFAULT_LAYOUTS: Record<UserRole, LayoutItem[]> = {
   manager: [
     { i: "burn-rate", x: 0, y: 0, w: 6, h: 4, minW: 3, minH: 3 },
     { i: "active-streams", x: 6, y: 0, w: 6, h: 4, minW: 3, minH: 3 },
@@ -25,8 +26,6 @@ const DEFAULT_LAYOUTS: Record<UserRole, Layout[]> = {
     { i: "active-streams", x: 0, y: 8, w: 6, h: 4, minW: 3, minH: 3 },
   ],
 };
-
-const PINNED_KEY = "quipay-dashboard-pinned";
 
 const DEFAULT_PINNED: Record<UserRole, WidgetId[]> = {
   manager: ["burn-rate", "active-streams", "treasury-status", "ai-agent-logs"],
@@ -51,7 +50,7 @@ function save<T>(key: string, value: T) {
 }
 
 export function useDashboardLayout(role: UserRole = "manager") {
-  const [layouts, setLayouts] = useState<Record<UserRole, Layout[]>>(() =>
+  const [layouts, setLayouts] = useState<Record<UserRole, LayoutItem[]>>(() =>
     load(STORAGE_KEY, DEFAULT_LAYOUTS),
   );
 
@@ -62,10 +61,12 @@ export function useDashboardLayout(role: UserRole = "manager") {
   const layout = layouts[role];
   const pinned = pinnedWidgets[role];
 
+  // react-grid-layout v2 passes readonly LayoutItem[] — convert to mutable
   const onLayoutChange = useCallback(
-    (newLayout: Layout[]) => {
+    (newLayout: readonly LayoutItem[]) => {
+      const mutable: LayoutItem[] = newLayout.map((item) => ({ ...item }));
       setLayouts((prev) => {
-        const updated = { ...prev, [role]: newLayout };
+        const updated = { ...prev, [role]: mutable };
         save(STORAGE_KEY, updated);
         return updated;
       });

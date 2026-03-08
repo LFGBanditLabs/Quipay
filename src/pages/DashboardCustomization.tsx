@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ReactGridLayout } from "react-grid-layout";
-import type { Layout } from "react-grid-layout";
+import type { LayoutItem } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
@@ -19,11 +19,7 @@ const WIDGET_CONFIG: Record<
   WidgetId,
   { title: string; icon: string; component: React.ComponentType }
 > = {
-  "burn-rate": {
-    title: "Burn Rate",
-    icon: "🔥",
-    component: BurnRateChart,
-  },
+  "burn-rate": { title: "Burn Rate", icon: "🔥", component: BurnRateChart },
   "active-streams": {
     title: "Active Streams",
     icon: "⚡",
@@ -50,7 +46,7 @@ export default function DashboardCustomization() {
     useDashboardLayout(role);
 
   const visibleWidgets = ALL_WIDGET_IDS.filter((id) => pinned.includes(id));
-  const visibleLayout = layout.filter((l) =>
+  const visibleLayout: LayoutItem[] = layout.filter((l) =>
     visibleWidgets.includes(l.i as WidgetId),
   );
 
@@ -100,7 +96,6 @@ export default function DashboardCustomization() {
               {editMode ? "✓ Done Editing" : "✏️ Edit Layout"}
             </button>
 
-            {/* Reset */}
             {editMode && (
               <button
                 id="reset-layout"
@@ -128,13 +123,15 @@ export default function DashboardCustomization() {
       <div className="mx-auto max-w-7xl">
         <ReactGridLayout
           layout={visibleLayout}
-          cols={12}
-          rowHeight={60}
           width={1200}
-          onLayoutChange={(newLayout: Layout[]) => onLayoutChange(newLayout)}
-          isDraggable={editMode}
-          isResizable={editMode}
-          margin={[16, 16]}
+          gridConfig={{
+            cols: 12,
+            rowHeight: 60,
+            margin: [16, 16],
+          }}
+          dragConfig={{ enabled: editMode }}
+          resizeConfig={{ enabled: editMode }}
+          onLayoutChange={onLayoutChange}
         >
           {visibleWidgets.map((id) => {
             const config = WIDGET_CONFIG[id];
@@ -156,7 +153,7 @@ export default function DashboardCustomization() {
           })}
         </ReactGridLayout>
 
-        {/* Hidden/unpinned widgets list */}
+        {/* Hidden widgets */}
         {editMode && ALL_WIDGET_IDS.some((id) => !pinned.includes(id)) && (
           <div className="mt-6 rounded-2xl border border-dashed border-white/10 p-4">
             <p className="mb-3 text-sm font-medium text-white/40">
