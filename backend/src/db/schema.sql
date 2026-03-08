@@ -207,4 +207,3 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_action_created ON audit_logs (action_t
 
 -- Hash index for exact status matches (faster than B-Tree for equality)
 CREATE INDEX IF NOT EXISTS idx_vault_address_hash ON vault_events USING HASH (address);
-
