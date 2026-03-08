@@ -1,5 +1,9 @@
 import { Response, NextFunction } from "express";
-import { verifyDiscordSignature, verifySlackSignature, SecureRequest } from "../middleware/security";
+import {
+  verifyDiscordSignature,
+  verifySlackSignature,
+  SecureRequest,
+} from "../middleware/security";
 import { secretsBootstrap } from "../services/secretsBootstrap";
 import { verifyKey } from "discord-interactions";
 import crypto from "crypto";
@@ -26,7 +30,9 @@ describe("Security Middleware", () => {
 
   describe("verifyDiscordSignature", () => {
     it("should pass if signature is valid", () => {
-      (secretsBootstrap.getSecret as jest.Mock).mockReturnValue("valid_pub_key");
+      (secretsBootstrap.getSecret as jest.Mock).mockReturnValue(
+        "valid_pub_key",
+      );
       (mockReq.get as jest.Mock).mockImplementation((header) => {
         if (header === "X-Signature-Ed25519") return "valid_sig";
         if (header === "X-Signature-Timestamp") return "valid_ts";
@@ -34,14 +40,20 @@ describe("Security Middleware", () => {
       });
       (verifyKey as jest.Mock).mockReturnValue(true);
 
-      verifyDiscordSignature(mockReq as SecureRequest, mockRes as Response, nextFunction);
+      verifyDiscordSignature(
+        mockReq as SecureRequest,
+        mockRes as Response,
+        nextFunction,
+      );
 
       expect(nextFunction).toHaveBeenCalled();
       expect(mockRes.status).not.toHaveBeenCalled();
     });
 
     it("should return 401 if signature is invalid", () => {
-      (secretsBootstrap.getSecret as jest.Mock).mockReturnValue("valid_pub_key");
+      (secretsBootstrap.getSecret as jest.Mock).mockReturnValue(
+        "valid_pub_key",
+      );
       (mockReq.get as jest.Mock).mockImplementation((header) => {
         if (header === "X-Signature-Ed25519") return "invalid_sig";
         if (header === "X-Signature-Timestamp") return "valid_ts";
@@ -49,16 +61,26 @@ describe("Security Middleware", () => {
       });
       (verifyKey as jest.Mock).mockReturnValue(false);
 
-      verifyDiscordSignature(mockReq as SecureRequest, mockRes as Response, nextFunction);
+      verifyDiscordSignature(
+        mockReq as SecureRequest,
+        mockRes as Response,
+        nextFunction,
+      );
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: "Invalid request signature" });
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: "Invalid request signature",
+      });
     });
 
     it("should return 500 if public key is missing", () => {
       (secretsBootstrap.getSecret as jest.Mock).mockReturnValue(null);
 
-      verifyDiscordSignature(mockReq as SecureRequest, mockRes as Response, nextFunction);
+      verifyDiscordSignature(
+        mockReq as SecureRequest,
+        mockRes as Response,
+        nextFunction,
+      );
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
     });
@@ -84,7 +106,11 @@ describe("Security Middleware", () => {
         return undefined;
       });
 
-      verifySlackSignature(mockReq as SecureRequest, mockRes as Response, nextFunction);
+      verifySlackSignature(
+        mockReq as SecureRequest,
+        mockRes as Response,
+        nextFunction,
+      );
 
       expect(nextFunction).toHaveBeenCalled();
     });
@@ -97,7 +123,11 @@ describe("Security Middleware", () => {
         return undefined;
       });
 
-      verifySlackSignature(mockReq as SecureRequest, mockRes as Response, nextFunction);
+      verifySlackSignature(
+        mockReq as SecureRequest,
+        mockRes as Response,
+        nextFunction,
+      );
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
     });
@@ -111,7 +141,11 @@ describe("Security Middleware", () => {
         return undefined;
       });
 
-      verifySlackSignature(mockReq as SecureRequest, mockRes as Response, nextFunction);
+      verifySlackSignature(
+        mockReq as SecureRequest,
+        mockRes as Response,
+        nextFunction,
+      );
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
       expect(mockRes.json).toHaveBeenCalledWith({ error: "Request expired" });
