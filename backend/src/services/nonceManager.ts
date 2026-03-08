@@ -1,5 +1,7 @@
 import { Horizon } from "@stellar/stellar-sdk";
 import PQueue from "p-queue";
+import { logger } from "../utils/logger";
+import { getCurrentCorrelationId } from "../middleware/correlationId";
 
 export class NonceManager {
   private currentSequence: bigint | null = null;
@@ -36,6 +38,10 @@ export class NonceManager {
    */
   async getNonce(): Promise<string> {
     return this.requestQueue.add(async () => {
+      const correlationId = getCurrentCorrelationId() || `nonce-${Date.now()}`;
+
+      logger.debug("[NonceManager] Getting nonce", { correlationId });
+
       if (this.currentSequence === null) {
         await this.initializeQueueFree();
       }
@@ -45,12 +51,27 @@ export class NonceManager {
         // Keep the pool sorted to always fill the earliest gap
         this.availableNonces.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
         const recoveredNonce = this.availableNonces.shift()!;
+
+        logger.debug("[NonceManager] Using recovered nonce", {
+          correlationId,
+          nonce: recoveredNonce.toString(),
+          availableNonces: this.availableNonces.length,
+        });
+
         return recoveredNonce.toString();
       }
 
       // Otherwise increment and return the main sequence
       this.currentSequence! += 1n;
-      return this.currentSequence!.toString();
+      const nonce = this.currentSequence!.toString();
+
+      logger.debug("[NonceManager] Generated new nonce", {
+        correlationId,
+        nonce,
+        currentSequence: this.currentSequence!.toString(),
+      });
+
+      return nonce;
     }) as Promise<string>;
   }
 
@@ -59,10 +80,23 @@ export class NonceManager {
    * release the nonce back to the manager so it can be re-used to prevent gaps.
    */
   releaseNonce(nonceStr: string): void {
+    const correlationId = getCurrentCorrelationId() || `nonce-${Date.now()}`;
     const nonce = BigInt(nonceStr);
+
     // Ensure we don't duplicate a recovered nonce
     if (!this.availableNonces.includes(nonce)) {
       this.availableNonces.push(nonce);
+
+      logger.debug("[NonceManager] Released nonce back to pool", {
+        correlationId,
+        nonce: nonceStr,
+        availableNonces: this.availableNonces.length,
+      });
+    } else {
+      logger.warn("[NonceManager] Attempted to release duplicate nonce", {
+        correlationId,
+        nonce: nonceStr,
+      });
     }
   }
 
