@@ -13,7 +13,9 @@ const DEFAULT_SECRETS_CONFIG: SecretsConfig = {
   required: ["DATABASE_URL", "OPENAI_API_KEY", "STELLAR_RPC_URL"],
   optional: [
     "DISCORD_BOT_TOKEN",
+    "DISCORD_PUBLIC_KEY",
     "SLACK_BOT_TOKEN",
+    "SLACK_SIGNING_SECRET",
     "REDIS_URL",
     "HOT_WALLET_SECRET",
   ],
