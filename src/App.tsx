@@ -8,6 +8,7 @@ const Home = lazy(() => import("./pages/Home"));
 const Debugger = lazy(() => import("./pages/Debugger"));
 const EmployerDashboard = lazy(() => import("./pages/EmployerDashboard"));
 const GovernanceOverview = lazy(() => import("./pages/GovernanceOverview"));
+const Settings = lazy(() => import("./pages/Settings"));
 const CreateStream = lazy(() => import("./pages/CreateStream"));
 const HelpPage = lazy(() => import("./pages/HelpPage"));
 const PayrollDashboard = lazy(() => import("./pages/PayrollDashboard"));
@@ -41,6 +42,7 @@ function AppRoutes({ location }: { location: ReturnType<typeof useLocation> }) {
       <Route path="/treasury-management" element={<TreasuryManager />} />
       <Route path="/create-stream" element={<CreateStream />} />
       <Route path="/governance" element={<GovernanceOverview />} />
+      <Route path="/settings" element={<Settings />} />
       <Route path="/reports" element={<Reports />} />
       <Route path="/help" element={<HelpPage />} />
       <Route path="/debug" element={<Debugger />} />
@@ -84,11 +86,10 @@ function AppLayout() {
       <main id="main-content" tabIndex={-1} className="flex-1 outline-none">
         <OnboardingTour />
         <div
-          className={`w-full transform transition-all duration-300 ease-out motion-reduce:transform-none motion-reduce:transition-none ${
-            isTransitioning
-              ? "pointer-events-none translate-y-2 opacity-0"
-              : "translate-y-0 opacity-100"
-          }`}
+          className={`w-full transform transition-all duration-300 ease-out motion-reduce:transform-none motion-reduce:transition-none ${isTransitioning
+            ? "pointer-events-none translate-y-2 opacity-0"
+            : "translate-y-0 opacity-100"
+            }`}
         >
           <Suspense fallback={<AppLoadingFallback />}>
             <AppRoutes location={displayLocation} />

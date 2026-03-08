@@ -7,9 +7,9 @@ const navLinks = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/payroll", label: "Payroll" },
   { to: "/treasury-management", label: "Treasury" },
-  { to: "/worker", label: "Worker" },
   { to: "/reports", label: "Reports" },
   { to: "/governance", label: "Governance" },
+  { to: "/settings", label: "Settings" },
 ];
 
 const Navbar: React.FC = () => {
@@ -40,11 +40,10 @@ const Navbar: React.FC = () => {
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isScrolled
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled
             ? "bg-[var(--surface)]/80 backdrop-blur-xl border-b border-[var(--border)] shadow-lg"
             : "bg-transparent"
-        }`}
+          }`}
       >
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -64,10 +63,9 @@ const Navbar: React.FC = () => {
                   to={link.to}
                   onClick={closeMenu}
                   className={({ isActive }) =>
-                    `relative inline-flex min-h-11 items-center rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 ${
-                      isActive
-                        ? "text-[var(--text)] bg-[var(--surface-subtle)]"
-                        : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-subtle)]/50"
+                    `relative inline-flex min-h-11 items-center rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 ${isActive
+                      ? "text-[var(--text)] bg-[var(--surface-subtle)]"
+                      : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-subtle)]/50"
                     }`
                   }
                 >
@@ -140,11 +138,10 @@ const Navbar: React.FC = () => {
       )}
 
       <div
-        className={`fixed top-16 left-0 right-0 z-40 md:hidden transition-all duration-300 ease-in-out ${
-          isMenuOpen
+        className={`fixed top-16 left-0 right-0 z-40 md:hidden transition-all duration-300 ease-in-out ${isMenuOpen
             ? "opacity-100 translate-y-0"
             : "opacity-0 -translate-y-4 pointer-events-none"
-        }`}
+          }`}
       >
         <nav className="bg-[var(--surface)]/95 backdrop-blur-xl border-b border-[var(--border)] shadow-2xl">
           <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-1">
@@ -154,10 +151,9 @@ const Navbar: React.FC = () => {
                 to={link.to}
                 onClick={closeMenu}
                 className={({ isActive }) =>
-                  `flex min-h-11 items-center rounded-xl px-4 py-3 text-base font-medium transition-all duration-200 ${
-                    isActive
-                      ? "text-[var(--text)] bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-[var(--border)]"
-                      : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-subtle)]"
+                  `flex min-h-11 items-center rounded-xl px-4 py-3 text-base font-medium transition-all duration-200 ${isActive
+                    ? "text-[var(--text)] bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-[var(--border)]"
+                    : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-subtle)]"
                   }`
                 }
               >
