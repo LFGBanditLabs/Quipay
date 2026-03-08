@@ -30,8 +30,23 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json({ limit: "1mb" })); // Limit payload size to prevent memory exhaustion
-app.use(express.urlencoded({ extended: true, limit: "1mb" })); // For Slack form data
+app.use(
+  express.json({
+    limit: "1mb",
+    verify: (req: any, res: any, buf: Buffer) => {
+      req.rawBody = buf;
+    },
+  }),
+); // Limit payload size to prevent memory exhaustion
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: "1mb",
+    verify: (req: any, res: any, buf: Buffer) => {
+      req.rawBody = buf;
+    },
+  }),
+); // For Slack form data
 
 // Add correlation ID middleware early to capture all requests
 app.use(correlationIdMiddleware);
