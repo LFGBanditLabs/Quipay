@@ -93,7 +93,7 @@ const attemptDelivery = async (
     await axios.post(sub.url, outgoingPayload, {
       timeout: 5000, // 5 seconds timeout
       headers: {
-        'X-Correlation-ID': correlationId || '',
+        "X-Correlation-ID": correlationId || "",
       },
     });
 
