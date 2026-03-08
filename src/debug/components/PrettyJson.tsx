@@ -160,8 +160,8 @@ export const PrettyJson = ({
           }}
           {...(isCollapsible
             ? {
-              onClick: () => setIsExpanded(!isExpanded),
-            }
+                onClick: () => setIsExpanded(!isExpanded),
+              }
             : {})}
         >
           {isCollapsible ? (

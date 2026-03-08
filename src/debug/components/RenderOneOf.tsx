@@ -133,17 +133,17 @@ export const renderOneOf = ({
       </Select>
 
       {selectedSchema &&
-        jsonSchema.isSchemaObject(selectedSchema as AnyObject) &&
-        jsonSchema.isTaggedUnion(selectedSchema as JSONSchema7)
+      jsonSchema.isSchemaObject(selectedSchema as AnyObject) &&
+      jsonSchema.isTaggedUnion(selectedSchema as JSONSchema7)
         ? renderTupleType({
-          path,
-          schema: selectedSchema as JSONSchema7,
-          onChange,
-          parsedSorobanOperation,
-          renderer,
-          formError,
-          setFormError,
-        })
+            path,
+            schema: selectedSchema as JSONSchema7,
+            onChange,
+            parsedSorobanOperation,
+            renderer,
+            formError,
+            setFormError,
+          })
         : null}
     </Box>
   );

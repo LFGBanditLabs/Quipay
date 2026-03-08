@@ -90,7 +90,7 @@ export const renderArrayType = ({
                 <Box gap="md" key={`${name}-${index}`}>
                   {/* Map Type (scSpecTypeMap) */}
                   {jsonSchema.isSchemaObject(schema.items as AnyObject) &&
-                    (schema.items as AnyObject).type === "object" ? (
+                  (schema.items as AnyObject).type === "object" ? (
                     <>
                       <LabelHeading size="lg">{argHeader}</LabelHeading>
 

@@ -86,10 +86,11 @@ function AppLayout() {
       <main id="main-content" tabIndex={-1} className="flex-1 outline-none">
         <OnboardingTour />
         <div
-          className={`w-full transform transition-all duration-300 ease-out motion-reduce:transform-none motion-reduce:transition-none ${isTransitioning
-            ? "pointer-events-none translate-y-2 opacity-0"
-            : "translate-y-0 opacity-100"
-            }`}
+          className={`w-full transform transition-all duration-300 ease-out motion-reduce:transform-none motion-reduce:transition-none ${
+            isTransitioning
+              ? "pointer-events-none translate-y-2 opacity-0"
+              : "translate-y-0 opacity-100"
+          }`}
         >
           <Suspense fallback={<AppLoadingFallback />}>
             <AppRoutes location={displayLocation} />
