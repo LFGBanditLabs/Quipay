@@ -23,6 +23,7 @@ import { standardRateLimiter } from "./middleware/rateLimiter";
 import { getPool } from "./db/pool";
 import Redis from "ioredis";
 import { rpc } from "@stellar/stellar-sdk";
+import { secretsBootstrap } from "./services/secretsBootstrap";
 
 dotenv.config();
 
