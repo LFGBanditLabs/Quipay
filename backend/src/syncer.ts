@@ -160,20 +160,25 @@ const runSync = async (): Promise<number> => {
 
               // Advance cursor past the batch inside the successful closure
               if (eventsRes.events.length > 0) {
-                cursor = eventsRes.events[eventsRes.events.length - 1].ledger + 1;
+                cursor =
+                  eventsRes.events[eventsRes.events.length - 1].ledger + 1;
               } else {
                 cursor = latestLedger + 1; // no more events
               }
             },
             {
               jobType: "ledger_sync_batch",
-              payload: { startLedger: cursor, limit: BATCH_SIZE, contract: CONTRACT_ID },
+              payload: {
+                startLedger: cursor,
+                limit: BATCH_SIZE,
+                contract: CONTRACT_ID,
+              },
               maxRetries: 3,
               baseDelayMs: 3000,
-            }
+            },
           );
         } catch (err: unknown) {
-          // If enqueueJob fails after all retries (and goes to DLQ), we still advance the cursor 
+          // If enqueueJob fails after all retries (and goes to DLQ), we still advance the cursor
           // so the syncer isn't permanently stuck on a bad ledger batch.
           const msg = err instanceof Error ? err.message : String(err);
           console.error(

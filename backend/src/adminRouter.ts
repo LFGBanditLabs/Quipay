@@ -6,7 +6,12 @@ import {
   requireUser,
   AuthenticatedRequest,
 } from "./middleware/rbac";
-import { getPendingDLQItems, getDLQItemById, updateDLQItemStatus, deleteDLQItem } from "./db/dlq";
+import {
+  getPendingDLQItems,
+  getDLQItemById,
+  updateDLQItemStatus,
+  deleteDLQItem,
+} from "./db/dlq";
 import { enqueueJob } from "./queue/asyncQueue";
 import { sendWebhookNotification } from "./delivery"; // used for replay examples
 import { startSyncer } from "./syncer"; // used for replay examples
@@ -124,7 +129,9 @@ adminRouter.get(
       const items = await getPendingDLQItems(limit, offset);
       res.json({ items });
     } catch (err: any) {
-      res.status(500).json({ error: "Failed to fetch DLQ items", details: err.message });
+      res
+        .status(500)
+        .json({ error: "Failed to fetch DLQ items", details: err.message });
     }
   },
 );
@@ -144,21 +151,32 @@ adminRouter.post(
         return res.status(404).json({ error: "DLQ item not found" });
       }
       if (item.status !== "pending") {
-        return res.status(400).json({ error: `DLQ item already processed. Status: ${item.status}` });
+        return res
+          .status(400)
+          .json({
+            error: `DLQ item already processed. Status: ${item.status}`,
+          });
       }
 
       // Route the replay logic based on job type.
       // This runs synchronously giving immediate feedback to the admin.
       if (item.job_type === "webhook_delivery") {
         const payload = item.payload as any;
-        await sendWebhookNotification(payload.eventType, payload.originalPayload);
+        await sendWebhookNotification(
+          payload.eventType,
+          payload.originalPayload,
+        );
       } else if (item.job_type === "ledger_sync_batch") {
         // We trigger the syncer manually or ignore if syncer self-recovers
-        console.log(`[DLQ] Admin triggered ledger sync replay for ledger block.`);
+        console.log(
+          `[DLQ] Admin triggered ledger sync replay for ledger block.`,
+        );
         // Assuming startSyncer runs a catch-up block sequence anyway
         startSyncer().catch(console.error);
       } else {
-        return res.status(400).json({ error: `Unknown job_type: ${item.job_type}` });
+        return res
+          .status(400)
+          .json({ error: `Unknown job_type: ${item.job_type}` });
       }
 
       // Mark as replayed
@@ -169,7 +187,9 @@ adminRouter.post(
         requestedBy: req.user,
       });
     } catch (err: any) {
-      res.status(500).json({ error: "Failed to replay DLQ item", details: err.message });
+      res
+        .status(500)
+        .json({ error: "Failed to replay DLQ item", details: err.message });
     }
   },
 );
@@ -188,7 +208,9 @@ adminRouter.delete(
       // Optionally fully delete it with `await deleteDLQItem(id);` but soft-delete provides better auditing
       res.json({ message: `DLQ item ${id} discarded` });
     } catch (err: any) {
-      res.status(500).json({ error: "Failed to discard DLQ item", details: err.message });
+      res
+        .status(500)
+        .json({ error: "Failed to discard DLQ item", details: err.message });
     }
   },
 );
