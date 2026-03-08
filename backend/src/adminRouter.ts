@@ -151,11 +151,9 @@ adminRouter.post(
         return res.status(404).json({ error: "DLQ item not found" });
       }
       if (item.status !== "pending") {
-        return res
-          .status(400)
-          .json({
-            error: `DLQ item already processed. Status: ${item.status}`,
-          });
+        return res.status(400).json({
+          error: `DLQ item already processed. Status: ${item.status}`,
+        });
       }
 
       // Route the replay logic based on job type.
