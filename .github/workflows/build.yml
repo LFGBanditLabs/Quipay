@@ -61,6 +61,8 @@ jobs:
       #       exit 1
       #     fi
       - run: npm run install:contracts
+      - name: Security audit
+        run: npm audit --audit-level=high
       - run: npm run lint
       - run: npx prettier . --check
       - run: npm run build

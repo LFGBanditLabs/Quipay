@@ -1,0 +1,36 @@
+name: Scheduled Dependency Review
+
+on:
+  schedule:
+    # Every Monday at 00:00 UTC
+    - cron: "0 0 * * 1"
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  review:
+    name: Check for Outdated Packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Root dependencies
+        run: |
+          echo "### Root Dependencies"
+          npm outdated || true
+        continue-on-error: true
+
+      - name: Backend dependencies
+        run: |
+          echo "### Backend Dependencies"
+          cd backend && npm outdated || true
+        continue-on-error: true
+
+      - name: Developer Hub dependencies
+        run: |
+          echo "### Developer Hub Dependencies"
+          cd developer-hub && npm outdated || true
+        continue-on-error: true
