@@ -183,6 +183,8 @@ const attemptDeliveryOnce = async (params: {
   metricsManager.trackTransaction("failure", 0);
 };
 
+import { enqueueJob } from "./queue/asyncQueue";
+
 /**
  * Sends a notification payload to all webhook URLs subscribed to the event type.
  */
@@ -199,7 +201,7 @@ export const sendWebhookNotification = async (
   }
 
   console.log(
-    `[Webhooks] Sending event '${eventType}' to ${subscriptions.length} subscribers...`,
+    `[Webhooks] Enqueueing event '${eventType}' to ${subscriptions.length} subscribers...`,
   );
 
   const deliveryPromises = subscriptions.map(async (sub) => {

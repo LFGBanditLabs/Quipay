@@ -7,6 +7,7 @@ import {
   upsertStream,
   recordWithdrawal,
 } from "./db/queries";
+import { enqueueJob } from "./queue/asyncQueue";
 
 const SOROBAN_RPC_URL =
   process.env.PUBLIC_STELLAR_RPC_URL || "https://soroban-testnet.stellar.org";
@@ -144,29 +145,46 @@ const runSync = async (): Promise<number> => {
 
       while (cursor <= latestLedger) {
         try {
-          const eventsRes = await server.getEvents({
-            startLedger: cursor,
-            filters: CONTRACT_ID
-              ? [{ type: "contract", contractIds: [CONTRACT_ID] }]
-              : [],
-            limit: BATCH_SIZE,
-          });
+          await enqueueJob(
+            async () => {
+              const eventsRes = await server.getEvents({
+                startLedger: cursor,
+                filters: CONTRACT_ID
+                  ? [{ type: "contract", contractIds: [CONTRACT_ID] }]
+                  : [],
+                limit: BATCH_SIZE,
+              });
 
-          await ingestEvents(eventsRes.events);
-          totalIngested += eventsRes.events.length;
+              await ingestEvents(eventsRes.events);
+              totalIngested += eventsRes.events.length;
 
-          // Advance cursor past the batch
-          if (eventsRes.events.length > 0) {
-            cursor = eventsRes.events[eventsRes.events.length - 1].ledger + 1;
-          } else {
-            cursor = latestLedger + 1; // no more events
-          }
+              // Advance cursor past the batch inside the successful closure
+              if (eventsRes.events.length > 0) {
+                cursor =
+                  eventsRes.events[eventsRes.events.length - 1].ledger + 1;
+              } else {
+                cursor = latestLedger + 1; // no more events
+              }
+            },
+            {
+              jobType: "ledger_sync_batch",
+              payload: {
+                startLedger: cursor,
+                limit: BATCH_SIZE,
+                contract: CONTRACT_ID,
+              },
+              maxRetries: 3,
+              baseDelayMs: 3000,
+            },
+          );
         } catch (err: unknown) {
+          // If enqueueJob fails after all retries (and goes to DLQ), we still advance the cursor
+          // so the syncer isn't permanently stuck on a bad ledger batch.
           const msg = err instanceof Error ? err.message : String(err);
           console.error(
-            `[Syncer] Error fetching events at ledger ${cursor}: ${msg}`,
+            `[Syncer] Persistent error fetching events at ledger ${cursor}. Batch sent to DLQ. Skipping ahead. ${msg}`,
           );
-          break;
+          cursor += BATCH_SIZE; // Skip this batch to prevent halting the entire pipeline
         }
       }
 

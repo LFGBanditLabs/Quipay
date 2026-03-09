@@ -17,6 +17,9 @@ const TreasuryManager = lazy(() => import("./pages/TreasuryManager"));
 const WithdrawPage = lazy(() => import("./pages/withdrawPage"));
 const Reports = lazy(() => import("./pages/Reports"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const DashboardCustomization = lazy(
+  () => import("./pages/DashboardCustomization"),
+);
 
 function AppLoadingFallback() {
   const { t } = useTranslation();
