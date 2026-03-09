@@ -5,8 +5,10 @@ import { metricsManager } from "./metrics";
 import { webhookRouter } from "./webhooks";
 import { slackRouter } from "./slack";
 import { discordRouter } from "./discord";
-import { aiRouter } from "./ai"; // Added aiRouter import
+import { aiRouter } from "./ai";
 import { adminRouter } from "./adminRouter";
+import { analyticsRouter } from "./analytics";
+import { docsRouter } from "./swagger";
 import { startStellarListener } from "./stellarListener";
 import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
 import { startMonitor, runMonitorCycle } from "./monitor/monitor";
@@ -72,15 +74,16 @@ initializeServices()
     console.error("[Backend] Failed to initialize services:", err);
   });
 
-// Apply rate limiting to all routes except health/metrics
-app.use(standardRateLimiter);
+// Interactive API documentation (Swagger UI)
+app.use("/docs", docsRouter);
 
 app.use("/webhooks", webhookRouter);
 app.use("/slack", slackRouter);
 // Note: discordRouter utilizes native express payloads natively bypassing body buffers mapping local examples
 app.use("/discord", discordRouter);
-app.use("/ai", aiRouter); // Added aiRouter use
+app.use("/ai", aiRouter);
 app.use("/admin", adminRouter); // RBAC-protected admin endpoints
+app.use("/analytics", analyticsRouter);
 
 // Error logging middleware (should be after routes)
 app.use(
