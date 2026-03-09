@@ -1,13 +1,5 @@
-/**
- * PayrollDashboard.tsx
- * Quipay — Advanced Payroll Analytics Dashboard
- * Place in: src/components/PayrollDashboard.tsx
- *
- * Dependencies: recharts
- * Install: npm install recharts
- */
-
 import { useState, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import {
   LineChart,
@@ -93,19 +85,18 @@ const ALL_DATA = generateDailyData();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const fmt = (n: number, dec = 0) =>
-  n.toLocaleString("en-US", {
+const fmt = (n: number, locale = "en", dec = 0) =>
+  n.toLocaleString(locale, {
     minimumFractionDigits: dec,
     maximumFractionDigits: dec,
   });
 
-const fmtUSD = (n: number) =>
-  "$" +
-  (n >= 1_000_000
-    ? (n / 1_000_000).toFixed(2) + "M"
-    : n >= 1_000
-      ? (n / 1_000).toFixed(1) + "K"
-      : n.toFixed(0));
+const fmtUSD = (n: number, locale = "en") =>
+  new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "USD",
+    notation: n >= 1000 ? "compact" : "standard",
+  }).format(n);
 
 function filterByRange(data: DailyRecord[], range: DateRange): DailyRecord[] {
   if (range === "ALL") return data;
@@ -129,7 +120,7 @@ function downsample(data: DailyRecord[], maxPoints: number): DailyRecord[] {
   return data.filter((_, i) => i % step === 0);
 }
 
-function toMonthly(data: DailyRecord[]) {
+function toMonthly(data: DailyRecord[], locale = "en") {
   const map = new Map<
     string,
     { month: string; usdc: number; xlm: number; transactions: number }
@@ -144,7 +135,7 @@ function toMonthly(data: DailyRecord[]) {
     } else {
       const [y, m] = key.split("-");
       const label = new Date(Number(y), Number(m) - 1).toLocaleDateString(
-        "en-US",
+        locale,
         { month: "short", year: "2-digit" },
       );
       map.set(key, {
@@ -209,6 +200,7 @@ function ChartTooltip({
   payload?: { name: string; value: number; color: string }[];
   label?: string;
 }) {
+  const { i18n } = useTranslation();
   if (!active || !payload?.length) return null;
   return (
     <div
@@ -259,8 +251,8 @@ function ChartTooltip({
             }}
           >
             {typeof p.value === "number" && p.name.toLowerCase().includes("usd")
-              ? fmtUSD(p.value)
-              : fmt(p.value, 0)}
+              ? fmtUSD(p.value, i18n.language)
+              : fmt(p.value, i18n.language, 0)}
           </span>
         </div>
       ))}
@@ -357,6 +349,7 @@ interface ActivePieShapeProps {
 }
 
 function ActivePieShape(props: ActivePieShapeProps) {
+  const { i18n } = useTranslation();
   const {
     cx,
     cy,
@@ -382,7 +375,7 @@ function ActivePieShape(props: ActivePieShapeProps) {
           fontFamily: "'DM Mono',monospace",
         }}
       >
-        {fmtUSD(value || 0)}
+        {fmtUSD(value || 0, i18n.language)}
       </text>
       <text
         x={cx}
@@ -427,6 +420,7 @@ function ActivePieShape(props: ActivePieShapeProps) {
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function PayrollDashboard() {
+  const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const [range, setRange] = useState<DateRange>("90D");
   const [tokenFilter, setToken] = useState<Token>("ALL");
@@ -447,7 +441,10 @@ export default function PayrollDashboard() {
     [filtered, tokenFilter],
   );
 
-  const monthlyBar = useMemo(() => toMonthly(filtered), [filtered]);
+  const monthlyBar = useMemo(
+    () => toMonthly(filtered, i18n.language),
+    [filtered, i18n.language],
+  );
 
   const totalUSDC = useMemo(
     () => filtered.reduce((s, r) => s + r.usdc, 0),
@@ -525,9 +522,9 @@ export default function PayrollDashboard() {
 
   const handleExport = useCallback(() => {
     exportCSV(filtered, `quipay-analytics-${range}-${Date.now()}.csv`);
-    setExportMsg("Downloaded!");
+    setExportMsg(t("payroll.downloaded"));
     setTimeout(() => setExportMsg(""), 2500);
-  }, [filtered, range]);
+  }, [filtered, range, t]);
 
   // ── Styles ──
   const sectionLabel: React.CSSProperties = {
@@ -621,7 +618,7 @@ export default function PayrollDashboard() {
                 marginBottom: 6,
               }}
             >
-              Quipay · Employer Analytics
+              {t("payroll.analytics_title")}
             </div>
             <h1
               style={{
@@ -632,10 +629,11 @@ export default function PayrollDashboard() {
                 color: "var(--text)",
               }}
             >
-              Payroll Intelligence
+              {t("payroll.payroll_intelligence")}
             </h1>
             <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 6 }}>
-              {fmt(ALL_DATA.length)} data points · Real-time payroll analytics
+              {t("payroll.data_points", { count: ALL_DATA.length })} ·{" "}
+              {t("payroll.real_time")}
             </p>
           </div>
 
@@ -657,7 +655,9 @@ export default function PayrollDashboard() {
                 color: "var(--text)",
               }}
             >
-              {theme === "dark" ? "☀ Light" : "☾ Dark"}
+              {theme === "dark"
+                ? `☀ ${t("payroll.light")}`
+                : `☾ ${t("payroll.dark")}`}
             </button>
 
             {/* Export */}
@@ -670,7 +670,7 @@ export default function PayrollDashboard() {
                 boxShadow: `0 4px 20px rgba(110,86,207,.35)`,
               }}
             >
-              {exportMsg || "↓ Export CSV"}
+              {exportMsg || `↓ ${t("payroll.export_csv")}`}
             </button>
           </div>
         </div>
@@ -721,7 +721,7 @@ export default function PayrollDashboard() {
               display: "flex",
               gap: 6,
               background: "var(--surface)",
-              border: `1.5px solid ${"var(--border)"}`,
+              border: "1.5px solid var(--border)",
               borderRadius: 99,
               padding: "4px",
             }}
@@ -751,33 +751,39 @@ export default function PayrollDashboard() {
           <span
             style={{ fontSize: 12, color: "var(--muted)", marginLeft: "auto" }}
           >
-            {fmt(filtered.length)} days selected
+            {t("payroll.days_selected", { count: filtered.length })}
           </span>
         </div>
 
         {/* ── KPI Row ── */}
         <div className="pd-kpi-grid" style={{ marginBottom: 20 }}>
           <KPICard
-            label="Total USDC Payroll"
-            value={fmtUSD(totalUSDC)}
+            label={t("payroll.total_usdc_payroll")}
+            value={fmtUSD(totalUSDC, i18n.language)}
             delta={deltaUSDC}
-            sub="vs prev period"
+            sub={t("payroll.vs_prev_period")}
           />
           <KPICard
-            label="Total XLM Payroll"
-            value={fmt(totalXLM, 0) + " XLM"}
-            sub="native token"
-          />
-          <KPICard label="Transactions" value={fmt(totalTx)} sub="on-chain" />
-          <KPICard
-            label="Avg Active Workers"
-            value={fmt(avgWorkers)}
-            sub="per day"
+            label={t("payroll.total_xlm_payroll")}
+            value={
+              fmt(totalXLM, i18n.language, 0) + " " + t("payroll.xlm_native")
+            }
+            sub={t("payroll.native_token")}
           />
           <KPICard
-            label="Total Protocol Fees"
-            value={fmtUSD(totalFees)}
-            sub="paid to network"
+            label={t("payroll.transactions")}
+            value={fmt(totalTx, i18n.language)}
+            sub={t("payroll.on_chain")}
+          />
+          <KPICard
+            label={t("payroll.avg_active_workers")}
+            value={fmt(avgWorkers, i18n.language)}
+            sub={t("payroll.per_day")}
+          />
+          <KPICard
+            label={t("payroll.total_fees")}
+            value={fmtUSD(totalFees, i18n.language)}
+            sub={t("payroll.paid_to_network")}
           />
         </div>
 
@@ -794,9 +800,9 @@ export default function PayrollDashboard() {
               }}
             >
               <div>
-                <p style={sectionLabel}>Burn Rate</p>
+                <p style={sectionLabel}>{t("payroll.burn_rate")}</p>
                 <p style={{ fontSize: 13, color: "var(--muted)" }}>
-                  Daily payroll spend over time
+                  {t("payroll.burn_rate_desc")}
                 </p>
               </div>
               <span
@@ -843,7 +849,7 @@ export default function PayrollDashboard() {
                   tick={{ fill: "var(--muted)", fontSize: 10 }}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={fmtUSD}
+                  tickFormatter={(val: number) => fmtUSD(val, i18n.language)}
                   width={56}
                 />
                 <Tooltip content={<ChartTooltip />} />
@@ -880,11 +886,11 @@ export default function PayrollDashboard() {
           <div
             style={{ ...chartCard, display: "flex", flexDirection: "column" }}
           >
-            <p style={sectionLabel}>Token Distribution</p>
+            <p style={sectionLabel}>{t("payroll.token_distribution")}</p>
             <p
               style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16 }}
             >
-              Payroll spend by asset
+              {t("payroll.token_distribution_desc")}
             </p>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
@@ -948,7 +954,7 @@ export default function PayrollDashboard() {
                       fontWeight: 600,
                     }}
                   >
-                    {fmtUSD(p.value)}
+                    {fmtUSD(p.value, i18n.language)}
                   </span>
                   <span style={{ fontSize: 10, color: "var(--muted)" }}>
                     {(
@@ -967,11 +973,11 @@ export default function PayrollDashboard() {
         <div className="pd-chart-row-3" style={{ marginBottom: 16 }}>
           {/* Monthly payroll bar chart */}
           <div style={chartCard}>
-            <p style={sectionLabel}>Monthly Payroll Volume</p>
+            <p style={sectionLabel}>{t("payroll.monthly_volume")}</p>
             <p
               style={{ fontSize: 13, color: "var(--muted)", marginBottom: 18 }}
             >
-              USDC + XLM stacked by month
+              {t("payroll.monthly_volume_desc")}
             </p>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart
@@ -995,15 +1001,13 @@ export default function PayrollDashboard() {
                   tick={{ fill: "var(--muted)", fontSize: 10 }}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={fmtUSD}
+                  tickFormatter={(val: number) => fmtUSD(val, i18n.language)}
                   width={56}
                 />
                 <Tooltip content={<ChartTooltip />} />
                 <Legend
                   wrapperStyle={{ fontSize: 11, color: "var(--muted)" }}
                 />
-                transformation of `t.` to `var(--)` and removal of theme prop
-                logic continues recursively...
                 <Bar
                   dataKey="usdc"
                   name="USDC"
@@ -1024,11 +1028,11 @@ export default function PayrollDashboard() {
 
           {/* Worker trend line */}
           <div style={chartCard}>
-            <p style={sectionLabel}>Active Worker Trend</p>
+            <p style={sectionLabel}>{t("payroll.worker_growth")}</p>
             <p
               style={{ fontSize: 13, color: "var(--muted)", marginBottom: 18 }}
             >
-              Workers receiving streams per day
+              {t("payroll.worker_growth_desc")}
             </p>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart
@@ -1080,9 +1084,9 @@ export default function PayrollDashboard() {
             }}
           >
             <div>
-              <p style={sectionLabel}>Transaction Frequency</p>
+              <p style={sectionLabel}>{t("payroll.total_tx")}</p>
               <p style={{ fontSize: 13, color: "var(--muted)" }}>
-                On-chain transactions per day
+                {t("payroll.on_chain")}
               </p>
             </div>
             <div style={{ textAlign: "right" }}>
@@ -1094,10 +1098,10 @@ export default function PayrollDashboard() {
                   color: "var(--text)",
                 }}
               >
-                {fmt(totalTx)}
+                {fmt(totalTx, i18n.language)}
               </div>
               <div style={{ fontSize: 11, color: "var(--muted)" }}>
-                total in period
+                {t("payroll.total_in_period")}
               </div>
             </div>
           </div>
@@ -1148,8 +1152,9 @@ export default function PayrollDashboard() {
             color: "var(--muted)",
           }}
         >
-          Quipay Analytics · {fmt(ALL_DATA.length)} data points · All amounts in
-          USD equivalent
+          {t("common.welcome")} ·{" "}
+          {t("payroll.data_points", { count: ALL_DATA.length })} ·{" "}
+          {t("common.all_amounts_usd")}
         </div>
       </div>
     </>

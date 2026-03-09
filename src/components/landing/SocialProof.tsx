@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import styles from "./SocialProof.module.css";
 
 interface AnimatedCounterProps {
   value: number;
@@ -15,6 +17,7 @@ const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
   suffix = "",
   duration = 2000,
 }) => {
+  const { i18n } = useTranslation();
   const [count, setCount] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
   const elementRef = useRef<HTMLDivElement>(null);
@@ -66,7 +69,7 @@ const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
     <div ref={elementRef} className="flex flex-col items-center text-center">
       <div className="mb-2 bg-gradient-to-r from-[var(--accent)] to-pink-400 bg-clip-text text-[2.5rem] font-extrabold tabular-nums text-transparent">
         {prefix}
-        {count.toLocaleString()}
+        {count.toLocaleString(i18n.language)}
         {suffix}
       </div>
       <div className="text-sm font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">
@@ -105,13 +108,14 @@ const AlbedoLogo = () => (
 );
 
 const SocialProof: React.FC = () => {
+  const { t } = useTranslation();
   return (
     <div className="relative z-10 flex w-full flex-col items-center gap-16 px-6 py-24">
       <div className="group inline-flex cursor-default items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)] px-5 py-2.5 shadow-[0_4px_20px_var(--shadow-color)] backdrop-blur-[8px] transition-all duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-[2px] hover:border-[var(--accent)] hover:shadow-[0_8px_24px_var(--shadow-color)]">
         <StellarLogo />
-        <span className="text-sm font-semibold tracking-wide text-[var(--muted)]">
-          Built on{" "}
-          <strong className="text-[var(--text)]">Stellar Network</strong>
+        <span className={styles.bannerText}>
+          {t("social_proof.built_on")}{" "}
+          <strong>{t("social_proof.stellar_network")}</strong>
         </span>
       </div>
 
@@ -144,11 +148,15 @@ const SocialProof: React.FC = () => {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-16">
-        <AnimatedCounter value={12480} label="Total Streams" suffix="+" />
+      <div className={styles.metricsContainer}>
+        <AnimatedCounter
+          value={12480}
+          label={t("social_proof.total_streams")}
+          suffix="+"
+        />
         <AnimatedCounter
           value={4250000}
-          label="Total Value Streamed"
+          label={t("social_proof.total_value")}
           prefix="$"
           duration={2500}
         />
