@@ -19,6 +19,9 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
         working-directory: backend
+      - name: Security audit
+        run: npm audit --audit-level=high
+        working-directory: backend
       - run: npm run build
         working-directory: backend
       - run: npm test

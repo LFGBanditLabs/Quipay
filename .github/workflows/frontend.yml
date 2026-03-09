@@ -15,6 +15,8 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci --legacy-peer-deps
+      - name: Security audit
+        run: npm audit --audit-level=high
       - run: npm run lint
       - run: npx prettier . --check
       - run: npm run build
