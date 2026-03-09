@@ -10,7 +10,7 @@ export const aiParseCommandSchema = z.object({
     .max(1000, { message: "Command too long (max 1000 characters)" })
     .trim()
     .refine(
-      (cmd) => {
+      (cmd: string) => {
         // Basic sanitization - reject commands with suspicious patterns
         const suspiciousPatterns = [
           /<script/i,
@@ -33,8 +33,7 @@ export const aiExecuteCommandSchema = z.object({
     .min(1, { message: "Intent ID is required" })
     .max(100, { message: "Intent ID too long" }),
   confirmed: z.boolean({
-    required_error: "Confirmation status is required",
-    invalid_type_error: "Confirmed must be a boolean",
+    message: "Confirmation status is required and must be a boolean",
   }),
 });
 

@@ -9,7 +9,7 @@ export const webhookRegistrationSchema = z.object({
     .url({ message: "Invalid URL format" })
     .max(2048, { message: "URL too long (max 2048 characters)" })
     .refine(
-      (url) => {
+      (url: string) => {
         // Ensure HTTPS in production
         if (process.env.NODE_ENV === "production") {
           return url.startsWith("https://");
@@ -23,7 +23,7 @@ export const webhookRegistrationSchema = z.object({
       z.enum(
         ["withdrawal", "new_stream", "stream_cancelled", "payment_failed"],
         {
-          errorMap: () => ({ message: "Invalid event type" }),
+          message: "Invalid event type",
         },
       ),
     )

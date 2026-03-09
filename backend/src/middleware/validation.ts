@@ -20,18 +20,18 @@ export function validateRequest(schemas: {
 
       // Validate query if schema provided
       if (schemas.query) {
-        req.query = await schemas.query.parseAsync(req.query);
+        req.query = (await schemas.query.parseAsync(req.query)) as any;
       }
 
       // Validate params if schema provided
       if (schemas.params) {
-        req.params = await schemas.params.parseAsync(req.params);
+        req.params = (await schemas.params.parseAsync(req.params)) as any;
       }
 
       next();
     } catch (error) {
       if (error instanceof ZodError) {
-        const validationErrors = error.errors.map((err) => ({
+        const validationErrors = error.issues.map((err: z.ZodIssue) => ({
           field: err.path.join("."),
           message: err.message,
           code: err.code,
