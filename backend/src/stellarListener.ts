@@ -1,11 +1,25 @@
 import { rpc } from "@stellar/stellar-sdk";
 import { sendWebhookNotification } from "./delivery";
+import { createCircuitBreaker } from "./utils/circuitBreaker";
 
 const SOROBAN_RPC_URL =
   process.env.PUBLIC_STELLAR_RPC_URL || "https://soroban-testnet.stellar.org";
 const QUIPAY_CONTRACT_ID = process.env.QUIPAY_CONTRACT_ID || "";
 
 const server = new rpc.Server(SOROBAN_RPC_URL);
+
+const getLatestLedgerBreaker = createCircuitBreaker(
+  server.getLatestLedger.bind(server),
+  {
+    name: "stellar_get_latest_ledger",
+    timeout: 5000,
+  },
+);
+
+const getEventsBreaker = createCircuitBreaker(server.getEvents.bind(server), {
+  name: "stellar_get_events",
+  timeout: 10000,
+});
 
 /**
  * Starts polling the Soroban RPC for Quipay contract events.
@@ -24,15 +38,15 @@ export const startStellarListener = async () => {
   );
 
   try {
-    let latestLedger = await getLatestLedger();
+    let latestLedger = await getLatestLedgerInternal();
 
     // Poll every 5 seconds
     setInterval(async () => {
       try {
-        const currentLedger = await getLatestLedger();
+        const currentLedger = await getLatestLedgerInternal();
         if (currentLedger <= latestLedger) return;
 
-        const eventsResponse = await server.getEvents({
+        const eventsResponse: any = await getEventsBreaker.fire({
           startLedger: latestLedger + 1,
           filters: [
             {
@@ -43,7 +57,9 @@ export const startStellarListener = async () => {
           limit: 100,
         });
 
-        eventsResponse.events.forEach((event) => {
+        if (!eventsResponse) return; // Fallback or issue
+
+        eventsResponse.events.forEach((event: any) => {
           parseAndDeliverEvent(event);
         });
 
@@ -59,9 +75,14 @@ export const startStellarListener = async () => {
   }
 };
 
-const getLatestLedger = async (): Promise<number> => {
-  const health = await server.getLatestLedger();
-  return health.sequence;
+const getLatestLedgerInternal = async (): Promise<number> => {
+  try {
+    const health: any = await getLatestLedgerBreaker.fire();
+    return health?.sequence || 0;
+  } catch (err) {
+    console.error("[Stellar Listener] Failed to get latest ledger", err);
+    return 0;
+  }
 };
 
 const parseAndDeliverEvent = (event: rpc.Api.EventResponse) => {

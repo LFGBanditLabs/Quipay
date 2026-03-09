@@ -9,6 +9,19 @@ import {
   updateWebhookOutboundEventAfterAttempt,
 } from "./db/queries";
 import { getPool } from "./db/pool";
+import { createCircuitBreaker } from "./utils/circuitBreaker";
+
+const webhookBreaker = createCircuitBreaker(axios.post, {
+  name: "webhook_delivery",
+  timeout: 7000,
+  errorThresholdPercentage: 50,
+  resetTimeout: 60000,
+});
+
+webhookBreaker.fallback((url: string) => {
+  console.warn(`[Webhooks] Circuit breaker fallback triggered for ${url}`);
+  return { status: 503, data: { error: "Service Unavailable (Circuit Breaker)" } };
+});
 
 // Maximum attempts for exponential backoff retries
 const MAX_RETRIES = 6;
@@ -112,10 +125,14 @@ const attemptDeliveryOnce = async (params: {
   let rawError: any = null;
 
   try {
-    const response = await axios.post(params.url, params.outgoingPayload, {
-      timeout: 5000,
-      validateStatus: () => true,
-    });
+    const response: any = await webhookBreaker.fire(
+      params.url,
+      params.outgoingPayload,
+      {
+        timeout: 5000,
+        validateStatus: () => true,
+      },
+    );
     statusCode = response.status;
     if (response.data !== undefined) {
       responseBody =
