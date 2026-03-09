@@ -73,6 +73,7 @@ function App() {
           <Route path="/help" element={<HelpPage />} />
           <Route path="/debug" element={<Debugger />} />
           <Route path="/debug/:contractName" element={<Debugger />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
