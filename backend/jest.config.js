@@ -8,4 +8,10 @@ module.exports = {
   collectCoverageFrom: ["src/**/*.ts", "!src/**/*.test.ts", "!src/**/*.d.ts"],
   coverageDirectory: "coverage",
   verbose: true,
+  // Increase timeout for integration tests with containers
+  testTimeout: 60000,
+  // Run tests serially to avoid container conflicts
+  maxWorkers: 1,
+  // Setup files
+  setupFilesAfterEnv: ["<rootDir>/src/__tests__/setup.ts"],
 };

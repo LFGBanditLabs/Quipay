@@ -2,6 +2,8 @@ import * as cron from "node-cron";
 import { getPool } from "../db/pool";
 import { getAuditLogger, isAuditLoggerInitialized } from "../audit/init";
 import { withAdvisoryLock } from "../utils/lock";
+import { listDueWebhookOutboundEvents } from "../db/queries";
+import { retryWebhookEvent } from "../delivery";
 
 interface SchedulerScheduledTask {
   start: () => void;
@@ -28,6 +30,16 @@ const SCHEDULER_POLL_INTERVAL_MS = parseInt(
 );
 const AUTOMATION_GATEWAY_ADDRESS = process.env.AUTOMATION_GATEWAY_ADDRESS || "";
 const PAYROLL_STREAM_ADDRESS = process.env.PAYROLL_STREAM_ADDRESS || "";
+
+const WEBHOOK_RETRY_POLL_INTERVAL_MS = parseInt(
+  process.env.WEBHOOK_RETRY_POLL_MS || "10000",
+  10,
+);
+
+const WEBHOOK_RETRY_BATCH_SIZE = parseInt(
+  process.env.WEBHOOK_RETRY_BATCH_SIZE || "50",
+  10,
+);
 
 interface ScheduledJob {
   id: number;
@@ -324,6 +336,34 @@ const startHealthCheck = (): void => {
   );
 };
 
+const startWebhookRetryRunner = (): void => {
+  const LOCK_ID = 424242;
+  const taskName = "webhook-retry-runner";
+
+  setInterval(async () => {
+    if (!getPool()) return;
+    await withAdvisoryLock(
+      LOCK_ID,
+      async () => {
+        const due = await listDueWebhookOutboundEvents({
+          limit: WEBHOOK_RETRY_BATCH_SIZE,
+        });
+        if (due.length === 0) return;
+
+        log(`Retry runner processing ${due.length} due webhook event(s)`);
+        for (const ev of due) {
+          try {
+            await retryWebhookEvent(ev.id);
+          } catch (err) {
+            logError(`Webhook retry failed for event ${ev.id}`, err);
+          }
+        }
+      },
+      taskName,
+    );
+  }, WEBHOOK_RETRY_POLL_INTERVAL_MS);
+};
+
 export const startScheduler = async (): Promise<void> => {
   if (!getPool()) {
     console.warn(
@@ -337,6 +377,8 @@ export const startScheduler = async (): Promise<void> => {
   await refreshJobs();
 
   setInterval(refreshJobs, SCHEDULER_POLL_INTERVAL_MS);
+
+  startWebhookRetryRunner();
 
   startHealthCheck();
 
