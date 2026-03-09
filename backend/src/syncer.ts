@@ -1,4 +1,5 @@
 import { rpc } from "@stellar/stellar-sdk";
+import { executeWithBreaker } from "./utils/circuitBreaker";
 import { getPool } from "./db/pool";
 import { withAdvisoryLock } from "./utils/lock";
 import {
@@ -133,7 +134,13 @@ const runSync = async (): Promise<number> => {
       const lastSynced = await getLastSyncedLedger(CONTRACT_ID || "default");
       const startLedger = Math.max(lastSynced + 1, SYNC_START_LEDGER + 1);
 
-      const latestRes = await server.getLatestLedger();
+      const latestRes = await executeWithBreaker(
+        "stellar_rpc",
+        async () => server.getLatestLedger(),
+        [],
+        undefined,
+        { timeout: 5000 },
+      );
       latestLedger = latestRes.sequence;
 
       if (startLedger > latestLedger) {
@@ -145,14 +152,38 @@ const runSync = async (): Promise<number> => {
 
       while (cursor <= latestLedger) {
         try {
+<<<<<<< Circuit
+          const eventsRes = await executeWithBreaker(
+            "stellar_rpc",
+            async () =>
+              server.getEvents({
+=======
           await enqueueJob(
             async () => {
               const eventsRes = await server.getEvents({
+>>>>>>> main
                 startLedger: cursor,
                 filters: CONTRACT_ID
                   ? [{ type: "contract", contractIds: [CONTRACT_ID] }]
                   : [],
                 limit: BATCH_SIZE,
+<<<<<<< Circuit
+              }),
+            [],
+            undefined,
+            { timeout: 8000 },
+          );
+
+          await ingestEvents(eventsRes.events);
+          totalIngested += eventsRes.events.length;
+
+          // Advance cursor past the batch
+          if (eventsRes.events.length > 0) {
+            cursor = eventsRes.events[eventsRes.events.length - 1].ledger + 1;
+          } else {
+            cursor = latestLedger + 1; // no more events
+          }
+=======
               });
 
               await ingestEvents(eventsRes.events);
@@ -177,6 +208,7 @@ const runSync = async (): Promise<number> => {
               baseDelayMs: 3000,
             },
           );
+>>>>>>> main
         } catch (err: unknown) {
           // If enqueueJob fails after all retries (and goes to DLQ), we still advance the cursor
           // so the syncer isn't permanently stuck on a bad ledger batch.

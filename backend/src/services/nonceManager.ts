@@ -1,4 +1,5 @@
 import { Horizon } from "@stellar/stellar-sdk";
+import { executeWithBreaker } from "../utils/circuitBreaker";
 import PQueue from "p-queue";
 
 export class NonceManager {
@@ -23,7 +24,13 @@ export class NonceManager {
    */
   async initialize(): Promise<void> {
     return this.requestQueue.add(async () => {
-      const account = await this.server.loadAccount(this.accountId);
+      const account = await executeWithBreaker(
+        "stellar_horizon",
+        async () => this.server.loadAccount(this.accountId),
+        [],
+        undefined,
+        { timeout: 5000 },
+      );
       this.currentSequence = BigInt(account.sequence);
       this.availableNonces = [];
     });
@@ -78,7 +85,13 @@ export class NonceManager {
 
   // Helper to avoid deadlock when calling initialize() from inside getNonce()'s queue context
   private async initializeQueueFree(): Promise<void> {
-    const account = await this.server.loadAccount(this.accountId);
+    const account = await executeWithBreaker(
+      "stellar_horizon",
+      async () => this.server.loadAccount(this.accountId),
+      [],
+      undefined,
+      { timeout: 5000 },
+    );
     this.currentSequence = BigInt(account.sequence);
     this.availableNonces = [];
   }

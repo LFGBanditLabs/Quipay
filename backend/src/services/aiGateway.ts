@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { executeWithBreaker } from "../utils/circuitBreaker";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -70,20 +71,41 @@ Output Requirements:
 `;
 
     try {
-      const response = await this.openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: command },
-        ],
-        response_format: { type: "json_object" },
-      });
+      const response = await executeWithBreaker(
+        "openai",
+        async () =>
+          this.openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: command },
+            ],
+            response_format: { type: "json_object" },
+          }),
+        [],
+        async () =>
+          Promise.resolve({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    function: "unknown",
+                    params: {},
+                    confidence: 0,
+                    reasoning: "fallback",
+                    needs_confirmation: false,
+                  }),
+                },
+              },
+            ],
+          } as any),
+        { timeout: 10000 },
+      );
 
       const content = response.choices[0].message.content;
       if (!content) {
         throw new Error("Empty response from OpenAI");
       }
-
       const parsed: AICallResponse = JSON.parse(content);
       return parsed;
     } catch (error: any) {

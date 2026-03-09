@@ -14,13 +14,13 @@ import { getPool } from "./db/pool";
 const MAX_RETRIES = 6;
 
 const computeBackoffMs = (attemptNumber: number): number => {
-  const baseMs = 1_000;
-  const maxMs = 10 * 60 * 1_000;
+  const baseMs = 1000;
+  const maxMs = 10 * 60 * 1000;
   const exponential = Math.pow(2, Math.max(0, attemptNumber - 1)) * baseMs;
   return Math.min(exponential, maxMs);
 };
 
-const getErrorMessage = (err: unknown): string => {
+const getErrorMessage = (err: any): string => {
   if (err instanceof Error) return err.message;
   return String(err);
 };
