@@ -9,6 +9,7 @@ const Home = lazy(() => import("./pages/Home"));
 const Debugger = lazy(() => import("./pages/Debugger"));
 const EmployerDashboard = lazy(() => import("./pages/EmployerDashboard"));
 const GovernanceOverview = lazy(() => import("./pages/GovernanceOverview"));
+const Settings = lazy(() => import("./pages/Settings"));
 const CreateStream = lazy(() => import("./pages/CreateStream"));
 const HelpPage = lazy(() => import("./pages/HelpPage"));
 const PayrollDashboard = lazy(() => import("./pages/PayrollDashboard"));
@@ -16,6 +17,9 @@ const TreasuryManager = lazy(() => import("./pages/TreasuryManager"));
 const WithdrawPage = lazy(() => import("./pages/withdrawPage"));
 const Reports = lazy(() => import("./pages/Reports"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const DashboardCustomization = lazy(
+  () => import("./pages/DashboardCustomization"),
+);
 
 function AppLoadingFallback() {
   const { t } = useTranslation();

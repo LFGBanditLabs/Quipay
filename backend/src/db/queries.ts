@@ -81,6 +81,23 @@ export interface SchedulerLog {
   created_at: Date;
 }
 
+export interface WebhookOutboundEventRecord {
+  id: string;
+  owner_id: string;
+  subscription_id: string;
+  url: string;
+  event_type: string;
+  request_payload: unknown;
+  status: "pending" | "success" | "failed";
+  attempt_count: number;
+  last_response_code: number | null;
+  last_error: string | null;
+  next_retry_at: Date | null;
+  last_attempt_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
 // ─── Cursor helpers (for sync worker) ───────────────────────────────────────
 
 export const getLastSyncedLedger = async (
@@ -583,6 +600,143 @@ export const getMonitorLogs = async (
   const res = await query<MonitorLogEntry>(
     `SELECT * FROM treasury_monitor_log ORDER BY created_at DESC LIMIT $1`,
     [limit],
+  );
+  return res.rows;
+};
+
+// ─── Webhook outbound delivery logs ──────────────────────────────────────────
+
+export const createWebhookOutboundEvent = async (params: {
+  id: string;
+  ownerId: string;
+  subscriptionId: string;
+  url: string;
+  eventType: string;
+  requestPayload: unknown;
+}): Promise<void> => {
+  if (!getPool()) return;
+  await query(
+    `INSERT INTO webhook_outbound_events
+        (id, owner_id, subscription_id, url, event_type, request_payload, status)
+      VALUES ($1,$2,$3,$4,$5,$6,'pending')`,
+    [
+      params.id,
+      params.ownerId,
+      params.subscriptionId,
+      params.url,
+      params.eventType,
+      params.requestPayload,
+    ],
+  );
+};
+
+export const insertWebhookOutboundAttempt = async (params: {
+  eventId: string;
+  attemptNumber: number;
+  responseCode: number | null;
+  responseBody: string | null;
+  errorMessage: string | null;
+  durationMs: number | null;
+}): Promise<void> => {
+  if (!getPool()) return;
+  await query(
+    `INSERT INTO webhook_outbound_attempts
+        (event_id, attempt_number, response_code, response_body, error_message, duration_ms)
+      VALUES ($1,$2,$3,$4,$5,$6)`,
+    [
+      params.eventId,
+      params.attemptNumber,
+      params.responseCode,
+      params.responseBody,
+      params.errorMessage,
+      params.durationMs,
+    ],
+  );
+};
+
+export const updateWebhookOutboundEventAfterAttempt = async (params: {
+  eventId: string;
+  status: "pending" | "success" | "failed";
+  attemptCount: number;
+  lastResponseCode: number | null;
+  lastError: string | null;
+  nextRetryAt: Date | null;
+}): Promise<void> => {
+  if (!getPool()) return;
+  await query(
+    `UPDATE webhook_outbound_events
+        SET status = $2,
+            attempt_count = $3,
+            last_response_code = $4,
+            last_error = $5,
+            next_retry_at = $6,
+            last_attempt_at = NOW(),
+            updated_at = NOW()
+      WHERE id = $1`,
+    [
+      params.eventId,
+      params.status,
+      params.attemptCount,
+      params.lastResponseCode,
+      params.lastError,
+      params.nextRetryAt,
+    ],
+  );
+};
+
+export const getWebhookOutboundEventById = async (
+  eventId: string,
+): Promise<WebhookOutboundEventRecord | null> => {
+  if (!getPool()) return null;
+  const res = await query<WebhookOutboundEventRecord>(
+    `SELECT * FROM webhook_outbound_events WHERE id = $1`,
+    [eventId],
+  );
+  return res.rows[0] ?? null;
+};
+
+export const getWebhookOutboundEventByIdForOwner = async (params: {
+  eventId: string;
+  ownerId: string;
+}): Promise<WebhookOutboundEventRecord | null> => {
+  if (!getPool()) return null;
+  const res = await query<WebhookOutboundEventRecord>(
+    `SELECT * FROM webhook_outbound_events WHERE id = $1 AND owner_id = $2`,
+    [params.eventId, params.ownerId],
+  );
+  return res.rows[0] ?? null;
+};
+
+export const listDueWebhookOutboundEvents = async (params: {
+  limit: number;
+}): Promise<WebhookOutboundEventRecord[]> => {
+  if (!getPool()) return [];
+  const res = await query<WebhookOutboundEventRecord>(
+    `SELECT *
+      FROM webhook_outbound_events
+      WHERE status = 'pending'
+        AND next_retry_at IS NOT NULL
+        AND next_retry_at <= NOW()
+      ORDER BY next_retry_at ASC
+      LIMIT $1`,
+    [params.limit],
+  );
+  return res.rows;
+};
+
+export const listWebhookOutboundEventsByOwner = async (params: {
+  ownerId: string;
+  limit: number;
+  offset: number;
+}): Promise<WebhookOutboundEventRecord[]> => {
+  if (!getPool()) return [];
+  const res = await query<WebhookOutboundEventRecord>(
+    `SELECT *
+      FROM webhook_outbound_events
+      WHERE owner_id = $1
+      ORDER BY created_at DESC
+      LIMIT $2 OFFSET $3`,
+    [params.ownerId, params.limit, params.offset],
   );
   return res.rows;
 };

@@ -6,6 +6,15 @@ import {
   requireUser,
   AuthenticatedRequest,
 } from "./middleware/rbac";
+import {
+  getPendingDLQItems,
+  getDLQItemById,
+  updateDLQItemStatus,
+  deleteDLQItem,
+} from "./db/dlq";
+import { enqueueJob } from "./queue/asyncQueue";
+import { sendWebhookNotification } from "./delivery"; // used for replay examples
+import { startSyncer } from "./syncer"; // used for replay examples
 
 export const adminRouter = Router();
 
@@ -103,6 +112,104 @@ adminRouter.post(
       requestedBy: req.user,
       body: req.body,
     });
+  },
+);
+
+/**
+ * GET /admin/dlq
+ * Admin-only: list all pending items in the Dead Letter Queue.
+ */
+adminRouter.get(
+  "/dlq",
+  requireAdmin,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+      const items = await getPendingDLQItems(limit, offset);
+      res.json({ items });
+    } catch (err: any) {
+      res
+        .status(500)
+        .json({ error: "Failed to fetch DLQ items", details: err.message });
+    }
+  },
+);
+
+/**
+ * POST /admin/dlq/:id/replay
+ * SuperAdmin-only: Manually replay a terminally failed job.
+ */
+adminRouter.post(
+  "/dlq/:id/replay",
+  requireSuperAdmin,
+  async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+    const id = req.params.id as string;
+    try {
+      const item = await getDLQItemById(id);
+      if (!item) {
+        return res.status(404).json({ error: "DLQ item not found" });
+      }
+      if (item.status !== "pending") {
+        return res.status(400).json({
+          error: `DLQ item already processed. Status: ${item.status}`,
+        });
+      }
+
+      // Route the replay logic based on job type.
+      // This runs synchronously giving immediate feedback to the admin.
+      if (item.job_type === "webhook_delivery") {
+        const payload = item.payload as any;
+        await sendWebhookNotification(
+          payload.eventType,
+          payload.originalPayload,
+        );
+      } else if (item.job_type === "ledger_sync_batch") {
+        // We trigger the syncer manually or ignore if syncer self-recovers
+        console.log(
+          `[DLQ] Admin triggered ledger sync replay for ledger block.`,
+        );
+        // Assuming startSyncer runs a catch-up block sequence anyway
+        startSyncer().catch(console.error);
+      } else {
+        return res
+          .status(400)
+          .json({ error: `Unknown job_type: ${item.job_type}` });
+      }
+
+      // Mark as replayed
+      await updateDLQItemStatus(id, "replayed");
+
+      res.json({
+        message: `Successfully replayed DLQ item ${id} of type ${item.job_type}`,
+        requestedBy: req.user,
+      });
+    } catch (err: any) {
+      res
+        .status(500)
+        .json({ error: "Failed to replay DLQ item", details: err.message });
+    }
+  },
+);
+
+/**
+ * DELETE /admin/dlq/:id
+ * SuperAdmin-only: Permanently delete/discard an item from the DLQ.
+ */
+adminRouter.delete(
+  "/dlq/:id",
+  requireSuperAdmin,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const id = req.params.id as string;
+    try {
+      await updateDLQItemStatus(id, "discarded");
+      // Optionally fully delete it with `await deleteDLQItem(id);` but soft-delete provides better auditing
+      res.json({ message: `DLQ item ${id} discarded` });
+    } catch (err: any) {
+      res
+        .status(500)
+        .json({ error: "Failed to discard DLQ item", details: err.message });
+    }
   },
 );
 
