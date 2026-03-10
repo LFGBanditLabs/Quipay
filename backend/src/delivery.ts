@@ -20,7 +20,10 @@ const webhookBreaker = createCircuitBreaker(axios.post, {
 
 webhookBreaker.fallback((url: string) => {
   console.warn(`[Webhooks] Circuit breaker fallback triggered for ${url}`);
-  return { status: 503, data: { error: "Service Unavailable (Circuit Breaker)" } };
+  return {
+    status: 503,
+    data: { error: "Service Unavailable (Circuit Breaker)" },
+  };
 });
 
 // Maximum attempts for exponential backoff retries

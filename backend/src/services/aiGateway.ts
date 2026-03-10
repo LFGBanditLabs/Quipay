@@ -43,7 +43,8 @@ export class AIGateway {
               function: "unknown",
               params: {},
               confidence: 0,
-              reasoning: "Circuit breaker triggered: OpenAI service unavailable",
+              reasoning:
+                "Circuit breaker triggered: OpenAI service unavailable",
               needs_confirmation: false,
             }),
           },
