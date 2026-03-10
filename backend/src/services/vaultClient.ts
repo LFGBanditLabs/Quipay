@@ -1,8 +1,15 @@
+import { createCircuitBreaker } from "../utils/circuitBreaker";
+
 export interface VaultClientConfig {
   url: string;
   token: string;
   namespace?: string;
 }
+
+const vaultBreaker = createCircuitBreaker(fetch, {
+  name: "vault_api",
+  timeout: 5000,
+});
 
 export class VaultClient {
   private baseUrl: string;
@@ -28,10 +35,13 @@ export class VaultClient {
 
   async healthCheck(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/v1/sys/health`, {
-        method: "GET",
-        headers: this.getHeaders(),
-      });
+      const response: any = await vaultBreaker.fire(
+        `${this.baseUrl}/v1/sys/health`,
+        {
+          method: "GET",
+          headers: this.getHeaders(),
+        },
+      );
       return response.ok;
     } catch {
       return false;
@@ -39,7 +49,7 @@ export class VaultClient {
   }
 
   async readSecret(path: string, mountPoint: string = "secret"): Promise<any> {
-    const response = await fetch(
+    const response: any = await vaultBreaker.fire(
       `${this.baseUrl}/v1/${mountPoint}/data/${path}`,
       {
         method: "GET",
@@ -59,7 +69,7 @@ export class VaultClient {
     data: Record<string, any>,
     mountPoint: string = "secret",
   ): Promise<any> {
-    const response = await fetch(
+    const response: any = await vaultBreaker.fire(
       `${this.baseUrl}/v1/${mountPoint}/data/${path}`,
       {
         method: "POST",
