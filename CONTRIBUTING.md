@@ -2,6 +2,10 @@
 
 This is a guide to contributing to `scaffold-stellar-frontend` itself. Feel free to delete or modify it for your own project.
 
+## Issue References
+
+When submitting PRs, use keywords like "Closes #issue-number" or "Fixes #issue-number" to automatically close issues when the PR is merged.
+
 ## Development Setup
 
 1. Install dependencies:
