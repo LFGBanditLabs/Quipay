@@ -68,10 +68,8 @@ export const commonSchemas = {
   // Non-empty string
   nonEmptyString: z
     .string()
-    .refine((val: string) => val.length > 0, {
-      message: "String cannot be empty",
-    })
-    .trim(),
+    .trim()
+    .min(1, { message: "String cannot be empty" }),
 
   // Positive integer
   positiveInt: z.number().int().positive(),
