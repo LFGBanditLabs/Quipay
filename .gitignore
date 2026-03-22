@@ -31,6 +31,21 @@ lerna-debug.log*
 lighthouse-report*
 lighthouse-mobile-report*
 
+# Lighthouse audit reports
+lh-*.json
+
+# Lint output
+lint_output.txt
+
+# Kiro IDE config
+*.config.kiro
+
+# GPG key files
+*.gpg
+
+# Stellar CLI downloads / temp archives
+*.tar.gz
+
 # environment variables
 .env
 .env.*
