@@ -7,6 +7,16 @@ import {
   exportMonthlySummaryPDF,
 } from "../services/reportService";
 import type { PayrollTransaction } from "../types/reports";
+import { useAnalytics } from "../hooks/useAnalytics";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 const tw = {
   reportsPage:
@@ -137,6 +147,12 @@ const Reports: React.FC = () => {
     availableMonths,
   } = useTransactionData();
 
+  const {
+    trends,
+    loading: analyticsLoading,
+    error: analyticsError,
+  } = useAnalytics();
+
   const [activeTab, setActiveTab] = useState<Tab>("transactions");
   const [toast, setToast] = useState<string | null>(null);
 
@@ -197,6 +213,89 @@ const Reports: React.FC = () => {
           <span className={tw.tabIcon}>📊</span>
           Monthly Summary
         </button>
+      </div>
+
+      {/* Analytics Chart */}
+      <div className={tw.card}>
+        <div className={tw.cardHeader}>
+          <h2 className={tw.cardTitle}>
+            <span className={tw.cardTitleIcon}>📈</span>
+            Payroll Volume Trend
+          </h2>
+        </div>
+        <div className="mt-4 h-[300px]">
+          {analyticsLoading ? (
+            <div className="flex h-full items-center justify-center text-slate-400">
+              Loading analytics...
+            </div>
+          ) : analyticsError ? (
+            <div className="flex h-full items-center justify-center text-rose-400">
+              Error: {analyticsError}
+            </div>
+          ) : trends.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-slate-400">
+              No trend data available
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart
+                data={trends}
+                margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="bucket"
+                  tick={{ fill: "rgba(255,255,255,0.4)" }}
+                  tickFormatter={(dateStr) =>
+                    new Date(dateStr).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })
+                  }
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fill: "rgba(255,255,255,0.4)" }}
+                  tickFormatter={(v) => `$${Number(v).toLocaleString()}`}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="rgba(255,255,255,0.1)"
+                  vertical={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#1e293b",
+                    borderColor: "#334155",
+                    color: "#f8fafc",
+                    borderRadius: "8px",
+                  }}
+                  labelFormatter={(label) => new Date(label).toDateString()}
+                  formatter={(value: number | string | undefined) => [
+                    `$${Number(value ?? 0).toLocaleString()}`,
+                    "Volume",
+                  ]}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="volume"
+                  stroke="#818cf8"
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill="url(#colorVolume)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
 
       {/* ── Transaction History Tab ─────────────────────────────── */}
