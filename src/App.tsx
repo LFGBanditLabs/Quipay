@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import Navbar from "./components/layout/Navbar";
 import OnboardingTour from "./components/OnboardingTour";
 import Footer from "./components/layout/Footer";
+import WalletGuard from "./components/WalletGuard";
 
 const Home = lazy(() => import("./pages/Home"));
 const Debugger = lazy(() => import("./pages/Debugger"));
@@ -63,21 +64,85 @@ function App() {
       <Routes>
         <Route element={<AppLayout />}>
           <Route path="/" element={<Home />} />
-          <Route path="/dashboard" element={<EmployerDashboard />} />
-          <Route path="/payroll" element={<PayrollDashboard />} />
-          <Route path="/withdraw" element={<WithdrawPage />} />
-          <Route path="/treasury-management" element={<TreasuryManager />} />
-          <Route path="/create-stream" element={<CreateStream />} />
-          <Route path="/governance" element={<GovernanceOverview />} />
-          <Route path="/reports" element={<Reports />} />
+
+          {/* Protected Routes */}
+          <Route
+            path="/dashboard"
+            element={
+              <WalletGuard>
+                <EmployerDashboard />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/payroll"
+            element={
+              <WalletGuard>
+                <PayrollDashboard />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/withdraw"
+            element={
+              <WalletGuard>
+                <WithdrawPage />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/treasury-management"
+            element={
+              <WalletGuard>
+                <TreasuryManager />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/create-stream"
+            element={
+              <WalletGuard>
+                <CreateStream />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/governance"
+            element={
+              <WalletGuard>
+                <GovernanceOverview />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <WalletGuard>
+                <Reports />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <WalletGuard>
+                <Settings />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/dashboard-customization"
+            element={
+              <WalletGuard>
+                <DashboardCustomization />
+              </WalletGuard>
+            }
+          />
+
+          {/* Public Routes */}
           <Route path="/help" element={<HelpPage />} />
           <Route path="/debug" element={<Debugger />} />
           <Route path="/debug/:contractName" element={<Debugger />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route
-            path="/dashboard-customization"
-            element={<DashboardCustomization />}
-          />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
