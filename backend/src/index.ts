@@ -111,9 +111,16 @@ app.use(globalErrorHandler);
 const startTime = Date.now();
 
 // Default testing account (Note: in production, each employer/caller would have their own or share a global treasury sequence pool)
-const HOT_WALLET_ACCOUNT =
-  process.env.HOT_WALLET_ACCOUNT ||
-  "GAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+const HOT_WALLET_ACCOUNT = process.env.HOT_WALLET_ACCOUNT || "";
+if (
+  process.env.NODE_ENV !== "development" &&
+  (!HOT_WALLET_ACCOUNT || HOT_WALLET_ACCOUNT.startsWith("GAXXX"))
+) {
+  console.error(
+    "FATAL: HOT_WALLET_ACCOUNT is not set or is a placeholder. Set a valid Stellar account address.",
+  );
+  process.exit(1);
+}
 export const nonceManager = new NonceManager(
   HOT_WALLET_ACCOUNT,
   "https://horizon-testnet.stellar.org",
