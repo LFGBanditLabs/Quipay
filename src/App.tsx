@@ -14,6 +14,8 @@ import PayrollDashboard from "./pages/PayrollDashboard.tsx";
 import TreasuryManager from "./pages/TreasuryManager";
 import WithdrawPage from "./pages/withdrawPage.tsx";
 import TreasuryManagement from "./pages/TreasuryManagement";
+import GovernanceOverview from "./pages/GovernanceOverview";
+import WorkerDashboard from "./pages/WorkerDashboard";
 
 const AppLayout: React.FC = () => (
   <>
@@ -117,6 +119,8 @@ function App() {
         <Route path="/withdraw" element={<WithdrawPage />} />
         <Route path="/treasury-management" element={<TreasuryManager />} />
         <Route path="/create-stream" element={<CreateStream />} />
+        <Route path="/governance" element={<GovernanceOverview />} />
+        <Route path="/worker" element={<WorkerDashboard />} />
         {/* <Route path="/treasury-management" element={<TreasuryManagement />} /> */}
         <Route path="/debug" element={<Debugger />} />
         <Route path="/debug/:contractName" element={<Debugger />} />
