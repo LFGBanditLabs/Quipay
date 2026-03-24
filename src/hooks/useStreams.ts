@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   getStreamsByWorker,
   getStreamById,
@@ -36,6 +36,11 @@ export const useStreams = (workerAddress: string | undefined) => {
   >([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [fetchTick, setFetchTick] = useState(0);
+
+  const refetch = useCallback(() => {
+    setFetchTick((t) => t + 1);
+  }, []);
 
   useEffect(() => {
     if (!workerAddress) {
@@ -112,12 +117,13 @@ export const useStreams = (workerAddress: string | undefined) => {
     };
 
     void fetchData();
-  }, [workerAddress]);
+  }, [workerAddress, fetchTick]);
 
   return {
     streams,
     withdrawalHistory,
     isLoading,
     error,
+    refetch,
   };
 };

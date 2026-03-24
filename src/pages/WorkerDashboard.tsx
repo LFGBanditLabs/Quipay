@@ -92,7 +92,8 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
 
 const WorkerDashboard: React.FC = () => {
   const { address } = useWallet();
-  const { streams, withdrawalHistory, isLoading, error } = useStreams(address);
+  const { streams, withdrawalHistory, isLoading, error, refetch } =
+    useStreams(address);
 
   if (isLoading) {
     return (
@@ -119,6 +120,12 @@ const WorkerDashboard: React.FC = () => {
           Failed to load stream data
         </Text>
         <p className="mt-4 font-mono text-sm text-[var(--muted)]">{error}</p>
+        <button
+          className="mt-6 rounded-xl border-0 bg-[var(--accent)] px-6 py-3 font-semibold text-white transition-opacity hover:opacity-90"
+          onClick={refetch}
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -136,6 +143,12 @@ const WorkerDashboard: React.FC = () => {
           <section className="mb-12 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-6 max-[768px]:grid-cols-1">
             <EarningsDisplay streams={streams} />
           </section>
+
+          <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-[var(--text)]">
+            Batch withdrawals are atomic. If a single payout in the batch fails,
+            the entire transaction reverts and no stream in that batch is
+            withdrawn.
+          </div>
 
           <h2 className="mb-6 text-2xl font-semibold text-[var(--text)]">
             Your Active Streams
