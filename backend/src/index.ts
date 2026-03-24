@@ -5,9 +5,26 @@ import { metricsManager } from "./metrics";
 import { webhookRouter } from "./webhooks";
 import { slackRouter } from "./slack";
 import { discordRouter } from "./discord";
+import { aiRouter } from "./ai";
+import { adminRouter } from "./adminRouter";
+import { analyticsRouter } from "./analytics";
+import { docsRouter } from "./swagger";
 import { startStellarListener } from "./stellarListener";
 import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
+import { startMonitor, runMonitorCycle } from "./monitor/monitor";
 import { NonceManager } from "./services/nonceManager";
+import { initAuditLogger, getAuditLogger } from "./audit/init";
+import {
+  createLoggingMiddleware,
+  createErrorLoggingMiddleware,
+} from "./audit/middleware";
+import { initDb } from "./db/pool";
+import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
+import { standardRateLimiter } from "./middleware/rateLimiter";
+import { getPool } from "./db/pool";
+import Redis from "ioredis";
+import { rpc } from "@stellar/stellar-sdk";
+import { secretsBootstrap } from "./services/secretsBootstrap";
 
 dotenv.config();
 
@@ -15,20 +32,88 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json());
+app.use(
+  express.json({
+    limit: "1mb",
+    verify: (req: any, res: any, buf: Buffer) => {
+      req.rawBody = buf;
+    },
+  }),
+); // Limit payload size to prevent memory exhaustion
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: "1mb",
+    verify: (req: any, res: any, buf: Buffer) => {
+      req.rawBody = buf;
+    },
+  }),
+); // For Slack form data
+
+// Initialize database and audit logger
+async function initializeServices() {
+  await secretsBootstrap.initialize();
+  await initDb();
+  const auditLogger = initAuditLogger();
+
+  // Add audit logging middleware for contract interactions
+  app.use(createLoggingMiddleware(auditLogger));
+
+  return auditLogger;
+}
+
+// Initialize services before starting routes
+let auditLogger: ReturnType<typeof getAuditLogger>;
+initializeServices()
+  .then((logger) => {
+    auditLogger = logger;
+    console.log("[Backend] ✅ Services initialized");
+  })
+  .catch((err) => {
+    console.error("[Backend] Failed to initialize services:", err);
+  });
+
+// Interactive API documentation (Swagger UI)
+app.use("/docs", docsRouter);
 
 app.use("/webhooks", webhookRouter);
 app.use("/slack", slackRouter);
 // Note: discordRouter utilizes native express payloads natively bypassing body buffers mapping local examples
 app.use("/discord", discordRouter);
+app.use("/ai", aiRouter);
+app.use("/admin", adminRouter); // RBAC-protected admin endpoints
+app.use("/analytics", analyticsRouter);
+
+// Error logging middleware (should be after routes)
+app.use(
+  (
+    err: Error,
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    if (auditLogger) {
+      createErrorLoggingMiddleware(auditLogger)(err, req, res, next);
+    } else {
+      next(err);
+    }
+  },
+);
 
 // Start time for uptime calculation
 const startTime = Date.now();
 
 // Default testing account (Note: in production, each employer/caller would have their own or share a global treasury sequence pool)
-const HOT_WALLET_ACCOUNT =
-  process.env.HOT_WALLET_ACCOUNT ||
-  "GAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+const HOT_WALLET_ACCOUNT = process.env.HOT_WALLET_ACCOUNT || "";
+if (
+  process.env.NODE_ENV !== "development" &&
+  (!HOT_WALLET_ACCOUNT || HOT_WALLET_ACCOUNT.startsWith("GAXXX"))
+) {
+  console.error(
+    "FATAL: HOT_WALLET_ACCOUNT is not set or is a placeholder. Set a valid Stellar account address.",
+  );
+  process.exit(1);
+}
 export const nonceManager = new NonceManager(
   HOT_WALLET_ACCOUNT,
   "https://horizon-testnet.stellar.org",
@@ -65,6 +150,39 @@ app.get("/metrics", async (req, res) => {
   }
 });
 
+/**
+ * @api {get} /secrets/status Vault secrets management status
+ * @apiDescription Returns the status of the secrets management system.
+ */
+app.get("/secrets/status", async (req, res) => {
+  const vaultHealthy = secretsBootstrap.isVaultHealthy();
+  res.json({
+    status: vaultHealthy ? "ok" : "degraded",
+    vaultAvailable: vaultHealthy,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
+ * @api {post} /secrets/refresh Refresh secrets from Vault
+ * @apiDescription Manually trigger a refresh of secrets from Vault.
+ */
+app.post("/secrets/refresh", async (req, res) => {
+  try {
+    await secretsBootstrap.refreshAllSecrets();
+    res.json({
+      status: "ok",
+      message: "Secrets refreshed successfully",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
 // Mock endpoint to simulate transaction processing for testing metrics
 app.post("/test/simulate-tx", (req, res) => {
   const { status, latency } = req.body;
@@ -86,6 +204,23 @@ app.get("/scheduler/status", (req, res) => {
     ...status,
     timestamp: new Date().toISOString(),
   });
+});
+
+/**
+ * @api {get} /monitor/status Treasury monitor status endpoint
+ * @apiDescription Returns the current treasury health status for all employers.
+ */
+app.get("/monitor/status", async (req, res) => {
+  try {
+    const statuses = await runMonitorCycle();
+    res.json({
+      status: "ok",
+      employers: statuses,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (ex: any) {
+    res.status(500).json({ error: ex.message });
+  }
 });
 
 /**
@@ -118,10 +253,17 @@ app.post("/test/concurrent-tx", async (req, res) => {
   }
 });
 
+// 404 handler - must be after all routes
+app.use(notFoundHandler);
+
+// Global error handler - must be last
+app.use(errorHandler);
+
 app.listen(port, () => {
   console.log(
     `🚀 Quipay Automation Engine Status API listening at http://localhost:${port}`,
   );
   startStellarListener();
   startScheduler();
+  startMonitor();
 });

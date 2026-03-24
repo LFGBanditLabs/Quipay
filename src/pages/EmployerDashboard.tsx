@@ -1,14 +1,30 @@
 import React from "react";
-import { Layout, Text, Button, Loader } from "@stellar/design-system";
+import { Layout, Text, Button } from "@stellar/design-system";
+import { useTranslation } from "react-i18next";
 import { usePayroll } from "../hooks/usePayroll";
-import styles from "./EmployerDashboard.module.css";
 import { useNavigate } from "react-router-dom";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import WithdrawButton from "../components/WithdrawButton";
 import EmptyState from "../components/EmptyState";
 import StreamVisualizer from "../components/StreamVisualizer";
+import { SkeletonCard, SkeletonRow } from "../components/Loading";
 
 const EmployerDashboard: React.FC = () => {
+  const { t } = useTranslation();
+  const tw = {
+    dashboardGrid:
+      "mb-[30px] grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-5 max-[768px]:grid-cols-1 max-[768px]:gap-4",
+    streamsSection: "mt-10",
+    streamsHeader:
+      "mb-5 flex flex-wrap items-center justify-between gap-3 max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-4",
+    streamsList: "flex flex-col gap-2.5",
+    card: "rounded-lg border border-[var(--sds-color-neutral-border)] bg-[var(--sds-color-neutral-subtle)] p-5 shadow-[0_2px_4px_rgba(0,0,0,0.05)] max-[480px]:p-4",
+    cardHeader: "mb-2.5 block font-bold",
+    metricValue:
+      "text-2xl font-semibold text-[var(--sds-color-content-primary)] max-[768px]:text-xl",
+    streamItem:
+      "flex items-center justify-between gap-3.5 rounded-md border border-[var(--sds-color-neutral-border)] bg-[var(--sds-color-background-primary)] p-[15px] max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:p-4",
+  };
   const {
     treasuryBalances,
     totalLiabilities,
@@ -19,14 +35,14 @@ const EmployerDashboard: React.FC = () => {
   const navigate = useNavigate();
 
   const seoDescription = isLoading
-    ? "Loading your Quipay dashboard metrics and active stream overview."
-    : `Track ${activeStreamsCount} active streams with total liabilities ${totalLiabilities} in your Quipay employer dashboard.`;
+    ? t("dashboard.loading_description")
+    : t("dashboard.seo_description", { activeStreamsCount, totalLiabilities });
 
   if (isLoading) {
     return (
       <>
         <SeoHelmet
-          title="Employer Dashboard"
+          title={t("dashboard.title")}
           description={seoDescription}
           path="/dashboard"
           imagePath="/social/dashboard-preview.png"
@@ -34,14 +50,24 @@ const EmployerDashboard: React.FC = () => {
         />
         <Layout.Content>
           <Layout.Inset>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                padding: "50px",
-              }}
-            >
-              <Loader aria-label="Loading dashboard content" aria-busy="true" />
+            <Text as="h1" size="xl" weight="medium">
+              {t("dashboard.title")}
+            </Text>
+            <div className={tw.dashboardGrid}>
+              <SkeletonCard lines={3} />
+              <SkeletonCard lines={2} />
+              <SkeletonCard lines={2} />
+            </div>
+            <div className={tw.streamsSection}>
+              <div className={tw.streamsHeader}>
+                <Text as="h2" size="lg">
+                  {t("dashboard.active_streams")}
+                </Text>
+              </div>
+              <div className={tw.streamsList}>
+                <SkeletonRow />
+                <SkeletonRow />
+              </div>
             </div>
           </Layout.Inset>
         </Layout.Content>
@@ -50,9 +76,8 @@ const EmployerDashboard: React.FC = () => {
   }
 
   const demoContract = {
-    // eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
-    withdrawableAmount: async (_address: string) => {
-      return BigInt("5000000"); // 5.00 USDC (6 decimals)
+    withdrawableAmount: (): Promise<bigint | null> => {
+      return Promise.resolve(BigInt("5000000")); // 5.00 USDC (6 decimals)
     },
     withdraw: async () => {
       await new Promise((res) => setTimeout(res, 2000)); // simulate delay
@@ -67,7 +92,7 @@ const EmployerDashboard: React.FC = () => {
     <Layout.Content>
       <Layout.Inset>
         <Text as="h1" size="xl" weight="medium">
-          Employer Dashboard
+          {t("dashboard.title")}
         </Text>
 
         {/* Topology Visualizer */}
@@ -81,7 +106,7 @@ const EmployerDashboard: React.FC = () => {
           />
         </div>
 
-        <div className={styles.dashboardGrid}>
+        <div className={tw.dashboardGrid}>
           <WithdrawButton
             walletAddress="0xYourWalletAddress"
             contract={demoContract}
@@ -90,31 +115,33 @@ const EmployerDashboard: React.FC = () => {
           />
 
           {/* Treasury Balance */}
-          <div className={styles.card} id="tour-treasury-balance">
+          <div className={tw.card} id="tour-treasury-balance">
             <Text
               as="h2"
               size="md"
               weight="semi-bold"
-              className={styles.cardHeader}
+              className={tw.cardHeader}
             >
-              Treasury Balance
+              {t("dashboard.treasury_balance")}
             </Text>
             {treasuryBalances.map((balance) => (
               <div key={balance.tokenSymbol}>
-                <Text as="div" size="lg" className={styles.metricValue}>
+                <Text as="div" size="lg" className={tw.metricValue}>
                   {balance.balance} {balance.tokenSymbol}
                 </Text>
-                 </div>
+              </div>
             ))}
             {treasuryBalances.length === 0 ? (
               <div style={{ marginTop: "1rem" }}>
                 <EmptyState
                   variant="treasury"
-                  title="No Funds Yet"
-                  description="Your treasury is currently empty. Deposit funds to start paying your workers."
+                  title={t("dashboard.no_funds_title")}
+                  description={t("dashboard.no_funds_description")}
                   icon="💰"
-                  actionLabel="Deposit Funds"
-                  onAction={() => navigate("/treasury-management")}
+                  actionLabel={t("dashboard.deposit_funds")}
+                  onAction={() => {
+                    void navigate("/treasury-management");
+                  }}
                 />
               </div>
             ) : null}
@@ -127,49 +154,49 @@ const EmployerDashboard: React.FC = () => {
                   void navigate("/treasury-management");
                 }}
               >
-                Manage Treasury
+                {t("dashboard.manage_treasury")}
               </Button>
             </div>
           </div>
 
           {/* Total Liabilities */}
-          <div className={styles.card}>
+          <div className={tw.card}>
             <Text
               as="span"
               size="md"
               weight="semi-bold"
-              className={styles.cardHeader}
+              className={tw.cardHeader}
             >
-              Total Liabilities
+              {t("dashboard.total_liabilities")}
             </Text>
-            <Text as="div" size="lg" className={styles.metricValue}>
+            <Text as="div" size="lg" className={tw.metricValue}>
               {totalLiabilities}
             </Text>
-            <Text as="p" size="sm" style={{ color: "var(--gray-500)" }}>
-              You are projected to pay {totalLiabilities} in the next 30 days.
+            <Text as="p" size="sm" style={{ color: "var(--muted)" }}>
+              {t("dashboard.projected_pay", { totalLiabilities })}
             </Text>
           </div>
 
           {/* Active Streams Count */}
-          <div className={styles.card}>
+          <div className={tw.card}>
             <Text
               as="span"
               size="md"
               weight="semi-bold"
-              className={styles.cardHeader}
+              className={tw.cardHeader}
             >
-              Active Streams
+              {t("dashboard.active_streams")}
             </Text>
-            <Text as="div" size="lg" className={styles.metricValue}>
+            <Text as="div" size="lg" className={tw.metricValue}>
               {activeStreamsCount}
             </Text>
           </div>
         </div>
 
-        <div className={styles.streamsSection}>
-          <div className={styles.streamsHeader}>
+        <div className={tw.streamsSection}>
+          <div className={tw.streamsHeader}>
             <Text as="h2" size="lg">
-              Active Streams
+              {t("dashboard.active_streams")}
             </Text>
             <Button
               variant="primary"
@@ -178,26 +205,26 @@ const EmployerDashboard: React.FC = () => {
                 void navigate("/create-stream");
               }}
             >
-              Create New Stream
+              {t("dashboard.create_new_stream")}
             </Button>
           </div>
 
           {activeStreams.length === 0 ? (
             <EmptyState
-              title="No active streams"
-              description="You haven't created any payment streams yet. Start by adding your first worker."
+              title={t("dashboard.no_streams_title")}
+              description={t("dashboard.no_streams_description")}
               variant="streams"
-              actionLabel="Create New Stream"
+              actionLabel={t("dashboard.create_new_stream")}
               onAction={() => {
                 void navigate("/create-stream");
               }}
             />
           ) : (
-            <div className={styles.streamsList}>
+            <div className={tw.streamsList}>
               {activeStreams.map((stream) => (
                 <div
                   key={stream.id}
-                  className={styles.streamItem}
+                  className={tw.streamItem}
                   onClick={() => {
                     void navigate(`/stream/${stream.id}`);
                   }}
@@ -207,24 +234,17 @@ const EmployerDashboard: React.FC = () => {
                     <Text as="div" size="md" weight="bold">
                       {stream.employeeName}
                     </Text>
-                    <Text
-                      as="div"
-                      size="sm"
-                      style={{ color: "var(--gray-500)" }}
-                    >
+                    <Text as="div" size="sm" style={{ color: "var(--muted)" }}>
                       {stream.employeeAddress}
                     </Text>
                   </div>
                   <div>
                     <Text as="div" size="sm">
-                      Flow Rate: {stream.flowRate} {stream.tokenSymbol}/sec
+                      {t("dashboard.flow_rate")}: {stream.flowRate}{" "}
+                      {stream.tokenSymbol}/sec
                     </Text>
-                    <Text
-                      as="div"
-                      size="sm"
-                      style={{ color: "var(--gray-500)" }}
-                    >
-                      Start: {stream.startDate}
+                    <Text as="div" size="sm" style={{ color: "var(--muted)" }}>
+                      {t("dashboard.start")}: {stream.startDate}
                     </Text>
                   </div>
                   <div>

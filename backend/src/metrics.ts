@@ -1,6 +1,30 @@
 import { Registry, Counter, Gauge, Histogram } from "prom-client";
 
-class MetricsManager {
+const circuitBreakerState = new Gauge({
+  name: "circuit_breaker_state",
+  help: "Current state of the circuit breaker (0: closed, 1: open, 2: half-open)",
+  labelNames: ["name"],
+});
+
+const circuitBreakerFailures = new Counter({
+  name: "circuit_breaker_failures_total",
+  help: "Total number of circuit breaker failures",
+  labelNames: ["name", "error"],
+});
+
+const circuitBreakerSuccesses = new Counter({
+  name: "circuit_breaker_successes_total",
+  help: "Total number of circuit breaker successes",
+  labelNames: ["name"],
+});
+
+const circuitBreakerFallbacks = new Counter({
+  name: "circuit_breaker_fallbacks_total",
+  help: "Total number of circuit breaker fallbacks triggered",
+  labelNames: ["name"],
+});
+
+export class MetricsManager {
   public register: Registry;
   public processedTransactions: Counter;
   public successRate: Gauge;
@@ -28,6 +52,12 @@ class MetricsManager {
       buckets: [0.1, 0.5, 1, 2, 5, 10],
       registers: [this.register],
     });
+
+    // Register circuit breaker metrics
+    this.register.registerMetric(circuitBreakerState);
+    this.register.registerMetric(circuitBreakerFailures);
+    this.register.registerMetric(circuitBreakerSuccesses);
+    this.register.registerMetric(circuitBreakerFallbacks);
   }
 
   public trackTransaction(
@@ -47,3 +77,9 @@ class MetricsManager {
 }
 
 export const metricsManager = new MetricsManager();
+export {
+  circuitBreakerState,
+  circuitBreakerFailures,
+  circuitBreakerSuccesses,
+  circuitBreakerFallbacks,
+};

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Layout, Text, Loader } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
 import { useStreams, WorkerStream } from "../hooks/useStreams";
-import styles from "./WorkerDashboard.module.css";
+import { EarningsDisplay } from "../components/EarningsDisplay";
 
 const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
   const [currentEarnings, setCurrentEarnings] = useState(0);
@@ -31,30 +31,36 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
   );
 
   return (
-    <div className={styles.streamCard}>
-      <div className={styles.streamHeader}>
+    <div className="relative overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface-subtle)] p-6">
+      <div className="mb-4 flex items-start justify-between">
         <div>
-          <div className={styles.employerName}>{stream.employerName}</div>
-          <div className={styles.employerAddress}>{stream.employerAddress}</div>
+          <div className="text-lg font-semibold text-[var(--text)]">
+            {stream.employerName}
+          </div>
+          <div className="font-mono text-xs text-[var(--muted)]">
+            {stream.employerAddress}
+          </div>
         </div>
-        <div className={styles.flowRate}>
+        <div className="rounded-md bg-emerald-500/10 px-2 py-1 text-sm text-emerald-500">
           {stream.flowRate.toFixed(6)} {stream.tokenSymbol}/sec
         </div>
       </div>
 
-      <div className={styles.earningsDisplay}>
-        <div className={styles.statLabel}>Current Earnings</div>
-        <div className={styles.currentEarnings}>
+      <div className="my-6">
+        <div className="mb-2 text-sm uppercase tracking-[0.05em] text-[var(--muted)]">
+          Current Earnings
+        </div>
+        <div className="text-[1.75rem] font-bold text-[var(--text)]">
           {currentEarnings.toFixed(7)} {stream.tokenSymbol}
         </div>
-        <div className={styles.totalLimit}>
+        <div className="mt-1 text-sm text-[var(--muted)]">
           of {stream.totalAmount} {stream.tokenSymbol} total
         </div>
       </div>
 
-      <div className={styles.progressBarContainer}>
+      <div className="my-4 h-2 overflow-hidden rounded bg-[var(--surface)]">
         <div
-          className={styles.progressBar}
+          className="h-full bg-gradient-to-r from-indigo-600 to-sky-500 transition-[width] duration-500"
           style={{ width: `${Math.min(100, percentage)}%` }}
         ></div>
       </div>
@@ -66,7 +72,7 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
           justifyContent: "space-between",
         }}
       >
-        <span style={{ fontSize: "0.875rem", color: "#a5a5a5" }}>
+        <span style={{ fontSize: "0.875rem", color: "var(--muted)" }}>
           Available:
         </span>
         <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>
@@ -75,7 +81,7 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
       </div>
 
       <button
-        className={styles.withdrawButton}
+        className="w-full rounded-xl border-0 bg-[var(--accent)] px-3 py-3 font-semibold text-white transition-opacity hover:opacity-90"
         onClick={() => alert("Withdrawal triggered!")}
       >
         Withdraw Funds
@@ -86,39 +92,12 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
 
 const WorkerDashboard: React.FC = () => {
   const { address } = useWallet();
-  const { streams, withdrawalHistory, isLoading } = useStreams(address);
-  const [totalEarned, setTotalEarned] = useState<{ [key: string]: number }>({});
-
-  useEffect(() => {
-    if (streams.length === 0) return;
-
-    const calculateTotal = () => {
-      const totals: { [key: string]: number } = {};
-      const now = Date.now() / 1000;
-
-      streams.forEach((stream) => {
-        const elapsed = Math.max(0, now - stream.startTime);
-        const earned = Math.min(elapsed * stream.flowRate, stream.totalAmount);
-
-        if (!totals[stream.tokenSymbol]) {
-          totals[stream.tokenSymbol] = 0;
-        }
-        totals[stream.tokenSymbol] += earned;
-      });
-
-      setTotalEarned(totals);
-    };
-
-    calculateTotal();
-    const interval = setInterval(calculateTotal, 100);
-    return () => clearInterval(interval);
-  }, [streams]);
+  const { streams, withdrawalHistory, isLoading, error, refetch } =
+    useStreams(address);
 
   if (isLoading) {
     return (
-      <div
-        style={{ display: "flex", justifyContent: "center", padding: "100px" }}
-      >
+      <div className="flex justify-center py-24">
         <Loader />
       </div>
     );
@@ -126,10 +105,7 @@ const WorkerDashboard: React.FC = () => {
 
   if (!address) {
     return (
-      <div
-        className={styles.container}
-        style={{ textAlign: "center", padding: "100px" }}
-      >
+      <div className="mx-auto max-w-[1200px] px-8 py-24 text-[var(--text)] text-center">
         <Text as="h2" size="lg">
           Please connect your wallet to view your dashboard
         </Text>
@@ -137,70 +113,97 @@ const WorkerDashboard: React.FC = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="mx-auto max-w-[1200px] px-8 py-24 text-center">
+        <Text as="h2" size="lg">
+          Failed to load stream data
+        </Text>
+        <p className="mt-4 font-mono text-sm text-[var(--muted)]">{error}</p>
+        <button
+          className="mt-6 rounded-xl border-0 bg-[var(--accent)] px-6 py-3 font-semibold text-white transition-opacity hover:opacity-90"
+          onClick={refetch}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   return (
     <Layout.Content>
       <Layout.Inset>
-        <div className={styles.container}>
-          <header className={styles.header}>
-            <h1 className={styles.title}>Worker Dashboard</h1>
+        <div className="mx-auto max-w-[1200px] px-8 py-8 text-[var(--text)] max-[768px]:px-4">
+          <header className="mb-8 flex items-center justify-between max-[768px]:flex-col max-[768px]:items-start max-[768px]:gap-4">
+            <h1 className="bg-gradient-to-br from-[var(--text)] to-[var(--muted)] bg-clip-text text-[2.5rem] font-bold text-transparent max-[768px]:text-[2rem]">
+              Worker Dashboard
+            </h1>
           </header>
 
-          <section className={styles.statsGrid}>
-            {Object.entries(totalEarned).map(([token, amount]) => (
-              <div key={token} className={styles.statCard}>
-                <div className={styles.statLabel}>Total Earned ({token})</div>
-                <div className={styles.statValue}>{amount.toFixed(6)}</div>
-              </div>
-            ))}
-            {Object.keys(totalEarned).length === 0 && (
-              <div className={styles.statCard}>
-                <div className={styles.statLabel}>Total Earned</div>
-                <div className={styles.statValue}>0.000000</div>
-              </div>
-            )}
-            <div className={styles.statCard}>
-              <div className={styles.statLabel}>Active Streams</div>
-              <div className={styles.statValue}>{streams.length}</div>
-            </div>
+          <section className="mb-12 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-6 max-[768px]:grid-cols-1">
+            <EarningsDisplay streams={streams} />
           </section>
 
-          <h2 className={styles.sectionTitle}>Your Active Streams</h2>
+          <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-[var(--text)]">
+            Batch withdrawals are atomic. If a single payout in the batch fails,
+            the entire transaction reverts and no stream in that batch is
+            withdrawn.
+          </div>
+
+          <h2 className="mb-6 text-2xl font-semibold text-[var(--text)]">
+            Your Active Streams
+          </h2>
           {streams.length === 0 ? (
-            <div
-              className={styles.statCard}
-              style={{ textAlign: "center", padding: "3rem" }}
-            >
-              <p style={{ color: "#a5a5a5" }}>
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-12 text-center backdrop-blur">
+              <p style={{ color: "var(--muted)" }}>
                 No active streams found for this address.
               </p>
             </div>
           ) : (
-            <div className={styles.streamsGrid}>
+            <div className="mb-12 grid grid-cols-[repeat(auto-fill,minmax(350px,1fr))] gap-6 max-[768px]:grid-cols-1">
               {streams.map((stream) => (
                 <StreamCard key={stream.id} stream={stream} />
               ))}
             </div>
           )}
 
-          <h2 className={styles.sectionTitle}>Withdrawal History</h2>
-          <div className={styles.historyContainer}>
-            <table className={styles.historyTable}>
+          <h2 className="mb-6 text-2xl font-semibold text-[var(--text)]">
+            Withdrawal History
+          </h2>
+          <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)]">
+            <table className="w-full border-collapse max-[768px]:block max-[768px]:overflow-x-auto">
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Amount</th>
-                  <th>Token</th>
-                  <th>Transaction</th>
+                  <th className="bg-[var(--surface-subtle)] p-4 text-left text-sm font-medium text-[var(--muted)]">
+                    Date
+                  </th>
+                  <th className="bg-[var(--surface-subtle)] p-4 text-left text-sm font-medium text-[var(--muted)]">
+                    Amount
+                  </th>
+                  <th className="bg-[var(--surface-subtle)] p-4 text-left text-sm font-medium text-[var(--muted)]">
+                    Token
+                  </th>
+                  <th className="bg-[var(--surface-subtle)] p-4 text-left text-sm font-medium text-[var(--muted)]">
+                    Transaction
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {withdrawalHistory.map((record) => (
-                  <tr key={record.id}>
-                    <td>{record.date}</td>
-                    <td style={{ fontWeight: 600 }}>{record.amount}</td>
-                    <td>{record.tokenSymbol}</td>
-                    <td>
-                      <a href={`#${record.txHash}`} className={styles.txHash}>
+                  <tr
+                    key={record.id}
+                    className="[&:not(:last-child)>td]:border-b [&:not(:last-child)>td]:border-[var(--border)]"
+                  >
+                    <td className="p-4 text-sm">{record.date}</td>
+                    <td className="p-4 text-sm font-semibold">
+                      {record.amount}
+                    </td>
+                    <td className="p-4 text-sm">{record.tokenSymbol}</td>
+                    <td className="p-4 text-sm">
+                      <a
+                        href={`#${record.txHash}`}
+                        className="font-mono text-[var(--accent)] no-underline"
+                      >
                         {record.txHash}
                       </a>
                     </td>
@@ -213,7 +216,7 @@ const WorkerDashboard: React.FC = () => {
                       style={{
                         textAlign: "center",
                         padding: "2rem",
-                        color: "#a5a5a5",
+                        color: "var(--muted)",
                       }}
                     >
                       No withdrawal history yet.

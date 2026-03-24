@@ -2,8 +2,10 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import "./styles/accessibility.css";
+import "./i18n/config";
 import App from "./App.tsx";
 import { NotificationProvider } from "./providers/NotificationProvider.tsx";
+import { ThemeProvider } from "./providers/ThemeProvider.tsx";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -18,12 +20,14 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById("root") as HTMLElement).render(
   <StrictMode>
-    <NotificationProvider>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </QueryClientProvider>
-    </NotificationProvider>
+    <ThemeProvider>
+      <NotificationProvider>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </QueryClientProvider>
+      </NotificationProvider>
+    </ThemeProvider>
   </StrictMode>,
 );

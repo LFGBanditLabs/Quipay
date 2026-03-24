@@ -1,13 +1,6 @@
-/**
- * PayrollDashboard.tsx
- * Quipay — Advanced Payroll Analytics Dashboard
- * Place in: src/components/PayrollDashboard.tsx
- *
- * Dependencies: recharts
- * Install: npm install recharts
- */
-
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import { useTheme } from "../providers/ThemeProvider";
 import {
   LineChart,
   Line,
@@ -29,7 +22,6 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Theme = "dark" | "light";
 type DateRange = "7D" | "30D" | "90D" | "6M" | "1Y" | "ALL";
 type Token = "USDC" | "XLM" | "ALL";
 
@@ -93,19 +85,18 @@ const ALL_DATA = generateDailyData();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const fmt = (n: number, dec = 0) =>
-  n.toLocaleString("en-US", {
+const fmt = (n: number, locale = "en", dec = 0) =>
+  n.toLocaleString(locale, {
     minimumFractionDigits: dec,
     maximumFractionDigits: dec,
   });
 
-const fmtUSD = (n: number) =>
-  "$" +
-  (n >= 1_000_000
-    ? (n / 1_000_000).toFixed(2) + "M"
-    : n >= 1_000
-      ? (n / 1_000).toFixed(1) + "K"
-      : n.toFixed(0));
+const fmtUSD = (n: number, locale = "en") =>
+  new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "USD",
+    notation: n >= 1000 ? "compact" : "standard",
+  }).format(n);
 
 function filterByRange(data: DailyRecord[], range: DateRange): DailyRecord[] {
   if (range === "ALL") return data;
@@ -129,7 +120,7 @@ function downsample(data: DailyRecord[], maxPoints: number): DailyRecord[] {
   return data.filter((_, i) => i % step === 0);
 }
 
-function toMonthly(data: DailyRecord[]) {
+function toMonthly(data: DailyRecord[], locale = "en") {
   const map = new Map<
     string,
     { month: string; usdc: number; xlm: number; transactions: number }
@@ -144,7 +135,7 @@ function toMonthly(data: DailyRecord[]) {
     } else {
       const [y, m] = key.split("-");
       const label = new Date(Number(y), Number(m) - 1).toLocaleDateString(
-        "en-US",
+        locale,
         { month: "short", year: "2-digit" },
       );
       map.set(key, {
@@ -188,32 +179,7 @@ function exportCSV(data: DailyRecord[], filename: string) {
   URL.revokeObjectURL(url);
 }
 
-// ─── Theme tokens ─────────────────────────────────────────────────────────────
-
-const THEMES = {
-  dark: {
-    bg: "#0a0910",
-    panel: "#100f1a",
-    card: "#141320",
-    border: "rgba(255,255,255,0.07)",
-    text: "#eceaf8",
-    muted: "#6b6585",
-    gridLine: "rgba(255,255,255,0.05)",
-    tooltipBg: "#1e1b2e",
-    tooltipBorder: "rgba(110,86,207,0.4)",
-  },
-  light: {
-    bg: "#f4f2ff",
-    panel: "#ffffff",
-    card: "#ffffff",
-    border: "#e0daf5",
-    text: "#13111a",
-    muted: "#8a82a8",
-    gridLine: "rgba(0,0,0,0.06)",
-    tooltipBg: "#ffffff",
-    tooltipBorder: "rgba(110,86,207,0.3)",
-  },
-};
+// Theme tokens are now managed globally via CSS variables in index.css
 
 const ACCENT = "#6E56CF";
 const ACCENT2 = "#9b85f5";
@@ -229,20 +195,18 @@ function ChartTooltip({
   active,
   payload,
   label,
-  theme,
 }: {
   active?: boolean;
   payload?: { name: string; value: number; color: string }[];
   label?: string;
-  theme: Theme;
 }) {
+  const { i18n } = useTranslation();
   if (!active || !payload?.length) return null;
-  const t = THEMES[theme];
   return (
     <div
       style={{
-        background: t.tooltipBg,
-        border: `1px solid ${t.tooltipBorder}`,
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
         borderRadius: 10,
         padding: "10px 14px",
         fontSize: 12,
@@ -251,7 +215,7 @@ function ChartTooltip({
     >
       <div
         style={{
-          color: t.muted,
+          color: "var(--muted)",
           marginBottom: 6,
           fontSize: 11,
           letterSpacing: ".06em",
@@ -278,13 +242,17 @@ function ChartTooltip({
               flexShrink: 0,
             }}
           />
-          <span style={{ color: t.muted, flex: 1 }}>{p.name}</span>
+          <span style={{ color: "var(--muted)", flex: 1 }}>{p.name}</span>
           <span
-            style={{ color: t.text, fontWeight: 700, fontFamily: "monospace" }}
+            style={{
+              color: "var(--text)",
+              fontWeight: 700,
+              fontFamily: "monospace",
+            }}
           >
             {typeof p.value === "number" && p.name.toLowerCase().includes("usd")
-              ? fmtUSD(p.value)
-              : fmt(p.value, 0)}
+              ? fmtUSD(p.value, i18n.language)
+              : fmt(p.value, i18n.language, 0)}
           </span>
         </div>
       ))}
@@ -299,21 +267,18 @@ function KPICard({
   value,
   sub,
   delta,
-  theme,
 }: {
   label: string;
   value: string;
   sub?: string;
   delta?: number;
-  theme: Theme;
 }) {
-  const t = THEMES[theme];
   const up = (delta ?? 0) >= 0;
   return (
     <div
       style={{
-        background: t.card,
-        border: `1.5px solid ${t.border}`,
+        background: "var(--surface)",
+        border: "1.5px solid var(--border)",
         borderRadius: 14,
         padding: "20px 22px",
         display: "flex",
@@ -327,7 +292,7 @@ function KPICard({
           fontWeight: 700,
           letterSpacing: ".12em",
           textTransform: "uppercase",
-          color: t.muted,
+          color: "var(--muted)",
         }}
       >
         {label}
@@ -336,7 +301,7 @@ function KPICard({
         style={{
           fontSize: 26,
           fontWeight: 800,
-          color: t.text,
+          color: "var(--text)",
           lineHeight: 1.15,
           fontFamily: "'DM Mono', monospace",
         }}
@@ -353,14 +318,16 @@ function KPICard({
               fontWeight: 700,
               padding: "2px 7px",
               borderRadius: 99,
-              background: up ? "rgba(52,211,153,.12)" : "rgba(248,113,113,.12)",
-              color: up ? "#34d399" : "#f87171",
+              background: up ? "rgba(16,185,129,.12)" : "rgba(239,68,68,.12)",
+              color: up ? "#10b981" : "#ef4444",
             }}
           >
             {up ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}%
           </span>
         )}
-        {sub && <span style={{ fontSize: 11, color: t.muted }}>{sub}</span>}
+        {sub && (
+          <span style={{ fontSize: 11, color: "var(--muted)" }}>{sub}</span>
+        )}
       </div>
     </div>
   );
@@ -375,13 +342,14 @@ interface ActivePieShapeProps {
   outerRadius: number;
   startAngle: number;
   endAngle: number;
-  fill: string;
-  payload: { name: string };
-  percent: number;
-  value: number;
+  fill?: string;
+  payload?: { name?: string; [key: string]: unknown };
+  percent?: number;
+  value?: number;
 }
 
 function ActivePieShape(props: ActivePieShapeProps) {
+  const { i18n } = useTranslation();
   const {
     cx,
     cy,
@@ -407,7 +375,7 @@ function ActivePieShape(props: ActivePieShapeProps) {
           fontFamily: "'DM Mono',monospace",
         }}
       >
-        {fmtUSD(value)}
+        {fmtUSD(value || 0, i18n.language)}
       </text>
       <text
         x={cx}
@@ -416,7 +384,7 @@ function ActivePieShape(props: ActivePieShapeProps) {
         fill="#8a82a8"
         style={{ fontSize: 11 }}
       >
-        {(percent * 100).toFixed(1)}%
+        {((percent || 0) * 100).toFixed(1)}%
       </text>
       <text
         x={cx}
@@ -425,7 +393,7 @@ function ActivePieShape(props: ActivePieShapeProps) {
         fill="#8a82a8"
         style={{ fontSize: 10 }}
       >
-        {payload.name}
+        {payload?.name || "Unknown"}
       </text>
       <Sector
         cx={cx}
@@ -452,21 +420,12 @@ function ActivePieShape(props: ActivePieShapeProps) {
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function PayrollDashboard() {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const saved = localStorage.getItem("theme");
-    return (saved === "dark" || saved === "light") ? saved : "dark";
-  });
-
-  useEffect(() => {
-    localStorage.setItem("theme", theme);
-  }, [theme]);
-
+  const { t, i18n } = useTranslation();
+  const { theme, toggleTheme } = useTheme();
   const [range, setRange] = useState<DateRange>("90D");
   const [tokenFilter, setToken] = useState<Token>("ALL");
   const [activePie, setActivePie] = useState(0);
   const [exportMsg, setExportMsg] = useState("");
-
-  const t = THEMES[theme];
 
   // ── Filtered data ──
   const filtered = useMemo(() => filterByRange(ALL_DATA, range), [range]);
@@ -482,7 +441,10 @@ export default function PayrollDashboard() {
     [filtered, tokenFilter],
   );
 
-  const monthlyBar = useMemo(() => toMonthly(filtered), [filtered]);
+  const monthlyBar = useMemo(
+    () => toMonthly(filtered, i18n.language),
+    [filtered, i18n.language],
+  );
 
   const totalUSDC = useMemo(
     () => filtered.reduce((s, r) => s + r.usdc, 0),
@@ -560,9 +522,9 @@ export default function PayrollDashboard() {
 
   const handleExport = useCallback(() => {
     exportCSV(filtered, `quipay-analytics-${range}-${Date.now()}.csv`);
-    setExportMsg("Downloaded!");
+    setExportMsg(t("payroll.downloaded"));
     setTimeout(() => setExportMsg(""), 2500);
-  }, [filtered, range]);
+  }, [filtered, range, t]);
 
   // ── Styles ──
   const sectionLabel: React.CSSProperties = {
@@ -570,12 +532,12 @@ export default function PayrollDashboard() {
     fontWeight: 700,
     letterSpacing: ".14em",
     textTransform: "uppercase",
-    color: t.muted,
+    color: "var(--muted)",
     marginBottom: 12,
   };
   const chartCard: React.CSSProperties = {
-    background: t.card,
-    border: `1.5px solid ${t.border}`,
+    background: "var(--surface)",
+    border: "1.5px solid var(--border)",
     borderRadius: 16,
     padding: "22px 20px",
   };
@@ -627,11 +589,11 @@ export default function PayrollDashboard() {
       <div
         className="pd-root"
         style={{
-          background: t.bg,
+          background: "var(--bg)",
           minHeight: "100vh",
           padding: "32px 28px",
           fontFamily: "'Outfit', sans-serif",
-          color: t.text,
+          color: "var(--text)",
         }}
       >
         {/* ── Top bar ── */}
@@ -656,7 +618,7 @@ export default function PayrollDashboard() {
                 marginBottom: 6,
               }}
             >
-              Quipay · Employer Analytics
+              {t("payroll.analytics_title")}
             </div>
             <h1
               style={{
@@ -664,13 +626,14 @@ export default function PayrollDashboard() {
                 fontSize: "clamp(22px, 3.5vw, 36px)",
                 fontWeight: 700,
                 lineHeight: 1.1,
-                color: t.text,
+                color: "var(--text)",
               }}
             >
-              Payroll Intelligence
+              {t("payroll.payroll_intelligence")}
             </h1>
-            <p style={{ fontSize: 13, color: t.muted, marginTop: 6 }}>
-              {fmt(ALL_DATA.length)} data points · Real-time payroll analytics
+            <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 6 }}>
+              {t("payroll.data_points", { count: ALL_DATA.length })} ·{" "}
+              {t("payroll.real_time")}
             </p>
           </div>
 
@@ -685,14 +648,16 @@ export default function PayrollDashboard() {
             {/* Theme toggle */}
             <button
               className="pd-btn"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              onClick={toggleTheme}
               style={{
-                background: t.card,
-                border: `1.5px solid ${t.border}`,
-                color: t.text,
+                background: "var(--surface)",
+                border: "1.5px solid var(--border)",
+                color: "var(--text)",
               }}
             >
-              {theme === "dark" ? "☀ Light" : "☾ Dark"}
+              {theme === "dark"
+                ? `☀ ${t("payroll.light")}`
+                : `☾ ${t("payroll.dark")}`}
             </button>
 
             {/* Export */}
@@ -705,7 +670,7 @@ export default function PayrollDashboard() {
                 boxShadow: `0 4px 20px rgba(110,86,207,.35)`,
               }}
             >
-              {exportMsg || "↓ Export CSV"}
+              {exportMsg || `↓ ${t("payroll.export_csv")}`}
             </button>
           </div>
         </div>
@@ -725,8 +690,8 @@ export default function PayrollDashboard() {
             style={{
               display: "flex",
               gap: 6,
-              background: t.card,
-              border: `1.5px solid ${t.border}`,
+              background: "var(--surface)",
+              border: `1.5px solid ${"var(--border)"}`,
               borderRadius: 99,
               padding: "4px",
             }}
@@ -739,7 +704,7 @@ export default function PayrollDashboard() {
                   onClick={() => setRange(r)}
                   style={{
                     background: range === r ? ACCENT : "transparent",
-                    color: range === r ? "#fff" : t.muted,
+                    color: range === r ? "#fff" : "var(--muted)",
                     boxShadow:
                       range === r ? `0 2px 12px rgba(110,86,207,.4)` : "none",
                   }}
@@ -755,8 +720,8 @@ export default function PayrollDashboard() {
             style={{
               display: "flex",
               gap: 6,
-              background: t.card,
-              border: `1.5px solid ${t.border}`,
+              background: "var(--surface)",
+              border: "1.5px solid var(--border)",
               borderRadius: 99,
               padding: "4px",
             }}
@@ -775,7 +740,7 @@ export default function PayrollDashboard() {
                           ? ACCENT
                           : ACCENT
                       : "transparent",
-                  color: tokenFilter === tk ? "#fff" : t.muted,
+                  color: tokenFilter === tk ? "#fff" : "var(--muted)",
                 }}
               >
                 {tk}
@@ -783,43 +748,42 @@ export default function PayrollDashboard() {
             ))}
           </div>
 
-          <span style={{ fontSize: 12, color: t.muted, marginLeft: "auto" }}>
-            {fmt(filtered.length)} days selected
+          <span
+            style={{ fontSize: 12, color: "var(--muted)", marginLeft: "auto" }}
+          >
+            {t("payroll.days_selected", { count: filtered.length })}
           </span>
         </div>
 
         {/* ── KPI Row ── */}
         <div className="pd-kpi-grid" style={{ marginBottom: 20 }}>
           <KPICard
-            label="Total USDC Payroll"
-            value={fmtUSD(totalUSDC)}
+            label={t("payroll.total_usdc_payroll")}
+            value={fmtUSD(totalUSDC, i18n.language)}
             delta={deltaUSDC}
-            sub="vs prev period"
-            theme={theme}
+            sub={t("payroll.vs_prev_period")}
           />
           <KPICard
-            label="Total XLM Payroll"
-            value={fmt(totalXLM, 0) + " XLM"}
-            sub="native token"
-            theme={theme}
+            label={t("payroll.total_xlm_payroll")}
+            value={
+              fmt(totalXLM, i18n.language, 0) + " " + t("payroll.xlm_native")
+            }
+            sub={t("payroll.native_token")}
           />
           <KPICard
-            label="Transactions"
-            value={fmt(totalTx)}
-            sub="on-chain"
-            theme={theme}
+            label={t("payroll.transactions")}
+            value={fmt(totalTx, i18n.language)}
+            sub={t("payroll.on_chain")}
           />
           <KPICard
-            label="Avg Active Workers"
-            value={fmt(avgWorkers)}
-            sub="per day"
-            theme={theme}
+            label={t("payroll.avg_active_workers")}
+            value={fmt(avgWorkers, i18n.language)}
+            sub={t("payroll.per_day")}
           />
           <KPICard
-            label="Total Protocol Fees"
-            value={fmtUSD(totalFees)}
-            sub="paid to network"
-            theme={theme}
+            label={t("payroll.total_fees")}
+            value={fmtUSD(totalFees, i18n.language)}
+            sub={t("payroll.paid_to_network")}
           />
         </div>
 
@@ -836,19 +800,19 @@ export default function PayrollDashboard() {
               }}
             >
               <div>
-                <p style={sectionLabel}>Burn Rate</p>
-                <p style={{ fontSize: 13, color: t.muted }}>
-                  Daily payroll spend over time
+                <p style={sectionLabel}>{t("payroll.burn_rate")}</p>
+                <p style={{ fontSize: 13, color: "var(--muted)" }}>
+                  {t("payroll.burn_rate_desc")}
                 </p>
               </div>
               <span
                 style={{
                   fontSize: 11,
-                  color: t.muted,
-                  background: t.panel,
+                  color: "var(--muted)",
+                  background: "var(--surface)",
                   padding: "4px 10px",
                   borderRadius: 99,
-                  border: `1px solid ${t.border}`,
+                  border: "1px solid var(--border)",
                 }}
               >
                 {burnData.length} pts rendered
@@ -869,23 +833,29 @@ export default function PayrollDashboard() {
                     <stop offset="95%" stopColor={CLR_XLM} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke={t.gridLine} strokeDasharray="3 3" />
+                <CartesianGrid
+                  stroke="var(--border)"
+                  strokeDasharray="3 3"
+                  opacity={0.2}
+                />
                 <XAxis
                   dataKey="date"
-                  tick={{ fill: t.muted, fontSize: 10 }}
+                  tick={{ fill: "var(--muted)", fontSize: 10 }}
                   tickLine={false}
                   axisLine={false}
                   interval={Math.max(1, Math.floor(burnData.length / 8))}
                 />
                 <YAxis
-                  tick={{ fill: t.muted, fontSize: 10 }}
+                  tick={{ fill: "var(--muted)", fontSize: 10 }}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={fmtUSD}
+                  tickFormatter={(val: number) => fmtUSD(val, i18n.language)}
                   width={56}
                 />
-                <Tooltip content={<ChartTooltip theme={theme} />} />
-                <Legend wrapperStyle={{ fontSize: 11, color: t.muted }} />
+                <Tooltip content={<ChartTooltip />} />
+                <Legend
+                  wrapperStyle={{ fontSize: 11, color: "var(--muted)" }}
+                />
                 {tokenFilter !== "XLM" && (
                   <Area
                     type="monotone"
@@ -916,9 +886,11 @@ export default function PayrollDashboard() {
           <div
             style={{ ...chartCard, display: "flex", flexDirection: "column" }}
           >
-            <p style={sectionLabel}>Token Distribution</p>
-            <p style={{ fontSize: 13, color: t.muted, marginBottom: 16 }}>
-              Payroll spend by asset
+            <p style={sectionLabel}>{t("payroll.token_distribution")}</p>
+            <p
+              style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16 }}
+            >
+              {t("payroll.token_distribution_desc")}
             </p>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
@@ -955,7 +927,7 @@ export default function PayrollDashboard() {
             >
               {pieData.map((p, i) => (
                 <div
-                  key={i}
+                  key={p.name}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -972,17 +944,19 @@ export default function PayrollDashboard() {
                       flexShrink: 0,
                     }}
                   />
-                  <span style={{ color: t.muted, flex: 1 }}>{p.name}</span>
+                  <span style={{ color: "var(--muted)", flex: 1 }}>
+                    {p.name}
+                  </span>
                   <span
                     style={{
                       fontFamily: "'DM Mono',monospace",
-                      color: t.text,
+                      color: "var(--text)",
                       fontWeight: 600,
                     }}
                   >
-                    {fmtUSD(p.value)}
+                    {fmtUSD(p.value, i18n.language)}
                   </span>
-                  <span style={{ fontSize: 10, color: t.muted }}>
+                  <span style={{ fontSize: 10, color: "var(--muted)" }}>
                     {(
                       (p.value / (totalUSDC + totalXLM + totalFees)) *
                       100
@@ -999,9 +973,11 @@ export default function PayrollDashboard() {
         <div className="pd-chart-row-3" style={{ marginBottom: 16 }}>
           {/* Monthly payroll bar chart */}
           <div style={chartCard}>
-            <p style={sectionLabel}>Monthly Payroll Volume</p>
-            <p style={{ fontSize: 13, color: t.muted, marginBottom: 18 }}>
-              USDC + XLM stacked by month
+            <p style={sectionLabel}>{t("payroll.monthly_volume")}</p>
+            <p
+              style={{ fontSize: 13, color: "var(--muted)", marginBottom: 18 }}
+            >
+              {t("payroll.monthly_volume_desc")}
             </p>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart
@@ -1010,25 +986,28 @@ export default function PayrollDashboard() {
                 barSize={18}
               >
                 <CartesianGrid
-                  stroke={t.gridLine}
+                  stroke="var(--border)"
                   strokeDasharray="3 3"
                   vertical={false}
+                  opacity={0.2}
                 />
                 <XAxis
                   dataKey="month"
-                  tick={{ fill: t.muted, fontSize: 10 }}
+                  tick={{ fill: "var(--muted)", fontSize: 10 }}
                   tickLine={false}
                   axisLine={false}
                 />
                 <YAxis
-                  tick={{ fill: t.muted, fontSize: 10 }}
+                  tick={{ fill: "var(--muted)", fontSize: 10 }}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={fmtUSD}
+                  tickFormatter={(val: number) => fmtUSD(val, i18n.language)}
                   width={56}
                 />
-                <Tooltip content={<ChartTooltip theme={theme} />} />
-                <Legend wrapperStyle={{ fontSize: 11, color: t.muted }} />
+                <Tooltip content={<ChartTooltip />} />
+                <Legend
+                  wrapperStyle={{ fontSize: 11, color: "var(--muted)" }}
+                />
                 <Bar
                   dataKey="usdc"
                   name="USDC"
@@ -1049,9 +1028,11 @@ export default function PayrollDashboard() {
 
           {/* Worker trend line */}
           <div style={chartCard}>
-            <p style={sectionLabel}>Active Worker Trend</p>
-            <p style={{ fontSize: 13, color: t.muted, marginBottom: 18 }}>
-              Workers receiving streams per day
+            <p style={sectionLabel}>{t("payroll.worker_growth")}</p>
+            <p
+              style={{ fontSize: 13, color: "var(--muted)", marginBottom: 18 }}
+            >
+              {t("payroll.worker_growth_desc")}
             </p>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart
@@ -1064,21 +1045,21 @@ export default function PayrollDashboard() {
                     <stop offset="100%" stopColor={ACCENT2} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke={t.gridLine} strokeDasharray="3 3" />
+                <CartesianGrid stroke={"var(--border)"} strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
-                  tick={{ fill: t.muted, fontSize: 10 }}
+                  tick={{ fill: "var(--muted)", fontSize: 10 }}
                   tickLine={false}
                   axisLine={false}
                   interval={Math.max(1, Math.floor(workerTrend.length / 6))}
                 />
                 <YAxis
-                  tick={{ fill: t.muted, fontSize: 10 }}
+                  tick={{ fill: "var(--muted)", fontSize: 10 }}
                   tickLine={false}
                   axisLine={false}
                   width={30}
                 />
-                <Tooltip content={<ChartTooltip theme={theme} />} />
+                <Tooltip content={<ChartTooltip />} />
                 <Line
                   type="monotone"
                   dataKey="Workers"
@@ -1103,9 +1084,9 @@ export default function PayrollDashboard() {
             }}
           >
             <div>
-              <p style={sectionLabel}>Transaction Frequency</p>
-              <p style={{ fontSize: 13, color: t.muted }}>
-                On-chain transactions per day
+              <p style={sectionLabel}>{t("payroll.total_tx")}</p>
+              <p style={{ fontSize: 13, color: "var(--muted)" }}>
+                {t("payroll.on_chain")}
               </p>
             </div>
             <div style={{ textAlign: "right" }}>
@@ -1114,13 +1095,13 @@ export default function PayrollDashboard() {
                   fontFamily: "'DM Mono',monospace",
                   fontSize: 22,
                   fontWeight: 700,
-                  color: t.text,
+                  color: "var(--text)",
                 }}
               >
-                {fmt(totalTx)}
+                {fmt(totalTx, i18n.language)}
               </div>
-              <div style={{ fontSize: 11, color: t.muted }}>
-                total in period
+              <div style={{ fontSize: 11, color: "var(--muted)" }}>
+                {t("payroll.total_in_period")}
               </div>
             </div>
           </div>
@@ -1134,24 +1115,24 @@ export default function PayrollDashboard() {
               barSize={4}
             >
               <CartesianGrid
-                stroke={t.gridLine}
+                stroke={"var(--border)"}
                 strokeDasharray="3 3"
                 vertical={false}
               />
               <XAxis
                 dataKey="date"
-                tick={{ fill: t.muted, fontSize: 9 }}
+                tick={{ fill: "var(--muted)", fontSize: 9 }}
                 tickLine={false}
                 axisLine={false}
                 interval={Math.floor(filtered.length / 8)}
               />
               <YAxis
-                tick={{ fill: t.muted, fontSize: 9 }}
+                tick={{ fill: "var(--muted)", fontSize: 9 }}
                 tickLine={false}
                 axisLine={false}
                 width={24}
               />
-              <Tooltip content={<ChartTooltip theme={theme} />} />
+              <Tooltip content={<ChartTooltip />} />
               <Bar
                 dataKey="Txns"
                 fill={ACCENT2}
@@ -1168,11 +1149,12 @@ export default function PayrollDashboard() {
             textAlign: "center",
             marginTop: 32,
             fontSize: 11,
-            color: t.muted,
+            color: "var(--muted)",
           }}
         >
-          Quipay Analytics · {fmt(ALL_DATA.length)} data points · All amounts in
-          USD equivalent
+          {t("common.welcome")} ·{" "}
+          {t("payroll.data_points", { count: ALL_DATA.length })} ·{" "}
+          {t("common.all_amounts_usd")}
         </div>
       </div>
     </>

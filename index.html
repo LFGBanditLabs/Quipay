@@ -11,6 +11,42 @@
     <meta name="theme-color" content="#0f7a99" />
     <link rel="canonical" href="https://quipay.app/" />
 
+    <script>
+      (function () {
+        try {
+          var storageKey = "quipay-theme";
+          var stored = window.localStorage.getItem(storageKey);
+          var systemPrefersDark =
+            window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+          var theme =
+            stored === "light" || stored === "dark"
+              ? stored
+              : systemPrefersDark
+                ? "dark"
+                : "light";
+
+          var root = document.documentElement;
+          root.setAttribute("data-theme", theme);
+          root.classList.toggle("dark", theme === "dark");
+          root.style.colorScheme = theme;
+
+          var metaThemeColor = document.querySelector(
+            'meta[name="theme-color"]',
+          );
+          if (metaThemeColor) {
+            metaThemeColor.setAttribute(
+              "content",
+              theme === "dark" ? "#0f172a" : "#f4f9ff",
+            );
+          }
+        } catch {
+          // If anything fails here, we silently fall back to default styles.
+        }
+      })();
+    </script>
+
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Quipay" />
     <meta property="og:title" content="Quipay | Stream Payments on Stellar" />

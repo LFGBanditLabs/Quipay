@@ -28,10 +28,12 @@ pub enum QuipayError {
     StreamClosed = 1018,
     NotEmployer = 1019,
     StreamNotClosed = 1020,
+    InvalidTimeRange = 1021,
+    InvalidCliff = 1022,
+    StartTimeInPast = 1023,
+    Overflow = 1024,
     Custom = 1999,
 }
-
-
 
 /// Macro for requiring a condition to be true, returning an error if false
 #[macro_export]

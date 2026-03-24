@@ -121,23 +121,30 @@ const FAQS: FAQ[] = [
     answer:
       "This can happen if: (1) your stream was just started and only seconds have elapsed, (2) the stream has been paused or canceled, (3) you recently completed a withdrawal and the balance is rebuilding, or (4) there is a network delay fetching your balance — try refreshing.",
   },
-  // Fees
   {
     id: 15,
+    category: "Withdrawals",
+    question: "What happens if one stream fails during a batch withdrawal?",
+    answer:
+      "Batch withdrawals are atomic. Quipay validates the full batch before starting payouts, and if any payout fails at execution time the entire transaction reverts so no stream in that batch is partially withdrawn.",
+  },
+  // Fees
+  {
+    id: 16,
     category: "Fees",
     question: "What fees does Quipay charge?",
     answer:
       "Quipay charges a small protocol fee on each stream, deducted from the employer's deposit. Worker withdrawals have no Quipay fee. The only cost to workers is the Stellar network transaction fee (~0.00001 XLM per transaction), which is negligible.",
   },
   {
-    id: 16,
+    id: 17,
     category: "Fees",
     question: "Are there gas fees on Stellar?",
     answer:
       "Stellar uses a fixed, predictable fee model instead of variable gas. Each transaction costs 100 stroops (0.00001 XLM), which at current XLM prices is a fraction of a cent. This is one of the key reasons Quipay is built on Stellar.",
   },
   {
-    id: 17,
+    id: 18,
     category: "Fees",
     question: "Does Quipay take a cut of my salary?",
     answer:
@@ -145,28 +152,28 @@ const FAQS: FAQ[] = [
   },
   // Security
   {
-    id: 18,
+    id: 19,
     category: "Security",
     question: "Is my salary safe if Quipay goes offline?",
     answer:
       "Yes. Salary funds are held in non-custodial smart contracts on the Stellar blockchain, not by Quipay. Even if Quipay's frontend goes offline, you can interact with the contract directly using a Stellar explorer or compatible wallet to withdraw your funds.",
   },
   {
-    id: 19,
+    id: 20,
     category: "Security",
     question: "Can Quipay access or freeze my funds?",
     answer:
       "No. Quipay is a non-custodial protocol — we never hold your private keys or have the ability to move your funds. Only the wallet addresses specified in the stream contract can withdraw. Employers can only cancel future accruals, not reclaim already-earned amounts.",
   },
   {
-    id: 20,
+    id: 21,
     category: "Security",
     question: "Has Quipay's smart contract been audited?",
     answer:
       "Quipay's PayrollStream contracts are open source and have undergone community review. A formal third-party security audit is planned before the mainnet launch. Audit reports will be published publicly. Always check our docs for the latest audit status.",
   },
   {
-    id: 21,
+    id: 22,
     category: "Security",
     question:
       "What should I do if I suspect unauthorized access to my account?",
@@ -175,21 +182,21 @@ const FAQS: FAQ[] = [
   },
   // Account
   {
-    id: 22,
+    id: 23,
     category: "Account",
     question: "How do I connect my wallet to Quipay?",
     answer:
       "Click 'Connect Wallet' in the top navigation. Quipay supports Freighter, Lobstr, and any WalletConnect-compatible Stellar wallet. Select your wallet provider, approve the connection request, and you're in — no account creation or email required.",
   },
   {
-    id: 23,
+    id: 24,
     category: "Account",
     question: "Can I use Quipay on mobile?",
     answer:
       "Yes. Quipay's interface is fully responsive and works on mobile browsers. For the best mobile experience, use a wallet with a built-in browser like Lobstr. The worker dashboard is optimized for quick balance checks and withdrawals on the go.",
   },
   {
-    id: 24,
+    id: 25,
     category: "Account",
     question: "How do I switch between employer and worker views?",
     answer:
@@ -257,18 +264,21 @@ function Highlight({ text, query }: { text: string; query: string }) {
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const regex = new RegExp(`(${escaped})`, "gi");
   const parts = text.split(regex);
-  // Build character-offset keys so we never use array index as key
-  let charOffset = 0;
+  // Pre-compute character-offset keys so we never mutate during render
+  const keyed = parts.reduce<{ key: string; part: string }[]>((acc, part) => {
+    const offset =
+      acc.length > 0 ? acc.reduce((sum, item) => sum + item.part.length, 0) : 0;
+    acc.push({ key: `${offset}-${part.length}`, part });
+    return acc;
+  }, []);
   return (
     <>
-      {parts.map((part) => {
-        const key = `${charOffset}-${part.length}`;
-        charOffset += part.length;
-        return part.toLowerCase() === query.toLowerCase() ? (
+      {keyed.map(({ key, part }) =>
+        part.toLowerCase() === query.toLowerCase() ? (
           <mark
             key={key}
             style={{
-              background: "rgba(110,86,207,0.18)",
+              background: "var(--accent-transparent-strong)",
               color: "inherit",
               borderRadius: "2px",
               padding: "0 1px",
@@ -278,8 +288,8 @@ function Highlight({ text, query }: { text: string; query: string }) {
           </mark>
         ) : (
           <span key={key}>{part}</span>
-        );
-      })}
+        ),
+      )}
     </>
   );
 }
@@ -368,14 +378,6 @@ export default function HelpCenter() {
         .hc-root *, .hc-root *::before, .hc-root *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         .hc-root {
-          --bg:         #f5f3ff;
-          --card:       #ffffff;
-          --border:     #e8e2d9;
-          --accent:     #6E56CF;
-          --text:       #13111a;
-          --muted:      #8a7f74;
-          --radius:     14px;
-          --shadow:     0 2px 16px rgba(0,0,0,0.07);
           font-family: 'Mulish', sans-serif;
           background: var(--bg);
           color: var(--text);
@@ -395,8 +397,8 @@ export default function HelpCenter() {
           position: absolute;
           inset: 0;
           background:
-            radial-gradient(ellipse 55% 60% at 20% 50%, rgba(110,86,207,.18) 0%, transparent 60%),
-            radial-gradient(ellipse 45% 50% at 80% 40%, rgba(110,86,207,.1) 0%, transparent 60%);
+            radial-gradient(ellipse 55% 60% at 20% 50%, var(--accent-transparent) 0%, transparent 60%),
+            radial-gradient(ellipse 45% 50% at 80% 40%, var(--accent-transparent) 0%, transparent 60%);
           pointer-events: none;
         }
         .hc-hero-eyebrow {
@@ -412,7 +414,7 @@ export default function HelpCenter() {
           font-family: 'Playfair Display', serif;
           font-size: clamp(32px, 5vw, 54px);
           font-weight: 700;
-          color: #f5f3ff;
+          color: var(--bg);
           line-height: 1.15;
           margin-bottom: 16px;
           animation: hcFadeUp .4s .08s ease both;
@@ -442,20 +444,20 @@ export default function HelpCenter() {
           border-radius: 12px;
           font-family: 'Mulish', sans-serif;
           font-size: 15px;
-          background: #fff;
+          background: var(--surface);
           color: var(--text);
-          box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+          box-shadow: 0 4px 24px var(--shadow-color);
           outline: none;
           transition: box-shadow .2s;
         }
-        .hc-search-input::placeholder { color: #b0a89e; }
-        .hc-search-input:focus { box-shadow: 0 4px 32px rgba(110,86,207,0.25), 0 0 0 2px var(--accent); }
+        .hc-search-input::placeholder { color: var(--muted); }
+        .hc-search-input:focus { box-shadow: 0 4px 32px var(--accent-transparent-strong), 0 0 0 2px var(--accent); }
         .hc-search-clear {
           position: absolute;
           right: 16px;
           top: 50%;
           transform: translateY(-50%);
-          background: #ede8e1;
+          background: var(--surface-subtle);
           border: none;
           border-radius: 50%;
           width: 24px; height: 24px;
@@ -472,7 +474,7 @@ export default function HelpCenter() {
           gap: 32px;
           padding: 28px 24px;
           border-bottom: 1px solid var(--border);
-          background: #fff;
+          background: var(--surface);
         }
         .hc-stat { text-align: center; }
         .hc-stat-num {
@@ -522,7 +524,7 @@ export default function HelpCenter() {
           background: var(--accent);
           border-color: var(--accent);
           color: #fff;
-          box-shadow: 0 2px 12px rgba(110,86,207,0.3);
+          box-shadow: 0 2px 12px var(--accent-transparent-strong);
         }
 
         .hc-section { margin-bottom: 40px; animation: hcFadeUp .3s ease both; }
@@ -551,15 +553,15 @@ export default function HelpCenter() {
 
         .hc-faq-item {
           border: 1.5px solid var(--border);
-          border-radius: var(--radius);
+          border-radius: 14px;
           margin-bottom: 8px;
           background: var(--card);
           overflow: hidden;
           transition: border-color .2s, box-shadow .2s;
         }
         .hc-faq-item:hover, .hc-faq-item.open {
-          border-color: rgba(110,86,207,0.35);
-          box-shadow: var(--shadow);
+          border-color: var(--accent-transparent-strong);
+          box-shadow: 0 2px 16px var(--shadow-color);
         }
         .hc-faq-q {
           width: 100%;
@@ -589,7 +591,7 @@ export default function HelpCenter() {
           padding: 16px 20px 20px;
           font-size: 14px;
           line-height: 1.75;
-          color: #5a5048;
+          color: var(--text);
           border-top: 1px solid var(--border);
         }
 
@@ -637,7 +639,7 @@ export default function HelpCenter() {
           cursor: pointer;
           white-space: nowrap;
           transition: opacity .2s, transform .15s;
-          box-shadow: 0 4px 16px rgba(110,86,207,.4);
+          box-shadow: 0 4px 16px var(--accent-transparent-strong);
           letter-spacing: .03em;
         }
         .hc-contact-btn:hover { opacity: .9; transform: translateY(-1px); }
@@ -658,7 +660,7 @@ export default function HelpCenter() {
             <br />
             We have <span>answers.</span>
           </h1>
-          <p style={{ color: "white" }}>
+          <p style={{ color: "var(--bg)" }}>
             Everything you need to know about tokens, streams, withdrawals, and
             keeping your salary safe.
           </p>

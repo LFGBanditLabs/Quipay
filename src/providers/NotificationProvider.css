@@ -12,10 +12,10 @@
 .notification {
   max-width: min(92vw, 540px);
   border-radius: 12px;
-  border: 1px solid rgba(15, 54, 82, 0.14);
-  background: rgba(255, 255, 255, 0.95);
-  color: #163957;
-  box-shadow: 0 10px 24px rgba(15, 53, 88, 0.18);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
   padding: 0.72rem 0.92rem;
   transition:
     transform 0.3s ease,
@@ -30,18 +30,57 @@
 }
 
 .notification.success {
-  border-color: rgba(20, 128, 89, 0.32);
-  background: rgba(239, 253, 247, 0.95);
+  border-left: 4px solid #10b981;
+  background: rgba(16, 185, 129, 0.05);
+  color: #10b981;
+}
+
+[data-theme="dark"] .notification.success {
+  background: rgba(16, 185, 129, 0.1);
 }
 
 .notification.error {
-  border-color: rgba(190, 41, 68, 0.32);
-  background: rgba(255, 241, 244, 0.96);
+  border-left: 4px solid var(--sds-color-feedback-error, #ef4444);
+  background: rgba(239, 68, 68, 0.05);
+  color: var(--sds-color-feedback-error, #ef4444);
+}
+
+[data-theme="dark"] .notification.error {
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .notification.warning {
-  border-color: rgba(179, 109, 0, 0.32);
-  background: rgba(255, 249, 236, 0.96);
+  border-left: 4px solid #f5a623;
+  background: rgba(245, 166, 35, 0.05);
+  color: #f5a623;
+}
+
+[data-theme="dark"] .notification.warning {
+  background: rgba(245, 166, 35, 0.1);
+}
+
+.notification-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.notification-action-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid currentColor;
+  color: inherit;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.notification-action-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .notification.slide-in {

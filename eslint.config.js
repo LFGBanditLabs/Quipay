@@ -9,38 +9,53 @@ import prettier from "eslint-config-prettier";
 import { globalIgnores } from "eslint/config";
 
 export default tseslint.config(
-  globalIgnores([
-    "dist",
-    "packages",
-    "target/packages",
-    "src/contracts/*",
-    "!src/contracts/util.ts",
-    "backend/**",
-  ]),
   {
-    extends: [
-      js.configs.recommended,
-      tseslint.configs.recommendedTypeChecked,
-      reactDOM.configs.recommended,
-      reactHooks.configs["recommended-latest"],
-      reactRefresh.configs.vite,
-      reactX.configs["recommended-typescript"],
-      prettier,
+    ignores: [
+      "**/dist/**",
+      "**/packages/**",
+      "**/target/packages/**",
+      "src/contracts/*",
+      "!src/contracts/util.ts",
+      "backend/**",
+      "developer-hub/**",
+      "scripts/**",
+      "*.mjs",
+      "*.cjs",
+      "*.js",
     ],
+  },
+  js.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
+  {
     files: ["**/*.{ts,tsx}"],
+    plugins: {
+      "react-dom": reactDOM,
+      "react-refresh": reactRefresh,
+      "react-x": reactX,
+      "react-hooks": reactHooks,
+    },
     languageOptions: {
       ecmaVersion: 2020,
-      globals: globals.browser,
+      globals: {
+        ...globals.browser,
+      },
       parserOptions: {
         project: ["./tsconfig.node.json", "./tsconfig.app.json"],
         tsconfigRoot: import.meta.dirname,
       },
     },
     rules: {
+      ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": [
         "warn",
         { allowConstantExport: true },
       ],
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
     },
   },
+  prettier,
 );

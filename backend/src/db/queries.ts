@@ -1,4 +1,5 @@
 import { query, getPool } from "./pool";
+import { globalCache } from "../utils/cache";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -80,6 +81,23 @@ export interface SchedulerLog {
   created_at: Date;
 }
 
+export interface WebhookOutboundEventRecord {
+  id: string;
+  owner_id: string;
+  subscription_id: string;
+  url: string;
+  event_type: string;
+  request_payload: unknown;
+  status: "pending" | "success" | "failed";
+  attempt_count: number;
+  last_response_code: number | null;
+  last_error: string | null;
+  next_retry_at: Date | null;
+  last_attempt_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
 // ─── Cursor helpers (for sync worker) ───────────────────────────────────────
 
 export const getLastSyncedLedger = async (
@@ -144,6 +162,12 @@ export const upsertStream = async (params: {
       params.ledger,
     ],
   );
+
+  // Invalidate global analytics cache
+  globalCache.del("analytics:summary");
+  globalCache.invalidateByPrefix("analytics:trends:");
+  globalCache.del(`analytics:address:${params.employer}`);
+  globalCache.del(`analytics:address:${params.worker}`);
 };
 
 export const recordWithdrawal = async (params: {
@@ -165,6 +189,10 @@ export const recordWithdrawal = async (params: {
       params.ledgerTs,
     ],
   );
+
+  // Invalidate worker analytics cache
+  globalCache.del(`analytics:address:${params.worker}`);
+  globalCache.del("analytics:summary"); // total withdrawn changes
 };
 
 export const recordVaultEvent = async (params: {
@@ -468,6 +496,247 @@ export const getSchedulerLogs = async (
   const res = await query<SchedulerLog>(
     `SELECT * FROM scheduler_logs ORDER BY created_at DESC LIMIT $1`,
     [limit],
+  );
+  return res.rows;
+};
+
+// ─── Treasury monitoring queries ──────────────────────────────────────────────
+
+export interface TreasuryBalance {
+  employer: string;
+  balance: string;
+  token: string;
+  updated_at: Date;
+}
+
+export interface TreasuryLiability {
+  employer: string;
+  liabilities: string;
+}
+
+export interface MonitorLogEntry {
+  id: number;
+  employer: string;
+  balance: string;
+  liabilities: string;
+  runway_days: number | null;
+  alert_sent: boolean;
+  created_at: Date;
+}
+
+export const getTreasuryBalances = async (): Promise<TreasuryBalance[]> => {
+  if (!getPool()) return [];
+  const res = await query<TreasuryBalance>(
+    `SELECT employer, balance, token, updated_at FROM treasury_balances`,
+  );
+  return res.rows;
+};
+
+export const getActiveLiabilities = async (): Promise<TreasuryLiability[]> => {
+  if (!getPool()) return [];
+  const res = await query<TreasuryLiability>(
+    `SELECT 
+            employer,
+            SUM(total_amount - withdrawn_amount) AS liabilities
+         FROM payroll_streams
+         WHERE status = 'active'
+         GROUP BY employer`,
+  );
+  return res.rows;
+};
+
+export const logMonitorEvent = async (params: {
+  employer: string;
+  balance: number;
+  liabilities: number;
+  runwayDays: number | null;
+  alertSent: boolean;
+}): Promise<void> => {
+  if (!getPool()) return;
+  await query(
+    `INSERT INTO treasury_monitor_log
+            (employer, balance, liabilities, runway_days, alert_sent)
+         VALUES ($1, $2, $3, $4, $5)`,
+    [
+      params.employer,
+      params.balance,
+      params.liabilities,
+      params.runwayDays,
+      params.alertSent,
+    ],
+  );
+};
+
+export const updateTreasuryBalance = async (
+  employer: string,
+  balance: bigint,
+  token = "USDC",
+): Promise<void> => {
+  if (!getPool()) return;
+  await query(
+    `INSERT INTO treasury_balances (employer, balance, token, updated_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (employer) DO UPDATE
+           SET balance = EXCLUDED.balance,
+               token = EXCLUDED.token,
+               updated_at = NOW()`,
+    [employer, balance.toString(), token],
+  );
+};
+
+export const getMonitorLogs = async (
+  employer?: string,
+  limit = 100,
+): Promise<MonitorLogEntry[]> => {
+  if (!getPool()) return [];
+  if (employer) {
+    const res = await query<MonitorLogEntry>(
+      `SELECT * FROM treasury_monitor_log WHERE employer = $1
+             ORDER BY created_at DESC LIMIT $2`,
+      [employer, limit],
+    );
+    return res.rows;
+  }
+  const res = await query<MonitorLogEntry>(
+    `SELECT * FROM treasury_monitor_log ORDER BY created_at DESC LIMIT $1`,
+    [limit],
+  );
+  return res.rows;
+};
+
+// ─── Webhook outbound delivery logs ──────────────────────────────────────────
+
+export const createWebhookOutboundEvent = async (params: {
+  id: string;
+  ownerId: string;
+  subscriptionId: string;
+  url: string;
+  eventType: string;
+  requestPayload: unknown;
+}): Promise<void> => {
+  if (!getPool()) return;
+  await query(
+    `INSERT INTO webhook_outbound_events
+        (id, owner_id, subscription_id, url, event_type, request_payload, status)
+      VALUES ($1,$2,$3,$4,$5,$6,'pending')`,
+    [
+      params.id,
+      params.ownerId,
+      params.subscriptionId,
+      params.url,
+      params.eventType,
+      params.requestPayload,
+    ],
+  );
+};
+
+export const insertWebhookOutboundAttempt = async (params: {
+  eventId: string;
+  attemptNumber: number;
+  responseCode: number | null;
+  responseBody: string | null;
+  errorMessage: string | null;
+  durationMs: number | null;
+}): Promise<void> => {
+  if (!getPool()) return;
+  await query(
+    `INSERT INTO webhook_outbound_attempts
+        (event_id, attempt_number, response_code, response_body, error_message, duration_ms)
+      VALUES ($1,$2,$3,$4,$5,$6)`,
+    [
+      params.eventId,
+      params.attemptNumber,
+      params.responseCode,
+      params.responseBody,
+      params.errorMessage,
+      params.durationMs,
+    ],
+  );
+};
+
+export const updateWebhookOutboundEventAfterAttempt = async (params: {
+  eventId: string;
+  status: "pending" | "success" | "failed";
+  attemptCount: number;
+  lastResponseCode: number | null;
+  lastError: string | null;
+  nextRetryAt: Date | null;
+}): Promise<void> => {
+  if (!getPool()) return;
+  await query(
+    `UPDATE webhook_outbound_events
+        SET status = $2,
+            attempt_count = $3,
+            last_response_code = $4,
+            last_error = $5,
+            next_retry_at = $6,
+            last_attempt_at = NOW(),
+            updated_at = NOW()
+      WHERE id = $1`,
+    [
+      params.eventId,
+      params.status,
+      params.attemptCount,
+      params.lastResponseCode,
+      params.lastError,
+      params.nextRetryAt,
+    ],
+  );
+};
+
+export const getWebhookOutboundEventById = async (
+  eventId: string,
+): Promise<WebhookOutboundEventRecord | null> => {
+  if (!getPool()) return null;
+  const res = await query<WebhookOutboundEventRecord>(
+    `SELECT * FROM webhook_outbound_events WHERE id = $1`,
+    [eventId],
+  );
+  return res.rows[0] ?? null;
+};
+
+export const getWebhookOutboundEventByIdForOwner = async (params: {
+  eventId: string;
+  ownerId: string;
+}): Promise<WebhookOutboundEventRecord | null> => {
+  if (!getPool()) return null;
+  const res = await query<WebhookOutboundEventRecord>(
+    `SELECT * FROM webhook_outbound_events WHERE id = $1 AND owner_id = $2`,
+    [params.eventId, params.ownerId],
+  );
+  return res.rows[0] ?? null;
+};
+
+export const listDueWebhookOutboundEvents = async (params: {
+  limit: number;
+}): Promise<WebhookOutboundEventRecord[]> => {
+  if (!getPool()) return [];
+  const res = await query<WebhookOutboundEventRecord>(
+    `SELECT *
+      FROM webhook_outbound_events
+      WHERE status = 'pending'
+        AND next_retry_at IS NOT NULL
+        AND next_retry_at <= NOW()
+      ORDER BY next_retry_at ASC
+      LIMIT $1`,
+    [params.limit],
+  );
+  return res.rows;
+};
+
+export const listWebhookOutboundEventsByOwner = async (params: {
+  ownerId: string;
+  limit: number;
+  offset: number;
+}): Promise<WebhookOutboundEventRecord[]> => {
+  if (!getPool()) return [];
+  const res = await query<WebhookOutboundEventRecord>(
+    `SELECT *
+      FROM webhook_outbound_events
+      WHERE owner_id = $1
+      ORDER BY created_at DESC
+      LIMIT $2 OFFSET $3`,
+    [params.ownerId, params.limit, params.offset],
   );
   return res.rows;
 };
