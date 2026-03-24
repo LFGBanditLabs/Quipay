@@ -6,6 +6,11 @@ async function seed() {
   console.log("🌱 Seeding database...");
   await initDb();
   const pool = getPool();
+  if (!pool) {
+    throw new Error(
+      "Database pool was not initialized. Check your DATABASE_URL.",
+    );
+  }
   const db = drizzle(pool, { schema });
 
   // 1. Initial Sync Cursors
