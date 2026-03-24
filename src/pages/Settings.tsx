@@ -224,13 +224,13 @@ const Settings: React.FC = () => {
         {members.map((member) => (
           <div
             key={member.id}
-            className="group flex items-center justify-between p-5 rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] hover:bg-[var(--surface)] hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300"
+            className="group flex items-center justify-between p-5 rounded-2xl border border-(--border) bg-(--surface-subtle) hover:bg-(--surface) hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300"
           >
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center border border-indigo-500/10 group-hover:scale-110 transition-transform relative">
+              <div className="w-12 h-12 rounded-2xl bg-linear-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center border border-indigo-500/10 group-hover:scale-110 transition-transform relative">
                 <Icon name="user" size="md" className="text-indigo-400" />
                 {member.role === "Owner" && (
-                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 rounded-full border-2 border-[var(--surface)] flex items-center justify-center">
+                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 rounded-full border-2 border-(--surface) flex items-center justify-center">
                     <div className="w-1.5 h-1.5 bg-white rounded-full shadow-sm" />
                   </div>
                 )}
@@ -262,7 +262,7 @@ const Settings: React.FC = () => {
                   >
                     {member.address}
                   </Text>
-                  <div className="w-1 h-1 bg-[var(--border)] rounded-full" />
+                  <div className="w-1 h-1 bg-(--border) rounded-full" />
                   <Text
                     as="p"
                     size="xs"
@@ -331,7 +331,7 @@ const Settings: React.FC = () => {
         {roles.map((role) => (
           <Card
             key={role.id}
-            className="p-6 rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] hover:border-indigo-500/30 transition-all duration-300 group"
+            className="p-6 rounded-2xl border border-(--border) bg-(--surface-subtle) hover:border-indigo-500/30 transition-all duration-300 group"
           >
             <div className="flex items-start justify-between mb-4">
               <div>
@@ -431,15 +431,15 @@ const Settings: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4 p-4 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--border)] shadow-inner">
-        <div className="flex-1 min-w-[240px] relative">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none">
+      <div className="flex flex-wrap items-center gap-4 p-4 rounded-2xl bg-(--surface-subtle) border border-(--border) shadow-inner">
+        <div className="flex-1 min-w-60 relative">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-(--muted) pointer-events-none">
             <Icon name="search" size="sm" />
           </div>
           <input
             type="text"
             placeholder="Search logs by action, wallet, or details..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all placeholder:opacity-50"
+            className="w-full pl-10 pr-4 py-2 rounded-xl border border-(--border) bg-(--surface) text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all placeholder:opacity-50"
             value={auditSearch}
             onChange={(e) => setAuditSearch(e.target.value)}
           />
@@ -449,12 +449,12 @@ const Settings: React.FC = () => {
             as="span"
             size="sm"
             weight="medium"
-            className="text-[var(--muted)] whitespace-nowrap"
+            className="text-(--muted) whitespace-nowrap"
           >
             Status:
           </Text>
           <select
-            className="p-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+            className="p-2 rounded-xl border border-(--border) bg-(--surface) text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
             value={auditFilter}
             onChange={(e) => setAuditFilter(e.target.value)}
           >
@@ -466,11 +466,11 @@ const Settings: React.FC = () => {
         </div>
       </div>
 
-      <Card className="overflow-hidden border-[var(--border)] rounded-2xl shadow-sm bg-[var(--surface)]">
+      <Card className="overflow-hidden border-(--border) rounded-2xl shadow-sm bg-(--surface)">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-[var(--surface-subtle)] border-b border-[var(--border)]">
+              <tr className="bg-(--surface-subtle) border-b border-(--border)">
                 <th className="p-4">
                   <Text
                     as="span"
@@ -528,7 +528,7 @@ const Settings: React.FC = () => {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--border)]">
+            <tbody className="divide-y divide-(--border)">
               {filteredLogs.length > 0 ? (
                 filteredLogs.map((log) => (
                   <tr
@@ -647,8 +647,8 @@ const Settings: React.FC = () => {
         </div>
       </div>
 
-      <div className="py-20 flex flex-col items-center justify-center text-center rounded-3xl border-2 border-dashed border-[var(--border)] bg-[var(--surface-subtle)]/30 backdrop-blur-sm">
-        <div className="w-20 h-20 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-full flex items-center justify-center mb-6 relative">
+      <div className="py-20 flex flex-col items-center justify-center text-center rounded-3xl border-2 border-dashed border-(--border) bg-(--surface-subtle)/30 backdrop-blur-sm">
+        <div className="w-20 h-20 bg-linear-to-br from-indigo-500/10 to-purple-500/10 rounded-full flex items-center justify-center mb-6 relative">
           <div className="absolute inset-0 bg-indigo-500/5 rounded-full animate-ping" />
           <Icon
             name="check"
@@ -714,15 +714,15 @@ const Settings: React.FC = () => {
         )}
 
         {/* Glassmorphism Navigation */}
-        <nav className="flex items-center gap-1 p-1 mb-10 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--border)] overflow-x-auto no-scrollbar scroll-smooth shadow-inner">
+        <nav className="flex items-center gap-1 p-1 mb-10 rounded-2xl bg-(--surface-subtle) border border-(--border) overflow-x-auto no-scrollbar scroll-smooth shadow-inner">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-300 whitespace-nowrap ${
                 activeTab === tab.id
-                  ? "bg-[var(--surface)] text-[var(--text)] shadow-lg shadow-indigo-500/10 border border-[var(--border)] translate-y-[-1px]"
-                  : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface)]/50"
+                  ? "bg-(--surface) text-(--text) shadow-lg shadow-indigo-500/10 border border-(--border) -translate-y-px"
+                  : "text-(--muted) hover:text-(--text) hover:bg-(--surface)/50"
               }`}
             >
               <Icon name={tab.icon} size="sm" />
@@ -731,7 +731,7 @@ const Settings: React.FC = () => {
           ))}
         </nav>
 
-        <div className="min-h-[500px]">
+        <div className="min-h-125">
           {activeTab === "team" && renderTeamPortal()}
           {activeTab === "roles" && renderRolesUI()}
           {activeTab === "audit" && renderAuditLog()}
@@ -743,7 +743,7 @@ const Settings: React.FC = () => {
           visible={isMemberModalOpen}
           onClose={() => setIsMemberModalOpen(false)}
         >
-          <div className="p-8 bg-[var(--surface)] text-[var(--text)] rounded-3xl shadow-2xl overflow-hidden relative">
+          <div className="p-8 bg-(--surface) text-(--text) rounded-3xl shadow-2xl overflow-hidden relative">
             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full -mr-16 -mt-16 blur-3xl" />
             <Text as="h2" size="lg" weight="bold" className="mb-6">
               Invite Collaborator
@@ -766,12 +766,12 @@ const Settings: React.FC = () => {
                   as="span"
                   size="sm"
                   weight="semi-bold"
-                  className="text-[var(--muted)]"
+                  className="text-(--muted)"
                 >
                   Assign Predefined Role
                 </Text>
                 <select
-                  className="w-full p-3.5 rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                  className="w-full p-3.5 rounded-xl border border-(--border) bg-(--surface-subtle) text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
                   onChange={(e) => {
                     const role = roles.find((r) => r.id === e.target.value);
                     if (role) {
@@ -825,7 +825,7 @@ const Settings: React.FC = () => {
           visible={isRoleModalOpen}
           onClose={() => setIsRoleModalOpen(false)}
         >
-          <div className="p-8 bg-[var(--surface)] text-[var(--text)] max-w-lg rounded-3xl shadow-2xl relative overflow-hidden">
+          <div className="p-8 bg-(--surface) text-(--text) max-w-lg rounded-3xl shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 left-0 w-32 h-32 bg-purple-500/5 rounded-full -ml-16 -mt-16 blur-3xl" />
             <Text as="h2" size="lg" weight="bold" className="mb-6">
               Create Custom Role
@@ -849,25 +849,25 @@ const Settings: React.FC = () => {
                   as="span"
                   size="sm"
                   weight="semi-bold"
-                  className="text-[var(--muted)]"
+                  className="text-(--muted)"
                 >
                   Capability Permissions
                 </Text>
-                <div className="grid grid-cols-1 gap-3 max-h-[300px] overflow-y-auto pr-2 no-scrollbar">
+                <div className="grid grid-cols-1 gap-3 max-h-75 overflow-y-auto pr-2 no-scrollbar">
                   {AVAILABLE_PERMISSIONS.map((p) => (
                     <label
                       key={p.id}
-                      className="group flex items-start gap-4 p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] hover:border-indigo-500/40 hover:bg-[var(--surface)] cursor-pointer transition-all duration-300"
+                      className="group flex items-start gap-4 p-4 rounded-2xl border border-(--border) bg-(--surface-subtle) hover:border-indigo-500/40 hover:bg-(--surface) cursor-pointer transition-all duration-300"
                     >
                       <div className="relative flex items-center mt-1">
                         <input
                           type="checkbox"
-                          className="w-5 h-5 rounded-lg border-2 border-[var(--border)] appearance-none checked:bg-indigo-500 checked:border-indigo-500 transition-all cursor-pointer"
+                          className="w-5 h-5 rounded-lg border-2 border-(--border) appearance-none checked:bg-indigo-500 checked:border-indigo-500 transition-all cursor-pointer"
                         />
                         <Icon
                           name="check"
                           size="xs"
-                          className="absolute left-1 text-white opacity-0 group-has-[:checked]:opacity-100 transition-opacity"
+                          className="absolute left-1 text-white opacity-0 group-has-checked:opacity-100 transition-opacity"
                         />
                       </div>
                       <div>
