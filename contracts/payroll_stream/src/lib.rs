@@ -592,23 +592,23 @@ impl PayrollStream {
             return Err(QuipayError::InvalidAmount);
         }
         if end_ts <= start_ts {
-            return Err(QuipayError::Custom);
+            return Err(QuipayError::InvalidTimeRange);
         }
 
         let effective_cliff = if cliff_ts == 0 { start_ts } else { cliff_ts };
         if effective_cliff > end_ts {
-            return Err(QuipayError::Custom);
+            return Err(QuipayError::InvalidCliff);
         }
 
         let now = env.ledger().timestamp();
         if start_ts < now {
-            return Err(QuipayError::Custom);
+            return Err(QuipayError::StartTimeInPast);
         }
 
         let duration = end_ts - start_ts;
         let total_amount = rate
             .checked_mul(i128::from(duration as i64))
-            .ok_or(QuipayError::Custom)?;
+            .ok_or(QuipayError::Overflow)?;
 
         let vault: Address = env
             .storage()
@@ -646,7 +646,7 @@ impl PayrollStream {
             .get(&DataKey::NextStreamId)
             .unwrap_or(1u64);
         let stream_id = next_id;
-        next_id = next_id.checked_add(1).ok_or(QuipayError::Custom)?;
+        next_id = next_id.checked_add(1).ok_or(QuipayError::Overflow)?;
         env.storage()
             .instance()
             .set(&DataKey::NextStreamId, &next_id);

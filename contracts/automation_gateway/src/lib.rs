@@ -187,7 +187,7 @@ impl AutomationGateway {
                 agent_address.clone(),
                 symbol_short!("admin"),
             ),
-            (permissions),
+            permissions,
         );
 
         Ok(())
@@ -250,7 +250,7 @@ impl AutomationGateway {
                 agent.clone(),
                 Symbol::new(&env, "action"),
             ),
-            (_data),
+            _data,
         );
 
         Ok(())
