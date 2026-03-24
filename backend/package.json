@@ -14,7 +14,8 @@
     "test:explain-analyze": "ts-node src/db/explain-analyze-tests.ts",
     "migration:generate": "drizzle-kit generate",
     "migration:push": "drizzle-kit push",
-    "migration:run": "ts-node src/db/migrate.ts"
+    "migration:run": "ts-node src/db/migrate.ts",
+    "seed": "ts-node src/db/seed.ts"
   },
   "keywords": [],
   "author": "",
