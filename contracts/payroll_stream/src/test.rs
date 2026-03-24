@@ -1,3 +1,4 @@
+#![cfg(test)]
 use super::*;
 use quipay_common::QuipayError;
 use soroban_sdk::{Address, Env, IntoVal, testutils::Address as _, testutils::Ledger as _};

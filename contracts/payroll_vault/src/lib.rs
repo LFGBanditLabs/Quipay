@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(unexpected_cfgs)]
 use quipay_common::{QuipayError, require_positive_amount};
 use soroban_sdk::{
     Address, BytesN, Env, Symbol, contract, contractimpl, contracttype, symbol_short, token,
@@ -173,7 +174,7 @@ impl PayrollVault {
             .set(&key, &(current_balance + amount));
 
         let token_client = token::Client::new(&e, &token);
-        token_client.transfer(&from, &e.current_contract_address(), &amount);
+        token_client.transfer(&from, e.current_contract_address(), &amount);
 
         e.events().publish(
             (
@@ -182,7 +183,7 @@ impl PayrollVault {
                 from.clone(),
                 token.clone(),
             ),
-            (amount),
+            amount,
         );
 
         Ok(())
@@ -253,7 +254,7 @@ impl PayrollVault {
                 to.clone(),
                 token.clone(),
             ),
-            (amount),
+            amount,
         );
 
         Ok(())
@@ -300,7 +301,7 @@ impl PayrollVault {
                 token.clone(),
                 symbol_short!("admin"),
             ),
-            (amount),
+            amount,
         );
 
         Ok(())
@@ -343,7 +344,7 @@ impl PayrollVault {
                 token.clone(),
                 symbol_short!("admin"),
             ),
-            (amount),
+            amount,
         );
 
         Ok(())
@@ -404,7 +405,7 @@ impl PayrollVault {
                 to.clone(),
                 token.clone(),
             ),
-            (amount),
+            amount,
         );
 
         Ok(())
@@ -456,7 +457,7 @@ impl PayrollVault {
                 to.clone(),
                 token.clone(),
             ),
-            (amount),
+            amount,
         );
 
         Ok(())
