@@ -13,6 +13,7 @@ import {
   Notification,
 } from "@stellar/design-system";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
+import { Permission } from "../contracts/automation_gateway";
 
 // Types for local state
 interface TeamMember {
@@ -21,13 +22,14 @@ interface TeamMember {
   address: string;
   role: string;
   status: "active" | "pending";
+  permissions?: Permission[];
 }
 
 interface CustomRole {
   id: string;
   name: string;
   description: string;
-  permissions: string[];
+  permissions: Permission[];
 }
 
 interface AuditLog {
@@ -43,29 +45,67 @@ type TabId = "team" | "roles" | "audit" | "approvals";
 
 const AVAILABLE_PERMISSIONS = [
   {
-    id: "view_only",
-    name: "View Only",
-    description: "Can view all data but cannot perform any actions",
-  },
-  {
-    id: "payroll_submit",
-    name: "Payroll Submitter",
+    id: Permission.CreateStream,
+    name: "Create Stream",
     description: "Can create and propose new payroll streams",
   },
   {
-    id: "treasury_approve",
-    name: "Treasury Approver",
-    description: "Can approve treasury transactions and proposals",
+    id: Permission.CancelStream,
+    name: "Cancel Stream",
+    description: "Can cancel existing active payroll streams",
   },
   {
-    id: "treasury_execute",
-    name: "Treasury Execution",
-    description: "Can execute approved treasury transactions",
+    id: Permission.ExecutePayroll,
+    name: "Execute Payroll",
+    description: "Can trigger payroll execution via AutomationGateway",
   },
   {
-    id: "admin_manage",
-    name: "Admin Management",
-    description: "Can manage team members and custom roles",
+    id: Permission.ManageTreasury,
+    name: "Manage Treasury",
+    description: "Can approve and manage vault treasury assets",
+  },
+  {
+    id: Permission.RegisterAgent,
+    name: "Register Agent",
+    description: "Can add or remove other authorized agents",
+  },
+  {
+    id: Permission.RebalanceTreasury,
+    name: "Rebalance Treasury",
+    description: "Can initiate treasury rebalancing operations",
+  },
+];
+
+const ROLES: CustomRole[] = [
+  {
+    id: "admin",
+    name: "Admin",
+    description: "Full access to all protocol management functions",
+    permissions: [
+      Permission.ExecutePayroll,
+      Permission.ManageTreasury,
+      Permission.RegisterAgent,
+      Permission.CreateStream,
+      Permission.CancelStream,
+      Permission.RebalanceTreasury,
+    ],
+  },
+  {
+    id: "manager",
+    name: "Manager",
+    description: "Can manage payroll and streams but cannot register agents",
+    permissions: [
+      Permission.ExecutePayroll,
+      Permission.CreateStream,
+      Permission.CancelStream,
+    ],
+  },
+  {
+    id: "viewer",
+    name: "Viewer",
+    description:
+      "Read-only access to organization data (No on-chain permissions)",
+    permissions: [],
   },
 ];
 
@@ -87,45 +127,29 @@ const Settings: React.FC = () => {
       id: "1",
       name: "Organization Owner",
       address: "GCFX...ABC1",
-      role: "Owner",
+      role: "Admin",
       status: "active",
+      permissions: ROLES.find((r) => r.id === "admin")?.permissions,
     },
     {
       id: "2",
       name: "Alice Manager",
       address: "GDYQ...DEF2",
-      role: "Treasury Approver",
+      role: "Manager",
       status: "active",
+      permissions: ROLES.find((r) => r.id === "manager")?.permissions,
     },
     {
       id: "3",
-      name: "Bob Accountant",
+      name: "Bob Viewer",
       address: "GAHU...GHI3",
-      role: "Payroll Submitter",
+      role: "Viewer",
       status: "pending",
+      permissions: [],
     },
   ]);
 
-  const [roles] = useState<CustomRole[]>([
-    {
-      id: "r1",
-      name: "Payroll Submitter",
-      description: "Responsible for initiating payroll runs",
-      permissions: ["payroll_submit", "view_only"],
-    },
-    {
-      id: "r2",
-      name: "Treasury Approver",
-      description: "Authorizes high-value treasury movements",
-      permissions: ["treasury_approve", "view_only"],
-    },
-    {
-      id: "r3",
-      name: "View Only",
-      description: "Stakeholders who only need read access",
-      permissions: ["view_only"],
-    },
-  ]);
+  const [roles] = useState<CustomRole[]>(ROLES);
 
   const [auditLogs] = useState<AuditLog[]>([
     {
@@ -217,11 +241,11 @@ const Settings: React.FC = () => {
                     {member.name}
                   </Text>
                   <Badge
-                    variant={member.role === "Owner" ? "success" : "secondary"}
+                    variant={member.role === "Admin" ? "success" : "secondary"}
                     size="sm"
-                    className={member.role === "Owner" ? "" : "opacity-60"}
+                    className={member.role === "Admin" ? "" : "opacity-60"}
                   >
-                    {member.role === "Owner" ? "Owner" : "Authorized Agent"}
+                    {member.role === "Admin" ? "Admin" : "Authorized Agent"}
                   </Badge>
                   {member.status === "pending" && (
                     <Badge variant="warning" size="sm">
@@ -266,9 +290,11 @@ const Settings: React.FC = () => {
                   weight="semi-bold"
                   className="text-indigo-400"
                 >
-                  {member.role === "Owner"
+                  {member.role === "Admin"
                     ? "Full Access"
-                    : "Limited Permissions"}
+                    : member.role === "Viewer"
+                      ? "Read Only"
+                      : "Limited Permissions"}
                 </Text>
               </div>
               <Button variant="secondary" size="xs">
@@ -742,9 +768,21 @@ const Settings: React.FC = () => {
                   weight="semi-bold"
                   className="text-[var(--muted)]"
                 >
-                  Assign Role
+                  Assign Predefined Role
                 </Text>
-                <select className="w-full p-3.5 rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all">
+                <select
+                  className="w-full p-3.5 rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                  onChange={(e) => {
+                    const role = roles.find((r) => r.id === e.target.value);
+                    if (role) {
+                      // Logic to pre-check on-chain permissions in UI
+                      console.log(
+                        "Setting role permissions:",
+                        role.permissions,
+                      );
+                    }
+                  }}
+                >
                   <option value="">Select a role...</option>
                   {roles.map((r) => (
                     <option key={r.id} value={r.id}>
@@ -752,6 +790,10 @@ const Settings: React.FC = () => {
                     </option>
                   ))}
                 </select>
+                <Text as="p" size="xs" variant="secondary" className="mt-1">
+                  This will register the address as an authorized agent with the
+                  AutomationGateway contract.
+                </Text>
               </div>
               <div className="flex justify-end gap-3 mt-8">
                 <Button
