@@ -890,6 +890,9 @@ impl PayrollStream {
             return 0;
         }
         if effective_ts <= stream.start_ts {
+            if effective_ts == stream.start_ts && stream.end_ts == stream.start_ts {
+                return stream.total_amount;
+            }
             return 0;
         }
 
