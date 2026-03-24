@@ -9,6 +9,7 @@
  * • CreateStreamParams          – parameter type for create_stream
  * • buildCreateStreamTx         – simulate + build a create_stream XDR
  * • checkTreasurySolvency       – reads PayrollVault.check_solvency
+ * • getWithdrawable             – reads the withdrawable amount for a stream
  * • submitAndAwaitTx            – submit a signed XDR and wait for confirmation
  */
 
@@ -170,6 +171,54 @@ export async function checkTreasurySolvency(
   if (!result) return true;
 
   return scValToNative(result) as boolean;
+}
+
+// ─── getWithdrawable ─────────────────────────────────────────────────────────
+
+/**
+ * Calls `get_withdrawable` on the PayrollStream contract to get the
+ * amount currently available for the worker to withdraw.
+ *
+ * Returns the amount as a bigint, or null if the stream is not found.
+ */
+export async function getWithdrawable(
+  streamId: bigint,
+): Promise<bigint | null> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) return null;
+
+  const server = getRpcServer();
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+
+  // Use the contract ID itself as a dummy source for simulation
+  const dummySource = await server
+    .getAccount(PAYROLL_STREAM_CONTRACT_ID)
+    .catch(() => null);
+  if (!dummySource) return null;
+
+  const tx = new TransactionBuilder(dummySource, {
+    fee: "100",
+    networkPassphrase,
+  })
+    .addOperation(
+      contract.call(
+        "get_withdrawable",
+        nativeToScVal(streamId, { type: "u64" }),
+      ),
+    )
+    .setTimeout(10)
+    .build();
+
+  const response = await server.simulateTransaction(tx);
+
+  if (SorobanRpc.Api.isSimulationError(response)) {
+    return null;
+  }
+
+  const result = (response as SorobanRpc.Api.SimulateTransactionSuccessResponse)
+    .result?.retval;
+  if (!result) return null;
+
+  return scValToNative(result) as bigint | null;
 }
 
 // ─── submitAndAwaitTx ─────────────────────────────────────────────────────────

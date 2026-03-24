@@ -75,7 +75,7 @@ const EmployerDashboard: React.FC = () => {
   }
 
   const demoContract = {
-    withdrawableAmount: () => {
+    withdrawableAmount: (): Promise<bigint | null> => {
       return Promise.resolve(BigInt("5000000")); // 5.00 USDC (6 decimals)
     },
     withdraw: async () => {

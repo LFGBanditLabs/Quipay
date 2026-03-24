@@ -1435,15 +1435,18 @@ fn test_get_withdrawable() {
     env.ledger().with_mut(|li| {
         li.timestamp = 25;
     });
-    assert_eq!(client.get_withdrawable(&stream_id), 2500);
+    assert_eq!(client.get_withdrawable(&stream_id), Some(2500));
 
     client.withdraw(&stream_id, &worker);
-    assert_eq!(client.get_withdrawable(&stream_id), 0);
+    assert_eq!(client.get_withdrawable(&stream_id), Some(0));
 
     env.ledger().with_mut(|li| {
         li.timestamp = 50;
     });
-    assert_eq!(client.get_withdrawable(&stream_id), 2500);
+    assert_eq!(client.get_withdrawable(&stream_id), Some(2500));
+
+    // Test non-existent stream
+    assert_eq!(client.get_withdrawable(&999u64), None);
 }
 
 #[test]

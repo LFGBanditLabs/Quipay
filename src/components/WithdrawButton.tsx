@@ -9,7 +9,7 @@ interface WithdrawButtonProps {
   walletAddress: string;
   /** PayrollStream contract instance (ethers.js or viem Contract) */
   contract: {
-    withdrawableAmount: (address: string) => Promise<bigint>;
+    withdrawableAmount: (address: string) => Promise<bigint | null>;
     withdraw: () => Promise<{ hash: string; wait: () => Promise<unknown> }>;
   };
   /** Token symbol shown next to amount, e.g. "USDC" */
@@ -150,7 +150,7 @@ export default function WithdrawButton({
     setStatus("fetching");
     try {
       const amount = await contract.withdrawableAmount(walletAddress);
-      setRawAmount(amount);
+      setRawAmount(amount ?? 0n);
       setStatus("idle");
     } catch (err: unknown) {
       console.error("Failed to fetch withdrawable amount:", err);
