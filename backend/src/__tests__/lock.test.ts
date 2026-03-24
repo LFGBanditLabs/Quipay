@@ -20,12 +20,14 @@ describe("withAdvisoryLock", () => {
     await withAdvisoryLock(123, task, "test-task");
 
     expect(task).toHaveBeenCalledTimes(1);
-    expect(mockQuery).toHaveBeenCalledWith("SELECT pg_try_advisory_lock($1)", [
-      123,
-    ]);
-    expect(mockQuery).toHaveBeenCalledWith("SELECT pg_advisory_unlock($1)", [
-      123,
-    ]);
+    expect(mockQuery).toHaveBeenCalledWith(
+      "SELECT pg_try_advisory_lock($1)",
+      [123],
+    );
+    expect(mockQuery).toHaveBeenCalledWith(
+      "SELECT pg_advisory_unlock($1)",
+      [123],
+    );
   });
 
   it("should skip task if lock is not acquired", async () => {
@@ -50,8 +52,9 @@ describe("withAdvisoryLock", () => {
       "task-failed",
     );
 
-    expect(mockQuery).toHaveBeenCalledWith("SELECT pg_advisory_unlock($1)", [
-      123,
-    ]);
+    expect(mockQuery).toHaveBeenCalledWith(
+      "SELECT pg_advisory_unlock($1)",
+      [123],
+    );
   });
 });
