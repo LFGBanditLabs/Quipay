@@ -15,7 +15,7 @@ const CreateStream = lazy(() => import("./pages/CreateStream"));
 const HelpPage = lazy(() => import("./pages/HelpPage"));
 const PayrollDashboard = lazy(() => import("./pages/PayrollDashboard"));
 const TreasuryManager = lazy(() => import("./pages/TreasuryManager"));
-const WithdrawPage = lazy(() => import("./pages/withdrawPage"));
+const WithdrawPage = lazy(() => import("./pages/WithdrawPage"));
 const Reports = lazy(() => import("./pages/Reports"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const DashboardCustomization = lazy(
