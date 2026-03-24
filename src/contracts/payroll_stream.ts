@@ -173,7 +173,6 @@ export async function checkTreasurySolvency(
   return scValToNative(result) as boolean;
 }
 
-
 // ─── getWithdrawable ─────────────────────────────────────────────────────────
 
 /**
@@ -201,7 +200,10 @@ export async function getWithdrawable(
     networkPassphrase,
   })
     .addOperation(
-      contract.call("get_withdrawable", nativeToScVal(streamId, { type: "u64" })),
+      contract.call(
+        "get_withdrawable",
+        nativeToScVal(streamId, { type: "u64" }),
+      ),
     )
     .setTimeout(10)
     .build();
