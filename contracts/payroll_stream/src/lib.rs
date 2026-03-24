@@ -661,21 +661,17 @@ impl PayrollStream {
             .get(&StreamKey::Stream(stream_id))
     }
 
-    pub fn get_withdrawable(env: Env, stream_id: u64) -> i128 {
+    pub fn get_withdrawable(env: Env, stream_id: u64) -> Option<i128> {
         let key = StreamKey::Stream(stream_id);
-        let stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .expect("stream not found");
+        let stream: Stream = env.storage().persistent().get(&key)?;
 
         if Self::is_closed(&stream) {
-            return 0;
+            return Some(0);
         }
 
         let now = env.ledger().timestamp();
         let vested = Self::vested_amount(&stream, now);
-        vested.checked_sub(stream.withdrawn_amount).unwrap_or(0)
+        Some(vested.checked_sub(stream.withdrawn_amount).unwrap_or(0))
     }
 
     pub fn get_streams_by_employer(
