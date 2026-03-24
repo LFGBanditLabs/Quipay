@@ -186,6 +186,7 @@ Quipay/
 ## 📚 Documentation
 
 - **[Product Requirements (PRD)](docs/PRD.md)** - Complete product specification
+- **[Security Threat Model](docs/SECURITY_THREAT_MODEL.md)** - Formal analysis of protocol risks and mitigations
 - **[DAO Treasury Setup Guide](docs/DAO_TREASURY_SETUP.md)** - Multisig configuration for DAOs and enterprise clients
 - **[Implementation Plan](.gemini/antigravity/brain/2a2ff1d1-92c4-44ca-9e86-2bf558a85165/implementation_plan.md)** - Technical architecture & roadmap
 - **[Design Document](docs/design.md)** - System design overview
@@ -273,6 +274,8 @@ Security is paramount for payroll infrastructure. Quipay implements:
 - ✅ **Double-Withdrawal Prevention** - Safe accounting prevents duplicate payouts
 - ✅ **Timestamp Validation** - Protection against manipulation attacks
 - ✅ **Formal Auditing** - Pre-mainnet security review (planned Phase 4)
+
+**Detailed Analysis:** See our [Security Threat Model](docs/SECURITY_THREAT_MODEL.md) for a comprehensive breakdown of risks.
 
 **Found a vulnerability?** See our [Security Policy](SECURITY.md)
 
