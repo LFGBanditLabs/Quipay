@@ -127,6 +127,29 @@ The development server will:
 3. ✅ Generate TypeScript client bindings
 4. ✅ Launch frontend at **http://localhost:5173**
 
+### 🐳 Full Stack (Docker Compose) - Recommended
+
+The easiest way to set up the entire Quipay stack locally (including Postgres, Redis, and Stellar Quickstart) is using Docker Compose:
+
+```bash
+# Start everything with one command
+make dev
+
+# Or directly with Docker Compose
+docker compose up --build
+```
+
+This will:
+
+1.  Spin up **PostgreSQL** (Port 5432)
+2.  Spin up **Redis** (Port 6379)
+3.  Spin up **Stellar Quickstart** in Standalone mode (Port 8000)
+4.  Run migrations and seed the database with test data
+5.  Start the **Backend** with hot-reload (Port 3001)
+6.  Start the **Frontend** with hot-reload (Port 5173)
+
+**Wait for Initialization:** The first start may take a minute while the Stellar network node initializes. Once the backend logs show `✅ Services initialized`, the system is ready.
+
 ### Running Tests
 
 ```bash
