@@ -221,3 +221,174 @@ export async function submitAndAwaitTx(signedTxXdr: string): Promise<string> {
     `Transaction confirmation timed out after ${maxAttempts}s. Hash: ${hash}`,
   );
 }
+
+// ─── Queries ──────────────────────────────────────────────────────────────────
+
+export async function getStreamsByEmployer(
+  employer: string,
+  offset: number = 0,
+  limit: number = 100,
+): Promise<bigint[]> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) {
+    return [];
+  }
+
+  const server = getRpcServer();
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+
+  const sourceAccount = await server.getAccount(employer).catch(() => null);
+  if (!sourceAccount) return [];
+
+  const tx = new TransactionBuilder(sourceAccount, {
+    fee: "100",
+    networkPassphrase,
+  })
+    .addOperation(
+      contract.call(
+        "get_streams_by_employer",
+        new Address(employer).toScVal(),
+        nativeToScVal(offset, { type: "u32" }),
+        nativeToScVal(limit, { type: "u32" }),
+      ),
+    )
+    .setTimeout(10)
+    .build();
+
+  const response = await server.simulateTransaction(tx);
+
+  if (SorobanRpc.Api.isSimulationError(response)) {
+    console.warn("getStreamsByEmployer error:", response.error);
+    return [];
+  }
+
+  const result = (response as SorobanRpc.Api.SimulateTransactionSuccessResponse)
+    .result?.retval;
+  if (!result) return [];
+
+  const arr = scValToNative(result) as any[];
+  if (!Array.isArray(arr)) return [];
+
+  return arr.map((id) => BigInt(id.toString()));
+}
+
+export async function getStream(
+  streamId: bigint,
+  employerAddress: string,
+): Promise<any> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) {
+    return null;
+  }
+
+  const server = getRpcServer();
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+
+  const sourceAccount = await server
+    .getAccount(employerAddress)
+    .catch(() => null);
+  if (!sourceAccount) return null;
+
+  const tx = new TransactionBuilder(sourceAccount, {
+    fee: "100",
+    networkPassphrase,
+  })
+    .addOperation(
+      contract.call("get_stream", nativeToScVal(streamId, { type: "u64" })),
+    )
+    .setTimeout(10)
+    .build();
+
+  const response = await server.simulateTransaction(tx);
+
+  if (SorobanRpc.Api.isSimulationError(response)) {
+    console.warn("getStream error:", response.error);
+    return null;
+  }
+
+  const result = (response as SorobanRpc.Api.SimulateTransactionSuccessResponse)
+    .result?.retval;
+  if (!result) return null;
+
+  if (result.switch() === xdr.ScValType.scvVoid()) {
+    return null;
+  }
+
+  return scValToNative(result);
+}
+
+export async function getVaultBalance(
+  vaultContractId: string,
+  tokenContractId: string,
+  employerAddress: string,
+): Promise<bigint> {
+  if (!vaultContractId) return 0n;
+
+  const server = getRpcServer();
+  const contract = new Contract(vaultContractId);
+
+  const sourceAccount = await server
+    .getAccount(employerAddress)
+    .catch(() => null);
+  if (!sourceAccount) return 0n;
+
+  const tx = new TransactionBuilder(sourceAccount, {
+    fee: "100",
+    networkPassphrase,
+  })
+    .addOperation(
+      contract.call("get_treasury_balance", tokenToScVal(tokenContractId)),
+    )
+    .setTimeout(10)
+    .build();
+
+  const response = await server.simulateTransaction(tx);
+
+  if (SorobanRpc.Api.isSimulationError(response)) {
+    console.warn("getVaultBalance error:", response.error);
+    return 0n;
+  }
+
+  const result = (response as SorobanRpc.Api.SimulateTransactionSuccessResponse)
+    .result?.retval;
+  if (!result) return 0n;
+
+  return BigInt(scValToNative(result).toString());
+}
+
+export async function getVaultLiability(
+  vaultContractId: string,
+  tokenContractId: string,
+  employerAddress: string,
+): Promise<bigint> {
+  if (!vaultContractId) return 0n;
+
+  const server = getRpcServer();
+  const contract = new Contract(vaultContractId);
+
+  const sourceAccount = await server
+    .getAccount(employerAddress)
+    .catch(() => null);
+  if (!sourceAccount) return 0n;
+
+  const tx = new TransactionBuilder(sourceAccount, {
+    fee: "100",
+    networkPassphrase,
+  })
+    .addOperation(
+      contract.call("get_total_liability", tokenToScVal(tokenContractId)),
+    )
+    .setTimeout(10)
+    .build();
+
+  const response = await server.simulateTransaction(tx);
+
+  if (SorobanRpc.Api.isSimulationError(response)) {
+    console.warn("getVaultLiability error:", response.error);
+    return 0n;
+  }
+
+  const result = (response as SorobanRpc.Api.SimulateTransactionSuccessResponse)
+    .result?.retval;
+  if (!result) return 0n;
+
+  return BigInt(scValToNative(result).toString());
+}
