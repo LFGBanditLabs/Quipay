@@ -92,7 +92,8 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
 
 const WorkerDashboard: React.FC = () => {
   const { address } = useWallet();
-  const { streams, withdrawalHistory, isLoading, error } = useStreams(address);
+  const { streams, withdrawalHistory, isLoading, error, refetch } =
+    useStreams(address);
 
   if (isLoading) {
     return (
@@ -119,6 +120,12 @@ const WorkerDashboard: React.FC = () => {
           Failed to load stream data
         </Text>
         <p className="mt-4 font-mono text-sm text-[var(--muted)]">{error}</p>
+        <button
+          className="mt-6 rounded-xl border-0 bg-[var(--accent)] px-6 py-3 font-semibold text-white transition-opacity hover:opacity-90"
+          onClick={refetch}
+        >
+          Retry
+        </button>
       </div>
     );
   }
