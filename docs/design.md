@@ -59,3 +59,13 @@ We leverage Drips to build the AI and Protocol modularly.
 /frontend
   - (Next.js + AI SDK UI)
 ```
+
+## 5. Security Design
+
+Quipay prioritizes treasury safety through several critical mechanisms:
+
+- **Invariants:** On-chain enforcement of solvency.
+- **Authorization:** Strict `require_auth` on all sensitive operations.
+- **Mitigations:** Protective measures against reentrancy, overflow, and front-running.
+
+For a detailed analysis, see the [Security Threat Model](SECURITY_THREAT_MODEL.md).
