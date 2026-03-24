@@ -473,17 +473,18 @@ impl PayrollVault {
     /// # Multisig Support
     /// Requires admin authorization. Supports multisig admin accounts for decentralized
     /// control over which contracts can modify treasury liabilities.
-    pub fn set_authorized_contract(e: Env, contract: Address) {
+    pub fn set_authorized_contract(e: Env, contract: Address) -> Result<(), QuipayError> {
         let admin: Address = e
             .storage()
             .persistent()
             .get(&StateKey::Admin)
-            .expect("not initialized");
+            .ok_or(QuipayError::NotInitialized)?;
         admin.require_auth();
 
         e.storage()
             .persistent()
             .set(&StateKey::AuthorizedContract, &contract);
+        Ok(())
     }
 
     /// Get the authorized contract address (if set)
@@ -493,7 +494,7 @@ impl PayrollVault {
 
     /// Add liability for a specific token
     /// Only the authorized contract (e.g., PayrollStream) can call this
-    pub fn add_liability(e: Env, token: Address, amount: i128) {
+    pub fn add_liability(e: Env, token: Address, amount: i128) -> Result<(), QuipayError> {
         // Require authorization from the authorized contract
         let authorized: Address = e
             .storage()
@@ -503,21 +504,22 @@ impl PayrollVault {
         authorized.require_auth();
 
         if amount <= 0 {
-            panic!("liability amount must be positive");
+            return Err(QuipayError::InvalidAmount);
         }
 
         if !Self::check_solvency(e.clone(), token.clone(), amount) {
-            panic!("insufficient funds for liability");
+            return Err(QuipayError::InsufficientBalance);
         }
 
         let key = StateKey::TotalLiability(token);
         let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
         e.storage().persistent().set(&key, &(current + amount));
+        Ok(())
     }
 
     /// Remove liability for a specific token
     /// Only the authorized contract (e.g., PayrollStream) can call this
-    pub fn remove_liability(e: Env, token: Address, amount: i128) {
+    pub fn remove_liability(e: Env, token: Address, amount: i128) -> Result<(), QuipayError> {
         // Require authorization from the authorized contract
         let authorized: Address = e
             .storage()
@@ -527,15 +529,16 @@ impl PayrollVault {
         authorized.require_auth();
 
         if amount <= 0 {
-            panic!("removal amount must be positive");
+            return Err(QuipayError::InvalidAmount);
         }
 
         let key = StateKey::TotalLiability(token);
         let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
         if amount > current {
-            panic!("cannot remove more liability than exists");
+            return Err(QuipayError::InvalidAmount);
         }
         e.storage().persistent().set(&key, &(current - amount));
+        Ok(())
     }
 
     /// Get the liability for a specific token
