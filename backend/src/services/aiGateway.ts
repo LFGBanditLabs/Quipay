@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import dotenv from "dotenv";
 import { createCircuitBreaker } from "../utils/circuitBreaker";
+import { logServiceError } from "../audit/serviceLogger";
 
 dotenv.config();
 
@@ -116,7 +117,11 @@ Output Requirements:
       const parsed: AICallResponse = JSON.parse(content);
       return parsed;
     } catch (error: any) {
-      console.error("Error parsing command with AI:", error);
+      await logServiceError(
+        "AIGateway",
+        "Error parsing command with AI",
+        error,
+      );
       return {
         function: "unknown",
         params: {},
