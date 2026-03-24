@@ -80,7 +80,7 @@ metricsManager.employerRunwayDays.set(
 
 Then uncomment the `TreasuryRunwayLow` block in `alert_rules.yml`.
 
-> **Note:** The application-level notifier (`backend/src/notifier/notifier.ts`)
+> **Note:** The application-level notifier (`backend/src/notifier/notifier.ts`).
 > already fires a `treasury_low_runway` event via Slack / webhook when runway
 > drops below `TREASURY_RUNWAY_ALERT_DAYS` (default 7 days). The Prometheus
 > rule provides a secondary, infrastructure-level safety net.
