@@ -1,4 +1,6 @@
 #![cfg(test)]
+extern crate std;
+
 use super::*;
 use soroban_sdk::{Address, Env, IntoVal, testutils::Address as _, testutils::Ledger as _};
 
@@ -28,6 +30,25 @@ mod rejecting_vault {
         }
         pub fn add_liability(_env: Env, _token: Address, _amount: i128) {
             panic!("vault rejected liability");
+        }
+    }
+}
+
+mod selective_rejecting_payout_vault {
+    use soroban_sdk::{Address, Env, contract, contractimpl};
+    #[contract]
+    pub struct SelectiveRejectingPayoutVault;
+    #[contractimpl]
+    impl SelectiveRejectingPayoutVault {
+        pub fn check_solvency(_env: Env, _token: Address, _additional_liability: i128) -> bool {
+            true
+        }
+        pub fn add_liability(_env: Env, _token: Address, _amount: i128) {}
+        pub fn remove_liability(_env: Env, _token: Address, _amount: i128) {}
+        pub fn payout_liability(_env: Env, _to: Address, _token: Address, amount: i128) {
+            if amount >= 1000 {
+                panic!("vault rejected payout");
+            }
         }
     }
 }
@@ -476,6 +497,93 @@ fn test_batch_withdraw_completes_stream() {
 
     let stream = client.get_stream(&stream_id).unwrap();
     assert_eq!(stream.status, StreamStatus::Completed);
+}
+
+#[test]
+fn test_batch_withdraw_atomic_full_success_updates_all_streams() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let vault_id = env.register_contract(None, dummy_vault::DummyVault);
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    client.init(&admin);
+    client.set_vault(&vault_id);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    let stream1 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
+    let stream2 = client.create_stream(&employer, &worker, &token, &50, &0u64, &0u64, &20u64);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 10;
+    });
+
+    let stream_ids = soroban_sdk::vec![&env, stream1, stream2];
+    let results = client.batch_withdraw(&stream_ids, &worker);
+
+    assert_eq!(results.len(), 2);
+    assert_eq!(results.get(0).unwrap().amount, 1000);
+    assert_eq!(results.get(1).unwrap().amount, 500);
+
+    let updated_stream1 = client.get_stream(&stream1).unwrap();
+    let updated_stream2 = client.get_stream(&stream2).unwrap();
+    assert_eq!(updated_stream1.withdrawn_amount, 1000);
+    assert_eq!(updated_stream2.withdrawn_amount, 500);
+}
+
+#[test]
+fn test_batch_withdraw_atomic_reverts_all_when_any_payout_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let vault_id = env.register_contract(
+        None,
+        selective_rejecting_payout_vault::SelectiveRejectingPayoutVault,
+    );
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    client.init(&admin);
+    client.set_vault(&vault_id);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    let stream1 = client.create_stream(&employer, &worker, &token, &50, &0u64, &0u64, &10u64);
+    let stream2 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 10;
+    });
+
+    let stream_ids = soroban_sdk::vec![&env, stream1, stream2];
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.batch_withdraw(&stream_ids, &worker);
+    }));
+
+    assert!(result.is_err());
+
+    let unchanged_stream1 = client.get_stream(&stream1).unwrap();
+    let unchanged_stream2 = client.get_stream(&stream2).unwrap();
+    assert_eq!(unchanged_stream1.withdrawn_amount, 0);
+    assert_eq!(unchanged_stream2.withdrawn_amount, 0);
+    assert_eq!(unchanged_stream1.status, StreamStatus::Active);
+    assert_eq!(unchanged_stream2.status, StreamStatus::Active);
 }
 
 #[test]

@@ -56,6 +56,21 @@ pub struct WithdrawResult {
     pub success: bool,
 }
 
+#[contracttype]
+#[derive(Clone, Debug)]
+struct BatchWithdrawalCandidate {
+    stream_id: u64,
+    stream: Stream,
+    amount: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+enum BatchWithdrawalPlan {
+    Result(WithdrawResult),
+    Payout(BatchWithdrawalCandidate),
+}
+
 const DEFAULT_RETENTION_SECS: u64 = 30 * 24 * 60 * 60;
 
 #[contract]
@@ -224,11 +239,19 @@ impl PayrollStream {
         Ok(available)
     }
 
+    /// NOTE: This function is atomic. If any single payout fails, the entire batch reverts.
+    /// Invalid, closed, and zero-available streams are pre-validated before payout calls begin.
     pub fn batch_withdraw(env: Env, stream_ids: Vec<u64>, caller: Address) -> Vec<WithdrawResult> {
         Self::require_not_paused(&env).unwrap();
         caller.require_auth();
 
         let now = env.ledger().timestamp();
+        let vault: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Vault)
+            .expect("vault not configured");
+        let mut plans: Vec<BatchWithdrawalPlan> = Vec::new(&env);
         let mut results: Vec<WithdrawResult> = Vec::new(&env);
 
         let mut idx = 0u32;
@@ -236,91 +259,103 @@ impl PayrollStream {
             let stream_id = stream_ids.get(idx).unwrap();
             let key = StreamKey::Stream(stream_id);
 
-            let result = match env.storage().persistent().get::<StreamKey, Stream>(&key) {
+            let plan = match env.storage().persistent().get::<StreamKey, Stream>(&key) {
                 Some(mut stream) => {
                     if stream.worker != caller {
-                        WithdrawResult {
+                        BatchWithdrawalPlan::Result(WithdrawResult {
                             stream_id,
                             amount: 0,
                             success: false,
-                        }
+                        })
                     } else if Self::is_closed(&stream) {
-                        WithdrawResult {
+                        BatchWithdrawalPlan::Result(WithdrawResult {
                             stream_id,
                             amount: 0,
                             success: false,
-                        }
+                        })
                     } else {
                         let vested = Self::vested_amount(&stream, now);
                         let available = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
 
                         if available <= 0 {
-                            WithdrawResult {
+                            BatchWithdrawalPlan::Result(WithdrawResult {
                                 stream_id,
                                 amount: 0,
                                 success: true,
-                            }
+                            })
                         } else {
-                            let vault: Address = env
-                                .storage()
-                                .instance()
-                                .get(&DataKey::Vault)
-                                .expect("vault not configured");
-                            use soroban_sdk::{IntoVal, Symbol, vec};
-                            env.invoke_contract::<()>(
-                                &vault,
-                                &Symbol::new(&env, "payout_liability"),
-                                vec![
-                                    &env,
-                                    caller.clone().into_val(&env),
-                                    stream.token.clone().into_val(&env),
-                                    available.into_val(&env),
-                                ],
-                            );
-
-                            stream.withdrawn_amount = stream
-                                .withdrawn_amount
-                                .checked_add(available)
-                                .expect("withdrawn overflow");
-                            stream.last_withdrawal_ts = now;
-
-                            if stream.withdrawn_amount >= stream.total_amount {
-                                Self::close_stream_internal(
-                                    &mut stream,
-                                    now,
-                                    StreamStatus::Completed,
-                                );
-                            }
-
-                            env.storage().persistent().set(&key, &stream);
-
-                            env.events().publish(
-                                (
-                                    Symbol::new(&env, "stream"),
-                                    Symbol::new(&env, "withdrawn"),
-                                    stream_id,
-                                    caller.clone(),
-                                ),
-                                (available, stream.token.clone()),
-                            );
-
-                            WithdrawResult {
+                            BatchWithdrawalPlan::Payout(BatchWithdrawalCandidate {
                                 stream_id,
+                                stream,
                                 amount: available,
-                                success: true,
-                            }
+                            })
                         }
                     }
                 }
-                None => WithdrawResult {
+                None => BatchWithdrawalPlan::Result(WithdrawResult {
                     stream_id,
                     amount: 0,
                     success: false,
-                },
+                }),
+            };
+
+            plans.push_back(plan);
+            idx += 1;
+        }
+
+        let mut plan_idx = 0u32;
+        while plan_idx < plans.len() {
+            let result = match plans.get(plan_idx).unwrap() {
+                BatchWithdrawalPlan::Result(result) => result,
+                BatchWithdrawalPlan::Payout(candidate) => {
+                    let key = StreamKey::Stream(candidate.stream_id);
+                    let mut stream = candidate.stream;
+                    let available = candidate.amount;
+
+                    use soroban_sdk::{IntoVal, Symbol, vec};
+                    env.invoke_contract::<()>(
+                        &vault,
+                        &Symbol::new(&env, "payout_liability"),
+                        vec![
+                            &env,
+                            caller.clone().into_val(&env),
+                            stream.token.clone().into_val(&env),
+                            available.into_val(&env),
+                        ],
+                    );
+
+                    stream.withdrawn_amount = stream
+                        .withdrawn_amount
+                        .checked_add(available)
+                        .expect("withdrawn overflow");
+                    stream.last_withdrawal_ts = now;
+
+                    if stream.withdrawn_amount >= stream.total_amount {
+                        Self::close_stream_internal(&mut stream, now, StreamStatus::Completed);
+                    }
+
+                    env.storage().persistent().set(&key, &stream);
+
+                    env.events().publish(
+                        (
+                            Symbol::new(&env, "stream"),
+                            Symbol::new(&env, "withdrawn"),
+                            candidate.stream_id,
+                            caller.clone(),
+                        ),
+                        (available, stream.token.clone()),
+                    );
+
+                    WithdrawResult {
+                        stream_id: candidate.stream_id,
+                        amount: available,
+                        success: true,
+                    }
+                }
             };
 
             results.push_back(result);
-            idx += 1;
+            plan_idx += 1;
         }
 
         results

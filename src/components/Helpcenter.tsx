@@ -121,23 +121,30 @@ const FAQS: FAQ[] = [
     answer:
       "This can happen if: (1) your stream was just started and only seconds have elapsed, (2) the stream has been paused or canceled, (3) you recently completed a withdrawal and the balance is rebuilding, or (4) there is a network delay fetching your balance — try refreshing.",
   },
-  // Fees
   {
     id: 15,
+    category: "Withdrawals",
+    question: "What happens if one stream fails during a batch withdrawal?",
+    answer:
+      "Batch withdrawals are atomic. Quipay validates the full batch before starting payouts, and if any payout fails at execution time the entire transaction reverts so no stream in that batch is partially withdrawn.",
+  },
+  // Fees
+  {
+    id: 16,
     category: "Fees",
     question: "What fees does Quipay charge?",
     answer:
       "Quipay charges a small protocol fee on each stream, deducted from the employer's deposit. Worker withdrawals have no Quipay fee. The only cost to workers is the Stellar network transaction fee (~0.00001 XLM per transaction), which is negligible.",
   },
   {
-    id: 16,
+    id: 17,
     category: "Fees",
     question: "Are there gas fees on Stellar?",
     answer:
       "Stellar uses a fixed, predictable fee model instead of variable gas. Each transaction costs 100 stroops (0.00001 XLM), which at current XLM prices is a fraction of a cent. This is one of the key reasons Quipay is built on Stellar.",
   },
   {
-    id: 17,
+    id: 18,
     category: "Fees",
     question: "Does Quipay take a cut of my salary?",
     answer:
@@ -145,28 +152,28 @@ const FAQS: FAQ[] = [
   },
   // Security
   {
-    id: 18,
+    id: 19,
     category: "Security",
     question: "Is my salary safe if Quipay goes offline?",
     answer:
       "Yes. Salary funds are held in non-custodial smart contracts on the Stellar blockchain, not by Quipay. Even if Quipay's frontend goes offline, you can interact with the contract directly using a Stellar explorer or compatible wallet to withdraw your funds.",
   },
   {
-    id: 19,
+    id: 20,
     category: "Security",
     question: "Can Quipay access or freeze my funds?",
     answer:
       "No. Quipay is a non-custodial protocol — we never hold your private keys or have the ability to move your funds. Only the wallet addresses specified in the stream contract can withdraw. Employers can only cancel future accruals, not reclaim already-earned amounts.",
   },
   {
-    id: 20,
+    id: 21,
     category: "Security",
     question: "Has Quipay's smart contract been audited?",
     answer:
       "Quipay's PayrollStream contracts are open source and have undergone community review. A formal third-party security audit is planned before the mainnet launch. Audit reports will be published publicly. Always check our docs for the latest audit status.",
   },
   {
-    id: 21,
+    id: 22,
     category: "Security",
     question:
       "What should I do if I suspect unauthorized access to my account?",
@@ -175,21 +182,21 @@ const FAQS: FAQ[] = [
   },
   // Account
   {
-    id: 22,
+    id: 23,
     category: "Account",
     question: "How do I connect my wallet to Quipay?",
     answer:
       "Click 'Connect Wallet' in the top navigation. Quipay supports Freighter, Lobstr, and any WalletConnect-compatible Stellar wallet. Select your wallet provider, approve the connection request, and you're in — no account creation or email required.",
   },
   {
-    id: 23,
+    id: 24,
     category: "Account",
     question: "Can I use Quipay on mobile?",
     answer:
       "Yes. Quipay's interface is fully responsive and works on mobile browsers. For the best mobile experience, use a wallet with a built-in browser like Lobstr. The worker dashboard is optimized for quick balance checks and withdrawals on the go.",
   },
   {
-    id: 24,
+    id: 25,
     category: "Account",
     question: "How do I switch between employer and worker views?",
     answer:

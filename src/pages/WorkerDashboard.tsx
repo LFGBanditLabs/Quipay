@@ -126,6 +126,12 @@ const WorkerDashboard: React.FC = () => {
             <EarningsDisplay streams={streams} />
           </section>
 
+          <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-[var(--text)]">
+            Batch withdrawals are atomic. If a single payout in the batch fails,
+            the entire transaction reverts and no stream in that batch is
+            withdrawn.
+          </div>
+
           <h2 className="mb-6 text-2xl font-semibold text-[var(--text)]">
             Your Active Streams
           </h2>
