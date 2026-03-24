@@ -1,6 +1,7 @@
 import { VaultClient } from "./vaultClient";
 import { KeyRotationService } from "./keyRotation";
 import dotenv from "dotenv";
+import { logServiceError } from "../audit/serviceLogger";
 
 dotenv.config();
 
@@ -53,7 +54,14 @@ export class VaultService {
       );
       return secret?.data?.data?.value || null;
     } catch (error) {
-      console.error(`[VaultService] Failed to retrieve secret ${key}:`, error);
+      await logServiceError(
+        "VaultService",
+        "Failed to retrieve secret",
+        error,
+        {
+          key_name: key,
+        },
+      );
       return null;
     }
   }
@@ -67,7 +75,9 @@ export class VaultService {
       );
       return true;
     } catch (error) {
-      console.error(`[VaultService] Failed to set secret ${key}:`, error);
+      await logServiceError("VaultService", "Failed to set secret", error, {
+        key_name: key,
+      });
       return false;
     }
   }
@@ -80,7 +90,9 @@ export class VaultService {
       );
       return true;
     } catch (error) {
-      console.error(`[VaultService] Failed to delete secret ${key}:`, error);
+      await logServiceError("VaultService", "Failed to delete secret", error, {
+        key_name: key,
+      });
       return false;
     }
   }
@@ -93,7 +105,7 @@ export class VaultService {
       );
       return secrets || [];
     } catch (error) {
-      console.error("[VaultService] Failed to list secrets:", error);
+      await logServiceError("VaultService", "Failed to list secrets", error);
       return [];
     }
   }
@@ -116,9 +128,11 @@ export class VaultService {
     try {
       return await this.client.readPolicy(policyName);
     } catch (error) {
-      console.error(
-        `[VaultService] Failed to retrieve policy ${policyName}:`,
+      await logServiceError(
+        "VaultService",
+        "Failed to retrieve policy",
         error,
+        { policy_name: policyName },
       );
       return null;
     }
@@ -132,10 +146,9 @@ export class VaultService {
       await this.client.createPolicy(policyName, policyRules);
       return true;
     } catch (error) {
-      console.error(
-        `[VaultService] Failed to create policy ${policyName}:`,
-        error,
-      );
+      await logServiceError("VaultService", "Failed to create policy", error, {
+        policy_name: policyName,
+      });
       return false;
     }
   }
