@@ -92,7 +92,7 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
 
 const WorkerDashboard: React.FC = () => {
   const { address } = useWallet();
-  const { streams, withdrawalHistory, isLoading } = useStreams(address);
+  const { streams, withdrawalHistory, isLoading, error } = useStreams(address);
 
   if (isLoading) {
     return (
@@ -108,6 +108,17 @@ const WorkerDashboard: React.FC = () => {
         <Text as="h2" size="lg">
           Please connect your wallet to view your dashboard
         </Text>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="mx-auto max-w-[1200px] px-8 py-24 text-center">
+        <Text as="h2" size="lg">
+          Failed to load stream data
+        </Text>
+        <p className="mt-4 font-mono text-sm text-[var(--muted)]">{error}</p>
       </div>
     );
   }
