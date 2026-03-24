@@ -21,6 +21,9 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const DashboardCustomization = lazy(
   () => import("./pages/DashboardCustomization"),
 );
+const UIPrimitivesPreview = lazy(
+  () => import("./pages/UIPrimitivesPreview.tsx"),
+);
 
 function AppLoadingFallback() {
   const { t } = useTranslation();
@@ -141,6 +144,7 @@ function App() {
 
           {/* Public Routes */}
           <Route path="/help" element={<HelpPage />} />
+          <Route path="/ui-primitives" element={<UIPrimitivesPreview />} />
           <Route path="/debug" element={<Debugger />} />
           <Route path="/debug/:contractName" element={<Debugger />} />
           <Route path="*" element={<NotFound />} />
