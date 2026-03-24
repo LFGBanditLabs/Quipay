@@ -1,5 +1,6 @@
 #![cfg(test)]
 use super::*;
+use quipay_common::QuipayError;
 use soroban_sdk::{Address, Env, IntoVal, testutils::Address as _, testutils::Ledger as _};
 
 mod dummy_vault {
@@ -1435,15 +1436,18 @@ fn test_get_withdrawable() {
     env.ledger().with_mut(|li| {
         li.timestamp = 25;
     });
-    assert_eq!(client.get_withdrawable(&stream_id), 2500);
+    assert_eq!(client.get_withdrawable(&stream_id), Some(2500));
 
     client.withdraw(&stream_id, &worker);
-    assert_eq!(client.get_withdrawable(&stream_id), 0);
+    assert_eq!(client.get_withdrawable(&stream_id), Some(0));
 
     env.ledger().with_mut(|li| {
         li.timestamp = 50;
     });
-    assert_eq!(client.get_withdrawable(&stream_id), 2500);
+    assert_eq!(client.get_withdrawable(&stream_id), Some(2500));
+
+    // Test non-existent stream
+    assert_eq!(client.get_withdrawable(&999u64), None);
 }
 
 #[test]
@@ -1473,4 +1477,27 @@ fn test_pagination() {
 
     let empty = client.get_streams_by_employer(&employer, &Some(5), &Some(1));
     assert_eq!(empty.len(), 0);
+}
+
+#[test]
+fn test_error_variants() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    // 1. InvalidTimeRange: end_ts <= start_ts
+    let res = client.try_create_stream(&employer, &worker, &token, &1, &0u64, &100u64, &100u64);
+    let contract_err = res.unwrap_err().unwrap();
+    assert_eq!(contract_err, QuipayError::InvalidTimeRange);
+
+    // 2. InvalidCliff: effective_cliff > end_ts
+    let res = client.try_create_stream(&employer, &worker, &token, &1, &150u64, &0u64, &100u64);
+    let contract_err = res.unwrap_err().unwrap();
+    assert_eq!(contract_err, QuipayError::InvalidCliff);
+
+    // 3. StartTimeInPast: start_ts < now
+    env.ledger().with_mut(|li| li.timestamp = 100);
+    let res = client.try_create_stream(&employer, &worker, &token, &1, &0u64, &50u64, &150u64);
+    let contract_err = res.unwrap_err().unwrap();
+    assert_eq!(contract_err, QuipayError::StartTimeInPast);
 }

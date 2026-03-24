@@ -514,6 +514,53 @@ impl PayrollStream {
         }
 
         let now = env.ledger().timestamp();
+
+        let vested = Self::vested_amount(&stream, now);
+        let owed = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
+
+        let vault: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Vault)
+            .ok_or(QuipayError::NotInitialized)?;
+
+        if owed > 0 {
+            use soroban_sdk::{IntoVal, Symbol, vec};
+            env.invoke_contract::<()>(
+                &vault,
+                &Symbol::new(&env, "payout_liability"),
+                vec![
+                    &env,
+                    stream.worker.clone().into_val(&env),
+                    stream.token.clone().into_val(&env),
+                    owed.into_val(&env),
+                ],
+            );
+            stream.withdrawn_amount = stream
+                .withdrawn_amount
+                .checked_add(owed)
+                .ok_or(QuipayError::Custom)?;
+            stream.last_withdrawal_ts = now;
+        }
+
+        let remaining_liability = stream
+            .total_amount
+            .checked_sub(stream.withdrawn_amount)
+            .ok_or(QuipayError::Custom)?;
+
+        if remaining_liability > 0 {
+            use soroban_sdk::{IntoVal, Symbol, vec};
+            env.invoke_contract::<()>(
+                &vault,
+                &Symbol::new(&env, "remove_liability"),
+                vec![
+                    &env,
+                    stream.token.clone().into_val(&env),
+                    remaining_liability.into_val(&env),
+                ],
+            );
+        }
+
         Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
         env.storage().persistent().set(&key, &stream);
 
@@ -545,23 +592,23 @@ impl PayrollStream {
             return Err(QuipayError::InvalidAmount);
         }
         if end_ts <= start_ts {
-            return Err(QuipayError::Custom);
+            return Err(QuipayError::InvalidTimeRange);
         }
 
         let effective_cliff = if cliff_ts == 0 { start_ts } else { cliff_ts };
         if effective_cliff > end_ts {
-            return Err(QuipayError::Custom);
+            return Err(QuipayError::InvalidCliff);
         }
 
         let now = env.ledger().timestamp();
         if start_ts < now {
-            return Err(QuipayError::Custom);
+            return Err(QuipayError::StartTimeInPast);
         }
 
         let duration = end_ts - start_ts;
         let total_amount = rate
             .checked_mul(i128::from(duration as i64))
-            .ok_or(QuipayError::Custom)?;
+            .ok_or(QuipayError::Overflow)?;
 
         let vault: Address = env
             .storage()
@@ -599,7 +646,7 @@ impl PayrollStream {
             .get(&DataKey::NextStreamId)
             .unwrap_or(1u64);
         let stream_id = next_id;
-        next_id = next_id.checked_add(1).ok_or(QuipayError::Custom)?;
+        next_id = next_id.checked_add(1).ok_or(QuipayError::Overflow)?;
         env.storage()
             .instance()
             .set(&DataKey::NextStreamId, &next_id);
@@ -661,21 +708,17 @@ impl PayrollStream {
             .get(&StreamKey::Stream(stream_id))
     }
 
-    pub fn get_withdrawable(env: Env, stream_id: u64) -> i128 {
+    pub fn get_withdrawable(env: Env, stream_id: u64) -> Option<i128> {
         let key = StreamKey::Stream(stream_id);
-        let stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .expect("stream not found");
+        let stream: Stream = env.storage().persistent().get(&key)?;
 
         if Self::is_closed(&stream) {
-            return 0;
+            return Some(0);
         }
 
         let now = env.ledger().timestamp();
         let vested = Self::vested_amount(&stream, now);
-        vested.checked_sub(stream.withdrawn_amount).unwrap_or(0)
+        Some(vested.checked_sub(stream.withdrawn_amount).unwrap_or(0))
     }
 
     pub fn get_streams_by_employer(
