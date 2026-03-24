@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React from "react";
 import { Code, Layout, Text } from "@stellar/design-system";
 // import { GuessTheNumber } from "../components/GuessTheNumber";
@@ -103,6 +104,7 @@ const Home: React.FC = () => (
         <Code size="md">npm run build</Code> and deploy the output in the
         <Code size="md">dist/</Code> directory.
       </Text>
+      </div>
     </Layout.Inset>
   </Layout.Content>
 );

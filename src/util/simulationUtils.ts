@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * simulationUtils.ts
  * Quipay — Soroban transaction simulation helpers

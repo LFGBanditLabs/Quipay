@@ -7,7 +7,7 @@
  * Install: npm install recharts
  */
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -452,7 +452,15 @@ function ActivePieShape(props: ActivePieShapeProps) {
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function PayrollDashboard() {
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>(() => {
+    const saved = localStorage.getItem("theme");
+    return (saved === "dark" || saved === "light") ? saved : "dark";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
   const [range, setRange] = useState<DateRange>("90D");
   const [tokenFilter, setToken] = useState<Token>("ALL");
   const [activePie, setActivePie] = useState(0);
@@ -921,7 +929,7 @@ export default function PayrollDashboard() {
                   innerRadius={60}
                   outerRadius={90}
                   dataKey="value"
-                  activeShape={ActivePieShape}
+                  activeShape={ActivePieShape as any}
                   onMouseEnter={(_: ActivePieShapeProps, i: number) =>
                     setActivePie(i)
                   }

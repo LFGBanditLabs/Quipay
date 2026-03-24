@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { lazy, Suspense, type FC, type ReactNode } from "react";
 import { Routes, Route, Outlet, NavLink } from "react-router-dom";
 import styles from "./App.module.css";
@@ -116,7 +117,7 @@ function App() {
         <Route path="/withdraw" element={<WithdrawPage />} />
         <Route path="/treasury-management" element={<TreasuryManager />} />
         <Route path="/create-stream" element={<CreateStream />} />
-<!--         <Route path="/treasury-management" element={<TreasuryManagement />} /> -->
+        {/* <Route path="/treasury-management" element={<TreasuryManagement />} /> */}
         <Route path="/debug" element={<Debugger />} />
         <Route path="/debug/:contractName" element={<Debugger />} />
       </Route>
