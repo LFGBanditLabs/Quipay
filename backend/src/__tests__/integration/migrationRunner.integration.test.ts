@@ -247,6 +247,7 @@ describe("MigrationRunner", () => {
       `);
 
       expect(result.rows[0].execution_time_ms).toBeGreaterThanOrEqual(0);
+      expect(typeof result.rows[0].execution_time_ms).toBe("number");
     });
   });
 
