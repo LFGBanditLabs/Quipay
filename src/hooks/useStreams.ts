@@ -17,6 +17,12 @@ export interface WorkerStream {
   cliffTime: number; // unix timestamp in seconds (cliff unlock time)
   totalAmount: number; // total allocated (in token units)
   claimedAmount: number;
+  /** 0 = Active, 1 = Canceled, 2 = Completed (mirrors on-chain enum) */
+  status: number;
+  /** IPFS CID of the payroll proof — only present for completed streams */
+  proofCid?: string;
+  /** Public HTTPS gateway URL for the proof — only present for completed streams */
+  proofGatewayUrl?: string;
 }
 
 export interface WithdrawalRecord {
@@ -29,6 +35,25 @@ export interface WithdrawalRecord {
 
 /** Stellar uses 7 decimal places (10^7 stroops = 1 token unit). */
 const STROOPS_PER_UNIT = 1e7;
+
+const BACKEND_URL =
+  (import.meta.env.VITE_BACKEND_URL as string | undefined)?.replace(
+    /\/$/,
+    "",
+  ) ?? "http://localhost:3001";
+
+const fetchProof = async (
+  streamId: string,
+): Promise<{ cid: string; gatewayUrl: string } | null> => {
+  try {
+    const res = await fetch(`${BACKEND_URL}/proofs/${streamId}`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { cid: string; gatewayUrl: string };
+    return data;
+  } catch {
+    return null;
+  }
+};
 
 export const useStreams = (workerAddress: string | undefined) => {
   const [streams, setStreams] = useState<WorkerStream[]>([]);
@@ -74,9 +99,12 @@ export const useStreams = (workerAddress: string | undefined) => {
                 x.stream !== null,
             )
             .map(async ({ id, stream: s }) => {
+              const streamId = id.toString();
               const tokenSymbol = await getTokenSymbol(workerAddress, s.token);
+              const isCompleted = s.status === 2;
+              const proof = isCompleted ? await fetchProof(streamId) : null;
               return {
-                id: id.toString(),
+                id: streamId,
                 employerName: s.employer,
                 employerAddress: s.employer,
                 flowRate: Number(s.rate) / STROOPS_PER_UNIT,
@@ -85,6 +113,9 @@ export const useStreams = (workerAddress: string | undefined) => {
                 cliffTime: Number(s.cliff_ts),
                 totalAmount: Number(s.total_amount) / STROOPS_PER_UNIT,
                 claimedAmount: Number(s.withdrawn_amount) / STROOPS_PER_UNIT,
+                status: s.status,
+                proofCid: proof?.cid,
+                proofGatewayUrl: proof?.gatewayUrl,
               };
             }),
         );

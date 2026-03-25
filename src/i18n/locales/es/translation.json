@@ -71,6 +71,13 @@
     "flow_rate": "Tasa de Flujo",
     "start": "Inicio"
   },
+  "worker": {
+    "status_completed": "Completado",
+    "total_paid": "Total Pagado",
+    "download_proof": "Descargar Prueba de Nómina",
+    "proof_generating": "Generando prueba…",
+    "proof_cid_label": "CID de IPFS"
+  },
   "payroll": {
     "analytics_title": "Quipay · Analítica del Empleador",
     "payroll_intelligence": "Inteligencia de Nómina",
