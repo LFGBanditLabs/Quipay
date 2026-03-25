@@ -11,6 +11,16 @@ pub enum DataKey {
     RetentionSecs,
     Vault,
     Gateway,
+    PendingUpgrade, // (wasm_hash, execute_after_timestamp)
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PendingUpgrade {
+    pub wasm_hash: soroban_sdk::BytesN<32>,
+    pub execute_after: u64,
+    pub proposed_at: u64,
+    pub proposed_by: Address,
 }
 
 #[contracttype]
@@ -79,6 +89,14 @@ enum BatchWithdrawalPlan {
 }
 
 const DEFAULT_RETENTION_SECS: u64 = 30 * 24 * 60 * 60;
+
+// 48 hours in seconds for timelock
+const TIMELOCK_DURATION: u64 = 48 * 60 * 60;
+
+// Event symbols for timelock
+const UPGRADE_PROPOSED: soroban_sdk::Symbol = soroban_sdk::symbol_short!("up_prop");
+const UPGRADE_EXECUTED: soroban_sdk::Symbol = soroban_sdk::symbol_short!("up_exec");
+const UPGRADE_CANCELED: soroban_sdk::Symbol = soroban_sdk::symbol_short!("up_cancel");
 
 #[contract]
 pub struct PayrollStream;
@@ -951,6 +969,116 @@ impl PayrollStream {
 
         env.storage().persistent().remove(&key);
         Ok(())
+    }
+
+    /// Propose an upgrade with a 48-hour timelock
+    /// Only admin can call this function
+    pub fn propose_upgrade(
+        env: Env,
+        new_wasm_hash: soroban_sdk::BytesN<32>,
+    ) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+
+        let now = env.ledger().timestamp();
+        let execute_after = now.saturating_add(TIMELOCK_DURATION);
+
+        // Check if there's already a pending upgrade
+        if env.storage().instance().has(&DataKey::PendingUpgrade) {
+            return Err(QuipayError::Custom);
+        }
+
+        let pending_upgrade = PendingUpgrade {
+            wasm_hash: new_wasm_hash.clone(),
+            execute_after,
+            proposed_at: now,
+            proposed_by: admin.clone(),
+        };
+
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingUpgrade, &pending_upgrade);
+
+        // Emit upgrade proposed event
+        #[allow(deprecated)]
+        env.events()
+            .publish((UPGRADE_PROPOSED, admin), (new_wasm_hash, execute_after));
+
+        Ok(())
+    }
+
+    /// Execute a proposed upgrade after timelock period
+    /// Only admin can call this function
+    pub fn execute_upgrade(env: Env) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+
+        let pending_upgrade: PendingUpgrade = env
+            .storage()
+            .instance()
+            .get(&DataKey::PendingUpgrade)
+            .ok_or(QuipayError::Custom)?;
+
+        let now = env.ledger().timestamp();
+        if now < pending_upgrade.execute_after {
+            return Err(QuipayError::Custom);
+        }
+
+        // Perform the upgrade
+        env.deployer()
+            .update_current_contract_wasm(pending_upgrade.wasm_hash.clone());
+
+        // Clear pending upgrade
+        env.storage().instance().remove(&DataKey::PendingUpgrade);
+
+        // Emit upgrade executed event
+        #[allow(deprecated)]
+        env.events()
+            .publish((UPGRADE_EXECUTED, admin), (pending_upgrade.wasm_hash, now));
+
+        Ok(())
+    }
+
+    /// Cancel a pending upgrade
+    /// Only admin can call this function
+    pub fn cancel_upgrade(env: Env) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+
+        let pending_upgrade: PendingUpgrade = env
+            .storage()
+            .instance()
+            .get(&DataKey::PendingUpgrade)
+            .ok_or(QuipayError::Custom)?;
+
+        // Clear pending upgrade
+        env.storage().instance().remove(&DataKey::PendingUpgrade);
+
+        // Emit upgrade canceled event
+        #[allow(deprecated)]
+        env.events().publish(
+            (UPGRADE_CANCELED, admin),
+            (pending_upgrade.wasm_hash, pending_upgrade.execute_after),
+        );
+
+        Ok(())
+    }
+
+    /// Get the current pending upgrade (if any)
+    pub fn get_pending_upgrade(env: Env) -> Option<PendingUpgrade> {
+        env.storage().instance().get(&DataKey::PendingUpgrade)
     }
 
     fn require_not_paused(env: &Env) -> Result<(), QuipayError> {
