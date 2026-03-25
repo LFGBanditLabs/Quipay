@@ -23,7 +23,7 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
-      - run: sudo apt-get install -y libudev-dev libdbus-1-dev pkg-config
+      - run: sudo apt-get update && sudo apt-get install -y libudev-dev libdbus-1-dev pkg-config
       - run: rustup target add wasm32v1-none
       - run: rustup component add rustfmt clippy
       - run: cargo fmt --check
