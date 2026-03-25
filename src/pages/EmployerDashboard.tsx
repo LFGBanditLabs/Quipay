@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import WithdrawButton from "../components/WithdrawButton";
 import EmptyState from "../components/EmptyState";
+import StreamVisualizer from "../components/StreamVisualizer";
 import { SkeletonCard, SkeletonRow } from "../components/Loading";
 
 const EmployerDashboard: React.FC = () => {
@@ -93,6 +94,28 @@ const EmployerDashboard: React.FC = () => {
         <Text as="h1" size="xl" weight="medium">
           {t("dashboard.title")}
         </Text>
+
+        {/* Topology Visualizer */}
+        <div style={{ marginTop: "24px", marginBottom: "32px" }}>
+          <Text
+            as="h2"
+            size="lg"
+            weight="medium"
+            style={{ marginBottom: "16px" }}
+          >
+            Network Topology
+          </Text>
+          <StreamVisualizer
+            streams={activeStreams}
+            treasuryBalance={
+              treasuryBalances.length > 0
+                ? treasuryBalances
+                    .map((t) => `${t.balance} ${t.tokenSymbol}`)
+                    .join(", ")
+                : "0"
+            }
+          />
+        </div>
 
         <div className={tw.dashboardGrid}>
           <WithdrawButton

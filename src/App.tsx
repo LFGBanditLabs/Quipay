@@ -18,6 +18,7 @@ const TreasuryManager = lazy(() => import("./pages/TreasuryManager"));
 const WithdrawPage = lazy(() => import("./pages/WithdrawPage"));
 const Reports = lazy(() => import("./pages/Reports"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const WorkerDashboard = lazy(() => import("./pages/WorkerDashboard"));
 const DashboardCustomization = lazy(
   () => import("./pages/DashboardCustomization"),
 );
@@ -135,6 +136,15 @@ function App() {
             element={
               <WalletGuard>
                 <DashboardCustomization />
+              </WalletGuard>
+            }
+          />
+
+          <Route
+            path="/worker"
+            element={
+              <WalletGuard>
+                <WorkerDashboard />
               </WalletGuard>
             }
           />
