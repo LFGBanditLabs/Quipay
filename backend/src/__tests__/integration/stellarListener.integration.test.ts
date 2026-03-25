@@ -51,7 +51,7 @@ let mockGetEvents: any;
 jest.mock("@stellar/stellar-sdk", () => {
   mockGetLatestLedger = jest.fn();
   mockGetEvents = jest.fn();
-  
+
   return {
     rpc: {
       Server: jest.fn().mockImplementation(() => ({
@@ -63,8 +63,9 @@ jest.mock("@stellar/stellar-sdk", () => {
 });
 
 describe("StellarListener Integration Tests", () => {
-  const QUIPAY_CONTRACT_ID = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM";
-  
+  const QUIPAY_CONTRACT_ID =
+    "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM";
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let sendWebhookNotification: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,14 +81,14 @@ describe("StellarListener Integration Tests", () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     jest.resetModules();
-    
+
     if (mockGetLatestLedger) mockGetLatestLedger.mockReset();
     if (mockGetEvents) mockGetEvents.mockReset();
 
     // Re-import after reset
     const delivery = await import("../../delivery");
     const scheduler = await import("../../scheduler/scheduler");
-    
+
     sendWebhookNotification = delivery.sendWebhookNotification;
     scheduleJob = scheduler.scheduleJob;
     unscheduleJob = scheduler.unscheduleJob;
@@ -110,7 +111,7 @@ describe("StellarListener Integration Tests", () => {
   describe("Event Stream Processing", () => {
     it("should poll for events and process stream created events", async () => {
       const stellarListener = await import("../../stellarListener");
-      
+
       mockGetLatestLedger
         .mockResolvedValueOnce({ sequence: 1000 })
         .mockResolvedValueOnce({ sequence: 1001 });
@@ -142,13 +143,13 @@ describe("StellarListener Integration Tests", () => {
           ledger: 1001,
           contractId: QUIPAY_CONTRACT_ID,
           eventType: "new_stream",
-        })
+        }),
       );
     });
 
     it("should process withdrawal events and trigger webhook notifications", async () => {
       const stellarListener = await import("../../stellarListener");
-      
+
       mockGetLatestLedger
         .mockResolvedValueOnce({ sequence: 2000 })
         .mockResolvedValueOnce({ sequence: 2001 });
@@ -173,7 +174,7 @@ describe("StellarListener Integration Tests", () => {
           id: "evt-002",
           ledger: 2001,
           eventType: "withdrawal",
-        })
+        }),
       );
     });
 
@@ -190,9 +191,7 @@ describe("StellarListener Integration Tests", () => {
           ledger: 3001,
           contractId: QUIPAY_CONTRACT_ID,
           type: "contract",
-          topic: [
-            { toXDR: () => "new_stream_event" },
-          ],
+          topic: [{ toXDR: () => "new_stream_event" }],
           value: {},
         },
         {
@@ -200,9 +199,7 @@ describe("StellarListener Integration Tests", () => {
           ledger: 3001,
           contractId: QUIPAY_CONTRACT_ID,
           type: "contract",
-          topic: [
-            { toXDR: () => "withdrawal_event" },
-          ],
+          topic: [{ toXDR: () => "withdrawal_event" }],
           value: {},
         },
       ];
@@ -246,7 +243,7 @@ describe("StellarListener Integration Tests", () => {
       // Unknown events are converted to generic_contract_event and still sent
       expect(sendWebhookNotification).toHaveBeenCalledWith(
         "generic_contract_event",
-        expect.objectContaining({ id: "evt-005" })
+        expect.objectContaining({ id: "evt-005" }),
       );
     });
   });
@@ -288,7 +285,7 @@ describe("StellarListener Integration Tests", () => {
           id: "evt-schedule-001",
           ledger: 5001,
           eventType: "new_stream",
-        })
+        }),
       );
     });
 
@@ -375,9 +372,7 @@ describe("StellarListener Integration Tests", () => {
           ledger: 10001,
           contractId: QUIPAY_CONTRACT_ID,
           type: "contract",
-          topic: [
-            { toXDR: () => "new_stream_event" },
-          ],
+          topic: [{ toXDR: () => "new_stream_event" }],
           value: {},
         },
       ];
@@ -481,9 +476,7 @@ describe("StellarListener Integration Tests", () => {
         ledger: 13001,
         contractId: QUIPAY_CONTRACT_ID,
         type: "contract",
-        topic: [
-          { toXDR: () => "StreamCreated_event" },
-        ],
+        topic: [{ toXDR: () => "StreamCreated_event" }],
         value: {},
       };
 
