@@ -33,6 +33,7 @@ pub enum QuipayError {
     StartTimeInPast = 1023,
     Overflow = 1024,
     RetentionNotMet = 1025,
+    FeeTooHigh = 1026,
     Custom = 1999,
 }
 
