@@ -797,6 +797,37 @@ impl PayrollStream {
         Some(vested.checked_sub(stream.withdrawn_amount).unwrap_or(0))
     }
 
+    /// Pure view: returns claimable amount without mutating state.
+    /// Claimable = min(streamed_amount - withdrawn_amount, vault_available_balance).
+    pub fn get_claimable(env: Env, stream_id: u64) -> Option<i128> {
+        let key = StreamKey::Stream(stream_id);
+        let stream: Stream = env.storage().persistent().get(&key)?;
+
+        if Self::is_closed(&stream) {
+            return Some(0);
+        }
+
+        let vault: Address = env.storage().instance().get(&DataKey::Vault)?;
+        let now = env.ledger().timestamp();
+        let vested = Self::vested_amount(&stream, now);
+        let streamed_claimable = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
+        if streamed_claimable <= 0 {
+            return Some(0);
+        }
+
+        use soroban_sdk::{IntoVal, Symbol, vec};
+        let vault_balance: i128 = env.invoke_contract(
+            &vault,
+            &Symbol::new(&env, "get_balance"),
+            vec![&env, stream.token.clone().into_val(&env)],
+        );
+        if vault_balance <= 0 {
+            return Some(0);
+        }
+
+        Some(core::cmp::min(streamed_claimable, vault_balance))
+    }
+
     /// Check if a stream is currently solvent (vault has enough funds to cover remaining liability)
     pub fn is_stream_solvent(env: Env, stream_id: u64) -> Option<bool> {
         let key = StreamKey::Stream(stream_id);
