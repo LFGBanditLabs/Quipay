@@ -31,8 +31,8 @@ function deepEqual<T>(a: T, b: T): boolean {
 
   return Boolean(
     bothAreObjects &&
-      Object.keys(a).length === Object.keys(b).length &&
-      Object.entries(a).every(([k, v]) => deepEqual(v, b[k as keyof T])),
+    Object.keys(a).length === Object.keys(b).length &&
+    Object.entries(a).every(([k, v]) => deepEqual(v, b[k as keyof T])),
   );
 }
 
