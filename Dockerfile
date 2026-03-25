@@ -1,16 +1,29 @@
-FROM node:22-alpine
+## ─────────────────────────────────────────────────────────────────────────────
+## Stage 1: Build (includes dev dependencies + toolchain)
+## ─────────────────────────────────────────────────────────────────────────────
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies (including dev deps) for build
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
-# Copy source code
+# Copy source and build
 COPY . .
+RUN npm run build
 
-# Expose Vite port (default 5173)
-EXPOSE 5173
+## ─────────────────────────────────────────────────────────────────────────────
+## Stage 2: Runtime (tiny nginx image serving dist/)
+## ─────────────────────────────────────────────────────────────────────────────
+FROM nginx:alpine AS runtime
 
-# Default command for development (bind to 0.0.0.0 for container access)
-CMD ["npm", "run", "dev", "--", "--host"]
+# SPA routing + sensible caching
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Static site output
+COPY --from=build /app/dist /usr/share/nginx/html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

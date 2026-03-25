@@ -222,6 +222,57 @@ fn test_multi_token_tracking() {
 }
 
 #[test]
+fn test_supported_tokens_and_treasury_summary() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    let token_a_admin = Address::generate(&env);
+    let token_a = env.register_stellar_asset_contract_v2(token_a_admin.clone());
+    let token_a_id = token_a.address();
+    let token_a_client = token::StellarAssetClient::new(&env, &token_a_id);
+
+    let token_b_admin = Address::generate(&env);
+    let token_b = env.register_stellar_asset_contract_v2(token_b_admin.clone());
+    let token_b_id = token_b.address();
+    let token_b_client = token::StellarAssetClient::new(&env, &token_b_id);
+
+    let user = Address::generate(&env);
+    token_a_client.mint(&user, &1000);
+    token_b_client.mint(&user, &1000);
+
+    client.deposit(&user, &token_a_id, &500);
+    client.deposit(&user, &token_b_id, &300);
+    client.deposit(&user, &token_a_id, &200);
+
+    let supported_tokens = client.get_supported_tokens();
+    assert_eq!(supported_tokens.len(), 2);
+    assert_eq!(supported_tokens.get(0).unwrap(), token_a_id);
+    assert_eq!(supported_tokens.get(1).unwrap(), token_b_id);
+
+    client.allocate_funds(&token_a_id, &400);
+    client.allocate_funds(&token_b_id, &200);
+
+    let summary = client.get_treasury_summary();
+    assert_eq!(summary.len(), 2);
+
+    let token_a_summary = summary.get(0).unwrap();
+    assert_eq!(token_a_summary.token, token_a_id);
+    assert_eq!(token_a_summary.balance, 700);
+    assert_eq!(token_a_summary.liability, 400);
+
+    let token_b_summary = summary.get(1).unwrap();
+    assert_eq!(token_b_summary.token, token_b_id);
+    assert_eq!(token_b_summary.balance, 300);
+    assert_eq!(token_b_summary.liability, 200);
+}
+
+#[test]
 fn test_payout_without_allocation() {
     let env = Env::default();
     env.mock_all_auths();
@@ -453,14 +504,13 @@ fn test_check_solvency_prevents_unfunded_liability() {
     token_admin_client.mint(&depositor, &500);
     client.deposit(&depositor, &token_id, &500);
 
-    // This would exceed balance (liability 0 + 501 > balance 500) and should panic
+    // This would exceed balance (liability 0 + 501 > balance 500) and should return error
     let res = client.try_add_liability(&token_id, &501);
-    assert!(res.is_err());
+    assert_eq!(res, Err(Ok(QuipayError::InsufficientBalance)));
 }
 
 #[test]
-#[should_panic(expected = "authorized contract not set")]
-fn test_add_liability_without_authorized_contract_panics() {
+fn test_add_liability_without_authorized_contract_returns_error() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -473,13 +523,13 @@ fn test_add_liability_without_authorized_contract_panics() {
     // Initialize but don't set authorized contract
     client.initialize(&admin);
 
-    // Should panic - no authorized contract set
-    client.add_liability(&token, &500);
+    // Should return error - no authorized contract set
+    let res = client.try_add_liability(&token, &500);
+    assert_eq!(res, Err(Ok(QuipayError::NotInitialized)));
 }
 
 #[test]
-#[should_panic(expected = "cannot remove more liability than exists")]
-fn test_remove_more_liability_than_exists_panics() {
+fn test_remove_more_liability_than_exists_returns_error() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -507,13 +557,13 @@ fn test_remove_more_liability_than_exists_panics() {
     client.add_liability(&token, &500);
     assert_eq!(client.get_liability(&token), 500);
 
-    // Should panic - trying to remove more than exists
-    client.remove_liability(&token, &600);
+    // Should return error - trying to remove more than exists
+    let res = client.try_remove_liability(&token, &600);
+    assert_eq!(res, Err(Ok(QuipayError::InvalidAmount)));
 }
 
 #[test]
-#[should_panic(expected = "liability amount must be positive")]
-fn test_add_zero_liability_panics() {
+fn test_add_zero_liability_returns_error() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -528,13 +578,13 @@ fn test_add_zero_liability_panics() {
     client.initialize(&admin);
     client.set_authorized_contract(&authorized_contract);
 
-    // Should panic - zero amount
-    client.add_liability(&token, &0);
+    // Should return error - zero amount
+    let res = client.try_add_liability(&token, &0);
+    assert_eq!(res, Err(Ok(QuipayError::InvalidAmount)));
 }
 
 #[test]
-#[should_panic(expected = "removal amount must be positive")]
-fn test_remove_zero_liability_panics() {
+fn test_remove_zero_liability_returns_error() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -561,8 +611,9 @@ fn test_remove_zero_liability_panics() {
     // Add some liability first
     client.add_liability(&token, &500);
 
-    // Should panic - zero amount
-    client.remove_liability(&token, &0);
+    // Should return error - zero amount
+    let res = client.try_remove_liability(&token, &0);
+    assert_eq!(res, Err(Ok(QuipayError::InvalidAmount)));
 }
 
 #[test]
@@ -728,7 +779,6 @@ fn test_require_auth_for_payout_with_multisig() {
 }
 
 #[test]
-#[should_panic(expected = "not initialized")]
 fn test_require_auth_for_set_authorized_contract_with_multisig() {
     let env = Env::default();
     env.mock_all_auths();
@@ -748,14 +798,15 @@ fn test_require_auth_for_set_authorized_contract_with_multisig() {
         Some(authorized_contract.clone())
     );
 
-    // Try to set authorized contract without admin auth - should panic
+    // Try to set authorized contract without admin auth - should return error
     // This simulates a transaction that doesn't meet multisig threshold
     let env2 = Env::default();
     let contract_id2 = env2.register(PayrollVault, ());
     let client2 = PayrollVaultClient::new(&env2, &contract_id2);
-    // Don't initialize - this will cause a panic when trying to get admin
+    // Don't initialize - this will cause an error when trying to get admin
     let another_contract = Address::generate(&env2);
-    client2.set_authorized_contract(&another_contract);
+    let res = client2.try_set_authorized_contract(&another_contract);
+    assert_eq!(res, Err(Ok(QuipayError::NotInitialized)));
 }
 
 #[test]

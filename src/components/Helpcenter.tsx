@@ -1,207 +1,58 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
 interface FAQ {
   id: number;
-  category: string;
+  categoryKey: string;
   question: string;
   answer: string;
 }
 
-const CATEGORIES = [
-  "All",
-  "Tokens",
-  "Streams",
-  "Withdrawals",
-  "Security",
-  "Fees",
-  "Account",
-];
+const CATEGORY_KEYS = [
+  "all",
+  "tokens",
+  "streams",
+  "withdrawals",
+  "security",
+  "fees",
+  "account",
+] as const;
 
-const FAQS: FAQ[] = [
-  // Tokens
-  {
-    id: 1,
-    category: "Tokens",
-    question: "What is the difference between XLM and USDC?",
-    answer:
-      "XLM (Stellar Lumens) is the native currency of the Stellar network, used primarily to pay transaction fees and maintain account reserves. USDC is a stablecoin pegged 1:1 to the US Dollar, making it ideal for payroll since its value doesn't fluctuate. Quipay supports both, but USDC is recommended for salary streams to protect workers from price volatility.",
-  },
-  {
-    id: 2,
-    category: "Tokens",
-    question: "Can I use other tokens besides XLM and USDC?",
-    answer:
-      "Currently Quipay supports XLM and USDC on the Stellar network. Support for additional Stellar-based assets may be added in future updates. Check our changelog or Discord for announcements.",
-  },
-  {
-    id: 3,
-    category: "Tokens",
-    question: "How do I add a USDC trustline to my wallet?",
-    answer:
-      "To receive USDC on Stellar, your wallet must establish a trustline with the USDC issuer (Circle). Most Stellar wallets like Lobstr or XBULL do this automatically when you select USDC. In Quipay, you'll be prompted to add the trustline the first time you set up a USDC stream.",
-  },
-  {
-    id: 4,
-    category: "Tokens",
-    question: "What is the minimum XLM reserve required?",
-    answer:
-      "The Stellar network requires every account to maintain a base reserve of 1 XLM. Each additional trustline or data entry adds 0.5 XLM to your required reserve. Quipay will warn you if your balance is close to the minimum reserve.",
-  },
-  // Streams
-  {
-    id: 5,
-    category: "Streams",
-    question: "What is a PayrollStream?",
-    answer:
-      "A PayrollStream is a smart contract that continuously drips salary to a worker's wallet in real-time. Instead of waiting for a monthly or bi-weekly paycheck, workers accumulate earnings every second. Employers fund the stream upfront and workers can withdraw at any time.",
-  },
-  {
-    id: 6,
-    category: "Streams",
-    question: "What happens when a stream is canceled?",
-    answer:
-      "When an employer cancels a stream, it stops immediately. Any earnings already accrued up to that moment remain available for the worker to withdraw. Unspent funds are returned to the employer's wallet. Workers are notified of the cancellation in real-time.",
-  },
-  {
-    id: 7,
-    category: "Streams",
-    question: "Can a stream be paused instead of canceled?",
-    answer:
-      "Yes, employers can pause a stream temporarily — for example during unpaid leave. During a pause, no new tokens accumulate. The worker retains access to all previously earned funds. Pausing is reversible; canceling is permanent.",
-  },
-  {
-    id: 8,
-    category: "Streams",
-    question: "How is the stream rate calculated?",
-    answer:
-      "The stream rate is calculated as: Annual Salary / 365 / 24 / 3600 = tokens per second. For example, a $52,000/year salary streams at approximately 0.001648 USDC per second. The dashboard shows your live earnings ticking up in real time.",
-  },
-  {
-    id: 9,
-    category: "Streams",
-    question: "What happens if the employer's stream balance runs out?",
-    answer:
-      "If the stream contract runs out of funds, the stream automatically pauses. Employers receive an email and in-app warning when the balance drops below a 7-day runway threshold. Workers keep all earnings accrued before the stream stopped.",
-  },
-  {
-    id: 10,
-    category: "Streams",
-    question: "Can multiple workers be added to one stream?",
-    answer:
-      "Each stream is tied to one worker wallet address. Employers can create multiple streams simultaneously — one per employee — all managed from the employer dashboard. There is no hard cap on the number of active streams.",
-  },
-  // Withdrawals
-  {
-    id: 11,
-    category: "Withdrawals",
-    question: "When can I withdraw my earnings?",
-    answer:
-      "You can withdraw your accumulated earnings at any time — there is no lock-up period. Simply click the Withdraw button in your worker dashboard and confirm the transaction in your wallet. Funds arrive within seconds.",
-  },
-  {
-    id: 12,
-    category: "Withdrawals",
-    question: "Is there a minimum withdrawal amount?",
-    answer:
-      "There is no minimum enforced by Quipay, but the Stellar network requires enough XLM in your wallet to cover the transaction fee (typically 0.00001 XLM). Extremely small withdrawals may cost more in fees than the amount withdrawn.",
-  },
-  {
-    id: 13,
-    category: "Withdrawals",
-    question: "How long does a withdrawal take?",
-    answer:
-      "Stellar transactions confirm in 3-5 seconds on average. Once you confirm the withdrawal in your wallet, funds will appear in your balance almost instantly.",
-  },
-  {
-    id: 14,
-    category: "Withdrawals",
-    question: "Why is my withdrawable amount showing zero?",
-    answer:
-      "This can happen if: (1) your stream was just started and only seconds have elapsed, (2) the stream has been paused or canceled, (3) you recently completed a withdrawal and the balance is rebuilding, or (4) there is a network delay fetching your balance — try refreshing.",
-  },
-  {
-    id: 15,
-    category: "Withdrawals",
-    question: "What happens if one stream fails during a batch withdrawal?",
-    answer:
-      "Batch withdrawals are atomic. Quipay validates the full batch before starting payouts, and if any payout fails at execution time the entire transaction reverts so no stream in that batch is partially withdrawn.",
-  },
-  // Fees
-  {
-    id: 16,
-    category: "Fees",
-    question: "What fees does Quipay charge?",
-    answer:
-      "Quipay charges a small protocol fee on each stream, deducted from the employer's deposit. Worker withdrawals have no Quipay fee. The only cost to workers is the Stellar network transaction fee (~0.00001 XLM per transaction), which is negligible.",
-  },
-  {
-    id: 17,
-    category: "Fees",
-    question: "Are there gas fees on Stellar?",
-    answer:
-      "Stellar uses a fixed, predictable fee model instead of variable gas. Each transaction costs 100 stroops (0.00001 XLM), which at current XLM prices is a fraction of a cent. This is one of the key reasons Quipay is built on Stellar.",
-  },
-  {
-    id: 18,
-    category: "Fees",
-    question: "Does Quipay take a cut of my salary?",
-    answer:
-      "No. The protocol fee is paid by employers on top of the salary amount. Workers receive 100% of the agreed salary with no deductions from Quipay. Your employer covers all streaming fees.",
-  },
-  // Security
-  {
-    id: 19,
-    category: "Security",
-    question: "Is my salary safe if Quipay goes offline?",
-    answer:
-      "Yes. Salary funds are held in non-custodial smart contracts on the Stellar blockchain, not by Quipay. Even if Quipay's frontend goes offline, you can interact with the contract directly using a Stellar explorer or compatible wallet to withdraw your funds.",
-  },
-  {
-    id: 20,
-    category: "Security",
-    question: "Can Quipay access or freeze my funds?",
-    answer:
-      "No. Quipay is a non-custodial protocol — we never hold your private keys or have the ability to move your funds. Only the wallet addresses specified in the stream contract can withdraw. Employers can only cancel future accruals, not reclaim already-earned amounts.",
-  },
-  {
-    id: 21,
-    category: "Security",
-    question: "Has Quipay's smart contract been audited?",
-    answer:
-      "Quipay's PayrollStream contracts are open source and have undergone community review. A formal third-party security audit is planned before the mainnet launch. Audit reports will be published publicly. Always check our docs for the latest audit status.",
-  },
-  {
-    id: 22,
-    category: "Security",
-    question:
-      "What should I do if I suspect unauthorized access to my account?",
-    answer:
-      "Since Quipay is non-custodial, 'account access' means access to your wallet's private key or seed phrase. If compromised: immediately transfer funds to a new secure wallet, then update your stream recipient address with your employer. Never share your seed phrase with anyone, including Quipay support.",
-  },
-  // Account
-  {
-    id: 23,
-    category: "Account",
-    question: "How do I connect my wallet to Quipay?",
-    answer:
-      "Click 'Connect Wallet' in the top navigation. Quipay supports Freighter, Lobstr, and any WalletConnect-compatible Stellar wallet. Select your wallet provider, approve the connection request, and you're in — no account creation or email required.",
-  },
-  {
-    id: 24,
-    category: "Account",
-    question: "Can I use Quipay on mobile?",
-    answer:
-      "Yes. Quipay's interface is fully responsive and works on mobile browsers. For the best mobile experience, use a wallet with a built-in browser like Lobstr. The worker dashboard is optimized for quick balance checks and withdrawals on the go.",
-  },
-  {
-    id: 25,
-    category: "Account",
-    question: "How do I switch between employer and worker views?",
-    answer:
-      "The dashboard automatically detects your role based on your wallet activity. If your wallet is set as a stream recipient, you'll see the worker view. If you've created streams, you'll see the employer view. You can toggle manually using the role switcher in the top right corner.",
-  },
+type CategoryKey = (typeof CATEGORY_KEYS)[number];
+
+interface FAQDef {
+  id: number;
+  categoryKey: Exclude<CategoryKey, "all">;
+}
+
+const FAQ_DEFS: FAQDef[] = [
+  { id: 1, categoryKey: "tokens" },
+  { id: 2, categoryKey: "tokens" },
+  { id: 3, categoryKey: "tokens" },
+  { id: 4, categoryKey: "tokens" },
+  { id: 5, categoryKey: "streams" },
+  { id: 6, categoryKey: "streams" },
+  { id: 7, categoryKey: "streams" },
+  { id: 8, categoryKey: "streams" },
+  { id: 9, categoryKey: "streams" },
+  { id: 10, categoryKey: "streams" },
+  { id: 11, categoryKey: "withdrawals" },
+  { id: 12, categoryKey: "withdrawals" },
+  { id: 13, categoryKey: "withdrawals" },
+  { id: 14, categoryKey: "withdrawals" },
+  { id: 15, categoryKey: "withdrawals" },
+  { id: 16, categoryKey: "fees" },
+  { id: 17, categoryKey: "fees" },
+  { id: 18, categoryKey: "fees" },
+  { id: 19, categoryKey: "security" },
+  { id: 20, categoryKey: "security" },
+  { id: 21, categoryKey: "security" },
+  { id: 22, categoryKey: "security" },
+  { id: 23, categoryKey: "account" },
+  { id: 24, categoryKey: "account" },
+  { id: 25, categoryKey: "account" },
 ];
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -338,34 +189,51 @@ function FAQItem({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function HelpCenter() {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
-  const [activeCategory, setActiveCategory] = useState("All");
+  const [activeCategory, setActiveCategory] = useState<CategoryKey>("all");
+
+  const faqs: FAQ[] = useMemo(
+    () =>
+      FAQ_DEFS.map((def) => ({
+        id: def.id,
+        categoryKey: def.categoryKey,
+        question: t(`help.faq_${def.id}_q`),
+        answer: t(`help.faq_${def.id}_a`),
+      })),
+    [t],
+  );
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
-    return FAQS.filter((f: FAQ) => {
+    return faqs.filter((f: FAQ) => {
       const matchesCategory =
-        activeCategory === "All" || f.category === activeCategory;
+        activeCategory === "all" || f.categoryKey === activeCategory;
       const matchesQuery =
         !q ||
         f.question.toLowerCase().includes(q) ||
         f.answer.toLowerCase().includes(q);
       return matchesCategory && matchesQuery;
     });
-  }, [query, activeCategory]);
+  }, [query, activeCategory, faqs]);
 
   const grouped = useMemo(() => {
-    const isFiltered = activeCategory !== "All" || query.trim();
+    const isFiltered = activeCategory !== "all" || query.trim();
     if (isFiltered) {
-      const key = activeCategory !== "All" ? activeCategory : "Results";
+      const key =
+        activeCategory !== "all"
+          ? t(`help.cat_${activeCategory}`)
+          : t("help.results_label");
       return { [key]: filtered };
     }
-    return CATEGORIES.slice(1).reduce<Record<string, FAQ[]>>((acc, cat) => {
-      const items = filtered.filter((f: FAQ) => f.category === cat);
-      if (items.length) acc[cat] = items;
+    return (CATEGORY_KEYS.slice(1) as Exclude<CategoryKey, "all">[]).reduce<
+      Record<string, FAQ[]>
+    >((acc, cat) => {
+      const items = filtered.filter((f: FAQ) => f.categoryKey === cat);
+      if (items.length) acc[t(`help.cat_${cat}`)] = items;
       return acc;
     }, {});
-  }, [filtered, activeCategory, query]);
+  }, [filtered, activeCategory, query, t]);
 
   return (
     <>
@@ -654,16 +522,14 @@ export default function HelpCenter() {
       <div className="hc-root">
         {/* Hero */}
         <div className="hc-hero">
-          <div className="hc-hero-eyebrow">Quipay Help Center</div>
+          <div className="hc-hero-eyebrow">{t("help.eyebrow")}</div>
           <h1 className="hc-hero-title">
-            Got questions?
+            {t("help.hero_title_line1")}
             <br />
-            We have <span>answers.</span>
+            {t("help.hero_title_line2")}{" "}
+            <span>{t("help.hero_title_highlight")}</span>
           </h1>
-          <p style={{ color: "var(--bg)" }}>
-            Everything you need to know about tokens, streams, withdrawals, and
-            keeping your salary safe.
-          </p>
+          <p style={{ color: "var(--bg)" }}>{t("help.hero_subtitle")}</p>
           <div className="hc-search-wrap">
             <span className="hc-search-icon">
               <IconSearch />
@@ -671,12 +537,12 @@ export default function HelpCenter() {
             <input
               className="hc-search-input"
               type="text"
-              placeholder='Search questions… e.g. "cancel stream", "USDC fees"'
+              placeholder={t("help.search_placeholder")}
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
               }}
-              aria-label="Search FAQs"
+              aria-label={t("help.search_aria")}
             />
             {query && (
               <button
@@ -684,7 +550,7 @@ export default function HelpCenter() {
                 onClick={() => {
                   setQuery("");
                 }}
-                aria-label="Clear search"
+                aria-label={t("help.clear_search_aria")}
               >
                 <IconX />
               </button>
@@ -695,16 +561,16 @@ export default function HelpCenter() {
         {/* Stats */}
         <div className="hc-stats">
           <div className="hc-stat">
-            <div className="hc-stat-num">{FAQS.length}+</div>
-            <div className="hc-stat-label">Articles</div>
+            <div className="hc-stat-num">{FAQ_DEFS.length}+</div>
+            <div className="hc-stat-label">{t("help.stats_articles")}</div>
           </div>
           <div className="hc-stat">
-            <div className="hc-stat-num">{CATEGORIES.length - 1}</div>
-            <div className="hc-stat-label">Categories</div>
+            <div className="hc-stat-num">{CATEGORY_KEYS.length - 1}</div>
+            <div className="hc-stat-label">{t("help.stats_categories")}</div>
           </div>
           <div className="hc-stat">
             <div className="hc-stat-num">~5s</div>
-            <div className="hc-stat-label">Avg answer time</div>
+            <div className="hc-stat-label">{t("help.stats_avg_time")}</div>
           </div>
         </div>
 
@@ -712,16 +578,16 @@ export default function HelpCenter() {
         <div className="hc-body">
           {/* Category chips */}
           <div className="hc-chips">
-            {CATEGORIES.map((cat) => (
+            {CATEGORY_KEYS.map((key) => (
               <button
-                key={cat}
-                className={`hc-chip ${activeCategory === cat ? "active" : ""}`}
+                key={key}
+                className={`hc-chip ${activeCategory === key ? "active" : ""}`}
                 onClick={() => {
-                  setActiveCategory(cat);
+                  setActiveCategory(key);
                   setQuery("");
                 }}
               >
-                {cat}
+                {t(`help.cat_${key}`)}
               </button>
             ))}
           </div>
@@ -730,10 +596,8 @@ export default function HelpCenter() {
           {filtered.length === 0 ? (
             <div className="hc-empty">
               <div className="hc-empty-icon">🔍</div>
-              <div className="hc-empty-title">No results found</div>
-              <div className="hc-empty-sub">
-                Try a different search term or browse by category above.
-              </div>
+              <div className="hc-empty-title">{t("help.no_results_title")}</div>
+              <div className="hc-empty-sub">{t("help.no_results_sub")}</div>
             </div>
           ) : (
             Object.entries(grouped).map(([cat, items]) => (

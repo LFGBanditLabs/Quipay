@@ -1,204 +1,346 @@
-import { describe, it, expect, beforeEach, jest } from "@jest/globals";
+/**
+ * Tests for src/monitor/monitor.ts
+ *
+ * All DB + notifier dependencies are mocked.
+ */
+
+process.env.TREASURY_RUNWAY_ALERT_DAYS = "7";
+
+// ─── Mock DB pool ─────────────────────────────────────────────────────────────
+jest.mock("../db/pool", () => ({
+  getPool: jest.fn(() => ({})), // simulate DB configured
+}));
+
+jest.mock("../utils/lock", () => ({
+  withAdvisoryLock: jest.fn(async (_lockId, fn) => {
+    await fn();
+  }),
+}));
+
+// ─── Mock query helpers ───────────────────────────────────────────────────────
+jest.mock("../db/queries", () => ({
+  getTreasuryBalances: jest.fn(),
+  getActiveLiabilities: jest.fn(),
+  getStreamsByEmployer: jest.fn(),
+  logMonitorEvent: jest.fn().mockResolvedValue(undefined),
+}));
+
+// ─── Mock notifier ────────────────────────────────────────────────────────────
+jest.mock("../notifier/notifier", () => ({
+  sendTreasuryAlert: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock("../audit/init", () => ({
+  getAuditLogger: jest.fn(() => ({
+    logMonitorEvent: jest.fn().mockResolvedValue(undefined),
+  })),
+  isAuditLoggerInitialized: jest.fn(() => false),
+}));
+
+jest.mock("../audit/serviceLogger", () => ({
+  serviceLogger: {
+    info: jest.fn().mockResolvedValue(undefined),
+    warn: jest.fn().mockResolvedValue(undefined),
+    error: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
+import { getPool } from "../db/pool";
+import {
+  getTreasuryBalances,
+  getActiveLiabilities,
+  getStreamsByEmployer,
+  logMonitorEvent,
+} from "../db/queries";
+import { sendTreasuryAlert } from "../notifier/notifier";
+import { serviceLogger } from "../audit/serviceLogger";
 import {
   calculateDailyBurnRate,
   calculateRunwayDays,
-  calculateExhaustionDate,
+  runMonitorCycle,
+  computeTreasuryStatus,
+  startMonitor,
 } from "./monitor";
 
-describe("Treasury Monitor", () => {
-  describe("calculateDailyBurnRate", () => {
-    it("should calculate burn rate for a single active stream", () => {
-      const now = Math.floor(Date.now() / 1000);
-      const streams = [
-        {
-          total_amount: 30_000_000, // 3 tokens (in stroops)
-          withdrawn_amount: 0,
-          start_ts: now - 86400, // started 1 day ago
-          end_ts: now + 86400 * 29, // ends in 29 days (30 days total)
-        },
-      ];
+const mockGetPool = getPool as jest.Mock;
+const mockGetBalances = getTreasuryBalances as jest.Mock;
+const mockGetLiabilities = getActiveLiabilities as jest.Mock;
+const mockGetStreamsByEmployer = getStreamsByEmployer as jest.Mock;
+const mockLogEvent = logMonitorEvent as jest.Mock;
+const mockAlert = sendTreasuryAlert as jest.Mock;
+const mockServiceLogger = serviceLogger as {
+  info: jest.Mock;
+  warn: jest.Mock;
+  error: jest.Mock;
+};
 
-      const burnRate = calculateDailyBurnRate(streams);
-      // Should be approximately 1_000_000 stroops/day (0.1 tokens/day)
-      expect(burnRate).toBeCloseTo(1_034_482, -3); // ~1.03M stroops/day
-    });
+const fixedNowSeconds = 1_700_000_000;
 
-    it("should calculate burn rate for multiple active streams", () => {
-      const now = Math.floor(Date.now() / 1000);
-      const streams = [
-        {
-          total_amount: 30_000_000,
-          withdrawn_amount: 0,
-          start_ts: now - 86400,
-          end_ts: now + 86400 * 29,
-        },
-        {
-          total_amount: 60_000_000,
-          withdrawn_amount: 10_000_000,
-          start_ts: now - 86400 * 5,
-          end_ts: now + 86400 * 25,
-        },
-      ];
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockGetPool.mockReturnValue({}); // DB configured by default
+  mockGetStreamsByEmployer.mockResolvedValue([]);
+  jest.spyOn(Date, "now").mockReturnValue(fixedNowSeconds * 1000);
+});
 
-      const burnRate = calculateDailyBurnRate(streams);
-      // Stream 1: ~1.03M/day, Stream 2: 50M/25 days = 2M/day
-      // Total: ~3.03M/day
-      expect(burnRate).toBeGreaterThan(2_500_000);
-      expect(burnRate).toBeLessThan(3_500_000);
-    });
+afterEach(() => {
+  jest.restoreAllMocks();
+});
 
-    it("should return 0 for streams with no remaining balance", () => {
-      const now = Math.floor(Date.now() / 1000);
-      const streams = [
-        {
-          total_amount: 30_000_000,
-          withdrawn_amount: 30_000_000, // fully withdrawn
-          start_ts: now - 86400,
-          end_ts: now + 86400 * 29,
-        },
-      ];
+// ─── calculateDailyBurnRate ──────────────────────────────────────────────────
 
-      const burnRate = calculateDailyBurnRate(streams);
-      expect(burnRate).toBe(0);
-    });
+describe("calculateDailyBurnRate", () => {
+  it("computes daily burn from remaining amount and remaining duration", () => {
+    const burnRate = calculateDailyBurnRate([
+      {
+        total_amount: 2_000_000,
+        withdrawn_amount: 1_000_000,
+        start_ts: fixedNowSeconds - 1_000,
+        end_ts: fixedNowSeconds + 86_400,
+      },
+    ]);
 
-    it("should return 0 for expired streams", () => {
-      const now = Math.floor(Date.now() / 1000);
-      const streams = [
-        {
-          total_amount: 30_000_000,
-          withdrawn_amount: 0,
-          start_ts: now - 86400 * 40,
-          end_ts: now - 86400 * 10, // ended 10 days ago
-        },
-      ];
+    expect(burnRate).toBeCloseTo(1_000_000, 4);
+  });
+});
 
-      const burnRate = calculateDailyBurnRate(streams);
-      expect(burnRate).toBe(0);
-    });
+// ─── calculateRunwayDays ─────────────────────────────────────────────────────
 
-    it("should handle empty stream array", () => {
-      const burnRate = calculateDailyBurnRate([]);
-      expect(burnRate).toBe(0);
-    });
+describe("calculateRunwayDays", () => {
+  it("returns null when there are no liabilities (unlimited runway)", () => {
+    expect(calculateRunwayDays(10_000_000, 0)).toBeNull();
   });
 
-  describe("calculateRunwayDays", () => {
-    it("should calculate runway correctly", () => {
-      const balance = 100_000_000; // 10 tokens
-      const dailyBurn = 10_000_000; // 1 token/day
-
-      const runway = calculateRunwayDays(balance, dailyBurn);
-      expect(runway).toBe(10); // 10 days
-    });
-
-    it("should return null for zero burn rate", () => {
-      const balance = 100_000_000;
-      const dailyBurn = 0;
-
-      const runway = calculateRunwayDays(balance, dailyBurn);
-      expect(runway).toBeNull();
-    });
-
-    it("should return null for negative burn rate", () => {
-      const balance = 100_000_000;
-      const dailyBurn = -1000;
-
-      const runway = calculateRunwayDays(balance, dailyBurn);
-      expect(runway).toBeNull();
-    });
-
-    it("should handle fractional runway days", () => {
-      const balance = 15_000_000;
-      const dailyBurn = 10_000_000;
-
-      const runway = calculateRunwayDays(balance, dailyBurn);
-      expect(runway).toBe(1.5);
-    });
+  it("returns null when liabilities is negative (guard)", () => {
+    expect(calculateRunwayDays(10_000_000, -100)).toBeNull();
   });
 
-  describe("calculateExhaustionDate", () => {
-    it("should calculate exhaustion date correctly", () => {
-      const runwayDays = 7;
-      const exhaustionDate = calculateExhaustionDate(runwayDays);
-
-      expect(exhaustionDate).not.toBeNull();
-      if (exhaustionDate) {
-        const date = new Date(exhaustionDate);
-        const expectedDate = new Date();
-        expectedDate.setDate(expectedDate.getDate() + 7);
-
-        // Check if dates are within 1 second of each other
-        expect(Math.abs(date.getTime() - expectedDate.getTime())).toBeLessThan(
-          1000,
-        );
-      }
-    });
-
-    it("should return null for null runway", () => {
-      const exhaustionDate = calculateExhaustionDate(null);
-      expect(exhaustionDate).toBeNull();
-    });
-
-    it("should handle fractional days", () => {
-      const runwayDays = 7.5;
-      const exhaustionDate = calculateExhaustionDate(runwayDays);
-
-      expect(exhaustionDate).not.toBeNull();
-      if (exhaustionDate) {
-        const date = new Date(exhaustionDate);
-        expect(date.getTime()).toBeGreaterThan(Date.now());
-      }
-    });
+  it("calculates runway correctly", () => {
+    const runway = calculateRunwayDays(3_000_000, 200_000);
+    expect(runway).toBeCloseTo(15, 2);
   });
 
-  describe("Integration scenarios", () => {
-    it("should correctly identify low runway scenario", () => {
-      const now = Math.floor(Date.now() / 1000);
-      const streams = [
+  it("returns 0 when balance is 0", () => {
+    expect(calculateRunwayDays(0, 200_000)).toBe(0);
+  });
+});
+
+// ─── computeTreasuryStatus ───────────────────────────────────────────────────
+
+describe("computeTreasuryStatus", () => {
+  it("merges balance and liability maps correctly", async () => {
+    mockGetBalances.mockResolvedValue([
+      { employer: "EMP_A", balance: "10000000" },
+      { employer: "EMP_B", balance: "3000000" },
+    ]);
+    mockGetLiabilities.mockResolvedValue([
+      { employer: "EMP_A", liabilities: "6000000" },
+    ]);
+    mockGetStreamsByEmployer
+      .mockResolvedValueOnce([
         {
-          total_amount: 70_000_000, // 7 tokens
-          withdrawn_amount: 0,
-          start_ts: now,
-          end_ts: now + 86400 * 7, // 7 days
+          total_amount: "1000000",
+          withdrawn_amount: "0",
+          start_ts: fixedNowSeconds - 100,
+          end_ts: fixedNowSeconds + 86_400,
         },
-      ];
+      ])
+      .mockResolvedValueOnce([]);
 
-      const balance = 50_000_000; // 5 tokens
-      const burnRate = calculateDailyBurnRate(streams);
-      const runway = calculateRunwayDays(balance, burnRate);
+    const results = await computeTreasuryStatus();
+    expect(results).toHaveLength(2);
 
-      // Burn rate: 7 tokens / 7 days = 1 token/day = 10M stroops/day
-      // Runway: 5 tokens / 1 token/day = 5 days
-      expect(runway).not.toBeNull();
-      if (runway !== null) {
-        expect(runway).toBeLessThan(7); // Should trigger alert
-        expect(runway).toBeCloseTo(5, 0);
-      }
-    });
+    const a = results.find((r) => r.employer === "EMP_A")!;
+    expect(a.balance).toBe(10_000_000);
+    expect(a.liabilities).toBe(6_000_000);
+    expect(a.runway_days).not.toBeNull();
 
-    it("should correctly identify healthy treasury", () => {
-      const now = Math.floor(Date.now() / 1000);
-      const streams = [
+    const b = results.find((r) => r.employer === "EMP_B")!;
+    expect(b.balance).toBe(3_000_000);
+    expect(b.liabilities).toBe(0); // no active streams
+    expect(b.runway_days).toBeNull();
+  });
+
+  it("handles employer with liabilities but no balance entry", async () => {
+    mockGetBalances.mockResolvedValue([]);
+    mockGetLiabilities.mockResolvedValue([
+      { employer: "EMP_C", liabilities: "5000000" },
+    ]);
+    mockGetStreamsByEmployer.mockResolvedValue([
+      {
+        total_amount: "5000000",
+        withdrawn_amount: "0",
+        start_ts: fixedNowSeconds - 100,
+        end_ts: fixedNowSeconds + 86_400,
+      },
+    ]);
+
+    const results = await computeTreasuryStatus();
+    const c = results.find((r) => r.employer === "EMP_C")!;
+    expect(c.balance).toBe(0);
+    expect(c.liabilities).toBe(5_000_000);
+  });
+});
+
+// ─── runMonitorCycle ─────────────────────────────────────────────────────────
+
+describe("runMonitorCycle", () => {
+  it("sends alert and logs a warning when runway is below threshold", async () => {
+    mockGetBalances.mockResolvedValue([
+      { employer: "EMP_LOW", balance: "1000000" },
+    ]);
+    mockGetLiabilities.mockResolvedValue([
+      { employer: "EMP_LOW", liabilities: "1000000" },
+    ]);
+    mockGetStreamsByEmployer.mockResolvedValue([
+      {
+        total_amount: "1000000",
+        withdrawn_amount: "0",
+        start_ts: fixedNowSeconds - 100,
+        end_ts: fixedNowSeconds + 86_400,
+      },
+    ]);
+
+    const statuses = await runMonitorCycle();
+
+    expect(mockAlert).toHaveBeenCalledTimes(1);
+    expect(mockAlert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        employer: "EMP_LOW",
+        balance: 1_000_000,
+        liabilities: 1_000_000,
+        alertThresholdDays: 7,
+      }),
+    );
+    expect(statuses[0].alert_sent).toBe(true);
+    expect(mockServiceLogger.warn).toHaveBeenCalledWith(
+      "Monitor",
+      "Employer runway below threshold",
+      expect.objectContaining({
+        employer: "EMP_LOW",
+        alert_threshold_days: 7,
+      }),
+    );
+    expect(mockLogEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ employer: "EMP_LOW", alertSent: true }),
+    );
+  });
+
+  it("does NOT send alert when runway is at or above threshold", async () => {
+    mockGetBalances.mockResolvedValue([
+      { employer: "EMP_OK", balance: "10000000" },
+    ]);
+    mockGetLiabilities.mockResolvedValue([
+      { employer: "EMP_OK", liabilities: "1000000" },
+    ]);
+    mockGetStreamsByEmployer.mockResolvedValue([
+      {
+        total_amount: "1000000",
+        withdrawn_amount: "0",
+        start_ts: fixedNowSeconds - 100,
+        end_ts: fixedNowSeconds + 864_000,
+      },
+    ]);
+
+    const statuses = await runMonitorCycle();
+
+    expect(mockAlert).not.toHaveBeenCalled();
+    expect(statuses[0].alert_sent).toBe(false);
+    expect(mockServiceLogger.warn).not.toHaveBeenCalled();
+    expect(mockLogEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ employer: "EMP_OK", alertSent: false }),
+    );
+  });
+
+  it("returns empty array when no employer data exists", async () => {
+    mockGetBalances.mockResolvedValue([]);
+    mockGetLiabilities.mockResolvedValue([]);
+
+    const statuses = await runMonitorCycle();
+    expect(statuses).toHaveLength(0);
+    expect(mockAlert).not.toHaveBeenCalled();
+    expect(mockLogEvent).not.toHaveBeenCalled();
+    expect(mockServiceLogger.info).toHaveBeenCalledWith(
+      "Monitor",
+      "No employer treasury data found",
+    );
+  });
+
+  it("still logs even when alert delivery fails", async () => {
+    mockGetBalances.mockResolvedValue([
+      { employer: "EMP_ERR", balance: "500" },
+    ]);
+    mockGetLiabilities.mockResolvedValue([
+      { employer: "EMP_ERR", liabilities: "2000000" },
+    ]);
+    mockGetStreamsByEmployer.mockResolvedValue([
+      {
+        total_amount: "2000000",
+        withdrawn_amount: "0",
+        start_ts: fixedNowSeconds - 100,
+        end_ts: fixedNowSeconds + 86_400,
+      },
+    ]);
+    mockAlert.mockRejectedValueOnce(new Error("Network error"));
+
+    // Should not throw
+    await expect(runMonitorCycle()).resolves.toBeDefined();
+    // Log should still be called
+    expect(mockLogEvent).toHaveBeenCalled();
+    expect(mockServiceLogger.error).toHaveBeenCalledWith(
+      "Monitor",
+      "Alert delivery failed",
+      expect.any(Error),
+      expect.objectContaining({ employer: "EMP_ERR" }),
+    );
+  });
+
+  it("handles multiple employers correctly", async () => {
+    mockGetBalances.mockResolvedValue([
+      { employer: "EMP_1", balance: "2000000" },
+      { employer: "EMP_2", balance: "20000000" },
+    ]);
+    mockGetLiabilities.mockResolvedValue([
+      { employer: "EMP_1", liabilities: "5000000" },
+      { employer: "EMP_2", liabilities: "5000000" },
+    ]);
+    mockGetStreamsByEmployer
+      .mockResolvedValueOnce([
         {
-          total_amount: 30_000_000, // 3 tokens
-          withdrawn_amount: 0,
-          start_ts: now,
-          end_ts: now + 86400 * 30, // 30 days
+          total_amount: "5000000",
+          withdrawn_amount: "0",
+          start_ts: fixedNowSeconds - 100,
+          end_ts: fixedNowSeconds + 86_400,
         },
-      ];
+      ])
+      .mockResolvedValueOnce([
+        {
+          total_amount: "5000000",
+          withdrawn_amount: "0",
+          start_ts: fixedNowSeconds - 100,
+          end_ts: fixedNowSeconds + 2_592_000,
+        },
+      ]);
 
-      const balance = 100_000_000; // 10 tokens
-      const burnRate = calculateDailyBurnRate(streams);
-      const runway = calculateRunwayDays(balance, burnRate);
+    const statuses = await runMonitorCycle();
+    expect(statuses).toHaveLength(2);
+    expect(mockAlert).toHaveBeenCalledTimes(1);
+    expect(mockAlert.mock.calls[0][0].employer).toBe("EMP_1");
+  });
+});
 
-      // Burn rate: 3 tokens / 30 days = 0.1 token/day = 1M stroops/day
-      // Runway: 10 tokens / 0.1 token/day = 100 days
-      expect(runway).not.toBeNull();
-      if (runway !== null) {
-        expect(runway).toBeGreaterThan(7); // Should NOT trigger alert
-        expect(runway).toBeGreaterThan(50);
-      }
-    });
+// ─── startMonitor no-op when DB absent ──────────────────────────────────────
+
+describe("startMonitor", () => {
+  it("does not start when DB pool is not configured", async () => {
+    mockGetPool.mockReturnValue(null);
+    // Should complete without errors
+    await expect(startMonitor()).resolves.toBeUndefined();
+    // No monitor cycle should have run (no DB calls)
+    expect(mockGetBalances).not.toHaveBeenCalled();
+    expect(mockServiceLogger.warn).toHaveBeenCalledWith(
+      "Monitor",
+      "Database not configured — treasury monitor disabled",
+    );
   });
 });
