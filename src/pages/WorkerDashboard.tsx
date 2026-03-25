@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Layout, Text, Loader } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
 import { useStreams, WorkerStream } from "../hooks/useStreams";
 import { EarningsDisplay } from "../components/EarningsDisplay";
 
 const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
+  const { t } = useTranslation();
   const [currentEarnings, setCurrentEarnings] = useState(0);
   const [timeUntilCliff, setTimeUntilCliff] = useState<string>("");
   const [isBeforeCliff, setIsBeforeCliff] = useState(false);
@@ -106,7 +108,7 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
 
       <div className="my-6">
         <div className="mb-2 flex items-center gap-2 text-sm uppercase tracking-[0.05em] text-[var(--muted)]">
-          Current Earnings
+          {t("worker.current_earnings")}
           <div className="group relative">
             <span className="cursor-help text-[var(--muted)]">ⓘ</span>
             <div className="invisible absolute left-0 top-6 z-10 w-64 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-xs text-[var(--text)] shadow-lg group-hover:visible">
@@ -123,7 +125,10 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
           {currentEarnings.toFixed(7)} {stream.tokenSymbol}
         </div>
         <div className="mt-1 text-sm text-[var(--muted)]">
-          of {stream.totalAmount} {stream.tokenSymbol} total
+          {t("worker.of_total", {
+            amount: stream.totalAmount,
+            symbol: stream.tokenSymbol,
+          })}
         </div>
       </div>
 
@@ -142,7 +147,7 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
         }}
       >
         <span style={{ fontSize: "0.875rem", color: "var(--muted)" }}>
-          Available:
+          {t("worker.available")}
         </span>
         <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>
           {availableToWithdraw.toFixed(7)} {stream.tokenSymbol}
@@ -153,13 +158,14 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
         className="w-full rounded-xl border-0 bg-[var(--accent)] px-3 py-3 font-semibold text-white transition-opacity hover:opacity-90"
         onClick={() => alert("Withdrawal triggered!")}
       >
-        Withdraw Funds
+        {t("worker.withdraw_funds")}
       </button>
     </div>
   );
 };
 
 const WorkerDashboard: React.FC = () => {
+  const { t } = useTranslation();
   const { address } = useWallet();
   const { streams, withdrawalHistory, isLoading, error, refetch } =
     useStreams(address);
@@ -176,7 +182,7 @@ const WorkerDashboard: React.FC = () => {
     return (
       <div className="mx-auto max-w-[1200px] px-8 py-24 text-[var(--text)] text-center">
         <Text as="h2" size="lg">
-          Please connect your wallet to view your dashboard
+          {t("worker.connect_prompt")}
         </Text>
       </div>
     );
@@ -186,14 +192,14 @@ const WorkerDashboard: React.FC = () => {
     return (
       <div className="mx-auto max-w-[1200px] px-8 py-24 text-center">
         <Text as="h2" size="lg">
-          Failed to load stream data
+          {t("worker.load_error")}
         </Text>
         <p className="mt-4 font-mono text-sm text-[var(--muted)]">{error}</p>
         <button
           className="mt-6 rounded-xl border-0 bg-[var(--accent)] px-6 py-3 font-semibold text-white transition-opacity hover:opacity-90"
           onClick={refetch}
         >
-          Retry
+          {t("common.retry")}
         </button>
       </div>
     );
@@ -205,7 +211,7 @@ const WorkerDashboard: React.FC = () => {
         <div className="mx-auto max-w-[1200px] px-8 py-8 text-[var(--text)] max-[768px]:px-4">
           <header className="mb-8 flex items-center justify-between max-[768px]:flex-col max-[768px]:items-start max-[768px]:gap-4">
             <h1 className="bg-gradient-to-br from-[var(--text)] to-[var(--muted)] bg-clip-text text-[2.5rem] font-bold text-transparent max-[768px]:text-[2rem]">
-              Worker Dashboard
+              {t("worker.dashboard_title")}
             </h1>
           </header>
 
@@ -214,18 +220,16 @@ const WorkerDashboard: React.FC = () => {
           </section>
 
           <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-[var(--text)]">
-            Batch withdrawals are atomic. If a single payout in the batch fails,
-            the entire transaction reverts and no stream in that batch is
-            withdrawn.
+            {t("worker.batch_atomic_note")}
           </div>
 
           <h2 className="mb-6 text-2xl font-semibold text-[var(--text)]">
-            Your Active Streams
+            {t("worker.active_streams_heading")}
           </h2>
           {streams.length === 0 ? (
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-12 text-center backdrop-blur">
               <p style={{ color: "var(--muted)" }}>
-                No active streams found for this address.
+                {t("worker.no_active_streams")}
               </p>
             </div>
           ) : (
@@ -237,23 +241,23 @@ const WorkerDashboard: React.FC = () => {
           )}
 
           <h2 className="mb-6 text-2xl font-semibold text-[var(--text)]">
-            Withdrawal History
+            {t("worker.withdrawal_history_heading")}
           </h2>
           <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)]">
             <table className="w-full border-collapse max-[768px]:block max-[768px]:overflow-x-auto">
               <thead>
                 <tr>
                   <th className="bg-[var(--surface-subtle)] p-4 text-left text-sm font-medium text-[var(--muted)]">
-                    Date
+                    {t("worker.col_date")}
                   </th>
                   <th className="bg-[var(--surface-subtle)] p-4 text-left text-sm font-medium text-[var(--muted)]">
-                    Amount
+                    {t("worker.col_amount")}
                   </th>
                   <th className="bg-[var(--surface-subtle)] p-4 text-left text-sm font-medium text-[var(--muted)]">
-                    Token
+                    {t("worker.col_token")}
                   </th>
                   <th className="bg-[var(--surface-subtle)] p-4 text-left text-sm font-medium text-[var(--muted)]">
-                    Transaction
+                    {t("worker.col_transaction")}
                   </th>
                 </tr>
               </thead>
@@ -288,7 +292,7 @@ const WorkerDashboard: React.FC = () => {
                         color: "var(--muted)",
                       }}
                     >
-                      No withdrawal history yet.
+                      {t("worker.no_withdrawal_history")}
                     </td>
                   </tr>
                 )}
