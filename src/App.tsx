@@ -17,6 +17,7 @@ const PayrollDashboard = lazy(() => import("./pages/PayrollDashboard"));
 const TreasuryManager = lazy(() => import("./pages/TreasuryManager"));
 const WithdrawPage = lazy(() => import("./pages/WithdrawPage"));
 const Reports = lazy(() => import("./pages/Reports"));
+const Analytics = lazy(() => import("./pages/Analytics"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const WorkerDashboard = lazy(() => import("./pages/WorkerDashboard"));
 const DashboardCustomization = lazy(
@@ -148,6 +149,15 @@ function App() {
             element={
               <WalletGuard>
                 <WorkerDashboard />
+              </WalletGuard>
+            }
+          />
+
+          <Route
+            path="/analytics"
+            element={
+              <WalletGuard>
+                <Analytics />
               </WalletGuard>
             }
           />

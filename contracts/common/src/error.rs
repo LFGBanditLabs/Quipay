@@ -35,6 +35,15 @@ pub enum QuipayError {
     RetentionNotMet = 1025,
     FeeTooHigh = 1026,
     AddressBlacklisted = 1027,
+    Paused = 1028,
+    ProposalNotFound = 1029,
+    ProposalNotApproved = 1030,
+    AlreadyExecuted = 1031,
+    ExecutionDelayNotMet = 1032,
+    VotingClosed = 1033,
+    AlreadyVoted = 1034,
+    InvalidSigners = 1035,
+    InvalidThreshold = 1036,
     Custom = 1999,
 }
 
