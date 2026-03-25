@@ -549,7 +549,7 @@ const WorkforceRegistry: React.FC = () => {
             <button
               className={tw.btnGhost}
               onClick={() => {
-                navigate("/create-stream");
+                void navigate("/create-stream");
               }}
             >
               <svg
