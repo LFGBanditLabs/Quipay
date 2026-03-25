@@ -43,8 +43,7 @@ const tw = {
   pageSubtitle: "m-0 text-[0.95rem] text-slate-400",
   card: "mx-auto mb-6 max-w-[1200px] rounded-2xl border border-indigo-500/15 bg-slate-800/55 p-6 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-[20px]",
   cardHeader: "mb-5 flex flex-wrap items-center justify-between gap-3",
-  cardTitle:
-    "flex items-center gap-2 text-[1.1rem] font-bold text-slate-100",
+  cardTitle: "flex items-center gap-2 text-[1.1rem] font-bold text-slate-100",
   statsGrid:
     "mx-auto mb-6 max-w-[1200px] grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4",
   statCard:
@@ -94,8 +93,14 @@ function StatusBadge({ status }: { status: WorkerStreamRecord["status"] }) {
   const { t } = useTranslation();
   const map = {
     active: { cls: tw.badgeActive, label: t("workforce.stream_status_active") },
-    completed: { cls: tw.badgeCompleted, label: t("workforce.stream_status_completed") },
-    cancelled: { cls: tw.badgeCancelled, label: t("workforce.stream_status_cancelled") },
+    completed: {
+      cls: tw.badgeCompleted,
+      label: t("workforce.stream_status_completed"),
+    },
+    cancelled: {
+      cls: tw.badgeCancelled,
+      label: t("workforce.stream_status_cancelled"),
+    },
   };
   const { cls, label } = map[status] ?? map.active;
   return <span className={`${tw.badge} ${cls}`}>{label}</span>;
@@ -103,11 +108,7 @@ function StatusBadge({ status }: { status: WorkerStreamRecord["status"] }) {
 
 /* ── Stream history table ───────────────────────────────────────── */
 
-function StreamHistoryTable({
-  streams,
-}: {
-  streams: WorkerStreamRecord[];
-}) {
+function StreamHistoryTable({ streams }: { streams: WorkerStreamRecord[] }) {
   const { t } = useTranslation();
 
   if (streams.length === 0) {
@@ -132,12 +133,16 @@ function StreamHistoryTable({
           {streams.map((s) => (
             <tr key={s.stream_id}>
               <td className={tw.td}>
-                <span className="font-mono text-indigo-300">#{s.stream_id}</span>
+                <span className="font-mono text-indigo-300">
+                  #{s.stream_id}
+                </span>
               </td>
               <td className={`${tw.td} font-semibold text-slate-100`}>
                 {fmtAmount(s.total_amount)} XLM
               </td>
-              <td className={`${tw.td} text-slate-400`}>{fmtDate(s.start_ts)}</td>
+              <td className={`${tw.td} text-slate-400`}>
+                {fmtDate(s.start_ts)}
+              </td>
               <td className={`${tw.td} text-slate-400`}>{fmtDate(s.end_ts)}</td>
               <td className={tw.td}>
                 <StatusBadge status={s.status} />
@@ -180,7 +185,7 @@ function WorkerCard({
               {worker.wallet.slice(1, 3)}
             </div>
             <button
-              onClick={copyAddress}
+              onClick={() => void copyAddress()}
               title={t("workforce.copy_address")}
               className="flex items-center gap-1.5 font-mono text-sm text-slate-100 transition-colors hover:text-indigo-300"
             >
@@ -255,7 +260,9 @@ function WorkerCard({
             className={tw.btnGhost}
             onClick={() => setShowHistory((v) => !v)}
           >
-            {showHistory ? t("workforce.hide_history") : t("workforce.view_history")}
+            {showHistory
+              ? t("workforce.hide_history")
+              : t("workforce.view_history")}
           </button>
           <button
             className={tw.btnDanger}
@@ -343,7 +350,10 @@ function AddWorkerModal({
   };
 
   return (
-    <div className={tw.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div
+      className={tw.overlay}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
       <div className={tw.modal} role="dialog" aria-modal="true">
         {/* Header */}
         <div className="mb-5 flex items-center justify-between">
@@ -355,8 +365,18 @@ function AddWorkerModal({
             className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-700/50 hover:text-slate-200"
             aria-label="Close"
           >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
@@ -406,9 +426,24 @@ function AddWorkerModal({
             >
               {submitting ? (
                 <>
-                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  <svg
+                    className="h-4 w-4 animate-spin"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v8H4z"
+                    />
                   </svg>
                   {t("workforce.adding_worker")}
                 </>
@@ -481,8 +516,18 @@ const WorkforceRegistry: React.FC = () => {
         </div>
         <div className={`${tw.emptyCard} border-solid`}>
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-500/10">
-            <svg className="h-7 w-7 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            <svg
+              className="h-7 w-7 text-indigo-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+              />
             </svg>
           </div>
           <p className="text-slate-400">{t("workforce.wallet_required")}</p>
@@ -503,10 +548,22 @@ const WorkforceRegistry: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               className={tw.btnGhost}
-              onClick={() => navigate("/create-stream")}
+              onClick={() => {
+                navigate("/create-stream");
+              }}
             >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                />
               </svg>
               New Stream
             </button>
@@ -514,8 +571,18 @@ const WorkforceRegistry: React.FC = () => {
               className={tw.btnPrimary}
               onClick={() => setShowAddModal(true)}
             >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
               </svg>
               {t("workforce.add_worker")}
             </button>
@@ -530,7 +597,9 @@ const WorkforceRegistry: React.FC = () => {
           <div className={tw.statValue}>{workers.length}</div>
         </div>
         <div className={tw.statCard}>
-          <div className={tw.statLabel}>{t("workforce.workers_with_streams")}</div>
+          <div className={tw.statLabel}>
+            {t("workforce.workers_with_streams")}
+          </div>
           <div className={`${tw.statValue} text-emerald-300`}>
             {workers.filter((w) => w.activeStreams > 0).length}
           </div>
@@ -566,10 +635,7 @@ const WorkforceRegistry: React.FC = () => {
         {error && (
           <p className="text-sm text-rose-400">
             {error}{" "}
-            <button
-              className="underline"
-              onClick={refetch}
-            >
+            <button className="underline" onClick={refetch}>
               Retry
             </button>
           </p>
@@ -589,8 +655,18 @@ const WorkforceRegistry: React.FC = () => {
       ) : filteredWorkers.length === 0 ? (
         <div className={tw.emptyCard}>
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-500/10">
-            <svg className="h-7 w-7 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            <svg
+              className="h-7 w-7 text-indigo-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+              />
             </svg>
           </div>
           <p className="mb-1 font-semibold text-slate-300">
@@ -629,8 +705,18 @@ const WorkforceRegistry: React.FC = () => {
       {/* ── Toast ── */}
       {toast && (
         <div className={tw.toast}>
-          <svg className="h-4 w-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          <svg
+            className="h-4 w-4 text-emerald-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M5 13l4 4L19 7"
+            />
           </svg>
           {toast}
         </div>

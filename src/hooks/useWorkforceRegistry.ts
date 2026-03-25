@@ -92,16 +92,15 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
 
         // 3. Merge stream data into worker entries
         const entries: WorkerEntry[] = profiles.map((p) => {
-          const workerStreams = allStreams.filter(
-            (s) => s.worker === p.wallet,
-          );
+          const workerStreams = allStreams.filter((s) => s.worker === p.wallet);
           const activeStreams = workerStreams.filter(
             (s) => s.status === "active",
           ).length;
           const totalPaid = workerStreams
             .filter((s) => s.status === "completed")
             .reduce(
-              (sum, s) => sum + parseFloat(s.withdrawn_amount) / STROOPS_PER_UNIT,
+              (sum, s) =>
+                sum + parseFloat(s.withdrawn_amount) / STROOPS_PER_UNIT,
               0,
             );
 
