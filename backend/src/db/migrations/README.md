@@ -142,8 +142,8 @@ Example:
 
 ```sql
 -- Batch update in chunks
-UPDATE users SET status = 'active' 
-WHERE status IS NULL 
+UPDATE users SET status = 'active'
+WHERE status IS NULL
 AND id IN (SELECT id FROM users WHERE status IS NULL LIMIT 1000);
 ```
 
@@ -236,10 +236,10 @@ This table is automatically created on first migration run.
 -- Migration: 003_add_stream_metadata.sql
 -- Adds metadata fields to payroll_streams for better tracking
 
-ALTER TABLE payroll_streams 
+ALTER TABLE payroll_streams
 ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';
 
-CREATE INDEX IF NOT EXISTS idx_streams_metadata 
+CREATE INDEX IF NOT EXISTS idx_streams_metadata
 ON payroll_streams USING GIN (metadata);
 
 COMMENT ON COLUMN payroll_streams.metadata IS 'Additional stream metadata and tags';

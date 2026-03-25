@@ -151,7 +151,9 @@ export class MigrationRunner {
 
     // Verify checksums of applied migrations
     for (const applied of appliedMigrations) {
-      const migration = allMigrations.find((m) => m.version === applied.version);
+      const migration = allMigrations.find(
+        (m) => m.version === applied.version,
+      );
       if (migration && migration.checksum !== applied.checksum) {
         throw new Error(
           `Migration ${applied.version}_${applied.name} has been modified. ` +
@@ -193,7 +195,12 @@ export class MigrationRunner {
         await client.query(
           `INSERT INTO schema_migrations (version, name, checksum, execution_time_ms)
            VALUES ($1, $2, $3, $4)`,
-          [migration.version, migration.name, migration.checksum, executionTime],
+          [
+            migration.version,
+            migration.name,
+            migration.checksum,
+            executionTime,
+          ],
         );
 
         await client.query("COMMIT");

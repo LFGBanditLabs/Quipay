@@ -32,14 +32,18 @@ async function main() {
 
   const nextVersion =
     existingMigrations.length > 0
-      ? parseInt(existingMigrations[existingMigrations.length - 1].substring(0, 3)) + 1
+      ? parseInt(
+          existingMigrations[existingMigrations.length - 1].substring(0, 3),
+        ) + 1
       : 1;
 
   // Get migration name from user
   const name = await question("Migration name (e.g., add_user_roles): ");
 
   if (!name || !name.match(/^[a-z_]+$/)) {
-    console.error("❌ Invalid migration name. Use lowercase letters and underscores only.");
+    console.error(
+      "❌ Invalid migration name. Use lowercase letters and underscores only.",
+    );
     process.exit(1);
   }
 
