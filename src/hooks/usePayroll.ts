@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { getAllVaultData, TokenVaultData } from "../contracts/payroll_vault";
+import {
+  getAllVaultData,
+  type TokenVaultData,
+} from "../contracts/payroll_vault";
 
 export interface Stream {
   id: string;
@@ -17,7 +20,11 @@ export interface TokenBalance {
 }
 
 // Default tokens to monitor (XLM and USDC)
-const DEFAULT_TOKENS = [
+const DEFAULT_TOKENS: Array<{
+  token: string;
+  tokenSymbol: string;
+  monthlyBurnRate: bigint;
+}> = [
   { token: "", tokenSymbol: "XLM", monthlyBurnRate: BigInt(0) },
   {
     token: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN", // USDC testnet
@@ -42,7 +49,7 @@ export const usePayroll = () => {
 
       // Update treasury balances from vault data
       setTreasuryBalances(
-        data.map((v) => ({
+        data.map((v: TokenVaultData) => ({
           tokenSymbol: v.tokenSymbol,
           balance: v.balance.toString(),
         })),
@@ -50,7 +57,7 @@ export const usePayroll = () => {
 
       // Calculate total liabilities (simplified - sum across all tokens)
       const totalLiability = data.reduce(
-        (sum, v) => sum + v.liability,
+        (sum: bigint, v: TokenVaultData) => sum + v.liability,
         BigInt(0),
       );
       setTotalLiabilities(totalLiability.toString());
