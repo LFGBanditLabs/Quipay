@@ -47,8 +47,6 @@ pub struct PayrollVault;
 
 // Event symbols
 const UPGRADED: Symbol = symbol_short!("upgrd");
-#[allow(dead_code)]
-const VERSION: Symbol = symbol_short!("version");
 
 #[contractimpl]
 impl PayrollVault {
@@ -275,7 +273,7 @@ impl PayrollVault {
         admin.require_auth();
 
         if amount <= 0 {
-            // panic!("allocation amount must be positive");
+
             return Err(QuipayError::InvalidAmount);
         }
 
@@ -286,7 +284,7 @@ impl PayrollVault {
         let liability: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
 
         if balance < liability + amount {
-            // panic!("insufficient funds for allocation");
+
             return Err(QuipayError::InsufficientBalance);
         }
 
@@ -321,7 +319,7 @@ impl PayrollVault {
         admin.require_auth();
 
         if amount <= 0 {
-            // panic!("release amount must be positive");
+
             return Err(QuipayError::InvalidAmount);
         }
 
@@ -329,7 +327,7 @@ impl PayrollVault {
         let liability: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
 
         if amount > liability {
-            // panic!("release amount exceeds liability");
+
             return Err(QuipayError::InvalidAmount); // Or dedicated error
         }
 
@@ -373,7 +371,7 @@ impl PayrollVault {
         let liability: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
 
         if amount > balance {
-            // panic!("insufficient treasury balance");
+
             return Err(QuipayError::InsufficientBalance);
         }
 
@@ -384,7 +382,7 @@ impl PayrollVault {
         // Or maybe payout implies liability reduction.
         // Let's assume payout reduces liability as debt is paid.
         if amount > liability {
-            // panic!("payout exceeds liability");
+
             return Err(QuipayError::InvalidAmount);
         }
 

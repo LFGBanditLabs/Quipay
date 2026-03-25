@@ -57,6 +57,10 @@ error.md
 # macOS-specific files
 .DS_Store
 
+# test output artifacts
+playwright-report/
+test-results/
+
 # generated contract clients
 packages/*
 # if you have other workspace packages, add them here

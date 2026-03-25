@@ -46,7 +46,6 @@ export default function WithdrawPage() {
 
   const handleSign = () => {
     setShowSim(false);
-    console.log("Wallet signing triggered!");
   };
 
   return (
