@@ -1,4 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   children?: ReactNode;
@@ -7,6 +8,68 @@ interface Props {
 interface State {
   hasError: boolean;
   error?: Error;
+}
+
+function ErrorFallback({
+  error,
+  onReload,
+}: {
+  error?: Error;
+  onReload: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div
+      style={{
+        padding: "40px 20px",
+        textAlign: "center",
+        fontFamily: "system-ui, -apple-system, sans-serif",
+        background: "var(--bg)",
+        color: "var(--sds-color-feedback-error, #ef4444)",
+        borderRadius: "12px",
+        margin: "20px",
+        border: "1px solid var(--border)",
+        boxShadow: "var(--shadow)",
+      }}
+    >
+      <div style={{ fontSize: "48px", marginBottom: "16px" }}>⚠️</div>
+      <h2 style={{ fontSize: "20px", fontWeight: 700, marginBottom: "8px" }}>
+        {t("errors.something_went_wrong")}
+      </h2>
+      <p style={{ fontSize: "14px", opacity: 0.8, marginBottom: "24px" }}>
+        {t("errors.unexpected_error")}
+      </p>
+      <button
+        onClick={onReload}
+        style={{
+          padding: "10px 20px",
+          background: "var(--accent)",
+          color: "white",
+          border: "none",
+          borderRadius: "8px",
+          fontWeight: 600,
+          cursor: "pointer",
+        }}
+      >
+        {t("common.reload_application")}
+      </button>
+      {process.env.NODE_ENV === "development" && error && (
+        <pre
+          style={{
+            marginTop: "24px",
+            padding: "12px",
+            background: "rgba(0,0,0,0.05)",
+            borderRadius: "6px",
+            fontSize: "12px",
+            textAlign: "left",
+            overflowX: "auto",
+          }}
+        >
+          {error.stack}
+        </pre>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -37,59 +100,7 @@ class ErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return (
-        <div
-          style={{
-            padding: "40px 20px",
-            textAlign: "center",
-            fontFamily: "system-ui, -apple-system, sans-serif",
-            background: "var(--bg)",
-            color: "var(--sds-color-feedback-error, #ef4444)",
-            borderRadius: "12px",
-            margin: "20px",
-            border: "1px solid var(--border)",
-            boxShadow: "var(--shadow)",
-          }}
-        >
-          <div style={{ fontSize: "48px", marginBottom: "16px" }}>⚠️</div>
-          <h2
-            style={{ fontSize: "20px", fontWeight: 700, marginBottom: "8px" }}
-          >
-            Something went wrong
-          </h2>
-          <p style={{ fontSize: "14px", opacity: 0.8, marginBottom: "24px" }}>
-            The application encountered an unexpected error and couldn't
-            continue.
-          </p>
-          <button
-            onClick={this.handleReload}
-            style={{
-              padding: "10px 20px",
-              background: "var(--accent)",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            Reload application
-          </button>
-          {process.env.NODE_ENV === "development" && this.state.error && (
-            <pre
-              style={{
-                marginTop: "24px",
-                padding: "12px",
-                background: "rgba(0,0,0,0.05)",
-                borderRadius: "6px",
-                fontSize: "12px",
-                textAlign: "left",
-                overflowX: "auto",
-              }}
-            >
-              {this.state.error.stack}
-            </pre>
-          )}
-        </div>
+        <ErrorFallback error={this.state.error} onReload={this.handleReload} />
       );
     }
 
