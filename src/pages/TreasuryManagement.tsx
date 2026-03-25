@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Layout, Text, Button, Icon } from "@stellar/design-system";
 import { useNavigate } from "react-router-dom";
 import { usePayroll } from "../hooks/usePayroll";
+import { useNotification } from "../hooks/useNotification";
 import Tooltip from "../components/Tooltip";
 import CollapsibleSection from "../components/CollapsibleSection";
 import SolvencyCard from "../components/dashboard/SolvencyCard";
@@ -23,6 +24,7 @@ const TreasuryManagement: React.FC = () => {
   };
 
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const { vaultData, totalLiabilities, isVaultLoading, refreshVaultData } =
     usePayroll();
   const [retentionSecs, setRetentionSecs] = useState("2592000"); // 30 days
@@ -178,7 +180,7 @@ const TreasuryManagement: React.FC = () => {
               <Button
                 variant="primary"
                 size="md"
-                onClick={() => alert("Settings updated!")}
+                onClick={() => addNotification("Settings updated!", "success")}
               >
                 Save Changes
               </Button>
