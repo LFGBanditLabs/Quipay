@@ -13,6 +13,8 @@ pub enum DataKey {
     Gateway,
     PendingUpgrade,    // (wasm_hash, execute_after_timestamp)
     EarlyCancelFeeBps, // Basis points for early cancellation fee (max 1000 = 10%)
+    DaoGovernance,     // Address of the DAO governance contract
+    DaoMode,          // Whether DAO mode is enabled
 }
 
 #[contracttype]
@@ -194,6 +196,12 @@ impl PayrollStream {
         end_ts: u64,
     ) -> Result<u64, QuipayError> {
         Self::require_not_paused(&env)?;
+        
+        // Check if DAO mode is enabled
+        if Self::is_dao_mode_enabled(&env) {
+            return Err(QuipayError::Unauthorized); // Must use governance process
+        }
+        
         employer.require_auth();
 
         // Call the internal create stream logic
@@ -571,6 +579,88 @@ impl PayrollStream {
     /// Get the authorized AutomationGateway contract address.
     pub fn get_gateway(env: Env) -> Option<Address> {
         env.storage().instance().get(&DataKey::Gateway)
+    }
+
+    /// Enable DAO mode and set the governance contract address.
+    /// Only the admin can call this.
+    pub fn enable_dao_mode(env: Env, governance_contract: Address) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        
+        env.storage().instance().set(&DataKey::DaoGovernance, &governance_contract);
+        env.storage().instance().set(&DataKey::DaoMode, &true);
+        Ok(())
+    }
+
+    /// Disable DAO mode.
+    /// Only the admin can call this.
+    pub fn disable_dao_mode(env: Env) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        
+        env.storage().instance().set(&DataKey::DaoMode, &false);
+        Ok(())
+    }
+
+    /// Check if DAO mode is enabled
+    pub fn is_dao_mode_enabled(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&DataKey::DaoMode)
+            .unwrap_or(false)
+    }
+
+    /// Get the DAO governance contract address
+    pub fn get_dao_governance(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::DaoGovernance)
+    }
+
+    /// Create a stream via DAO governance approval.
+    /// Only the authorized DAO governance contract can call this method.
+    pub fn create_stream_via_governance(
+        env: Env,
+        employer: Address,
+        worker: Address,
+        token: Address,
+        rate: i128,
+        cliff_ts: u64,
+        start_ts: u64,
+        end_ts: u64,
+    ) -> Result<u64, QuipayError> {
+        Self::require_not_paused(&env)?;
+
+        // Verify the caller is the authorized DAO governance contract
+        let governance_contract: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::DaoGovernance)
+            .ok_or(QuipayError::NotInitialized)?;
+        governance_contract.require_auth();
+
+        // Call the internal create stream logic
+        let stream_id = Self::create_stream_internal(
+            env, employer, worker, token, rate, cliff_ts, start_ts, end_ts,
+        )?;
+
+        env.events().publish(
+            (
+                Symbol::new(&env, "stream"),
+                Symbol::new(&env, "created_via_governance"),
+                worker,
+                employer,
+            ),
+            (stream_id, token, rate, start_ts, end_ts),
+        );
+
+        Ok(stream_id)
     }
 
     /// Create a stream via an authorized AutomationGateway on behalf of an employer.

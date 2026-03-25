@@ -11,9 +11,13 @@ import {
   Icon,
   Modal,
   Notification,
+  Toggle,
 } from "@stellar/design-system";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "../hooks/useWallet";
+import ProposalCreator from "../components/ProposalCreator";
+import VotingInterface from "../components/VotingInterface";
+import type { Proposal } from "../components/VotingInterface";
 
 const tw = {
   loadingContainer: "flex flex-col items-center justify-center gap-4 p-[60px]",
@@ -326,6 +330,9 @@ const GovernanceOverview: React.FC = () => {
     message: string;
     type: "success" | "error";
   } | null>(null);
+  const [daoMode, setDaoMode] = useState(false);
+  const [showProposalCreator, setShowProposalCreator] = useState(false);
+  const [selectedVotingProposal, setSelectedVotingProposal] = useState<Proposal | null>(null);
 
   const vaultAddress = address ?? "demo-vault";
 
@@ -404,6 +411,39 @@ const GovernanceOverview: React.FC = () => {
     setSelectedProposal(null);
   };
 
+  const handleDaoModeToggle = (enabled: boolean) => {
+    setDaoMode(enabled);
+    setNotification({
+      message: enabled ? "DAO mode enabled" : "DAO mode disabled",
+      type: "success",
+    });
+  };
+
+  const handleProposalCreated = (proposalId: string) => {
+    setNotification({
+      message: `Proposal ${proposalId} created successfully`,
+      type: "success",
+    });
+    setShowProposalCreator(false);
+    loadData();
+  };
+
+  const handleVote = (proposalId: string, inFavor: boolean, reason?: string) => {
+    setNotification({
+      message: `Vote ${inFavor ? "for" : "against"} proposal ${proposalId} submitted`,
+      type: "success",
+    });
+    loadData();
+  };
+
+  const handleExecute = (proposalId: string) => {
+    setNotification({
+      message: `Proposal ${proposalId} executed successfully`,
+      type: "success",
+    });
+    loadData();
+  };
+
   const canExecute = (proposal: MultisigProposal): boolean => {
     return (
       proposal.currentApprovals >= proposal.requiredApprovals &&
@@ -439,16 +479,37 @@ const GovernanceOverview: React.FC = () => {
               Governance Overview
             </Text>
             <Text as="p" size="md" variant="secondary">
-              Multisig Treasury Management
+              {daoMode ? "DAO Treasury Management" : "Multisig Treasury Management"}
             </Text>
           </div>
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={() => void navigate("/treasury-management")}
-          >
-            <Icon.ArrowLeft size="sm" /> Back to Treasury
-          </Button>
+          <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <Text as="span" size="sm" variant="secondary">
+                DAO Mode
+              </Text>
+              <Toggle
+                checked={daoMode}
+                onChange={() => handleDaoModeToggle(!daoMode)}
+                label="Enable DAO governance mode"
+              />
+            </div>
+            {daoMode && (
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => setShowProposalCreator(true)}
+              >
+                <Icon.Plus size="sm" /> Create Proposal
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => void navigate("/treasury-management")}
+            >
+              <Icon.ArrowLeft size="sm" /> Back to Treasury
+            </Button>
+          </div>
         </div>
 
         {/* Notification */}
@@ -922,6 +983,37 @@ const GovernanceOverview: React.FC = () => {
                     </Button>
                   )}
               </div>
+            </div>
+          </Modal>
+        )}
+
+        {/* Proposal Creator Modal */}
+        {showProposalCreator && (
+          <Modal
+            visible={showProposalCreator}
+            onClose={() => setShowProposalCreator(false)}
+          >
+            <div style={{ padding: "0" }}>
+              <ProposalCreator
+                onSuccess={handleProposalCreated}
+                onCancel={() => setShowProposalCreator(false)}
+              />
+            </div>
+          </Modal>
+        )}
+
+        {/* Voting Interface Modal */}
+        {selectedVotingProposal && (
+          <Modal
+            visible={!!selectedVotingProposal}
+            onClose={() => setSelectedVotingProposal(null)}
+          >
+            <div style={{ padding: "0" }}>
+              <VotingInterface
+                proposal={selectedVotingProposal}
+                onVote={handleVote}
+                onExecute={handleExecute}
+              />
             </div>
           </Modal>
         )}
