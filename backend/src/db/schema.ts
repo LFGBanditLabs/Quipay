@@ -203,6 +203,33 @@ export const treasuryMonitorLog = pgTable(
   ],
 );
 
+// IPFS payroll proof records — one per completed stream
+export const payrollProofs = pgTable(
+  "payroll_proofs",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    streamId: bigint("stream_id", { mode: "number" })
+      .notNull()
+      .unique()
+      .references(() => payrollStreams.streamId),
+    /** IPFS CID v1 (base32) of the pinned proof JSON */
+    cid: text("cid").notNull(),
+    /** ipfs:// URI */
+    ipfsUrl: text("ipfs_url").notNull(),
+    /** Public HTTPS gateway URL */
+    gatewayUrl: text("gateway_url").notNull(),
+    /** Full proof document as stored on IPFS */
+    proofJson: jsonb("proof_json").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_proofs_stream_id").on(table.streamId),
+    index("idx_proofs_cid").on(table.cid),
+  ],
+);
+
 // Audit logs for comprehensive action tracking
 export const auditLogs = pgTable(
   "audit_logs",

@@ -71,6 +71,13 @@
     "flow_rate": "معدل التدفق",
     "start": "البداية"
   },
+  "worker": {
+    "status_completed": "مكتمل",
+    "total_paid": "إجمالي المدفوع",
+    "download_proof": "تحميل إثبات الراتب",
+    "proof_generating": "جارٍ إنشاء الإثبات…",
+    "proof_cid_label": "معرّف IPFS"
+  },
   "payroll": {
     "analytics_title": "Quipay · تحليلات صاحب العمل",
     "payroll_intelligence": "ذكاء كشوف الرواتب",

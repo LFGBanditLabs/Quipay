@@ -6,8 +6,10 @@ import {
   updateSyncCursor,
   upsertStream,
   recordWithdrawal,
+  getStreamById,
 } from "./db/queries";
 import { enqueueJob } from "./queue/asyncQueue";
+import { generateAndStoreProof } from "./services/proofService";
 
 const SOROBAN_RPC_URL =
   process.env.PUBLIC_STELLAR_RPC_URL || "https://soroban-testnet.stellar.org";
@@ -28,7 +30,11 @@ const server = new rpc.Server(SOROBAN_RPC_URL);
 const parseEvent = (
   event: rpc.Api.EventResponse,
 ): null | {
-  kind: "stream_created" | "withdrawal" | "stream_cancelled";
+  kind:
+    | "stream_created"
+    | "withdrawal"
+    | "stream_cancelled"
+    | "stream_completed";
   data: Record<string, unknown>;
 } => {
   try {
@@ -44,7 +50,14 @@ const parseEvent = (
       topicBase64.includes("create") || topicBase64.includes("stream");
     const isWithdraw = topicBase64.includes("withdraw");
     const isCancel = topicBase64.includes("cancel");
+    const isComplete = topicBase64.includes("complete");
 
+    if (isComplete) {
+      return {
+        kind: "stream_completed",
+        data: { raw: topicBase64, ledger: event.ledger },
+      };
+    }
     if (isCreate && !isWithdraw && !isCancel) {
       return {
         kind: "stream_created",
@@ -113,6 +126,24 @@ const ingestEvents = async (events: rpc.Api.EventResponse[]): Promise<void> => {
           closedAt: event.ledger,
           ledger: event.ledger,
         });
+      } else if (parsed.kind === "stream_completed") {
+        await upsertStream({
+          streamId: event.ledger,
+          employer: (event.contractId as any).toString() || "",
+          worker: (event.contractId as any).toString() || "",
+          totalAmount: 0n,
+          withdrawnAmount: 0n,
+          startTs: 0,
+          endTs: 0,
+          status: "completed",
+          closedAt: event.ledger,
+          ledger: event.ledger,
+        });
+        // Generate and pin an IPFS payroll proof for this completed stream
+        const streamRecord = await getStreamById(event.ledger);
+        if (streamRecord) {
+          void generateAndStoreProof(streamRecord);
+        }
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

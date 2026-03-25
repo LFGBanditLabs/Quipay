@@ -3,9 +3,11 @@ import { useTranslation } from "react-i18next";
 import { Layout, Text, Loader } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
 import { useStreams, WorkerStream } from "../hooks/useStreams";
+import { useNotification } from "../hooks/useNotification";
 import { EarningsDisplay } from "../components/EarningsDisplay";
 
 const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
+  const { addNotification } = useNotification();
   const { t } = useTranslation();
   const [currentEarnings, setCurrentEarnings] = useState(0);
   const [timeUntilCliff, setTimeUntilCliff] = useState<string>("");
@@ -156,10 +158,82 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
 
       <button
         className="w-full rounded-xl border-0 bg-[var(--accent)] px-3 py-3 font-semibold text-white transition-opacity hover:opacity-90"
-        onClick={() => alert("Withdrawal triggered!")}
+        onClick={() => addNotification("Withdrawal triggered!", "success")}
       >
         {t("worker.withdraw_funds")}
       </button>
+    </div>
+  );
+};
+
+const CompletedStreamCard: React.FC<{ stream: WorkerStream }> = ({
+  stream,
+}) => {
+  const { t } = useTranslation();
+
+  return (
+    <div className="relative overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface-subtle)] p-6">
+      <div className="mb-4 flex items-start justify-between">
+        <div>
+          <div className="text-lg font-semibold text-[var(--text)]">
+            {stream.employerName}
+          </div>
+          <div className="font-mono text-xs text-[var(--muted)]">
+            {stream.employerAddress}
+          </div>
+        </div>
+        <div className="rounded-md bg-blue-500/10 px-2 py-1 text-sm text-blue-400">
+          {t("worker.status_completed")}
+        </div>
+      </div>
+
+      <div className="my-4">
+        <div className="mb-1 text-sm uppercase tracking-[0.05em] text-[var(--muted)]">
+          {t("worker.total_paid")}
+        </div>
+        <div className="text-[1.5rem] font-bold text-[var(--text)]">
+          {stream.totalAmount.toFixed(7)} {stream.tokenSymbol}
+        </div>
+      </div>
+
+      <div className="my-4 h-2 overflow-hidden rounded bg-[var(--surface)]">
+        <div className="h-full w-full bg-gradient-to-r from-blue-600 to-sky-400" />
+      </div>
+
+      {stream.proofGatewayUrl ? (
+        <a
+          href={stream.proofGatewayUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-3 font-semibold text-blue-400 no-underline transition-opacity hover:opacity-80"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          {t("worker.download_proof")}
+        </a>
+      ) : (
+        <div className="flex w-full items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-3 text-sm text-[var(--muted)]">
+          {t("worker.proof_generating")}
+        </div>
+      )}
+
+      {stream.proofCid && (
+        <div className="mt-3 truncate text-center font-mono text-[10px] text-[var(--muted)]">
+          {t("worker.proof_cid_label")}: {stream.proofCid}
+        </div>
+      )}
     </div>
   );
 };
@@ -205,6 +279,9 @@ const WorkerDashboard: React.FC = () => {
     );
   }
 
+  const activeStreams = streams.filter((s) => s.status !== 2);
+  const completedStreams = streams.filter((s) => s.status === 2);
+
   return (
     <Layout.Content>
       <Layout.Inset>
@@ -226,18 +303,31 @@ const WorkerDashboard: React.FC = () => {
           <h2 className="mb-6 text-2xl font-semibold text-[var(--text)]">
             {t("worker.active_streams_heading")}
           </h2>
-          {streams.length === 0 ? (
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-12 text-center backdrop-blur">
+          {activeStreams.length === 0 ? (
+            <div className="mb-12 rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-12 text-center backdrop-blur">
               <p style={{ color: "var(--muted)" }}>
                 {t("worker.no_active_streams")}
               </p>
             </div>
           ) : (
             <div className="mb-12 grid grid-cols-[repeat(auto-fill,minmax(350px,1fr))] gap-6 max-[768px]:grid-cols-1">
-              {streams.map((stream) => (
+              {activeStreams.map((stream) => (
                 <StreamCard key={stream.id} stream={stream} />
               ))}
             </div>
+          )}
+
+          {completedStreams.length > 0 && (
+            <>
+              <h2 className="mb-6 text-2xl font-semibold text-[var(--text)]">
+                Completed Streams
+              </h2>
+              <div className="mb-12 grid grid-cols-[repeat(auto-fill,minmax(350px,1fr))] gap-6 max-[768px]:grid-cols-1">
+                {completedStreams.map((stream) => (
+                  <CompletedStreamCard key={stream.id} stream={stream} />
+                ))}
+              </div>
+            </>
           )}
 
           <h2 className="mb-6 text-2xl font-semibold text-[var(--text)]">
