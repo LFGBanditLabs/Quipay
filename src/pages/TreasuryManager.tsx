@@ -245,7 +245,13 @@ const TreasuryManager: React.FC = () => {
             <Text as="h2" size="lg" weight="medium">
               Deposit Funds
             </Text>
-            <div className={tw.fieldGroup}>
+            <form
+              className={tw.fieldGroup}
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleDeposit();
+              }}
+            >
               <label htmlFor="deposit-token">
                 <Text as="span" size="sm">
                   Asset Code (Any Stellar Asset)
@@ -260,6 +266,9 @@ const TreasuryManager: React.FC = () => {
                 onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
                   setSelectedDepositToken(event.target.value)
                 }
+                required
+                aria-required="true"
+                pattern="^[A-Z0-9]{1,12}$"
               />
               <Input
                 id="deposit-amount"
@@ -272,24 +281,26 @@ const TreasuryManager: React.FC = () => {
                 onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
                   setDepositAmount(event.target.value)
                 }
+                required
+                aria-required="true"
               />
-              <Button
-                variant="primary"
-                size="md"
-                onClick={() => {
-                  void handleDeposit();
-                }}
-              >
+              <Button variant="primary" size="md" type="submit">
                 Deposit
               </Button>
-            </div>
+            </form>
           </div>
 
           <div className={tw.card}>
             <Text as="h2" size="lg" weight="medium">
               Withdraw Funds
             </Text>
-            <div className={tw.fieldGroup}>
+            <form
+              className={tw.fieldGroup}
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleWithdraw();
+              }}
+            >
               <label htmlFor="withdraw-token">
                 <Text as="span" size="sm">
                   Token
@@ -302,6 +313,8 @@ const TreasuryManager: React.FC = () => {
                 onChange={(event: React.ChangeEvent<HTMLSelectElement>) =>
                   setSelectedWithdrawalToken(event.target.value)
                 }
+                required
+                aria-required="true"
               >
                 {viewTokenState.map((token: TreasuryViewTokenState) => (
                   <option key={token.tokenSymbol} value={token.tokenSymbol}>
@@ -320,17 +333,13 @@ const TreasuryManager: React.FC = () => {
                 onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
                   setWithdrawalAmount(event.target.value)
                 }
+                required
+                aria-required="true"
               />
-              <Button
-                variant="primary"
-                size="md"
-                onClick={() => {
-                  void handleWithdraw();
-                }}
-              >
+              <Button variant="primary" size="md" type="submit">
                 Withdraw
               </Button>
-            </div>
+            </form>
           </div>
         </div>
 

@@ -518,7 +518,6 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
         <form
           id={id("form")}
           onSubmit={(e) => void handleSubmit(e)}
-          noValidate
           className={tw.form}
         >
           <div className={tw.fieldGroup}>
@@ -530,7 +529,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               name="workerAddress"
               type="text"
               className={`${tw.input} ${errors.workerAddress ? tw.inputError : ""}`}
-              placeholder="G..."
+              placeholder="e.g. GABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
               value={values.workerAddress}
               onChange={handleChange}
               disabled={isBusy}
@@ -539,6 +538,9 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
                 errors.workerAddress ? id("workerAddress-error") : undefined
               }
               aria-invalid={!!errors.workerAddress}
+              required
+              aria-required="true"
+              pattern="^G[A-Z2-7]{55}$"
             />
             <div aria-live="assertive">
               <ErrorMessage error={errors.workerAddress || null} />
@@ -557,6 +559,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               name="rate"
               type="number"
               step="any"
+              min="0"
               className={`${tw.input} ${errors.rate ? tw.inputError : ""}`}
               placeholder="e.g. 0.0001"
               value={values.rate}
@@ -564,6 +567,8 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               disabled={isBusy}
               aria-describedby={errors.rate ? id("rate-error") : undefined}
               aria-invalid={!!errors.rate}
+              required
+              aria-required="true"
             />
             <div aria-live="assertive">
               <ErrorMessage error={errors.rate || null} />
@@ -584,6 +589,8 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
                 value={values.startDate}
                 onChange={handleChange}
                 disabled={isBusy}
+                required
+                aria-required="true"
               />
             </div>
             <div className={tw.fieldGroup}>
@@ -599,6 +606,8 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
                 value={values.endDate}
                 onChange={handleChange}
                 disabled={isBusy}
+                required
+                aria-required="true"
               />
             </div>
           </div>
