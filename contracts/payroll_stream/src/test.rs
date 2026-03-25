@@ -1640,7 +1640,7 @@ fn test_pagination() {
 }
 
 #[test]
-fn test_batch_create_streams() {
+fn test_batch_create_streams_succeeds() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _) = setup(&env);
