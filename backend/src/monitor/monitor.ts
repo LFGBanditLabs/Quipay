@@ -215,15 +215,19 @@ export const runMonitorCycle = async (): Promise<EmployerTreasuryStatus[]> => {
 
         // Fire alert first so we can mark it before logging
         if (alertNeeded) {
-          await serviceLogger.warn("Monitor", "Employer runway below threshold", {
-            employer: status.employer,
-            runway_days: status.runway_days,
-            alert_threshold_days: RUNWAY_ALERT_DAYS,
-            balance: status.balance,
-            liabilities: status.liabilities,
-            daily_burn_rate: status.daily_burn_rate,
-            funds_exhaustion_date: status.funds_exhaustion_date,
-          });
+          await serviceLogger.warn(
+            "Monitor",
+            "Employer runway below threshold",
+            {
+              employer: status.employer,
+              runway_days: status.runway_days,
+              alert_threshold_days: RUNWAY_ALERT_DAYS,
+              balance: status.balance,
+              liabilities: status.liabilities,
+              daily_burn_rate: status.daily_burn_rate,
+              funds_exhaustion_date: status.funds_exhaustion_date,
+            },
+          );
           try {
             await sendTreasuryAlert({
               employer: status.employer,
@@ -236,14 +240,9 @@ export const runMonitorCycle = async (): Promise<EmployerTreasuryStatus[]> => {
             });
             status.alert_sent = true;
           } catch (err: unknown) {
-            await serviceLogger.error(
-              "Monitor",
-              "Alert delivery failed",
-              err,
-              {
-                employer: status.employer,
-              },
-            );
+            await serviceLogger.error("Monitor", "Alert delivery failed", err, {
+              employer: status.employer,
+            });
           }
         }
 

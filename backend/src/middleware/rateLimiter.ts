@@ -72,7 +72,9 @@ function normalizeWalletCandidate(candidate: unknown): string | null {
   return STELLAR_WALLET_ADDRESS.test(maybeWallet) ? maybeWallet : null;
 }
 
-function extractWalletFromRecord(record: Record<string, unknown> | undefined): string | null {
+function extractWalletFromRecord(
+  record: Record<string, unknown> | undefined,
+): string | null {
   if (!record) {
     return null;
   }
@@ -302,11 +304,8 @@ const webhookRegistrationIpLimiter = rateLimit({
     }),
   }),
 });
-const webhookRegistrationWalletRateLimiter = createWalletSlidingWindowRateLimiter(
-  5,
-  60 * 60 * 1000,
-  "wallet:webhook",
-);
+const webhookRegistrationWalletRateLimiter =
+  createWalletSlidingWindowRateLimiter(5, 60 * 60 * 1000, "wallet:webhook");
 export const webhookRegistrationLimiter = chainRateLimiters(
   webhookRegistrationIpLimiter,
   webhookRegistrationWalletRateLimiter,

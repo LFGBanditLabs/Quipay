@@ -56,11 +56,7 @@ describe("extractWalletAddress", () => {
 });
 
 describe("createWalletSlidingWindowRateLimiter", () => {
-  const middleware = createWalletSlidingWindowRateLimiter(
-    2,
-    60_000,
-    "test",
-  );
+  const middleware = createWalletSlidingWindowRateLimiter(2, 60_000, "test");
 
   beforeEach(() => {
     resetWalletRateLimiterStore();
