@@ -15,6 +15,7 @@ pub enum DataKey {
     EarlyCancelFeeBps, // Basis points for early cancellation fee (max 1000 = 10%)
     DaoGovernance,     // Address of the DAO governance contract
     DaoMode,          // Whether DAO mode is enabled
+    PayrollReceipt,   // Address of the payroll receipt contract
 }
 
 #[contracttype]
@@ -280,6 +281,8 @@ impl PayrollStream {
 
         if stream.withdrawn_amount >= stream.total_amount {
             Self::close_stream_internal(&mut stream, now, StreamStatus::Completed);
+            // Mint receipt for completed stream
+            Self::mint_receipt_if_enabled(&env, &stream, StreamStatus::Completed);
         }
 
         env.storage().persistent().set(&key, &stream);
@@ -405,6 +408,8 @@ impl PayrollStream {
 
                     if stream.withdrawn_amount >= stream.total_amount {
                         Self::close_stream_internal(&mut stream, now, StreamStatus::Completed);
+                        // Mint receipt for completed stream
+                        Self::mint_receipt_if_enabled(&env, &stream, StreamStatus::Completed);
                     }
 
                     env.storage().persistent().set(&key, &stream);
@@ -549,6 +554,9 @@ impl PayrollStream {
 
         Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
         env.storage().persistent().set(&key, &stream);
+
+        // Mint receipt for cancelled stream
+        Self::mint_receipt_if_enabled(&env, &stream, StreamStatus::Canceled);
 
         env.events().publish(
             (
@@ -791,6 +799,9 @@ impl PayrollStream {
 
         Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
         env.storage().persistent().set(&key, &stream);
+
+        // Mint receipt for cancelled stream
+        Self::mint_receipt_if_enabled(&env, &stream, StreamStatus::Canceled);
 
         env.events().publish(
             (
@@ -1309,6 +1320,76 @@ impl PayrollStream {
     fn close_stream_internal(stream: &mut Stream, now: u64, status: StreamStatus) {
         stream.status = status;
         stream.closed_at = now;
+    }
+
+    /// Mint receipt if payroll receipt contract is configured
+    fn mint_receipt_if_enabled(env: &Env, stream: &Stream, status: StreamStatus) {
+        // Only mint receipts for completed or cancelled streams
+        if status != StreamStatus::Completed && status != StreamStatus::Canceled {
+            return;
+        }
+
+        // Get payroll receipt contract address
+        let receipt_contract: Address = match env.storage().instance().get(&DataKey::PayrollReceipt) {
+            Some(addr) => addr,
+            None => return, // No receipt contract configured
+        };
+
+        // Determine receipt type
+        let receipt_type = match status {
+            StreamStatus::Completed => soroban_sdk::Symbol::new(env, "Completed"),
+            StreamStatus::Canceled => soroban_sdk::Symbol::new(env, "Cancelled"),
+            _ => return,
+        };
+
+        // Call receipt contract to mint receipt
+        use soroban_sdk::{IntoVal, Symbol, vec};
+        let receipt_id: u64 = env.invoke_contract(
+            &receipt_contract,
+            &Symbol::new(env, "mint_receipt"),
+            vec![
+                env,
+                stream.employer.clone().into_val(env),
+                stream.worker.clone().into_val(env),
+                stream.token.clone().into_val(env),
+                stream.withdrawn_amount.into_val(env),
+                stream.start_ts.into_val(env),
+                stream.end_ts.into_val(env),
+                receipt_type.into_val(env),
+            ],
+        );
+
+        // Publish receipt minted event
+        env.events().publish(
+            (
+                soroban_sdk::Symbol::new(env, "receipt"),
+                soroban_sdk::Symbol::new(env, "minted"),
+            ),
+            (
+                receipt_id,
+                stream.employer.clone(),
+                stream.worker.clone(),
+                stream.withdrawn_amount,
+            ),
+        );
+    }
+
+    /// Set payroll receipt contract address
+    /// Only the admin can call this
+    pub fn set_payroll_receipt(env: Env, receipt_contract: Address) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::PayrollReceipt, &receipt_contract);
+        Ok(())
+    }
+
+    /// Get payroll receipt contract address
+    pub fn get_payroll_receipt(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::PayrollReceipt)
     }
 
     fn remove_from_index(env: &Env, key: StreamKey, stream_id: u64) {
