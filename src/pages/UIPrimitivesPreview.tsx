@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { Mail, Search, ShieldCheck } from "lucide-react"
+import { useState } from "react";
+import { Mail, Search, ShieldCheck } from "lucide-react";
 
 import {
   Avatar,
@@ -28,28 +28,39 @@ import {
   TooltipProvider,
   TooltipTrigger,
   UserAvatar,
-} from "@/components/ui"
+} from "@/components/ui";
 
 function UIPrimitivesPreview() {
-  const [email, setEmail] = useState("")
+  const [email, setEmail] = useState("");
 
   return (
     <TooltipProvider>
       <div className="mx-auto max-w-6xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight">UI Primitives Preview</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            UI Primitives Preview
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Live playground for Button, Modal, Card, Input, Badge, Tooltip, and Avatar.
+            Live playground for Button, Modal, Card, Input, Badge, Tooltip, and
+            Avatar.
           </p>
         </header>
 
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">Buttons</h2>
           <div className="flex flex-wrap gap-3">
-            <Button variant="primary" size="sm">Primary sm</Button>
-            <Button variant="secondary" size="md">Secondary md</Button>
-            <Button variant="ghost" size="lg">Ghost lg</Button>
-            <Button variant="danger" size="md">Danger md</Button>
+            <Button variant="primary" size="sm">
+              Primary sm
+            </Button>
+            <Button variant="secondary" size="md">
+              Secondary md
+            </Button>
+            <Button variant="ghost" size="lg">
+              Ghost lg
+            </Button>
+            <Button variant="danger" size="md">
+              Danger md
+            </Button>
           </div>
         </section>
 
@@ -100,7 +111,9 @@ function UIPrimitivesPreview() {
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">Tooltip</h2>
           <Tooltip>
-            <TooltipTrigger className={buttonVariants({ variant: "secondary", size: "md" })}>
+            <TooltipTrigger
+              className={buttonVariants({ variant: "secondary", size: "md" })}
+            >
               Hover or focus me
             </TooltipTrigger>
             <TooltipContent side="top">
@@ -116,7 +129,8 @@ function UIPrimitivesPreview() {
             <CardHeader>
               <CardTitle>Payroll batch #23</CardTitle>
               <CardDescription>
-                This card demonstrates the glassmorphic container and glow hover effect.
+                This card demonstrates the glassmorphic container and glow hover
+                effect.
               </CardDescription>
               <CardAction>
                 <Badge variant="active">Active</Badge>
@@ -140,8 +154,12 @@ function UIPrimitivesPreview() {
                     </ModalDescription>
                   </ModalHeader>
                   <ModalFooter className="justify-end">
-                    <Button variant="ghost" size="md">Cancel</Button>
-                    <Button variant="danger" size="md">Execute</Button>
+                    <Button variant="ghost" size="md">
+                      Cancel
+                    </Button>
+                    <Button variant="danger" size="md">
+                      Execute
+                    </Button>
                   </ModalFooter>
                 </ModalContent>
               </Modal>
@@ -150,7 +168,7 @@ function UIPrimitivesPreview() {
         </section>
       </div>
     </TooltipProvider>
-  )
+  );
 }
 
-export default UIPrimitivesPreview
+export default UIPrimitivesPreview;

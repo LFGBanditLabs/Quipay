@@ -1,14 +1,14 @@
-import * as React from "react"
-import { Input as InputPrimitive } from "@base-ui/react/input"
+import * as React from "react";
+import { Input as InputPrimitive } from "@base-ui/react/input";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label?: string
-  error?: string
-  hint?: string
-  icon?: React.ReactNode
-  iconPosition?: "start" | "end"
+  label?: string;
+  error?: string;
+  hint?: string;
+  icon?: React.ReactNode;
+  iconPosition?: "start" | "end";
 }
 
 function Input({
@@ -22,8 +22,8 @@ function Input({
   id: providedId,
   ...props
 }: InputProps) {
-  const generatedId = React.useId()
-  const inputId = providedId ?? generatedId
+  const generatedId = React.useId();
+  const inputId = providedId ?? generatedId;
 
   return (
     <div className="flex w-full flex-col gap-1.5">
@@ -60,7 +60,7 @@ function Input({
               "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20 dark:border-destructive/50 dark:focus-visible:ring-destructive/40",
             icon && iconPosition === "start" && "pl-10",
             icon && iconPosition === "end" && "pr-10",
-            className
+            className,
           )}
           {...props}
         />
@@ -85,7 +85,7 @@ function Input({
         </p>
       )}
     </div>
-  )
+  );
 }
 
-export { Input }
+export { Input };

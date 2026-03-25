@@ -1,8 +1,8 @@
 // UI Primitives — barrel export
 // Import from "@/components/ui" to get all components
 
-export { Button, buttonVariants } from "./button"
-export type { VariantProps } from "class-variance-authority"
+export { Button, buttonVariants } from "./button";
+export type { VariantProps } from "class-variance-authority";
 
 export {
   Card,
@@ -12,18 +12,18 @@ export {
   CardTitle,
   CardDescription,
   CardAction,
-} from "./card"
+} from "./card";
 
-export { Input } from "./input"
+export { Input } from "./input";
 
-export { Badge, badgeVariants } from "./badge"
+export { Badge, badgeVariants } from "./badge";
 
 export {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
   TooltipProvider,
-} from "./tooltip"
+} from "./tooltip";
 
 export {
   Avatar,
@@ -33,7 +33,7 @@ export {
   AvatarGroup,
   AvatarGroupCount,
   UserAvatar,
-} from "./avatar"
+} from "./avatar";
 
 export {
   Dialog,
@@ -46,7 +46,7 @@ export {
   DialogFooter,
   DialogTitle,
   DialogDescription,
-} from "./dialog"
+} from "./dialog";
 
 export {
   Modal,
@@ -57,4 +57,4 @@ export {
   ModalFooter,
   ModalTitle,
   ModalDescription,
-} from "./Modal"
+} from "./Modal";

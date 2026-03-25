@@ -1,10 +1,10 @@
-"use client"
+"use client";
 
-import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
-import { XIcon } from "lucide-react"
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import { XIcon } from "lucide-react";
 
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogTrigger,
@@ -14,19 +14,19 @@ import {
   DialogFooter,
   DialogTitle,
   DialogDescription,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 
 // ---------------------------------------------------------------------------
 // Modal — glassmorphic overlay wrapper around Dialog primitives
 // ---------------------------------------------------------------------------
 
-const Modal = Dialog
-const ModalTrigger = DialogTrigger
-const ModalClose = DialogClose
-const ModalHeader = DialogHeader
-const ModalFooter = DialogFooter
-const ModalTitle = DialogTitle
-const ModalDescription = DialogDescription
+const Modal = Dialog;
+const ModalTrigger = DialogTrigger;
+const ModalClose = DialogClose;
+const ModalHeader = DialogHeader;
+const ModalFooter = DialogFooter;
+const ModalTitle = DialogTitle;
+const ModalDescription = DialogDescription;
 
 function ModalContent({
   className,
@@ -54,7 +54,7 @@ function ModalContent({
           "duration-200",
           "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
           "data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          className
+          className,
         )}
         {...props}
       >
@@ -76,7 +76,7 @@ function ModalContent({
         )}
       </DialogPrimitive.Popup>
     </DialogPortal>
-  )
+  );
 }
 
 export {
@@ -88,4 +88,4 @@ export {
   ModalFooter,
   ModalTitle,
   ModalDescription,
-}
+};

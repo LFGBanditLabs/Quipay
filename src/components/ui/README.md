@@ -24,7 +24,7 @@ import {
   ModalHeader,
   ModalTitle,
   ModalDescription,
-} from "@/components/ui"
+} from "@/components/ui";
 ```
 
 ## Components
