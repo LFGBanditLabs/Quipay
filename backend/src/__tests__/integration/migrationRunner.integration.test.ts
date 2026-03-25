@@ -12,30 +12,47 @@ import {
   beforeEach,
   afterEach,
 } from "@jest/globals";
-import {
-  setupTestDatabase,
-  teardownTestDatabase,
-  TestDatabase,
-} from "../helpers/testcontainer";
+import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { Pool } from "pg";
 import { MigrationRunner } from "../../db/migrationRunner";
 import fs from "fs";
 import path from "path";
 
 describe("MigrationRunner", () => {
-  let testDb: TestDatabase;
+  let container: any;
   let pool: Pool;
   let runner: MigrationRunner;
   let testMigrationsDir: string;
 
   beforeAll(async () => {
-    testDb = await setupTestDatabase();
-    pool = testDb.getPool();
+    // Start a dedicated PostgreSQL container for migration tests
+    console.log("[MigrationTest] Starting PostgreSQL container...");
+    container = await new PostgreSqlContainer("postgres:16-alpine")
+      .withExposedPorts(5432)
+      .withEnvironment({
+        POSTGRES_DB: "migration_test",
+        POSTGRES_USER: "test_user",
+        POSTGRES_PASSWORD: "test_password",
+      })
+      .start();
+
+    const connectionString = container.getConnectionUri();
+    pool = new Pool({ connectionString });
     testMigrationsDir = path.join(__dirname, "test_migrations");
+
+    console.log("[MigrationTest] ✅ Container started");
   });
 
   afterAll(async () => {
-    await teardownTestDatabase();
+    // Clean up
+    if (pool) {
+      await pool.end();
+    }
+    if (container) {
+      console.log("[MigrationTest] Stopping container...");
+      await container.stop();
+      console.log("[MigrationTest] ✅ Container stopped");
+    }
   });
 
   beforeEach(async () => {
