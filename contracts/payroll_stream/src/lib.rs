@@ -998,8 +998,7 @@ impl PayrollStream {
         let vault: Address = env
             .storage()
             .instance()
-            .get(&DataKey::Vault)
-            .expect("vault not configured");
+            .get(&DataKey::Vault)?;
 
         // Calculate remaining liability
         let remaining_liability = stream
@@ -1038,8 +1037,7 @@ impl PayrollStream {
         let vault: Address = env
             .storage()
             .instance()
-            .get(&DataKey::Vault)
-            .expect("vault not configured");
+            .get(&DataKey::Vault)?;
 
         let remaining_liability = stream
             .total_amount
