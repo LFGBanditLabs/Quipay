@@ -70,7 +70,7 @@ services:
       - VITE_API_URL=http://localhost:3001
       - VITE_STELLAR_RPC_URL=http://localhost:8000/rpc
     ports:
-      - "5173:5173"
+      - "5173:80"
 
 volumes:
   postgres_data:
