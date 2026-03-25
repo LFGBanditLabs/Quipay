@@ -71,6 +71,13 @@
     "flow_rate": "Débit",
     "start": "Début"
   },
+  "worker": {
+    "status_completed": "Terminé",
+    "total_paid": "Total Versé",
+    "download_proof": "Télécharger la Preuve de Paie",
+    "proof_generating": "Génération de la preuve…",
+    "proof_cid_label": "CID IPFS"
+  },
   "payroll": {
     "analytics_title": "Quipay · Analytique Employeur",
     "payroll_intelligence": "Intelligence de la Paie",
