@@ -1642,3 +1642,96 @@ fn test_error_variants() {
     let contract_err = res.unwrap_err().unwrap();
     assert_eq!(contract_err, QuipayError::StartTimeInPast);
 }
+
+// ─── reentrancy guard ─────────────────────────────────────────────────────────
+
+#[test]
+fn test_reentrancy_guard_withdraw_blocked_when_locked() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 0);
+    client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &200u64);
+
+    // Force the reentrancy lock into the "locked" state directly in contract storage
+    env.as_contract(&client.address, || {
+        env.storage().instance().set(&DataKey::Locked, &true);
+    });
+
+    let res = client.try_withdraw(&1u64, &worker);
+    let contract_err = res.unwrap_err().unwrap();
+    assert_eq!(contract_err, QuipayError::Reentrant);
+}
+
+#[test]
+fn test_reentrancy_guard_lock_released_after_withdraw() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 0);
+    client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &200u64);
+
+    env.ledger().with_mut(|li| li.timestamp = 50);
+    client.withdraw(&1u64, &worker);
+
+    // Lock must be released: a second withdraw at t=100 should not be blocked by Reentrant
+    env.ledger().with_mut(|li| li.timestamp = 100);
+    client.withdraw(&1u64, &worker);
+}
+
+#[test]
+fn test_reentrancy_guard_batch_withdraw_blocked_when_locked() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 0);
+    client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &200u64);
+
+    env.as_contract(&client.address, || {
+        env.storage().instance().set(&DataKey::Locked, &true);
+    });
+
+    let ids = soroban_sdk::vec![&env, 1u64];
+    let res = client.try_batch_withdraw(&ids, &worker);
+    let contract_err = res.unwrap_err().unwrap();
+    assert_eq!(contract_err, QuipayError::Reentrant);
+}
+
+#[test]
+fn test_reentrancy_guard_cancel_stream_blocked_when_locked() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 0);
+    client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &200u64);
+
+    env.as_contract(&client.address, || {
+        env.storage().instance().set(&DataKey::Locked, &true);
+    });
+
+    let res = client.try_cancel_stream(&1u64, &employer, &None);
+    let contract_err = res.unwrap_err().unwrap();
+    assert_eq!(contract_err, QuipayError::Reentrant);
+}
+
+#[test]
+fn test_reentrancy_guard_lock_released_after_cancel() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 0);
+    client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &200u64);
+
+    env.ledger().with_mut(|li| li.timestamp = 50);
+    client.cancel_stream(&1u64, &employer, &None);
+
+    // Lock must be released: creating and canceling a second stream should not be Reentrant
+    client.create_stream(&employer, &worker, &token, &100, &0u64, &100u64, &300u64);
+    env.ledger().with_mut(|li| li.timestamp = 150);
+    client.cancel_stream(&2u64, &employer, &None);
+}

@@ -13,6 +13,7 @@ pub enum DataKey {
     Gateway,
     PendingUpgrade,    // (wasm_hash, execute_after_timestamp)
     EarlyCancelFeeBps, // Basis points for early cancellation fee (max 1000 = 10%)
+    Locked,            // Reentrancy guard
 }
 
 #[contracttype]
@@ -230,6 +231,13 @@ impl PayrollStream {
     }
 
     pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> Result<i128, QuipayError> {
+        Self::acquire_lock(&env)?;
+        let result = Self::withdraw_inner(env.clone(), stream_id, worker);
+        Self::release_lock(&env);
+        result
+    }
+
+    fn withdraw_inner(env: Env, stream_id: u64, worker: Address) -> Result<i128, QuipayError> {
         Self::require_not_paused(&env)?;
         worker.require_auth();
 
@@ -304,6 +312,17 @@ impl PayrollStream {
     /// NOTE: This function is atomic. If any single payout fails, the entire batch reverts.
     /// Invalid, closed, and zero-available streams are pre-validated before payout calls begin.
     pub fn batch_withdraw(
+        env: Env,
+        stream_ids: Vec<u64>,
+        caller: Address,
+    ) -> Result<Vec<WithdrawResult>, QuipayError> {
+        Self::acquire_lock(&env)?;
+        let result = Self::batch_withdraw_inner(env.clone(), stream_ids, caller);
+        Self::release_lock(&env);
+        result
+    }
+
+    fn batch_withdraw_inner(
         env: Env,
         stream_ids: Vec<u64>,
         caller: Address,
@@ -444,6 +463,18 @@ impl PayrollStream {
     }
 
     pub fn cancel_stream(
+        env: Env,
+        stream_id: u64,
+        caller: Address,
+        gateway: Option<Address>,
+    ) -> Result<(), QuipayError> {
+        Self::acquire_lock(&env)?;
+        let result = Self::cancel_stream_inner(env.clone(), stream_id, caller, gateway);
+        Self::release_lock(&env);
+        result
+    }
+
+    fn cancel_stream_inner(
         env: Env,
         stream_id: u64,
         caller: Address,
@@ -621,6 +652,17 @@ impl PayrollStream {
     /// Cancel a stream via an authorized AutomationGateway on behalf of an employer.
     /// Only the registered gateway can call this method.
     pub fn cancel_stream_via_gateway(
+        env: Env,
+        stream_id: u64,
+        employer: Address,
+    ) -> Result<(), QuipayError> {
+        Self::acquire_lock(&env)?;
+        let result = Self::cancel_stream_via_gateway_inner(env.clone(), stream_id, employer);
+        Self::release_lock(&env);
+        result
+    }
+
+    fn cancel_stream_via_gateway_inner(
         env: Env,
         stream_id: u64,
         employer: Address,
@@ -1218,6 +1260,23 @@ impl PayrollStream {
             .instance()
             .get(&DataKey::EarlyCancelFeeBps)
             .unwrap_or(0)
+    }
+
+    fn acquire_lock(env: &Env) -> Result<(), QuipayError> {
+        if env
+            .storage()
+            .instance()
+            .get::<DataKey, bool>(&DataKey::Locked)
+            .unwrap_or(false)
+        {
+            return Err(QuipayError::Reentrant);
+        }
+        env.storage().instance().set(&DataKey::Locked, &true);
+        Ok(())
+    }
+
+    fn release_lock(env: &Env) {
+        env.storage().instance().set(&DataKey::Locked, &false);
     }
 
     fn require_not_paused(env: &Env) -> Result<(), QuipayError> {
