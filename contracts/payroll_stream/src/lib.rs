@@ -339,17 +339,8 @@ impl PayrollStream {
             .instance()
             .get(&DataKey::Vault)
             .ok_or(QuipayError::NotInitialized)?;
-        use soroban_sdk::{IntoVal, Symbol, vec};
-        env.invoke_contract::<()>(
-            &vault,
-            &Symbol::new(&env, "payout_liability"),
-            vec![
-                &env,
-                worker.clone().into_val(&env),
-                stream.token.clone().into_val(&env),
-                available.into_val(&env),
-            ],
-        );
+
+        Self::call_vault_payout(&env, &vault, worker.clone(), stream.token.clone(), available);
 
         stream.withdrawn_amount = stream
             .withdrawn_amount
@@ -467,17 +458,7 @@ impl PayrollStream {
                     let mut stream = candidate.stream;
                     let available = candidate.amount;
 
-                    use soroban_sdk::{IntoVal, Symbol, vec};
-                    env.invoke_contract::<()>(
-                        &vault,
-                        &Symbol::new(&env, "payout_liability"),
-                        vec![
-                            &env,
-                            caller.clone().into_val(&env),
-                            stream.token.clone().into_val(&env),
-                            available.into_val(&env),
-                        ],
-                    );
+                    Self::call_vault_payout(&env, &vault, caller.clone(), stream.token.clone(), available);
 
                     stream.withdrawn_amount = stream
                         .withdrawn_amount
@@ -576,17 +557,7 @@ impl PayrollStream {
 
         // Pay out owed amount to worker
         if owed > 0 {
-            use soroban_sdk::{IntoVal, Symbol, vec};
-            env.invoke_contract::<()>(
-                &vault,
-                &Symbol::new(&env, "payout_liability"),
-                vec![
-                    &env,
-                    stream.worker.clone().into_val(&env),
-                    stream.token.clone().into_val(&env),
-                    owed.into_val(&env),
-                ],
-            );
+            Self::call_vault_payout(&env, &vault, stream.worker.clone(), stream.token.clone(), owed);
             stream.withdrawn_amount = stream
                 .withdrawn_amount
                 .checked_add(owed)
@@ -603,31 +574,12 @@ impl PayrollStream {
         let cancel_fee = Self::calculate_early_cancel_fee(&env, remaining_liability);
 
         if remaining_liability > 0 {
-            use soroban_sdk::{IntoVal, Symbol, vec};
-
             // Remove remaining liability from vault
-            env.invoke_contract::<()>(
-                &vault,
-                &Symbol::new(&env, "remove_liability"),
-                vec![
-                    &env,
-                    stream.token.clone().into_val(&env),
-                    remaining_liability.into_val(&env),
-                ],
-            );
+            Self::call_vault_remove_liability(&env, &vault, stream.token.clone(), remaining_liability);
 
             // If there's a cancellation fee, pay it to worker
             if cancel_fee > 0 {
-                env.invoke_contract::<()>(
-                    &vault,
-                    &Symbol::new(&env, "payout_liability"),
-                    vec![
-                        &env,
-                        stream.worker.clone().into_val(&env),
-                        stream.token.clone().into_val(&env),
-                        cancel_fee.into_val(&env),
-                    ],
-                );
+                Self::call_vault_payout(&env, &vault, stream.worker.clone(), stream.token.clone(), cancel_fee);
             }
         }
 
@@ -736,17 +688,7 @@ impl PayrollStream {
             .ok_or(QuipayError::NotInitialized)?;
 
         if owed > 0 {
-            use soroban_sdk::{IntoVal, Symbol, vec};
-            env.invoke_contract::<()>(
-                &vault,
-                &Symbol::new(&env, "payout_liability"),
-                vec![
-                    &env,
-                    stream.worker.clone().into_val(&env),
-                    stream.token.clone().into_val(&env),
-                    owed.into_val(&env),
-                ],
-            );
+            Self::call_vault_payout(&env, &vault, stream.worker.clone(), stream.token.clone(), owed);
             stream.withdrawn_amount = stream
                 .withdrawn_amount
                 .checked_add(owed)
@@ -763,31 +705,12 @@ impl PayrollStream {
         let cancel_fee = Self::calculate_early_cancel_fee(&env, remaining_liability);
 
         if remaining_liability > 0 {
-            use soroban_sdk::{IntoVal, Symbol, vec};
-
             // Remove remaining liability from vault
-            env.invoke_contract::<()>(
-                &vault,
-                &Symbol::new(&env, "remove_liability"),
-                vec![
-                    &env,
-                    stream.token.clone().into_val(&env),
-                    remaining_liability.into_val(&env),
-                ],
-            );
+            Self::call_vault_remove_liability(&env, &vault, stream.token.clone(), remaining_liability);
 
             // If there's a cancellation fee, pay it to worker
             if cancel_fee > 0 {
-                env.invoke_contract::<()>(
-                    &vault,
-                    &Symbol::new(&env, "payout_liability"),
-                    vec![
-                        &env,
-                        stream.worker.clone().into_val(&env),
-                        stream.token.clone().into_val(&env),
-                        cancel_fee.into_val(&env),
-                    ],
-                );
+                Self::call_vault_payout(&env, &vault, stream.worker.clone(), stream.token.clone(), cancel_fee);
             }
         }
 
@@ -1377,6 +1300,26 @@ impl PayrollStream {
             .unwrap_or(0)
             .checked_div(10000) // Convert basis points to actual amount
             .unwrap_or(0)
+    }
+
+    /// Invoke `payout_liability` on the vault contract.
+    fn call_vault_payout(env: &Env, vault: &Address, worker: Address, token: Address, amount: i128) {
+        use soroban_sdk::{IntoVal, Symbol, vec};
+        env.invoke_contract::<()>(
+            vault,
+            &Symbol::new(env, "payout_liability"),
+            vec![env, worker.into_val(env), token.into_val(env), amount.into_val(env)],
+        );
+    }
+
+    /// Invoke `remove_liability` on the vault contract.
+    fn call_vault_remove_liability(env: &Env, vault: &Address, token: Address, amount: i128) {
+        use soroban_sdk::{IntoVal, Symbol, vec};
+        env.invoke_contract::<()>(
+            vault,
+            &Symbol::new(env, "remove_liability"),
+            vec![env, token.into_val(env), amount.into_val(env)],
+        );
     }
 
     fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
