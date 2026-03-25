@@ -1444,3 +1444,6 @@ mod integration_test;
 
 #[cfg(test)]
 mod proptest;
+
+mod stream_extension;
+mod extension_test;
