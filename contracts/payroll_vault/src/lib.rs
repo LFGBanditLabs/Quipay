@@ -106,7 +106,11 @@ impl PayrollVault {
 
     /// Propose an upgrade with a 48-hour timelock
     /// Only the admin can call this function
-    pub fn propose_upgrade(e: Env, new_wasm_hash: BytesN<32>, new_version: (u32, u32, u32)) -> Result<(), QuipayError> {
+    pub fn propose_upgrade(
+        e: Env,
+        new_wasm_hash: BytesN<32>,
+        new_version: (u32, u32, u32),
+    ) -> Result<(), QuipayError> {
         let admin = Self::get_admin(e.clone())?;
         admin.require_auth();
 
@@ -133,7 +137,13 @@ impl PayrollVault {
         #[allow(deprecated)]
         e.events().publish(
             (UPGRADE_PROPOSED, admin),
-            (new_wasm_hash, new_version.0, new_version.1, new_version.2, execute_after),
+            (
+                new_wasm_hash,
+                new_version.0,
+                new_version.1,
+                new_version.2,
+                execute_after,
+            ),
         );
 
         Ok(())

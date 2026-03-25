@@ -973,7 +973,10 @@ impl PayrollStream {
 
     /// Propose an upgrade with a 48-hour timelock
     /// Only admin can call this function
-    pub fn propose_upgrade(env: Env, new_wasm_hash: soroban_sdk::BytesN<32>) -> Result<(), QuipayError> {
+    pub fn propose_upgrade(
+        env: Env,
+        new_wasm_hash: soroban_sdk::BytesN<32>,
+    ) -> Result<(), QuipayError> {
         let admin: Address = env
             .storage()
             .instance()
@@ -1002,10 +1005,8 @@ impl PayrollStream {
 
         // Emit upgrade proposed event
         #[allow(deprecated)]
-        env.events().publish(
-            (UPGRADE_PROPOSED, admin),
-            (new_wasm_hash, execute_after),
-        );
+        env.events()
+            .publish((UPGRADE_PROPOSED, admin), (new_wasm_hash, execute_after));
 
         Ok(())
     }
@@ -1040,10 +1041,8 @@ impl PayrollStream {
 
         // Emit upgrade executed event
         #[allow(deprecated)]
-        env.events().publish(
-            (UPGRADE_EXECUTED, admin),
-            (pending_upgrade.wasm_hash, now),
-        );
+        env.events()
+            .publish((UPGRADE_EXECUTED, admin), (pending_upgrade.wasm_hash, now));
 
         Ok(())
     }
