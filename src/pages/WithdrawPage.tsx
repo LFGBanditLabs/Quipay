@@ -154,6 +154,18 @@ export default function WithdrawPage() {
                   selectedStream.totalAmount - selectedStream.claimedAmount,
               },
             ],
+            expectedTransfers: [
+              {
+                label: "Worker receives",
+                symbol: selectedStream.tokenSymbol,
+                amount: loadingWithdrawable ? 0 : withdrawableAmount,
+              },
+            ],
+            stateChanges: [
+              "Update the stream's withdrawn amount",
+              "Credit the worker with the withdrawable balance",
+              "Emit a withdrawn event for the stream",
+            ],
           }}
           onSimulate={handleSimulate}
           onConfirm={handleSign}

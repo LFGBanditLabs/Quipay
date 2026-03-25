@@ -26,13 +26,18 @@ import React, {
   useReducer,
   useRef,
   useMemo,
+  useState,
 } from "react";
 import { z } from "zod";
+import { TransactionBuilder } from "@stellar/stellar-sdk";
 import { Button } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
 import { useNotification } from "../hooks/useNotification";
 import { translateError } from "../util/errors";
 import { ErrorMessage } from "./ErrorMessage";
+import TransactionSimulationModal, {
+  type TransactionPreview,
+} from "./TransactionSimulationModal";
 import {
   buildCreateStreamTx,
   checkTreasurySolvency,
@@ -41,6 +46,11 @@ import {
   type CreateStreamParams,
 } from "../contracts/payroll_stream";
 import { TransactionProgress } from "./Loading";
+import {
+  simulateTransaction,
+  type CurrentBalance,
+  type SimulationResult,
+} from "../util/simulationUtils";
 
 const tw = {
   wrapper: "mx-auto max-w-[680px]",
@@ -253,6 +263,26 @@ function todayStr(): string {
   return new Date().toISOString().split("T")[0];
 }
 
+function calculateEstimatedTotal(values: FormValues): number {
+  if (!values.rate || !values.startDate || !values.endDate) return 0;
+  const start = new Date(values.startDate).getTime();
+  const end = new Date(values.endDate).getTime();
+  const durationSeconds = Math.max(0, (end - start) / 1000);
+  return parseFloat(values.rate) * durationSeconds;
+}
+
+function formatTokenAmount(amount: number): string {
+  return amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  });
+}
+
+function shortenContractId(contractId: string): string {
+  if (contractId.length <= 10) return contractId;
+  return `${contractId.slice(0, 5)}...${contractId.slice(-4)}`;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface StreamCreatorProps {
@@ -267,6 +297,8 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
   const { address, signTransaction, networkPassphrase } = useWallet();
   const { addNotification } = useNotification();
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
   const { values, errors, txPhase, solvency } = state;
 
   const uid = useId();
@@ -277,17 +309,259 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
   // ── Calculated metrics ─────────────────────────────────────────────────────
 
   const estimatedTotal = useMemo(() => {
-    if (!values.rate || !values.startDate || !values.endDate) return 0;
-    const start = new Date(values.startDate).getTime();
-    const end = new Date(values.endDate).getTime();
-    const durationSeconds = Math.max(0, (end - start) / 1000);
-    return parseFloat(values.rate) * durationSeconds;
-  }, [values.rate, values.startDate, values.endDate]);
+    return calculateEstimatedTotal(values);
+  }, [values]);
 
   const tokenSymbol = useMemo(() => {
     const t = SUPPORTED_TOKENS.find((t) => t.value === values.token);
     return t ? t.label.split(" ")[0] : "Tokens";
   }, [values.token]);
+
+  const previewValues = pendingValues ?? values;
+  const previewEstimatedTotal = useMemo(
+    () => calculateEstimatedTotal(previewValues),
+    [previewValues],
+  );
+  const previewTokenSymbol = useMemo(() => {
+    const t = SUPPORTED_TOKENS.find(
+      (token) => token.value === previewValues.token,
+    );
+    return t ? t.label.split(" ")[0] : "Tokens";
+  }, [previewValues.token]);
+
+  const createParamsFromValues = useCallback(
+    (formValues: FormValues): CreateStreamParams => {
+      const tokenDef = SUPPORTED_TOKENS.find(
+        (t) => t.value === formValues.token,
+      );
+      const decimals = tokenDef?.decimal ?? 7;
+      const rateStroops = toStroops(formValues.rate, decimals);
+      const amountStroops = toStroops(
+        calculateEstimatedTotal(formValues),
+        decimals,
+      );
+      const startTs = Math.floor(
+        new Date(formValues.startDate).getTime() / 1000,
+      );
+      const endTs = Math.floor(new Date(formValues.endDate).getTime() / 1000);
+
+      return {
+        employer: address ?? "",
+        worker: formValues.workerAddress.trim(),
+        token: formValues.token === "native" ? "" : formValues.token,
+        rate: rateStroops,
+        amount: amountStroops,
+        startTs,
+        endTs,
+      };
+    },
+    [address],
+  );
+
+  const simulationPreview = useMemo<TransactionPreview | null>(() => {
+    if (!pendingValues || !PAYROLL_STREAM_CONTRACT_ID) {
+      return null;
+    }
+
+    const worker = pendingValues.workerAddress.trim();
+    if (
+      !worker ||
+      !pendingValues.rate ||
+      !pendingValues.startDate ||
+      !pendingValues.endDate
+    ) {
+      return null;
+    }
+
+    return {
+      description: `Create stream for ${worker.slice(0, 6)}...${worker.slice(-4)}`,
+      contractFunction: "create_stream",
+      contractAddress: shortenContractId(PAYROLL_STREAM_CONTRACT_ID),
+      currentBalances: [
+        {
+          token: previewTokenSymbol,
+          symbol: previewTokenSymbol,
+          amount: previewEstimatedTotal,
+        },
+        {
+          token: "XLM",
+          symbol: "XLM",
+          amount: 1,
+        },
+      ],
+      expectedTransfers: [
+        {
+          label: "Payroll vault reserves",
+          symbol: previewTokenSymbol,
+          amount: previewEstimatedTotal,
+        },
+      ],
+      stateChanges: [
+        `Create an active payroll stream for ${worker.slice(0, 6)}...${worker.slice(-4)}`,
+        `Reserve ${formatTokenAmount(previewEstimatedTotal)} ${previewTokenSymbol} as vault liability`,
+        "Store the worker, schedule, and rate on-chain",
+      ],
+    };
+  }, [pendingValues, previewEstimatedTotal, previewTokenSymbol]);
+
+  const runCreateSimulation =
+    useCallback(async (): Promise<SimulationResult> => {
+      if (!pendingValues) {
+        throw new Error("No pending stream submission.");
+      }
+      if (!address) {
+        throw new Error("Please connect your wallet first.");
+      }
+      if (!networkPassphrase) {
+        throw new Error("Network passphrase is not configured.");
+      }
+      if (!PAYROLL_STREAM_CONTRACT_ID) {
+        throw new Error("PayrollStream contract ID not configured.");
+      }
+
+      const { preparedXdr } = await buildCreateStreamTx(
+        createParamsFromValues(pendingValues),
+      );
+      const preparedTx = TransactionBuilder.fromXDR(
+        preparedXdr,
+        networkPassphrase,
+      );
+      const currentBalances: CurrentBalance[] = [
+        {
+          token: previewTokenSymbol,
+          symbol: previewTokenSymbol,
+          amount: previewEstimatedTotal,
+        },
+        {
+          token: "XLM",
+          symbol: "XLM",
+          amount: 1,
+        },
+      ];
+
+      return simulateTransaction(preparedTx, currentBalances);
+    }, [
+      address,
+      createParamsFromValues,
+      networkPassphrase,
+      pendingValues,
+      previewEstimatedTotal,
+      previewTokenSymbol,
+    ]);
+
+  const performStreamCreation = useCallback(
+    async (formValues: FormValues) => {
+      if (!address) {
+        addNotification("Please connect your wallet first.", "warning");
+        return;
+      }
+
+      if (!PAYROLL_STREAM_CONTRACT_ID) {
+        addNotification("PayrollStream contract ID not configured.", "error");
+        return;
+      }
+
+      try {
+        dispatch({ type: "SET_TX_PHASE", phase: { kind: "simulating" } });
+
+        const { preparedXdr } = await buildCreateStreamTx(
+          createParamsFromValues(formValues),
+        );
+
+        dispatch({ type: "SET_TX_PHASE", phase: { kind: "signing" } });
+        const signResult = await signTransaction(preparedXdr, {
+          networkPassphrase,
+        });
+        if (
+          !signResult ||
+          typeof signResult !== "object" ||
+          !("signedTxXdr" in signResult)
+        ) {
+          throw new Error("Invalid response from signTransaction");
+        }
+        const { signedTxXdr } = signResult as { signedTxXdr: string };
+
+        dispatch({ type: "SET_TX_PHASE", phase: { kind: "submitting" } });
+        const submitFn = submitAndAwaitTx as (xdr: string) => Promise<string>;
+        const hash = await submitFn(signedTxXdr);
+
+        dispatch({
+          type: "SET_TX_PHASE",
+          phase: { kind: "success", hash: String(hash) },
+        });
+        addNotification("Stream created successfully!", "success");
+        onSuccess?.(String(hash));
+
+        setTimeout(() => dispatch({ type: "RESET" }), 3500);
+      } catch (err: unknown) {
+        let message = "An unknown error occurred.";
+        if (typeof err === "string") {
+          message = err;
+        } else if (err instanceof Error) {
+          message = err.message;
+        }
+
+        const lowerMsg = message.toLowerCase();
+        if (lowerMsg.includes("invalidtimerange")) {
+          message = "Start date cannot be in the past (InvalidTimeRange).";
+        } else if (
+          lowerMsg.includes("1006") ||
+          lowerMsg.includes("insufficientbalance") ||
+          lowerMsg.includes("insufficient balance")
+        ) {
+          message =
+            "Treasury lacks sufficient funds for this stream (InsufficientBalance).";
+        } else if (lowerMsg.includes("invalidcliff")) {
+          message = "The configured cliff is invalid (InvalidCliff).";
+        } else if (
+          lowerMsg.includes("invalidamount") ||
+          lowerMsg.includes("1005")
+        ) {
+          message = "The stream amount or rate is invalid (InvalidAmount).";
+        } else if (lowerMsg.includes("streamnotfound")) {
+          message = "The specified stream could not be found (StreamNotFound).";
+        } else if (
+          lowerMsg.includes("invalidaddress") ||
+          lowerMsg.includes("1010")
+        ) {
+          message = "The provided address is invalid (InvalidAddress).";
+        } else {
+          const appError = translateError(err);
+          message = appError.actionableStep
+            ? `${appError.message} ${appError.actionableStep}`
+            : appError.message;
+        }
+
+        dispatch({ type: "SET_TX_PHASE", phase: { kind: "error", message } });
+        addNotification(`Stream failed: ${message}`, "error");
+      }
+    },
+    [
+      address,
+      addNotification,
+      createParamsFromValues,
+      networkPassphrase,
+      onSuccess,
+      signTransaction,
+    ],
+  );
+
+  const openSimulation = useCallback((formValues: FormValues) => {
+    setPendingValues(formValues);
+    setIsPreviewOpen(true);
+  }, []);
+
+  const closeSimulation = useCallback(() => {
+    setIsPreviewOpen(false);
+    setPendingValues(null);
+  }, []);
+
+  const confirmSimulation = useCallback(() => {
+    if (!pendingValues) return;
+    const snapshot = pendingValues;
+    closeSimulation();
+    void performStreamCreation(snapshot);
+  }, [closeSimulation, pendingValues, performStreamCreation]);
 
   // ── Solvency check ─────────────────────────────────────────────────────────
   const runSolvencyCheck = useCallback(
@@ -360,7 +634,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
   };
 
   // ── Submit ──────────────────────────────────────────────────────────────────
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     const formErrors = validate(values);
@@ -382,115 +656,14 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
     if (solvency.kind === "insufficient") {
       addNotification("Treasury lacks funds for this stream total.", "warning");
     }
-
-    try {
-      dispatch({ type: "SET_TX_PHASE", phase: { kind: "simulating" } });
-
-      const tokenDef = SUPPORTED_TOKENS.find((t) => t.value === values.token);
-      const decimals = tokenDef?.decimal ?? 7;
-
-      const rateStroops = toStroops(values.rate, decimals);
-      const amountStroops = toStroops(estimatedTotal, decimals);
-      const startTs = Math.floor(new Date(values.startDate).getTime() / 1000);
-      const endTs = Math.floor(new Date(values.endDate).getTime() / 1000);
-
-      const params: CreateStreamParams = {
-        employer: address,
-        worker: values.workerAddress.trim(),
-        token: values.token === "native" ? "" : values.token,
-        rate: rateStroops,
-        amount: amountStroops,
-        startTs,
-        endTs,
-      };
-
-      const buildFn = buildCreateStreamTx as (
-        p: CreateStreamParams,
-      ) => Promise<{ preparedXdr: string }>;
-      const buildResult = await buildFn(params);
-      if (
-        !buildResult ||
-        typeof buildResult !== "object" ||
-        !("preparedXdr" in buildResult)
-      ) {
-        throw new Error("Invalid response from buildCreateStreamTx");
-      }
-      const { preparedXdr } = buildResult;
-
-      dispatch({ type: "SET_TX_PHASE", phase: { kind: "signing" } });
-      const signResult = await signTransaction(preparedXdr, {
-        networkPassphrase,
-      });
-      if (
-        !signResult ||
-        typeof signResult !== "object" ||
-        !("signedTxXdr" in signResult)
-      ) {
-        throw new Error("Invalid response from signTransaction");
-      }
-      const { signedTxXdr } = signResult as { signedTxXdr: string };
-
-      dispatch({ type: "SET_TX_PHASE", phase: { kind: "submitting" } });
-      const submitFn = submitAndAwaitTx as (xdr: string) => Promise<string>;
-      const hash = await submitFn(signedTxXdr);
-
-      dispatch({
-        type: "SET_TX_PHASE",
-        phase: { kind: "success", hash: String(hash) },
-      });
-      addNotification("Stream created successfully!", "success");
-      onSuccess?.(String(hash));
-
-      setTimeout(() => dispatch({ type: "RESET" }), 3500);
-    } catch (err: unknown) {
-      let message = "An unknown error occurred.";
-      if (typeof err === "string") {
-        message = err;
-      } else if (err instanceof Error) {
-        message = err.message;
-      }
-
-      // Contract Error Code Mapping
-      const lowerMsg = message.toLowerCase();
-      if (lowerMsg.includes("invalidtimerange")) {
-        message = "Start date cannot be in the past (InvalidTimeRange).";
-      } else if (
-        lowerMsg.includes("1006") ||
-        lowerMsg.includes("insufficientbalance") ||
-        lowerMsg.includes("insufficient balance")
-      ) {
-        message =
-          "Treasury lacks sufficient funds for this stream (InsufficientBalance).";
-      } else if (lowerMsg.includes("invalidcliff")) {
-        message = "The configured cliff is invalid (InvalidCliff).";
-      } else if (
-        lowerMsg.includes("invalidamount") ||
-        lowerMsg.includes("1005")
-      ) {
-        message = "The stream amount or rate is invalid (InvalidAmount).";
-      } else if (lowerMsg.includes("streamnotfound")) {
-        message = "The specified stream could not be found (StreamNotFound).";
-      } else if (
-        lowerMsg.includes("invalidaddress") ||
-        lowerMsg.includes("1010")
-      ) {
-        message = "The provided address is invalid (InvalidAddress).";
-      } else {
-        const appError = translateError(err);
-        message = appError.actionableStep
-          ? `${appError.message} ${appError.actionableStep}`
-          : appError.message;
-      }
-
-      dispatch({ type: "SET_TX_PHASE", phase: { kind: "error", message } });
-      addNotification(`Stream failed: ${message}`, "error");
-    }
+    openSimulation(values);
   };
 
   const isBusy =
     txPhase.kind === "simulating" ||
     txPhase.kind === "signing" ||
-    txPhase.kind === "submitting";
+    txPhase.kind === "submitting" ||
+    isPreviewOpen;
 
   const isCurrentFormValid = Object.keys(validate(values)).length === 0;
 
@@ -693,6 +866,25 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
           </div>
         </form>
       </div>
+
+      <TransactionSimulationModal
+        open={isPreviewOpen}
+        preview={
+          simulationPreview ?? {
+            description: "Create payroll stream",
+            contractFunction: "create_stream",
+            contractAddress: shortenContractId(
+              PAYROLL_STREAM_CONTRACT_ID ?? "",
+            ),
+            currentBalances: [],
+          }
+        }
+        onSimulate={runCreateSimulation}
+        onConfirm={() => {
+          void confirmSimulation();
+        }}
+        onCancel={closeSimulation}
+      />
     </div>
   );
 };
