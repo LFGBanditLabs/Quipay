@@ -1,5 +1,3 @@
- 
- 
 import { JSONSchema7 } from "json-schema";
 import { get } from "lodash";
 import { Select } from "@stellar/design-system";

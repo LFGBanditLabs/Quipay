@@ -37,7 +37,10 @@ interface CustomCanvas extends HTMLCanvasElement {
   _mousePos?: { x: number; y: number } | null;
 }
 
-const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBalance }) => {
+const StreamVisualizer: React.FC<StreamVisualizerProps> = ({
+  streams,
+  treasuryBalance,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredNode, setHoveredNode] = useState<Node | null>(null);
@@ -58,12 +61,15 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBa
       // Setup High-DPI Canvas
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
+      if (
+        canvas.width !== rect.width * dpr ||
+        canvas.height !== rect.height * dpr
+      ) {
         canvas.width = rect.width * dpr;
         canvas.height = rect.height * dpr;
         ctx.scale(dpr, dpr);
       } else {
-        // We still need to scale on every frame if we clear the transform? 
+        // We still need to scale on every frame if we clear the transform?
         // Better to just track width/height explicitly.
         canvas.width = rect.width * dpr;
         canvas.height = rect.height * dpr;
@@ -77,7 +83,7 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBa
       const radius = Math.min(rect.width, rect.height) * 0.35;
 
       const nodes: Node[] = [];
-      
+
       // Treasury Node
       nodes.push({
         id: "treasury",
@@ -85,7 +91,7 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBa
         y: centerY,
         radius: 40,
         label: `Treasury (${treasuryBalance})`,
-        type: "treasury"
+        type: "treasury",
       });
 
       // Stream Nodes
@@ -101,7 +107,7 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBa
           radius: 20,
           label: stream.employeeName,
           type: "stream",
-          data: stream
+          data: stream,
         });
       });
 
@@ -114,14 +120,14 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBa
           targetId: randomStream.id,
           progress: 0,
           speed: 0.005 + Math.random() * 0.005,
-          color: "rgba(59, 130, 246, 0.8)" // blue-500 equivalent
+          color: "rgba(59, 130, 246, 0.8)", // blue-500 equivalent
         });
       }
 
       // Draw Edges
       ctx.lineWidth = 1;
       ctx.strokeStyle = "rgba(100, 100, 100, 0.2)";
-      nodes.forEach(node => {
+      nodes.forEach((node) => {
         if (node.type === "stream") {
           ctx.beginPath();
           ctx.moveTo(centerX, centerY);
@@ -131,16 +137,16 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBa
       });
 
       // Update & Draw Particles
-      particles.forEach(p => {
+      particles.forEach((p) => {
         p.progress += p.speed;
         if (p.progress > 1) p.progress = 1;
       });
-      particles = particles.filter(p => p.progress < 1);
+      particles = particles.filter((p) => p.progress < 1);
 
-      particles.forEach(p => {
-        const targetNode = nodes.find(n => n.id === p.targetId);
+      particles.forEach((p) => {
+        const targetNode = nodes.find((n) => n.id === p.targetId);
         if (!targetNode) return;
-        
+
         const x = centerX + (targetNode.x - centerX) * p.progress;
         const y = centerY + (targetNode.y - centerY) * p.progress;
 
@@ -148,7 +154,7 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBa
         ctx.arc(x, y, 3, 0, 2 * Math.PI);
         ctx.fillStyle = p.color;
         ctx.fill();
-        
+
         // Glow effect
         ctx.shadowBlur = 10;
         ctx.shadowColor = p.color;
@@ -157,10 +163,10 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBa
       });
 
       // Draw Nodes
-      nodes.forEach(node => {
+      nodes.forEach((node) => {
         ctx.beginPath();
         ctx.arc(node.x, node.y, node.radius, 0, 2 * Math.PI);
-        
+
         if (node.type === "treasury") {
           ctx.fillStyle = "#1e293b"; // slate-800
           ctx.fill();
@@ -188,7 +194,8 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBa
 
       // Handle hover interactions (just an effect, real tooltip is DOM based)
       if (canvasRef.current && (canvasRef.current as CustomCanvas)._mousePos) {
-        const { x: mouseX, y: mouseY } = (canvasRef.current as CustomCanvas)._mousePos!;
+        const { x: mouseX, y: mouseY } = (canvasRef.current as CustomCanvas)
+          ._mousePos!;
         let foundHover: Node | null = null;
         for (const node of nodes) {
           const dx = mouseX - node.x;
@@ -198,15 +205,21 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBa
             break;
           }
         }
-        
+
         if (foundHover) {
           canvas.style.cursor = "pointer";
           setHoveredNode(foundHover);
           setTooltipPos({ x: mouseX, y: mouseY });
-          
+
           // Draw hover highlight
           ctx.beginPath();
-          ctx.arc(foundHover.x, foundHover.y, foundHover.radius + 4, 0, 2 * Math.PI);
+          ctx.arc(
+            foundHover.x,
+            foundHover.y,
+            foundHover.radius + 4,
+            0,
+            2 * Math.PI,
+          );
           ctx.strokeStyle = "#fbbf24"; // amber-400
           ctx.lineWidth = 2;
           ctx.stroke();
@@ -233,7 +246,7 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBa
     const rect = canvasRef.current.getBoundingClientRect();
     (canvasRef.current as CustomCanvas)._mousePos = {
       x: e.clientX - rect.left,
-      y: e.clientY - rect.top
+      y: e.clientY - rect.top,
     };
   };
 
@@ -244,7 +257,18 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBa
   };
 
   return (
-    <div ref={containerRef} style={{ position: "relative", width: "100%", height: "400px", background: "var(--sds-color-neutral-background, #fff)", borderRadius: "12px", border: "1px solid var(--sds-color-neutral-border, #eaeaea)", overflow: "hidden" }}>
+    <div
+      ref={containerRef}
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "400px",
+        background: "var(--sds-color-neutral-background, #fff)",
+        borderRadius: "12px",
+        border: "1px solid var(--sds-color-neutral-border, #eaeaea)",
+        overflow: "hidden",
+      }}
+    >
       <canvas
         ref={canvasRef}
         style={{ width: "100%", height: "100%", display: "block" }}
@@ -252,41 +276,75 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBa
         onMouseLeave={handleMouseLeave}
       />
       {hoveredNode && hoveredNode.type === "stream" && hoveredNode.data && (
-        <div style={{
-          position: "absolute",
-          left: tooltipPos.x + 15,
-          top: tooltipPos.y + 15,
-          background: "var(--sds-color-neutral-background, #fff)",
-          border: "1px solid var(--sds-color-neutral-border, #eaeaea)",
-          padding: "12px",
-          borderRadius: "8px",
-          boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-          zIndex: 10,
-          pointerEvents: "none",
-          minWidth: "200px"
-        }}>
-          <Text as="div" size="sm" weight="bold" style={{ marginBottom: "4px" }}>{hoveredNode.data.employeeName}</Text>
-          <Text as="div" size="xs" style={{ color: "var(--sds-color-content-secondary, #666)" }}>{hoveredNode.data.employeeAddress}</Text>
-          <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px solid var(--sds-color-neutral-border, #eaeaea)" }}>
-            <Text as="div" size="sm">Flow Rate: {hoveredNode.data.flowRate} {hoveredNode.data.tokenSymbol}/sec</Text>
+        <div
+          style={{
+            position: "absolute",
+            left: tooltipPos.x + 15,
+            top: tooltipPos.y + 15,
+            background: "var(--sds-color-neutral-background, #fff)",
+            border: "1px solid var(--sds-color-neutral-border, #eaeaea)",
+            padding: "12px",
+            borderRadius: "8px",
+            boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+            zIndex: 10,
+            pointerEvents: "none",
+            minWidth: "200px",
+          }}
+        >
+          <Text
+            as="div"
+            size="sm"
+            weight="bold"
+            style={{ marginBottom: "4px" }}
+          >
+            {hoveredNode.data.employeeName}
+          </Text>
+          <Text
+            as="div"
+            size="xs"
+            style={{ color: "var(--sds-color-content-secondary, #666)" }}
+          >
+            {hoveredNode.data.employeeAddress}
+          </Text>
+          <div
+            style={{
+              marginTop: "8px",
+              paddingTop: "8px",
+              borderTop: "1px solid var(--sds-color-neutral-border, #eaeaea)",
+            }}
+          >
+            <Text as="div" size="sm">
+              Flow Rate: {hoveredNode.data.flowRate}{" "}
+              {hoveredNode.data.tokenSymbol}/sec
+            </Text>
           </div>
         </div>
       )}
       {hoveredNode && hoveredNode.type === "treasury" && (
-        <div style={{
-          position: "absolute",
-          left: tooltipPos.x + 15,
-          top: tooltipPos.y + 15,
-          background: "var(--sds-color-neutral-background, #fff)",
-          border: "1px solid var(--sds-color-neutral-border, #eaeaea)",
-          padding: "12px",
-          borderRadius: "8px",
-          boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-          zIndex: 10,
-          pointerEvents: "none"
-        }}>
-          <Text as="div" size="sm" weight="bold">Treasury Vault</Text>
-          <Text as="div" size="xs" style={{ color: "var(--sds-color-content-secondary, #666)" }}>Total Balance: {treasuryBalance}</Text>
+        <div
+          style={{
+            position: "absolute",
+            left: tooltipPos.x + 15,
+            top: tooltipPos.y + 15,
+            background: "var(--sds-color-neutral-background, #fff)",
+            border: "1px solid var(--sds-color-neutral-border, #eaeaea)",
+            padding: "12px",
+            borderRadius: "8px",
+            boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+            zIndex: 10,
+            pointerEvents: "none",
+          }}
+        >
+          <Text as="div" size="sm" weight="bold">
+            Treasury Vault
+          </Text>
+          <Text
+            as="div"
+            size="xs"
+            style={{ color: "var(--sds-color-content-secondary, #666)" }}
+          >
+            Total Balance: {treasuryBalance}
+          </Text>
         </div>
       )}
     </div>

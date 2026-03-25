@@ -1,4 +1,3 @@
- 
 import { useState } from "react";
 import { PrettyJsonTextarea } from "./PrettyJsonTextarea";
 import { decode, guess, initialize } from "../util/StellarXdr";

@@ -20,13 +20,12 @@ const Reports = lazy(() => import("./pages/Reports"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const WorkerDashboard = lazy(() => import("./pages/WorkerDashboard"));
 const DashboardCustomization = lazy(
-  () => import("./pages/DashboardCustomization")
+  () => import("./pages/DashboardCustomization"),
 );
 
 function AppLoadingFallback() {
   const { t } = useTranslation();
   return (
-
     <div className="flex min-h-[50vh] w-full items-center justify-center px-4 py-16">
       <div className="rounded-2xl border border-white/15 bg-[var(--surface)]/80 px-6 py-5 text-center shadow-[0_18px_40px_-20px_var(--shadow-color)] backdrop-blur-md">
         <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full border-2 border-indigo-400/30 border-t-indigo-400 animate-spin" />

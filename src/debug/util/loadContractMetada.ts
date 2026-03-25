@@ -1,6 +1,3 @@
- 
- 
- 
 import { Server } from "@stellar/stellar-sdk/rpc";
 import { network } from "../../contracts/util";
 import { Contract } from "@stellar/stellar-sdk";

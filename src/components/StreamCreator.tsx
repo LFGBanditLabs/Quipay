@@ -181,32 +181,45 @@ function isValidStellarAddress(addr: string): boolean {
   return /^G[A-Z2-7]{55}$/.test(addr);
 }
 
-const streamSchema = z.object({
-  workerAddress: z.string().trim().min(1, "Worker address is required.")
-    .refine(isValidStellarAddress, "Must be a valid Stellar public key (starts with G, 56 characters)."),
-  token: z.string().min(1, "Please select a token."),
-  rate: z.string().trim().min(1, "Rate is required.")
-    .refine((val) => {
-      const num = parseFloat(val);
-      return !isNaN(num) && num > 0;
-    }, "Rate must be a positive number."),
-  startDate: z.string().min(1, "Start date is required.")
-    .refine((val) => {
-      const now = Date.now();
-      return new Date(val).getTime() >= now - 60_000;
-    }, "Start date cannot be in the past."),
-  endDate: z.string().min(1, "End date is required.")
-}).superRefine((data, ctx) => {
-  if (data.startDate && data.endDate) {
-    if (new Date(data.endDate) <= new Date(data.startDate)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "End date must be after the start date.",
-        path: ["endDate"]
-      });
+const streamSchema = z
+  .object({
+    workerAddress: z
+      .string()
+      .trim()
+      .min(1, "Worker address is required.")
+      .refine(
+        isValidStellarAddress,
+        "Must be a valid Stellar public key (starts with G, 56 characters).",
+      ),
+    token: z.string().min(1, "Please select a token."),
+    rate: z
+      .string()
+      .trim()
+      .min(1, "Rate is required.")
+      .refine((val) => {
+        const num = parseFloat(val);
+        return !isNaN(num) && num > 0;
+      }, "Rate must be a positive number."),
+    startDate: z
+      .string()
+      .min(1, "Start date is required.")
+      .refine((val) => {
+        const now = Date.now();
+        return new Date(val).getTime() >= now - 60_000;
+      }, "Start date cannot be in the past."),
+    endDate: z.string().min(1, "End date is required."),
+  })
+  .superRefine((data, ctx) => {
+    if (data.startDate && data.endDate) {
+      if (new Date(data.endDate) <= new Date(data.startDate)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "End date must be after the start date.",
+          path: ["endDate"],
+        });
+      }
     }
-  }
-});
+  });
 
 function validate(values: FormValues): FormErrors {
   const result = streamSchema.safeParse(values);
@@ -214,7 +227,7 @@ function validate(values: FormValues): FormErrors {
     return {};
   }
   const errors: FormErrors = {};
-  result.error.issues.forEach(issue => {
+  result.error.issues.forEach((issue) => {
     const path = issue.path[0] as keyof FormErrors;
     if (!errors[path]) {
       errors[path] = issue.message;
@@ -436,24 +449,37 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
       } else if (err instanceof Error) {
         message = err.message;
       }
-      
+
       // Contract Error Code Mapping
       const lowerMsg = message.toLowerCase();
       if (lowerMsg.includes("invalidtimerange")) {
-         message = "Start date cannot be in the past (InvalidTimeRange).";
-      } else if (lowerMsg.includes("1006") || lowerMsg.includes("insufficientbalance") || lowerMsg.includes("insufficient balance")) {
-         message = "Treasury lacks sufficient funds for this stream (InsufficientBalance).";
+        message = "Start date cannot be in the past (InvalidTimeRange).";
+      } else if (
+        lowerMsg.includes("1006") ||
+        lowerMsg.includes("insufficientbalance") ||
+        lowerMsg.includes("insufficient balance")
+      ) {
+        message =
+          "Treasury lacks sufficient funds for this stream (InsufficientBalance).";
       } else if (lowerMsg.includes("invalidcliff")) {
-         message = "The configured cliff is invalid (InvalidCliff).";
-      } else if (lowerMsg.includes("invalidamount") || lowerMsg.includes("1005")) {
-         message = "The stream amount or rate is invalid (InvalidAmount).";
+        message = "The configured cliff is invalid (InvalidCliff).";
+      } else if (
+        lowerMsg.includes("invalidamount") ||
+        lowerMsg.includes("1005")
+      ) {
+        message = "The stream amount or rate is invalid (InvalidAmount).";
       } else if (lowerMsg.includes("streamnotfound")) {
-         message = "The specified stream could not be found (StreamNotFound).";
-      } else if (lowerMsg.includes("invalidaddress") || lowerMsg.includes("1010")) {
-         message = "The provided address is invalid (InvalidAddress).";
+        message = "The specified stream could not be found (StreamNotFound).";
+      } else if (
+        lowerMsg.includes("invalidaddress") ||
+        lowerMsg.includes("1010")
+      ) {
+        message = "The provided address is invalid (InvalidAddress).";
       } else {
-         const appError = translateError(err);
-         message = appError.actionableStep ? `${appError.message} ${appError.actionableStep}` : appError.message;
+        const appError = translateError(err);
+        message = appError.actionableStep
+          ? `${appError.message} ${appError.actionableStep}`
+          : appError.message;
       }
 
       dispatch({ type: "SET_TX_PHASE", phase: { kind: "error", message } });
@@ -658,7 +684,9 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               variant="primary"
               size="md"
               type="submit"
-              disabled={isBusy || txPhase.kind === "success" || !isCurrentFormValid}
+              disabled={
+                isBusy || txPhase.kind === "success" || !isCurrentFormValid
+              }
             >
               {isBusy ? <span className={tw.spinner} /> : "Create Stream"}
             </Button>

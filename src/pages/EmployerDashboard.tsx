@@ -97,12 +97,23 @@ const EmployerDashboard: React.FC = () => {
 
         {/* Topology Visualizer */}
         <div style={{ marginTop: "24px", marginBottom: "32px" }}>
-          <Text as="h2" size="lg" weight="medium" style={{ marginBottom: "16px" }}>
+          <Text
+            as="h2"
+            size="lg"
+            weight="medium"
+            style={{ marginBottom: "16px" }}
+          >
             Network Topology
           </Text>
-          <StreamVisualizer 
-            streams={activeStreams} 
-            treasuryBalance={treasuryBalances.length > 0 ? treasuryBalances.map(t => `${t.balance} ${t.tokenSymbol}`).join(", ") : "0"} 
+          <StreamVisualizer
+            streams={activeStreams}
+            treasuryBalance={
+              treasuryBalances.length > 0
+                ? treasuryBalances
+                    .map((t) => `${t.balance} ${t.tokenSymbol}`)
+                    .join(", ")
+                : "0"
+            }
           />
         </div>
 

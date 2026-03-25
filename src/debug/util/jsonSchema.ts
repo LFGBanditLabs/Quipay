@@ -1,6 +1,3 @@
- 
- 
-
 import type { JSONSchema7 } from "json-schema";
 
 import type { AnyObject } from "../types/types";

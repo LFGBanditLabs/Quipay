@@ -1,6 +1,5 @@
- 
 /* eslint-disable @typescript-eslint/only-throw-error */
- 
+
 import { MuxedAccount, StrKey } from "@stellar/stellar-sdk";
 import { useQuery } from "@tanstack/react-query";
 import { NetworkHeaders } from "../types/types";
@@ -33,14 +32,13 @@ export const useAccountSequenceNumber = ({
           `${horizonUrl}/accounts/${sourceAccount}`,
           { headers },
         );
-         
+
         const responseJson = await response.json();
 
         if (responseJson?.status === 0) {
           throw `Unable to reach server at ${horizonUrl}.`;
         }
 
-         
         if (responseJson?.status?.toString()?.startsWith("4")) {
           if (responseJson?.title === "Resource Missing") {
             throw "Account not found. Make sure the correct network is selected and the account is funded/created.";
