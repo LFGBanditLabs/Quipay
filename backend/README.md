@@ -158,6 +158,57 @@ npm run migration:run
 npm run migration:push
 ```
 
+## Database Migrations
+
+The backend uses a custom migration system with version tracking and checksum validation.
+
+### Migration Commands
+
+```bash
+# Run all pending migrations
+npm run migrate
+
+# Check migration status
+npm run migrate:status
+
+# Rollback last migration
+npm run migrate:rollback
+
+# Create new migration
+npm run migrate:create -- "migration_name"
+
+# Seed database with test data
+npm run seed
+```
+
+### Migration System Features
+
+- **Version Tracking**: All migrations tracked in `schema_migrations` table
+- **Checksum Validation**: Detects if applied migrations have been modified
+- **Transaction Support**: Each migration runs atomically
+- **Rollback Capability**: Supports rolling back the last migration
+- **Execution Time Tracking**: Records migration performance
+
+### Creating Migrations
+
+1. Generate a new migration file:
+
+```bash
+npm run migrate:create -- "add_user_email_column"
+```
+
+2. Edit the generated files:
+   - `migrations/XXX_add_user_email_column.sql` (migration)
+   - `migrations/XXX_add_user_email_column_rollback.sql` (rollback)
+
+3. Run the migration:
+
+```bash
+npm run migrate
+```
+
+See [migrations/README.md](./src/db/migrations/README.md) for detailed documentation.
+
 ## Development
 
 ```bash
@@ -166,9 +217,6 @@ npm install
 
 # Run tests (automatically sets up test DB with migrations)
 npm test
-
-# Generate migrations after editing src/db/schema.ts
-npm run migration:generate
 
 # Start development server
 npm run dev

@@ -2,3 +2,4 @@ node_modules/
 dist/
 .env
 build_errors.txt
+src/db/__tests__/test_migrations/
