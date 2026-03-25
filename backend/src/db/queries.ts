@@ -398,10 +398,10 @@ export const createPayrollSchedule = async (params: {
   nextRunAt?: Date;
 }): Promise<number> => {
   if (!getPool()) throw new Error("Database not configured");
-  const res = await query<{ id: string }>(
+  const res = await query<{ id: number }>(
     `INSERT INTO payroll_schedules
-            (employer, worker, token, rate, cron_expression, duration_days, next_run_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+           (employer, worker, token, rate, cron_expression, duration_days, enabled, next_run_at, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,true,$7,NOW(),NOW())
          RETURNING id`,
     [
       params.employer,
@@ -410,10 +410,10 @@ export const createPayrollSchedule = async (params: {
       params.rate.toString(),
       params.cronExpression,
       params.durationDays,
-      params.nextRunAt ?? null,
+      params.nextRunAt?.toISOString() || null,
     ],
   );
-  return parseInt(res.rows[0].id, 10);
+  return res.rows[0]?.id || 0;
 };
 
 export const updatePayrollSchedule = async (params: {
