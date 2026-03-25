@@ -218,13 +218,15 @@ impl WorkforceRegistryContract {
                 return Ok(());
             }
 
-            let stored_index: u32 = e.storage().persistent().get(&idx_key).unwrap();
+            let stored_index: u32 = e.storage().persistent().get(&idx_key)
+                .ok_or(QuipayError::StorageError)?;
             let remove_pos: u32 = stored_index - 1;
             let last_pos: u32 = count - 1;
 
             if remove_pos != last_pos {
                 let last_key = DataKey::EmployerActiveWorkerByIndex(employer.clone(), last_pos);
-                let last_worker: Address = e.storage().persistent().get(&last_key).unwrap();
+                let last_worker: Address = e.storage().persistent().get(&last_key)
+                    .ok_or(QuipayError::StorageError)?;
 
                 let remove_key = DataKey::EmployerActiveWorkerByIndex(employer.clone(), remove_pos);
                 e.storage().persistent().set(&remove_key, &last_worker);
@@ -281,10 +283,12 @@ impl WorkforceRegistryContract {
         let mut i = start;
         while i < end_exclusive {
             let by_index_key = DataKey::EmployerActiveWorkerByIndex(employer.clone(), i);
-            let worker: Address = e.storage().persistent().get(&by_index_key).unwrap();
-            let worker_key = DataKey::Worker(worker);
-            let profile: WorkerProfile = e.storage().persistent().get(&worker_key).unwrap();
-            out.push_back(profile);
+            if let Some(worker) = e.storage().persistent().get::<DataKey, Address>(&by_index_key) {
+                let worker_key = DataKey::Worker(worker);
+                if let Some(profile) = e.storage().persistent().get::<DataKey, WorkerProfile>(&worker_key) {
+                    out.push_back(profile);
+                }
+            }
             i += 1;
         }
 

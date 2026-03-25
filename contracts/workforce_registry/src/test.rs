@@ -209,3 +209,44 @@ fn test_query_performance_scales_with_page_size() {
     assert!(large_cost > small_cost);
     assert!(large_cost < small_cost.saturating_mul(20));
 }
+
+#[test]
+fn test_get_workers_with_missing_storage_entries() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
+
+    let employer = Address::generate(&e);
+    let preferred_token = Address::generate(&e);
+    let metadata_hash = String::from_str(&e, "QmHash");
+
+    // Register workers and activate streams
+    let w1 = Address::generate(&e);
+    let w2 = Address::generate(&e);
+    let w3 = Address::generate(&e);
+
+    let _ = client.try_register_worker(&w1, &preferred_token, &metadata_hash).unwrap();
+    let _ = client.try_register_worker(&w2, &preferred_token, &metadata_hash).unwrap();
+    let _ = client.try_register_worker(&w3, &preferred_token, &metadata_hash).unwrap();
+
+    let _ = client.try_set_stream_active(&employer, &w1, &true).unwrap();
+    let _ = client.try_set_stream_active(&employer, &w2, &true).unwrap();
+    let _ = client.try_set_stream_active(&employer, &w3, &true).unwrap();
+
+    // Simulate corrupted state by manually removing a worker profile
+    // This tests that get_workers_by_employer handles missing entries gracefully
+    let worker_key = DataKey::Worker(w2.clone());
+    e.as_contract(&contract_id, || {
+        e.storage().persistent().remove(&worker_key);
+    });
+
+    // Should not panic and should skip the corrupted entry
+    let workers = client.get_workers_by_employer(&employer, &0u32, &10u32);
+    
+    // Should return only the valid workers (w1 and w3), skipping w2
+    assert_eq!(workers.len(), 2);
+    assert!(workers.iter().any(|p| p.wallet == w1));
+    assert!(workers.iter().any(|p| p.wallet == w3));
+    assert!(!workers.iter().any(|p| p.wallet == w2));
+}
