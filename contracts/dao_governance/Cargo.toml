@@ -1,0 +1,18 @@
+[package]
+name = "dao_governance"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+quipay-common = { path = "../common", default-features = false }
+soroban-sdk = "20.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "20.0.0", features = ["testutils"] }
+
+[features]
+default = ["quipay-common/std"]
+std = ["quipay-common/std", "soroban-sdk/std"]
