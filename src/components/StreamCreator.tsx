@@ -534,6 +534,8 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               onChange={handleChange}
               disabled={isBusy}
               spellCheck={false}
+              required
+              aria-required="true"
               aria-describedby={
                 errors.workerAddress ? id("workerAddress-error") : undefined
               }
@@ -565,6 +567,8 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               value={values.rate}
               onChange={handleChange}
               disabled={isBusy}
+              required
+              aria-required="true"
               aria-describedby={errors.rate ? id("rate-error") : undefined}
               aria-invalid={!!errors.rate}
               required

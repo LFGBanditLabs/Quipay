@@ -173,8 +173,8 @@ const CreateStream: React.FC = () => {
                       cliffDate: e.target.value,
                     })
                   }
-                  required
-                  aria-required="true"
+                  required={formData.advancedOptions.enableCliff}
+                  aria-required={formData.advancedOptions.enableCliff}
                 />
               </div>
             )}
