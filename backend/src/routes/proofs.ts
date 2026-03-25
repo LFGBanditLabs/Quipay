@@ -24,7 +24,8 @@ proofsRouter.get("/:streamId", async (req, res, next) => {
     const proof = await getProofByStreamId(streamId);
     if (!proof) {
       res.status(404).json({
-        error: "No payroll proof found for this stream. The stream may not be completed yet.",
+        error:
+          "No payroll proof found for this stream. The stream may not be completed yet.",
       });
       return;
     }

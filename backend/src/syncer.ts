@@ -30,7 +30,11 @@ const server = new rpc.Server(SOROBAN_RPC_URL);
 const parseEvent = (
   event: rpc.Api.EventResponse,
 ): null | {
-  kind: "stream_created" | "withdrawal" | "stream_cancelled" | "stream_completed";
+  kind:
+    | "stream_created"
+    | "withdrawal"
+    | "stream_cancelled"
+    | "stream_completed";
   data: Record<string, unknown>;
 } => {
   try {

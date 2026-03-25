@@ -48,7 +48,9 @@ export interface PinResult {
  * Pins a PayrollProof JSON document to IPFS via the Pinata pinning service.
  * Throws if PINATA_JWT is not configured or the upload fails.
  */
-export const pinProofToIPFS = async (proof: PayrollProof): Promise<PinResult> => {
+export const pinProofToIPFS = async (
+  proof: PayrollProof,
+): Promise<PinResult> => {
   if (!PINATA_JWT) {
     throw new Error(
       "[IPFSService] PINATA_JWT is not configured. Set it in your environment.",

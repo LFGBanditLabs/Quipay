@@ -160,7 +160,9 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
   );
 };
 
-const CompletedStreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
+const CompletedStreamCard: React.FC<{ stream: WorkerStream }> = ({
+  stream,
+}) => {
   const { t } = useTranslation();
 
   return (
