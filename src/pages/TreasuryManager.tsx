@@ -257,6 +257,7 @@ const TreasuryManager: React.FC = () => {
                   Asset Code (Any Stellar Asset)
                 </Text>
               </label>
+              {/* @ts-ignore - SDS Input does not declare HTML attributes natively */}
               <Input
                 id="deposit-token"
                 label=""
@@ -270,6 +271,7 @@ const TreasuryManager: React.FC = () => {
                 aria-required="true"
                 pattern="^[A-Z0-9]{1,12}$"
               />
+              {/* @ts-ignore - SDS Input does not declare HTML attributes natively */}
               <Input
                 id="deposit-amount"
                 label="Amount"
@@ -284,6 +286,7 @@ const TreasuryManager: React.FC = () => {
                 required
                 aria-required="true"
               />
+              {/* @ts-ignore - SDS Button type prop might be missing */}
               <Button variant="primary" size="md" type="submit">
                 Deposit
               </Button>
@@ -322,6 +325,7 @@ const TreasuryManager: React.FC = () => {
                   </option>
                 ))}
               </select>
+              {/* @ts-ignore */}
               <Input
                 id="withdraw-amount"
                 label="Amount"
@@ -336,6 +340,7 @@ const TreasuryManager: React.FC = () => {
                 required
                 aria-required="true"
               />
+              {/* @ts-ignore */}
               <Button variant="primary" size="md" type="submit">
                 Withdraw
               </Button>
