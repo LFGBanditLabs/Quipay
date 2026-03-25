@@ -71,3 +71,4 @@ src/contracts/*
 !src/contracts/util.ts
 !src/contracts/payroll_stream.ts
 !src/contracts/automation_gateway.ts
+!src/contracts/payroll_vault.ts
