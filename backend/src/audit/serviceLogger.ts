@@ -86,3 +86,9 @@ export async function logServiceError(
     );
   }
 }
+
+export const serviceLogger = {
+  info: logServiceInfo,
+  warn: logServiceWarn,
+  error: logServiceError,
+};
