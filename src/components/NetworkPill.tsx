@@ -28,7 +28,7 @@ const NetworkPill: React.FC = () => {
   if (status === "offline") {
     title = "Horizon RPC is currently unreachable. Transactions may fail.";
     color = "var(--sds-color-feedback-error)";
-    icon = <Icon.CloudOffline color={color} size="16px" />;
+    icon = <Icon.CloudOff color={color} size="16px" />;
   } else if (status === "degraded") {
     title = `High RPC latency detected (${latency}ms). Transactions may be slow.`;
     color = "var(--sds-color-feedback-warning)";

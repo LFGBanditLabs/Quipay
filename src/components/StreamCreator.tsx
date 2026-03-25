@@ -713,8 +713,6 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
                 errors.workerAddress ? id("workerAddress-error") : undefined
               }
               aria-invalid={!!errors.workerAddress}
-              required
-              aria-required="true"
               pattern="^G[A-Z2-7]{55}$"
             />
             <div aria-live="assertive">
@@ -744,8 +742,6 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               aria-required="true"
               aria-describedby={errors.rate ? id("rate-error") : undefined}
               aria-invalid={!!errors.rate}
-              required
-              aria-required="true"
             />
             <div aria-live="assertive">
               <ErrorMessage error={errors.rate || null} />
