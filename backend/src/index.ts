@@ -63,6 +63,8 @@ async function initializeServices() {
 }
 
 // Interactive API documentation (Swagger UI)
+app.use("/api-docs", docsRouter);
+// Backwards-compatible alias
 app.use("/docs", docsRouter);
 
 app.use("/webhooks", webhookRouter);

@@ -81,13 +81,25 @@ const swaggerDefinition = {
         },
       },
       // ── Monitor ─────────────────────────────────────────────────────────
+      EmployerTreasuryStatus: {
+        type: "object",
+        properties: {
+          employer: { type: "string" },
+          balance: { type: "number" },
+          liabilities: { type: "number" },
+          daily_burn_rate: { type: "number" },
+          runway_days: { type: "number", nullable: true },
+          funds_exhaustion_date: { type: "string", nullable: true },
+          alert_sent: { type: "boolean" },
+        },
+      },
       MonitorStatusResponse: {
         type: "object",
         properties: {
           status: { type: "string", example: "ok" },
           employers: {
             type: "array",
-            items: { type: "object" },
+            items: { $ref: "#/components/schemas/EmployerTreasuryStatus" },
           },
           timestamp: { type: "string", format: "date-time" },
         },
@@ -165,31 +177,109 @@ const swaggerDefinition = {
         type: "object",
         description: "Overall platform statistics.",
         properties: {
-          totalStreams: { type: "integer", example: 512 },
-          totalVolumeUsdc: { type: "number", example: 4250000 },
-          totalWithdrawnUsdc: { type: "number", example: 3100000 },
+          total_streams: { type: "integer", example: 512 },
+          active_streams: { type: "integer", example: 320 },
+          completed_streams: { type: "integer", example: 150 },
+          cancelled_streams: { type: "integer", example: 42 },
+          total_volume: { type: "string", example: "4250000000" },
+          total_withdrawn: { type: "string", example: "3100000000" },
         },
       },
       StreamRecord: {
         type: "object",
         properties: {
-          streamId: { type: "string" },
+          stream_id: { type: "integer" },
           employer: { type: "string" },
           worker: { type: "string" },
-          tokenSymbol: { type: "string", example: "USDC" },
-          flowRatePerSec: { type: "number" },
+          total_amount: { type: "string" },
+          withdrawn_amount: { type: "string" },
+          start_ts: { type: "integer" },
+          end_ts: { type: "integer" },
           status: {
             type: "string",
-            enum: ["active", "paused", "ended"],
+            enum: ["active", "completed", "cancelled"],
           },
-          startedAt: { type: "string", format: "date-time" },
+          closed_at: { type: "integer", nullable: true },
+          ledger_created: { type: "integer" },
+          created_at: { type: "string", format: "date-time" },
+          updated_at: { type: "string", format: "date-time" },
         },
       },
       TrendPoint: {
         type: "object",
         properties: {
-          period: { type: "string", example: "2026-03-08" },
-          volumeUsdc: { type: "number", example: 12000 },
+          bucket: { type: "string", example: "2026-03-08" },
+          volume: { type: "string", example: "12000" },
+          stream_count: { type: "integer" },
+          withdrawal_count: { type: "integer" },
+        },
+      },
+      WithdrawalRecord: {
+        type: "object",
+        properties: {
+          id: { type: "integer" },
+          stream_id: { type: "integer" },
+          worker: { type: "string" },
+          amount: { type: "string" },
+          ledger: { type: "integer" },
+          ledger_ts: { type: "integer" },
+          created_at: { type: "string", format: "date-time" },
+        },
+      },
+      AddressStatsData: {
+        type: "object",
+        properties: {
+          address: { type: "string" },
+          total_streams: { type: "integer" },
+          active_streams: { type: "integer" },
+          completed_streams: { type: "integer" },
+          cancelled_streams: { type: "integer" },
+          total_volume: { type: "string" },
+          total_withdrawn: { type: "string" },
+          recentWithdrawals: {
+            type: "array",
+            items: { $ref: "#/components/schemas/WithdrawalRecord" },
+          },
+        },
+      },
+      DLQItem: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          job_type: { type: "string" },
+          payload: { type: "object", additionalProperties: true },
+          error_stack: { type: "string", nullable: true },
+          context: { type: "object", additionalProperties: true },
+          status: {
+            type: "string",
+            enum: ["pending", "replayed", "discarded"],
+          },
+          created_at: { type: "string", format: "date-time" },
+          updated_at: { type: "string", format: "date-time" },
+        },
+      },
+      DLQListResponse: {
+        type: "object",
+        properties: {
+          items: {
+            type: "array",
+            items: { $ref: "#/components/schemas/DLQItem" },
+          },
+        },
+      },
+      AdminRequestedByResponse: {
+        type: "object",
+        properties: {
+          message: { type: "string" },
+          requestedBy: { $ref: "#/components/schemas/AdminUserInfo" },
+        },
+      },
+      AdminRequestedByBodyResponse: {
+        type: "object",
+        properties: {
+          message: { type: "string" },
+          requestedBy: { $ref: "#/components/schemas/AdminUserInfo" },
+          body: { type: "object", additionalProperties: true },
         },
       },
       // ── Admin ───────────────────────────────────────────────────────────
@@ -197,11 +287,8 @@ const swaggerDefinition = {
         type: "object",
         properties: {
           id: { type: "string" },
-          role: {
-            type: "string",
-            enum: ["user", "admin", "superadmin"],
-          },
-          address: { type: "string" },
+          role: { type: "integer", example: 2 },
+          email: { type: "string", nullable: true },
         },
       },
     },
@@ -640,7 +727,10 @@ const swaggerDefinition = {
           {
             name: "status",
             in: "query",
-            schema: { type: "string", enum: ["active", "paused", "ended"] },
+            schema: {
+              type: "string",
+              enum: ["active", "completed", "cancelled"],
+            },
             description: "Stream status filter.",
           },
           {
@@ -759,7 +849,17 @@ const swaggerDefinition = {
         responses: {
           200: {
             description: "Employer analytics data.",
-            content: { "application/json": { schema: { type: "object" } } },
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    data: { $ref: "#/components/schemas/AddressStatsData" },
+                  },
+                },
+              },
+            },
           },
           503: { description: "Database not configured." },
         },
@@ -784,7 +884,17 @@ const swaggerDefinition = {
         responses: {
           200: {
             description: "Worker analytics data.",
-            content: { "application/json": { schema: { type: "object" } } },
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    data: { $ref: "#/components/schemas/AddressStatsData" },
+                  },
+                },
+              },
+            },
           },
           503: { description: "Database not configured." },
         },
@@ -828,7 +938,13 @@ const swaggerDefinition = {
         responses: {
           200: {
             description: "User list.",
-            content: { "application/json": { schema: { type: "object" } } },
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/AdminRequestedByResponse",
+                },
+              },
+            },
           },
           401: { description: "Unauthenticated." },
           403: { description: "Insufficient role." },
@@ -846,7 +962,13 @@ const swaggerDefinition = {
         responses: {
           200: {
             description: "Analytics data.",
-            content: { "application/json": { schema: { type: "object" } } },
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/AdminRequestedByResponse",
+                },
+              },
+            },
           },
           401: { description: "Unauthenticated." },
           403: { description: "Insufficient role." },
@@ -873,7 +995,13 @@ const swaggerDefinition = {
         responses: {
           200: {
             description: "User suspended.",
-            content: { "application/json": { schema: { type: "object" } } },
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/AdminRequestedByResponse",
+                },
+              },
+            },
           },
           401: { description: "Unauthenticated." },
           403: { description: "Insufficient role." },
@@ -900,7 +1028,13 @@ const swaggerDefinition = {
         responses: {
           200: {
             description: "User deleted.",
-            content: { "application/json": { schema: { type: "object" } } },
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/AdminRequestedByResponse",
+                },
+              },
+            },
           },
           401: { description: "Unauthenticated." },
           403: { description: "Insufficient role." },
@@ -917,7 +1051,13 @@ const swaggerDefinition = {
         responses: {
           200: {
             description: "Override queue.",
-            content: { "application/json": { schema: { type: "object" } } },
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/AdminRequestedByResponse",
+                },
+              },
+            },
           },
           401: { description: "Unauthenticated." },
           403: { description: "Insufficient role." },
@@ -946,10 +1086,135 @@ const swaggerDefinition = {
         responses: {
           200: {
             description: "Override applied.",
-            content: { "application/json": { schema: { type: "object" } } },
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/AdminRequestedByBodyResponse",
+                },
+              },
+            },
           },
           401: { description: "Unauthenticated." },
           403: { description: "Insufficient role." },
+        },
+      },
+    },
+    "/admin/dlq": {
+      get: {
+        tags: ["Admin"],
+        summary: "List DLQ items (admin only)",
+        description: "Returns all pending Dead Letter Queue items.",
+        operationId: "adminListDlqItems",
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", default: 50 },
+          },
+          {
+            name: "offset",
+            in: "query",
+            schema: { type: "integer", default: 0 },
+          },
+        ],
+        responses: {
+          200: {
+            description: "DLQ items list.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/DLQListResponse" },
+              },
+            },
+          },
+          401: { description: "Unauthenticated." },
+          403: { description: "Insufficient role." },
+          500: {
+            description: "Failed to fetch DLQ items.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/admin/dlq/{id}/replay": {
+      post: {
+        tags: ["Admin"],
+        summary: "Replay a DLQ item (superadmin only)",
+        description: "Manually replays a terminally failed job from the DLQ.",
+        operationId: "adminReplayDlqItem",
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+          },
+        ],
+        responses: {
+          200: {
+            description: "DLQ item replayed.",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/AdminRequestedByResponse",
+                },
+              },
+            },
+          },
+          400: { description: "DLQ item already processed or invalid." },
+          401: { description: "Unauthenticated." },
+          403: { description: "Insufficient role." },
+          404: {
+            description: "DLQ item not found.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          500: {
+            description: "Failed to replay DLQ item.",
+            content: { "application/json": { schema: { type: "object" } } },
+          },
+        },
+      },
+    },
+    "/admin/dlq/{id}": {
+      delete: {
+        tags: ["Admin"],
+        summary: "Discard a DLQ item (superadmin only)",
+        description:
+          "Permanently discards a DLQ item from the Dead Letter Queue.",
+        operationId: "adminDiscardDlqItem",
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+          },
+        ],
+        responses: {
+          200: {
+            description: "DLQ item discarded.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: { message: { type: "string" } },
+                },
+              },
+            },
+          },
+          401: { description: "Unauthenticated." },
+          403: { description: "Insufficient role." },
+          500: { description: "Failed to discard DLQ item." },
         },
       },
     },

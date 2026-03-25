@@ -91,6 +91,14 @@ enum BatchWithdrawalPlan {
 
 const DEFAULT_RETENTION_SECS: u64 = 30 * 24 * 60 * 60;
 
+// Storage entries (persistent) are automatically archived after their TTL runs out
+// unless we explicitly extend TTL. Long-running streams can be left untouched for
+// longer than the default TTL, so we bump TTL on each mutation path.
+//
+// These values are expressed in ledgers (Soroban storage TTL units).
+const STORAGE_TTL_THRESHOLD_LEDGER: u32 = 1_000_000;
+const STORAGE_TTL_EXTEND_TO_LEDGER: u32 = 1_000_000;
+
 // 48 hours in seconds for timelock
 const TIMELOCK_DURATION: u64 = 48 * 60 * 60;
 
@@ -243,6 +251,10 @@ impl PayrollStream {
         let vested = Self::vested_amount(&stream, now);
         let available = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
 
+        // Keep the stream state and worker index entry alive even if there's
+        // nothing available to withdraw yet.
+        Self::bump_stream_storage_ttl(&env, stream_id, &worker);
+
         if available <= 0 {
             return Ok(0);
         }
@@ -340,6 +352,9 @@ impl PayrollStream {
                         let available = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
 
                         if available <= 0 {
+                            // Keep the stream state and worker index entry alive
+                            // even if there's nothing available to withdraw yet.
+                            Self::bump_stream_storage_ttl(&env, stream_id, &caller);
                             BatchWithdrawalPlan::Result(WithdrawResult {
                                 stream_id,
                                 amount: 0,
@@ -400,6 +415,8 @@ impl PayrollStream {
                     }
 
                     env.storage().persistent().set(&key, &stream);
+                    // Keep both the stream state and the worker index entry alive.
+                    Self::bump_stream_storage_ttl(&env, candidate.stream_id, &caller);
 
                     env.events().publish(
                         (
@@ -827,6 +844,9 @@ impl PayrollStream {
         wrk_ids.push_back(stream_id);
         env.storage().persistent().set(&wrk_key, &wrk_ids);
 
+        // Keep the new stream state and its worker index entry alive.
+        Self::bump_stream_storage_ttl(&env, stream_id, &worker);
+
         env.events().publish(
             (
                 Symbol::new(&env, "stream"),
@@ -1214,6 +1234,26 @@ impl PayrollStream {
 
     fn is_closed(stream: &Stream) -> bool {
         stream.status == StreamStatus::Canceled || stream.status == StreamStatus::Completed
+    }
+
+    fn bump_stream_storage_ttl(env: &Env, stream_id: u64, worker: &Address) {
+        let stream_key = StreamKey::Stream(stream_id);
+        env.storage()
+            .persistent()
+            .extend_ttl(
+                &stream_key,
+                STORAGE_TTL_THRESHOLD_LEDGER,
+                STORAGE_TTL_EXTEND_TO_LEDGER,
+            );
+
+        let worker_key = StreamKey::WorkerStreams(worker.clone());
+        env.storage()
+            .persistent()
+            .extend_ttl(
+                &worker_key,
+                STORAGE_TTL_THRESHOLD_LEDGER,
+                STORAGE_TTL_EXTEND_TO_LEDGER,
+            );
     }
 
     fn close_stream_internal(stream: &mut Stream, now: u64, status: StreamStatus) {
