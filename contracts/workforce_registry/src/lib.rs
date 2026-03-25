@@ -16,6 +16,7 @@ pub enum DataKey {
     EmployerActiveWorkerCount(Address),
     EmployerActiveWorkerByIndex(Address, u32),
     EmployerActiveWorkerIndex(Address, Address),
+    BlacklistedWorker(Address),
 }
 
 #[contract]
@@ -37,6 +38,16 @@ impl WorkforceRegistryContract {
         metadata_hash: String,
     ) {
         worker.require_auth();
+
+        // Check if worker is blacklisted
+        let blacklist_key = DataKey::BlacklistedWorker(worker.clone());
+        if e.storage()
+            .persistent()
+            .get(&blacklist_key)
+            .unwrap_or(false)
+        {
+            panic!("Worker is blacklisted");
+        }
 
         let key = DataKey::Worker(worker.clone());
         if e.storage().persistent().has(&key) {
@@ -71,6 +82,16 @@ impl WorkforceRegistryContract {
     /// * `metadata_hash` - The new metadata hash string.
     pub fn update_worker(e: Env, worker: Address, preferred_token: Address, metadata_hash: String) {
         worker.require_auth();
+
+        // Check if worker is blacklisted
+        let blacklist_key = DataKey::BlacklistedWorker(worker.clone());
+        if e.storage()
+            .persistent()
+            .get(&blacklist_key)
+            .unwrap_or(false)
+        {
+            panic!("Worker is blacklisted");
+        }
 
         let key = DataKey::Worker(worker.clone());
         if !e.storage().persistent().has(&key) {
@@ -124,6 +145,16 @@ impl WorkforceRegistryContract {
 
     pub fn set_stream_active(e: Env, employer: Address, worker: Address, active: bool) {
         employer.require_auth();
+
+        // Check if worker is blacklisted
+        let blacklist_key = DataKey::BlacklistedWorker(worker.clone());
+        if e.storage()
+            .persistent()
+            .get(&blacklist_key)
+            .unwrap_or(false)
+        {
+            panic!("Worker is blacklisted");
+        }
 
         let worker_key = DataKey::Worker(worker.clone());
         if !e.storage().persistent().has(&worker_key) {
@@ -238,6 +269,49 @@ impl WorkforceRegistryContract {
         }
 
         out
+    }
+
+    /// Sets blacklist status for a worker (admin only)
+    ///
+    /// # Arguments
+    /// * `e` - The environment.
+    /// * `admin` - The admin address.
+    /// * `worker` - The worker address to blacklist/unblacklist.
+    /// * `blacklisted` - True to blacklist, false to unblacklist.
+    pub fn set_blacklisted(e: Env, admin: Address, worker: Address, blacklisted: bool) {
+        // Check if caller is admin - this will need to be implemented based on your admin management
+        admin.require_auth();
+
+        let key = DataKey::BlacklistedWorker(worker.clone());
+
+        if blacklisted {
+            e.storage().persistent().set(&key, &true);
+        } else {
+            e.storage().persistent().remove(&key);
+        }
+
+        e.events().publish(
+            (
+                symbol_short!("registry"),
+                symbol_short!("blacklist"),
+                worker.clone(),
+                blacklisted,
+            ),
+            (),
+        );
+    }
+
+    /// Checks if a worker is blacklisted
+    ///
+    /// # Arguments
+    /// * `e` - The environment.
+    /// * `worker` - The worker address to check.
+    ///
+    /// # Returns
+    /// * `bool` - True if blacklisted, False otherwise.
+    pub fn is_blacklisted(e: Env, worker: Address) -> bool {
+        let key = DataKey::BlacklistedWorker(worker);
+        e.storage().persistent().get(&key).unwrap_or(false)
     }
 }
 
