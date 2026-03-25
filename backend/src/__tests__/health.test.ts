@@ -42,6 +42,10 @@ describe("getHealthResponse", () => {
   it("returns 200 and ok when all dependencies are healthy", async () => {
     mockGetPool.mockReturnValue({
       query: jest.fn().mockResolvedValue({ rows: [{ "?column?": 1 }] }),
+      totalCount: 5,
+      idleCount: 3,
+      waitingCount: 0,
+      options: { max: 10 },
     });
     mockGetLatestLedger.mockResolvedValue({ sequence: 12345 });
     mockIsHealthy.mockResolvedValue(true);
@@ -72,6 +76,10 @@ describe("getHealthResponse", () => {
   it("returns 503 when vault token is invalid", async () => {
     mockGetPool.mockReturnValue({
       query: jest.fn().mockResolvedValue({ rows: [{ "?column?": 1 }] }),
+      totalCount: 2,
+      idleCount: 1,
+      waitingCount: 1,
+      options: { max: 4 },
     });
     mockGetLatestLedger.mockResolvedValue({ sequence: 12345 });
     mockIsHealthy.mockResolvedValue(true);

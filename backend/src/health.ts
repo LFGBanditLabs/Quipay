@@ -58,15 +58,35 @@ async function checkDatabase(): Promise<DependencyHealth> {
 
   try {
     await withTimeout(pool.query("SELECT 1"), CHECK_TIMEOUT_MS);
+    const total = pool.totalCount;
+    const idle = pool.idleCount;
+    const waiting = pool.waitingCount;
+    const max = (pool as any).options?.max as number | undefined;
+
     return {
       status: "healthy",
       latencyMs: Date.now() - startedAt,
+      details: `pool(total=${total}, idle=${idle}, waiting=${waiting}, max=${
+        max ?? "unknown"
+      })`,
     };
   } catch (error) {
+    const total = pool.totalCount;
+    const idle = pool.idleCount;
+    const waiting = pool.waitingCount;
+    const max = (pool as any).options?.max as number | undefined;
+
     return {
       status: "unhealthy",
       latencyMs: Date.now() - startedAt,
-      details: error instanceof Error ? error.message : "Database query failed",
+      details:
+        error instanceof Error
+          ? `${error.message}; pool(total=${total}, idle=${idle}, waiting=${waiting}, max=${
+              max ?? "unknown"
+            })`
+          : `Database query failed; pool(total=${total}, idle=${idle}, waiting=${waiting}, max=${
+              max ?? "unknown"
+            })`,
     };
   }
 }
