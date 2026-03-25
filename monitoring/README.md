@@ -1,6 +1,6 @@
 # Quipay – Prometheus Monitoring
 
-## Alert rules
+## Alert rules.
 
 `alert_rules.yml` contains Prometheus alerting rules for the backend service.
 Load them by referencing the file in your `prometheus.yml`:
