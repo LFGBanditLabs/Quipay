@@ -123,14 +123,15 @@ impl PayrollStream {
         Ok(())
     }
 
-    pub fn set_vault(env: Env, vault: Address) {
+    pub fn set_vault(env: Env, vault: Address) -> Result<(), QuipayError> {
         let admin: Address = env
             .storage()
             .instance()
             .get(&DataKey::Admin)
-            .expect("not initialized");
+            .ok_or(QuipayError::NotInitialized)?;
         admin.require_auth();
         env.storage().instance().set(&DataKey::Vault, &vault);
+        Ok(())
     }
 
     pub fn create_stream(
@@ -180,13 +181,13 @@ impl PayrollStream {
             .storage()
             .persistent()
             .get(&key)
-            .expect("stream not found");
+            .ok_or(QuipayError::StreamNotFound)?;
 
         if stream.worker != worker {
-            panic!("not worker");
+            return Err(QuipayError::Unauthorized);
         }
         if Self::is_closed(&stream) {
-            panic!("stream closed");
+            return Err(QuipayError::StreamClosed);
         }
 
         let now = env.ledger().timestamp();
@@ -201,7 +202,7 @@ impl PayrollStream {
             .storage()
             .instance()
             .get(&DataKey::Vault)
-            .expect("vault not configured");
+            .ok_or(QuipayError::NotInitialized)?;
         use soroban_sdk::{IntoVal, Symbol, vec};
         env.invoke_contract::<()>(
             &vault,
@@ -217,7 +218,7 @@ impl PayrollStream {
         stream.withdrawn_amount = stream
             .withdrawn_amount
             .checked_add(available)
-            .expect("withdrawn overflow");
+            .ok_or(QuipayError::Overflow)?;
         stream.last_withdrawal_ts = now;
 
         if stream.withdrawn_amount >= stream.total_amount {
@@ -241,8 +242,12 @@ impl PayrollStream {
 
     /// NOTE: This function is atomic. If any single payout fails, the entire batch reverts.
     /// Invalid, closed, and zero-available streams are pre-validated before payout calls begin.
-    pub fn batch_withdraw(env: Env, stream_ids: Vec<u64>, caller: Address) -> Vec<WithdrawResult> {
-        Self::require_not_paused(&env).unwrap();
+    pub fn batch_withdraw(
+        env: Env,
+        stream_ids: Vec<u64>,
+        caller: Address,
+    ) -> Result<Vec<WithdrawResult>, QuipayError> {
+        Self::require_not_paused(&env)?;
         caller.require_auth();
 
         let now = env.ledger().timestamp();
@@ -250,13 +255,21 @@ impl PayrollStream {
             .storage()
             .instance()
             .get(&DataKey::Vault)
-            .expect("vault not configured");
+            .ok_or(QuipayError::NotInitialized)?;
         let mut plans: Vec<BatchWithdrawalPlan> = Vec::new(&env);
         let mut results: Vec<WithdrawResult> = Vec::new(&env);
 
         let mut idx = 0u32;
         while idx < stream_ids.len() {
-            let stream_id = stream_ids.get(idx).unwrap();
+            let Some(stream_id) = stream_ids.get(idx) else {
+                results.push_back(WithdrawResult {
+                    stream_id: 0,
+                    amount: 0,
+                    success: false,
+                });
+                idx += 1;
+                continue;
+            };
             let key = StreamKey::Stream(stream_id);
 
             let plan = match env.storage().persistent().get::<StreamKey, Stream>(&key) {
@@ -305,7 +318,10 @@ impl PayrollStream {
 
         let mut plan_idx = 0u32;
         while plan_idx < plans.len() {
-            let result = match plans.get(plan_idx).unwrap() {
+            let Some(plan) = plans.get(plan_idx) else {
+                break;
+            };
+            let result = match plan {
                 BatchWithdrawalPlan::Result(result) => result,
                 BatchWithdrawalPlan::Payout(candidate) => {
                     let key = StreamKey::Stream(candidate.stream_id);
@@ -327,7 +343,7 @@ impl PayrollStream {
                     stream.withdrawn_amount = stream
                         .withdrawn_amount
                         .checked_add(available)
-                        .expect("withdrawn overflow");
+                        .ok_or(QuipayError::Overflow)?;
                     stream.last_withdrawal_ts = now;
 
                     if stream.withdrawn_amount >= stream.total_amount {
@@ -358,7 +374,7 @@ impl PayrollStream {
             plan_idx += 1;
         }
 
-        results
+        Ok(results)
     }
 
     pub fn cancel_stream(
@@ -375,17 +391,17 @@ impl PayrollStream {
             .storage()
             .persistent()
             .get(&key)
-            .expect("stream not found");
+            .ok_or(QuipayError::StreamNotFound)?;
 
         if stream.employer != caller {
-            let gateway_addr = gateway.expect("gateway required for agent auth");
+            let gateway_addr = gateway.ok_or(QuipayError::Unauthorized)?;
             let admin: Address = env.invoke_contract(
                 &gateway_addr,
                 &soroban_sdk::Symbol::new(&env, "get_admin"),
                 soroban_sdk::vec![&env],
             );
             if admin != stream.employer {
-                panic!("gateway admin mismatch");
+                return Err(QuipayError::Unauthorized);
             }
             let is_auth: bool = env.invoke_contract(
                 &gateway_addr,
@@ -397,7 +413,7 @@ impl PayrollStream {
                 ],
             );
             if !is_auth {
-                panic!("not authorized by gateway");
+                return Err(QuipayError::Unauthorized);
             }
         }
 
@@ -415,7 +431,7 @@ impl PayrollStream {
             .storage()
             .instance()
             .get(&DataKey::Vault)
-            .expect("vault not configured");
+            .ok_or(QuipayError::NotInitialized)?;
 
         // Pay out owed amount to worker
         if owed > 0 {
@@ -433,14 +449,14 @@ impl PayrollStream {
             stream.withdrawn_amount = stream
                 .withdrawn_amount
                 .checked_add(owed)
-                .expect("withdrawn overflow");
+                .ok_or(QuipayError::Overflow)?;
             stream.last_withdrawal_ts = now;
         }
 
         let remaining_liability = stream
             .total_amount
             .checked_sub(stream.withdrawn_amount)
-            .expect("remaining liability underflow");
+            .ok_or(QuipayError::Overflow)?;
 
         if remaining_liability > 0 {
             use soroban_sdk::{IntoVal, Symbol, vec};
@@ -799,7 +815,9 @@ impl PayrollStream {
         let end = (offset + limit).min(ids_len);
 
         for i in offset..end {
-            result.push_back(ids.get(i).expect("index out of bounds"));
+            if let Some(id) = ids.get(i) {
+                result.push_back(id);
+            }
         }
         result
     }
@@ -822,7 +840,7 @@ impl PayrollStream {
 
         let now = env.ledger().timestamp();
         if now < stream.closed_at.saturating_add(retention) {
-            panic!("retention period not met");
+            return Err(QuipayError::RetentionNotMet);
         }
 
         Self::remove_from_index(&env, StreamKey::EmployerStreams(stream.employer), stream_id);
@@ -839,7 +857,7 @@ impl PayrollStream {
             .get(&DataKey::Paused)
             .unwrap_or(false)
         {
-            panic!("protocol paused");
+            return Err(QuipayError::ProtocolPaused);
         }
         Ok(())
     }
@@ -861,9 +879,10 @@ impl PayrollStream {
         let mut new_ids: Vec<u64> = Vec::new(env);
         let mut i = 0u32;
         while i < ids.len() {
-            let id = ids.get(i).unwrap();
-            if id != stream_id {
-                new_ids.push_back(id);
+            if let Some(id) = ids.get(i) {
+                if id != stream_id {
+                    new_ids.push_back(id);
+                }
             }
             i += 1;
         }
@@ -913,9 +932,9 @@ impl PayrollStream {
             return stream
                 .total_amount
                 .checked_mul(elapsed_i)
-                .expect("accrued mul overflow")
+                .unwrap_or(stream.total_amount)
                 .checked_div(duration_i)
-                .expect("accrued div overflow");
+                .unwrap_or(stream.total_amount);
         }
 
         let elapsed: u64 = effective_ts - stream.start_ts;
@@ -930,9 +949,9 @@ impl PayrollStream {
         stream
             .total_amount
             .checked_mul(elapsed_i)
-            .expect("accrued mul overflow")
+            .unwrap_or(stream.total_amount)
             .checked_div(duration_i)
-            .expect("accrued div overflow")
+            .unwrap_or(stream.total_amount)
     }
 }
 
