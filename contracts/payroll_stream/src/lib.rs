@@ -251,6 +251,10 @@ impl PayrollStream {
         let vested = Self::vested_amount(&stream, now);
         let available = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
 
+        // Keep the stream state and worker index entry alive even if there's
+        // nothing available to withdraw yet.
+        Self::bump_stream_storage_ttl(&env, stream_id, &worker);
+
         if available <= 0 {
             return Ok(0);
         }
@@ -283,8 +287,6 @@ impl PayrollStream {
         }
 
         env.storage().persistent().set(&key, &stream);
-        // Keep both the stream state and the worker index entry alive.
-        Self::bump_stream_storage_ttl(&env, stream_id, &worker);
 
         env.events().publish(
             (
@@ -350,6 +352,9 @@ impl PayrollStream {
                         let available = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
 
                         if available <= 0 {
+                            // Keep the stream state and worker index entry alive
+                            // even if there's nothing available to withdraw yet.
+                            Self::bump_stream_storage_ttl(&env, stream_id, &caller);
                             BatchWithdrawalPlan::Result(WithdrawResult {
                                 stream_id,
                                 amount: 0,
