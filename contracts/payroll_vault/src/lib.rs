@@ -273,7 +273,6 @@ impl PayrollVault {
         admin.require_auth();
 
         if amount <= 0 {
-
             return Err(QuipayError::InvalidAmount);
         }
 
@@ -284,7 +283,6 @@ impl PayrollVault {
         let liability: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
 
         if balance < liability + amount {
-
             return Err(QuipayError::InsufficientBalance);
         }
 
@@ -319,7 +317,6 @@ impl PayrollVault {
         admin.require_auth();
 
         if amount <= 0 {
-
             return Err(QuipayError::InvalidAmount);
         }
 
@@ -327,8 +324,7 @@ impl PayrollVault {
         let liability: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
 
         if amount > liability {
-
-            return Err(QuipayError::InvalidAmount); // Or dedicated error
+            return Err(QuipayError::InvalidAmount);
         }
 
         e.storage()
@@ -371,18 +367,10 @@ impl PayrollVault {
         let liability: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
 
         if amount > balance {
-
             return Err(QuipayError::InsufficientBalance);
         }
 
-        // Payout reduces liability AND balance
-        // We assume liability was allocated before.
-        // If not allocated, liability could go negative if we subtract blindly.
-        // But here we check if liability >= amount?
-        // Or maybe payout implies liability reduction.
-        // Let's assume payout reduces liability as debt is paid.
         if amount > liability {
-
             return Err(QuipayError::InvalidAmount);
         }
 
