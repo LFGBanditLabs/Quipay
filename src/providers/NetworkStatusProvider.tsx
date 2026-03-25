@@ -5,16 +5,22 @@ interface NetworkStatusContextType extends NetworkStatus {
   refresh: () => Promise<void>;
 }
 
-const NetworkStatusContext = createContext<NetworkStatusContextType | undefined>(undefined);
+const NetworkStatusContext = createContext<
+  NetworkStatusContextType | undefined
+>(undefined);
 
 const REFRESH_INTERVAL = 30000; // 30 seconds
 
-export const NetworkStatusProvider = ({ children }: { children: React.ReactNode }) => {
+export const NetworkStatusProvider = ({
+  children,
+}: {
+  children: React.ReactNode;
+}) => {
   const [status, setStatus] = useState<NetworkStatus>({
     status: "online",
     latency: 0,
     congestion: "low",
-    minFee: 100
+    minFee: 100,
   });
 
   const refresh = async () => {
@@ -23,11 +29,25 @@ export const NetworkStatusProvider = ({ children }: { children: React.ReactNode 
   };
 
   useEffect(() => {
-    void refresh();
+    let active = true;
+
+    async function updateStatus() {
+      const newStatus = await getNetworkStatus();
+      if (active) {
+        setStatus(newStatus);
+      }
+    }
+
+    void updateStatus();
+
     const interval = setInterval(() => {
-      void refresh();
+      void updateStatus();
     }, REFRESH_INTERVAL);
-    return () => clearInterval(interval);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
   return (
@@ -40,7 +60,9 @@ export const NetworkStatusProvider = ({ children }: { children: React.ReactNode 
 export const useNetworkStatus = () => {
   const context = useContext(NetworkStatusContext);
   if (!context) {
-    throw new Error("useNetworkStatus must be used within a NetworkStatusProvider");
+    throw new Error(
+      "useNetworkStatus must be used within a NetworkStatusProvider",
+    );
   }
   return context;
 };
