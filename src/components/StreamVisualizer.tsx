@@ -33,6 +33,10 @@ interface Particle {
   color: string;
 }
 
+interface CustomCanvas extends HTMLCanvasElement {
+  _mousePos?: { x: number; y: number } | null;
+}
+
 const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBalance }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -183,8 +187,8 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBa
       });
 
       // Handle hover interactions (just an effect, real tooltip is DOM based)
-      if (canvasRef.current && (canvasRef.current as any)._mousePos) {
-        const { x: mouseX, y: mouseY } = (canvasRef.current as any)._mousePos;
+      if (canvasRef.current && (canvasRef.current as CustomCanvas)._mousePos) {
+        const { x: mouseX, y: mouseY } = (canvasRef.current as CustomCanvas)._mousePos!;
         let foundHover: Node | null = null;
         for (const node of nodes) {
           const dx = mouseX - node.x;
@@ -227,7 +231,7 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBa
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    (canvasRef.current as any)._mousePos = {
+    (canvasRef.current as CustomCanvas)._mousePos = {
       x: e.clientX - rect.left,
       y: e.clientY - rect.top
     };
@@ -235,7 +239,7 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({ streams, treasuryBa
 
   const handleMouseLeave = () => {
     if (canvasRef.current) {
-      (canvasRef.current as any)._mousePos = null;
+      (canvasRef.current as CustomCanvas)._mousePos = null;
     }
   };
 

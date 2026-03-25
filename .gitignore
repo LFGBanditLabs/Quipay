@@ -45,7 +45,7 @@ lint_output.txt
 
 # Stellar CLI downloads / temp archives
 *.tar.gz
-
+error.md
 # environment variables
 .env
 .env.*

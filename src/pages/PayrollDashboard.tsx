@@ -901,6 +901,7 @@ export default function PayrollDashboard() {
                   innerRadius={60}
                   outerRadius={90}
                   dataKey="value"
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   activeShape={ActivePieShape as any}
                   onMouseEnter={(_: ActivePieShapeProps, i: number) =>
                     setActivePie(i)
