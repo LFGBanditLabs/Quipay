@@ -246,7 +246,7 @@ const runSync = async (): Promise<number> => {
         await serviceLogger.info("Syncer", "No new events to ingest", {
           event_type: "sync_cycle_summary",
           ledger_number: latestLedger,
-        );
+        });
       }
     },
     "event-syncer",
