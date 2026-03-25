@@ -4,31 +4,64 @@ import { createCircuitBreaker } from "./utils/circuitBreaker";
 
 const SOROBAN_RPC_URL =
   process.env.PUBLIC_STELLAR_RPC_URL || "https://soroban-testnet.stellar.org";
-const QUIPAY_CONTRACT_ID = process.env.QUIPAY_CONTRACT_ID || "";
-
-const server = new rpc.Server(SOROBAN_RPC_URL);
-
-const getLatestLedgerBreaker = createCircuitBreaker(
-  server.getLatestLedger.bind(server),
-  {
-    name: "stellar_get_latest_ledger",
-    timeout: 5000,
-  },
-);
-
-const getEventsBreaker = createCircuitBreaker(server.getEvents.bind(server), {
-  name: "stellar_get_events",
-  timeout: 10000,
-});
+const getQUIPAY_CONTRACT_ID = () => process.env.QUIPAY_CONTRACT_ID || "";
 
 // Store interval IDs for cleanup
 let pollingIntervalId: NodeJS.Timeout | null = null;
 let simulationIntervalId: NodeJS.Timeout | null = null;
 
+// Circuit breakers - initialized lazily
+let getLatestLedgerBreaker: ReturnType<typeof createCircuitBreaker> | null =
+  null;
+let getEventsBreaker: ReturnType<typeof createCircuitBreaker> | null = null;
+
+/**
+ * Initializes the circuit breakers.
+ * Exported for testing purposes.
+ */
+export const initCircuitBreakers = () => {
+  const server = new rpc.Server(SOROBAN_RPC_URL);
+
+  getLatestLedgerBreaker = createCircuitBreaker(
+    server.getLatestLedger.bind(server),
+    {
+      name: "stellar_get_latest_ledger",
+      timeout: 5000,
+    },
+  );
+
+  getEventsBreaker = createCircuitBreaker(server.getEvents.bind(server), {
+    name: "stellar_get_events",
+    timeout: 10000,
+  });
+};
+
+/**
+ * Gets or creates the circuit breaker for getLatestLedger.
+ */
+const getGetLatestLedgerBreaker = () => {
+  if (!getLatestLedgerBreaker) {
+    initCircuitBreakers();
+  }
+  return getLatestLedgerBreaker!;
+};
+
+/**
+ * Gets or creates the circuit breaker for getEvents.
+ */
+const getGetEventsBreaker = () => {
+  if (!getEventsBreaker) {
+    initCircuitBreakers();
+  }
+  return getEventsBreaker!;
+};
+
 /**
  * Starts polling the Soroban RPC for Quipay contract events.
  */
 export const startStellarListener = async () => {
+  const QUIPAY_CONTRACT_ID = getQUIPAY_CONTRACT_ID();
+
   if (!QUIPAY_CONTRACT_ID) {
     console.warn(
       "[Stellar Listener] ⚠️ QUIPAY_CONTRACT_ID is not set. The listener will simulate events for testing.",
@@ -50,7 +83,7 @@ export const startStellarListener = async () => {
         const currentLedger = await getLatestLedgerInternal();
         if (currentLedger <= latestLedger) return;
 
-        const eventsResponse: any = await getEventsBreaker.fire({
+        const eventsResponse: any = await getGetEventsBreaker().fire({
           startLedger: latestLedger + 1,
           filters: [
             {
@@ -97,7 +130,7 @@ export const stopStellarListener = () => {
 
 const getLatestLedgerInternal = async (): Promise<number> => {
   try {
-    const health: any = await getLatestLedgerBreaker.fire();
+    const health: any = await getGetLatestLedgerBreaker().fire();
     return health?.sequence || 0;
   } catch (err) {
     console.error("[Stellar Listener] Failed to get latest ledger", err);
