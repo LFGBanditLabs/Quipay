@@ -561,7 +561,7 @@ export default function HelpCenter() {
         {/* Stats */}
         <div className="hc-stats">
           <div className="hc-stat">
-            <div className="hc-stat-num">{FAQS.length}+</div>
+            <div className="hc-stat-num">{FAQ_DEFS.length}+</div>
             <div className="hc-stat-label">{t("help.stats_articles")}</div>
           </div>
           <div className="hc-stat">
