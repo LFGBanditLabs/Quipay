@@ -1,6 +1,9 @@
 #![no_std]
+use core::convert::TryFrom;
 use quipay_common::{QuipayError, require};
 use soroban_sdk::{Address, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype};
+
+const MAX_BATCH_CREATE_STREAMS: u32 = 20;
 
 #[contracttype]
 #[derive(Clone)]
@@ -57,6 +60,18 @@ pub struct Stream {
     pub status: StreamStatus,
     pub created_at: u64,
     pub closed_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct StreamParams {
+    pub employer: Address,
+    pub worker: Address,
+    pub token: Address,
+    pub rate: i128,
+    pub cliff_ts: u64,
+    pub start_ts: u64,
+    pub end_ts: u64,
 }
 
 #[contracttype]
@@ -227,6 +242,66 @@ impl PayrollStream {
         );
 
         Ok(stream_id)
+    }
+
+    pub fn batch_create_streams(
+        env: Env,
+        params: Vec<StreamParams>,
+    ) -> Result<Vec<u32>, QuipayError> {
+        Self::require_not_paused(&env)?;
+
+        if params.len() > MAX_BATCH_CREATE_STREAMS {
+            return Err(QuipayError::BatchTooLarge);
+        }
+
+        if params.is_empty() {
+            return Ok(Vec::new(&env));
+        }
+
+        let first_param = params.get(0).ok_or(QuipayError::InvalidAmount)?;
+        let authorized_employer = first_param.employer.clone();
+        authorized_employer.require_auth();
+
+        let mut stream_ids = Vec::new(&env);
+        let mut index = 0u32;
+
+        while index < params.len() {
+            let Some(param) = params.get(index) else {
+                index += 1;
+                continue;
+            };
+
+            if param.employer != authorized_employer {
+                return Err(QuipayError::Unauthorized);
+            }
+
+            let stream_id = Self::create_stream_internal(
+                env.clone(),
+                param.employer.clone(),
+                param.worker.clone(),
+                param.token.clone(),
+                param.rate,
+                param.cliff_ts,
+                param.start_ts,
+                param.end_ts,
+            )?;
+
+            env.events().publish(
+                (
+                    Symbol::new(&env, "stream"),
+                    Symbol::new(&env, "created"),
+                    param.worker,
+                    param.employer,
+                ),
+                (stream_id, param.token, param.rate, param.start_ts, param.end_ts),
+            );
+
+            let stream_id = u32::try_from(stream_id).map_err(|_| QuipayError::Overflow)?;
+            stream_ids.push_back(stream_id);
+            index += 1;
+        }
+
+        Ok(stream_ids)
     }
 
     pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> Result<i128, QuipayError> {
