@@ -71,6 +71,13 @@
     "flow_rate": "Flow Rate",
     "start": "Start"
   },
+  "worker": {
+    "status_completed": "Completed",
+    "total_paid": "Total Paid",
+    "download_proof": "Download Payroll Proof",
+    "proof_generating": "Proof generating…",
+    "proof_cid_label": "IPFS CID"
+  },
   "payroll": {
     "analytics_title": "Quipay · Employer Analytics",
     "payroll_intelligence": "Payroll Intelligence",
