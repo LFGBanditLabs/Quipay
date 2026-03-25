@@ -64,6 +64,26 @@ export class TestDatabase {
     await initDb();
 
     console.log("[TestDB] ✅ db/pool module initialized with test database");
+
+    // Create schema for tests
+    await this.createSchema();
+  }
+
+  /**
+   * Create database schema for tests
+   */
+  async createSchema(): Promise<void> {
+    if (!this.pool) return;
+
+    const fs = require("fs");
+    const path = require("path");
+
+    // Read and execute schema.sql
+    const schemaPath = path.join(__dirname, "../../db/schema.sql");
+    const schemaSql = fs.readFileSync(schemaPath, "utf-8");
+
+    await this.pool.query(schemaSql);
+    console.log("[TestDB] ✅ Schema created");
   }
 
   /**
