@@ -1,0 +1,89 @@
+name: E2E Stream Lifecycle
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "contracts/**"
+      - "tests/e2e/**"
+      - ".github/workflows/e2e-stream.yml"
+  push:
+    branches: [main]
+    paths:
+      - "contracts/**"
+      - "tests/e2e/**"
+
+jobs:
+  e2e:
+    name: E2E stream lifecycle (Stellar testnet)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Only run on internal PRs / pushes where secrets are available
+    if: >
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Build Soroban contracts ──────────────────────────────────────────────
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.89.0
+          targets: wasm32v1-none
+
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/
+            ~/.cargo/git/
+            target/
+          key: ${{ runner.os }}-e2e-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-e2e-
+
+      - name: Build payroll_vault (release WASM)
+        run: >
+          cargo build --release
+          --target wasm32v1-none
+          --package payroll_vault
+
+      - name: Build payroll_stream (release WASM)
+        run: >
+          cargo build --release
+          --target wasm32v1-none
+          --package payroll_stream
+
+      # ── Run E2E tests ────────────────────────────────────────────────────────
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E stream lifecycle tests
+        env:
+          E2E_DEPLOYER_SECRET: ${{ secrets.E2E_DEPLOYER_SECRET }}
+          VAULT_WASM_PATH: target/wasm32v1-none/release/payroll_vault.wasm
+          STREAM_WASM_PATH: target/wasm32v1-none/release/payroll_stream.wasm
+        run: >
+          npx playwright test tests/e2e/stream_lifecycle.test.ts
+          --config=tests/e2e/playwright.e2e.config.ts
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-stream-results
+          path: tests/e2e/e2e-results.xml
+          retention-days: 7
