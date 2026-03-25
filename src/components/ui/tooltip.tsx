@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-redundant-type-constituents */
 "use client";
 
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
@@ -7,7 +8,7 @@ import { cn } from "@/lib/utils";
 function TooltipProvider({
   delay = 0,
   ...props
-}: TooltipPrimitive.Provider.Props) {
+}: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Provider>) {
   return (
     <TooltipPrimitive.Provider
       data-slot="tooltip-provider"
@@ -17,11 +18,15 @@ function TooltipProvider({
   );
 }
 
-function Tooltip({ ...props }: TooltipPrimitive.Root.Props) {
+function Tooltip({
+  ...props
+}: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Root>) {
   return <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
 }
 
-function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
+function TooltipTrigger({
+  ...props
+}: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Trigger>) {
   return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
 }
 
@@ -33,9 +38,9 @@ function TooltipContent({
   alignOffset = 0,
   children,
   ...props
-}: TooltipPrimitive.Popup.Props &
+}: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Popup> &
   Pick<
-    TooltipPrimitive.Positioner.Props,
+    React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Positioner>,
     "align" | "alignOffset" | "side" | "sideOffset"
   >) {
   return (

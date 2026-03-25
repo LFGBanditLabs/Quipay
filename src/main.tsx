@@ -6,6 +6,7 @@ import "./i18n/config";
 import App from "./App.tsx";
 import { NotificationProvider } from "./providers/NotificationProvider.tsx";
 import { ThemeProvider } from "./providers/ThemeProvider.tsx";
+import { NetworkStatusProvider } from "./providers/NetworkStatusProvider.tsx";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -22,11 +23,13 @@ createRoot(document.getElementById("root") as HTMLElement).render(
   <StrictMode>
     <ThemeProvider>
       <NotificationProvider>
-        <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </QueryClientProvider>
+        <NetworkStatusProvider>
+          <QueryClientProvider client={queryClient}>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </QueryClientProvider>
+        </NetworkStatusProvider>
       </NotificationProvider>
     </ThemeProvider>
   </StrictMode>,
