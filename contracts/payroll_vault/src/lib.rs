@@ -2,7 +2,7 @@
 #![allow(unexpected_cfgs)]
 use quipay_common::{QuipayError, require_positive_amount};
 use soroban_sdk::{
-    Address, BytesN, Env, Symbol, contract, contractimpl, contracttype, symbol_short, token,
+    Address, BytesN, Env, Symbol, Vec, contract, contractimpl, contracttype, symbol_short, token,
 };
 
 #[cfg(test)]
@@ -28,6 +28,7 @@ pub enum StateKey {
     Admin,
     Version,
     AuthorizedContract, // Contract authorized to modify liabilities (e.g., PayrollStream)
+    TokenList,          // Tokens tracked by the vault
     // Additional state that should persist across upgrades
     TreasuryBalance(Address), // Funds held for payroll (Token -> Amount)
     TotalLiability(Address),  // Amount owed to recipients (Token -> Amount)
@@ -51,6 +52,14 @@ pub struct VersionInfo {
     pub minor: u32,
     pub patch: u32,
     pub upgraded_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TreasuryTokenSummary {
+    pub token: Address,
+    pub balance: i128,
+    pub liability: i128,
 }
 
 #[contract]
@@ -276,6 +285,7 @@ impl PayrollVault {
         e.storage()
             .persistent()
             .set(&key, &(current_balance + amount));
+        Self::track_supported_token(&e, token.clone());
 
         let token_client = token::Client::new(&e, &token);
         token_client.transfer(&from, e.current_contract_address(), &amount);
@@ -655,8 +665,55 @@ impl PayrollVault {
             .unwrap_or(0)
     }
 
+    /// Get all supported tokens tracked by the vault.
+    pub fn get_supported_tokens(e: Env) -> Vec<Address> {
+        e.storage()
+            .persistent()
+            .get(&StateKey::TokenList)
+            .unwrap_or_else(|| Vec::new(&e))
+    }
+
+    /// Get a summary of treasury balances and liabilities for all tracked tokens.
+    pub fn get_treasury_summary(e: Env) -> Vec<TreasuryTokenSummary> {
+        let tokens = Self::get_supported_tokens(e.clone());
+        let mut summary: Vec<TreasuryTokenSummary> = Vec::new(&e);
+
+        let mut i = 0;
+        while i < tokens.len() {
+            let token = tokens.get(i).unwrap();
+            let balance = Self::get_treasury_balance(e.clone(), token.clone());
+            let liability = Self::get_total_liability(e.clone(), token.clone());
+
+            summary.push_back(TreasuryTokenSummary {
+                token,
+                balance,
+                liability,
+            });
+            i += 1;
+        }
+
+        summary
+    }
+
     /// Get the current contract address
     pub fn get_contract_address(e: Env) -> Address {
         e.current_contract_address()
+    }
+}
+
+impl PayrollVault {
+    fn track_supported_token(e: &Env, token: Address) {
+        let mut tokens = e
+            .storage()
+            .persistent()
+            .get(&StateKey::TokenList)
+            .unwrap_or_else(|| Vec::new(e));
+
+        if tokens.contains(token.clone()) {
+            return;
+        }
+
+        tokens.push_back(token);
+        e.storage().persistent().set(&StateKey::TokenList, &tokens);
     }
 }
