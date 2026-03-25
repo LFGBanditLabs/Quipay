@@ -59,8 +59,8 @@ pub struct WithdrawResult {
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct StreamHealth {
-    pub solvency_ratio: i128,  // Ratio as basis points (10000 = 100%)
-    pub days_of_runway: u64,    // Days until insolvency
+    pub solvency_ratio: i128, // Ratio as basis points (10000 = 100%)
+    pub days_of_runway: u64,  // Days until insolvency
 }
 
 #[contracttype]
@@ -808,7 +808,7 @@ impl PayrollStream {
         // If stream is closed, return perfect health
         if Self::is_closed(&stream) {
             return Some(StreamHealth {
-                solvency_ratio: 10000, // 100%
+                solvency_ratio: 10000,    // 100%
                 days_of_runway: u64::MAX, // Infinite runway
             });
         }
@@ -827,20 +827,20 @@ impl PayrollStream {
         // If no remaining liability, stream is fully funded
         if remaining_liability == 0 {
             return Some(StreamHealth {
-                solvency_ratio: 10000, // 100%
+                solvency_ratio: 10000,    // 100%
                 days_of_runway: u64::MAX, // Infinite runway
             });
         }
 
         use soroban_sdk::{IntoVal, Symbol, vec};
-        
+
         // Get vault balance and liability for this token
         let vault_balance: i128 = env.invoke_contract(
             &vault,
             &Symbol::new(&env, "get_balance"),
             vec![&env, stream.token.clone().into_val(&env)],
         );
-        
+
         let vault_liability: i128 = env.invoke_contract(
             &vault,
             &Symbol::new(&env, "get_liability"),
@@ -848,7 +848,7 @@ impl PayrollStream {
         );
 
         let available_balance = vault_balance.saturating_sub(vault_liability);
-        
+
         // Calculate solvency ratio as basis points (10000 = 100%)
         let solvency_ratio = if remaining_liability > 0 {
             let ratio = available_balance
