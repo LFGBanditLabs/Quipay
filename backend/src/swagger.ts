@@ -940,7 +940,9 @@ const swaggerDefinition = {
             description: "User list.",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/AdminRequestedByResponse" },
+                schema: {
+                  $ref: "#/components/schemas/AdminRequestedByResponse",
+                },
               },
             },
           },
@@ -962,7 +964,9 @@ const swaggerDefinition = {
             description: "Analytics data.",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/AdminRequestedByResponse" },
+                schema: {
+                  $ref: "#/components/schemas/AdminRequestedByResponse",
+                },
               },
             },
           },
@@ -993,7 +997,9 @@ const swaggerDefinition = {
             description: "User suspended.",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/AdminRequestedByResponse" },
+                schema: {
+                  $ref: "#/components/schemas/AdminRequestedByResponse",
+                },
               },
             },
           },
@@ -1024,7 +1030,9 @@ const swaggerDefinition = {
             description: "User deleted.",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/AdminRequestedByResponse" },
+                schema: {
+                  $ref: "#/components/schemas/AdminRequestedByResponse",
+                },
               },
             },
           },
@@ -1045,7 +1053,9 @@ const swaggerDefinition = {
             description: "Override queue.",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/AdminRequestedByResponse" },
+                schema: {
+                  $ref: "#/components/schemas/AdminRequestedByResponse",
+                },
               },
             },
           },
@@ -1112,14 +1122,20 @@ const swaggerDefinition = {
           200: {
             description: "DLQ items list.",
             content: {
-              "application/json": { schema: { $ref: "#/components/schemas/DLQListResponse" } },
+              "application/json": {
+                schema: { $ref: "#/components/schemas/DLQListResponse" },
+              },
             },
           },
           401: { description: "Unauthenticated." },
           403: { description: "Insufficient role." },
           500: {
             description: "Failed to fetch DLQ items.",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } },
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
           },
         },
       },
@@ -1144,7 +1160,9 @@ const swaggerDefinition = {
             description: "DLQ item replayed.",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/AdminRequestedByResponse" },
+                schema: {
+                  $ref: "#/components/schemas/AdminRequestedByResponse",
+                },
               },
             },
           },
@@ -1153,7 +1171,11 @@ const swaggerDefinition = {
           403: { description: "Insufficient role." },
           404: {
             description: "DLQ item not found.",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } },
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
           },
           500: {
             description: "Failed to replay DLQ item.",
@@ -1166,7 +1188,8 @@ const swaggerDefinition = {
       delete: {
         tags: ["Admin"],
         summary: "Discard a DLQ item (superadmin only)",
-        description: "Permanently discards a DLQ item from the Dead Letter Queue.",
+        description:
+          "Permanently discards a DLQ item from the Dead Letter Queue.",
         operationId: "adminDiscardDlqItem",
         security: [{ BearerAuth: [] }],
         parameters: [
