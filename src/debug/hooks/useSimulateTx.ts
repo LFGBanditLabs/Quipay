@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/only-throw-error */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
+
 import { useMutation } from "@tanstack/react-query";
 
 import { NetworkHeaders } from "../types/types";

@@ -45,7 +45,7 @@ lint_output.txt
 
 # Stellar CLI downloads / temp archives
 *.tar.gz
-
+error.md
 # environment variables
 .env
 .env.*
@@ -56,6 +56,10 @@ lint_output.txt
 
 # macOS-specific files
 .DS_Store
+
+# test output artifacts
+playwright-report/
+test-results/
 
 # generated contract clients
 packages/*

@@ -17,6 +17,12 @@ mod dummy_vault {
         pub fn add_liability(_env: Env, _token: Address, _amount: i128) {}
         pub fn remove_liability(_env: Env, _token: Address, _amount: i128) {}
         pub fn payout_liability(_env: Env, _to: Address, _token: Address, _amount: i128) {}
+        pub fn get_balance(_env: Env, _token: Address) -> i128 {
+            1_000_000
+        }
+        pub fn get_liability(_env: Env, _token: Address) -> i128 {
+            0
+        }
     }
 }
 
@@ -1556,6 +1562,33 @@ fn test_get_withdrawable() {
 
     // Test non-existent stream
     assert_eq!(client.get_withdrawable(&999u64), None);
+}
+
+#[test]
+fn test_get_claimable() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 25;
+    });
+    assert_eq!(client.get_claimable(&stream_id), Some(2500));
+
+    client.withdraw(&stream_id, &worker);
+    assert_eq!(client.get_claimable(&stream_id), Some(0));
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 50;
+    });
+    assert_eq!(client.get_claimable(&stream_id), Some(2500));
+
+    assert_eq!(client.get_claimable(&999u64), None);
 }
 
 #[test]

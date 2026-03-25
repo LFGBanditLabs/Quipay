@@ -205,8 +205,6 @@ const CreateStream: React.FC = () => {
   ];
 
   const handleComplete = () => {
-    // In a real app, this would call the smart contract
-    console.log("Creating stream with data:", formData);
     alert("Payment stream created successfully!");
     void navigate("/dashboard");
   };

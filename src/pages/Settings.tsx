@@ -775,11 +775,7 @@ const Settings: React.FC = () => {
                   onChange={(e) => {
                     const role = roles.find((r) => r.id === e.target.value);
                     if (role) {
-                      // Logic to pre-check on-chain permissions in UI
-                      console.log(
-                        "Setting role permissions:",
-                        role.permissions,
-                      );
+                      // TODO: pre-check on-chain permissions in UI
                     }
                   }}
                 >

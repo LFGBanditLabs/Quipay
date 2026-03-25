@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 export const getArrayOfStringsError = (value: string) => {
   if (typeof value !== "string") {
     return "Expected an array of strings.";
