@@ -1,4 +1,5 @@
 #![no_std]
+use quipay_common::{QuipayError, require};
 use soroban_sdk::{Address, Env, String, Vec, contract, contractimpl, contracttype, symbol_short};
 
 #[contracttype]
@@ -36,23 +37,24 @@ impl WorkforceRegistryContract {
         worker: Address,
         preferred_token: Address,
         metadata_hash: String,
-    ) {
+    ) -> Result<(), QuipayError> {
         worker.require_auth();
 
         // Check if worker is blacklisted
         let blacklist_key = DataKey::BlacklistedWorker(worker.clone());
-        if e.storage()
-            .persistent()
-            .get(&blacklist_key)
-            .unwrap_or(false)
-        {
-            panic!("Worker is blacklisted");
-        }
+        require!(
+            !e.storage()
+                .persistent()
+                .get(&blacklist_key)
+                .unwrap_or(false),
+            QuipayError::AddressBlacklisted
+        );
 
         let key = DataKey::Worker(worker.clone());
-        if e.storage().persistent().has(&key) {
-            panic!("Worker already registered");
-        }
+        require!(
+            !e.storage().persistent().has(&key),
+            QuipayError::AlreadyInitialized
+        );
 
         let profile = WorkerProfile {
             wallet: worker.clone(),
@@ -71,6 +73,8 @@ impl WorkforceRegistryContract {
             ),
             metadata_hash.clone(),
         );
+
+        Ok(())
     }
 
     /// Updates an existing worker profile.
@@ -80,23 +84,29 @@ impl WorkforceRegistryContract {
     /// * `worker` - The address of the worker updating their profile.
     /// * `preferred_token` - The new preferred payment token address.
     /// * `metadata_hash` - The new metadata hash string.
-    pub fn update_worker(e: Env, worker: Address, preferred_token: Address, metadata_hash: String) {
+    pub fn update_worker(
+        e: Env,
+        worker: Address,
+        preferred_token: Address,
+        metadata_hash: String,
+    ) -> Result<(), QuipayError> {
         worker.require_auth();
 
         // Check if worker is blacklisted
         let blacklist_key = DataKey::BlacklistedWorker(worker.clone());
-        if e.storage()
-            .persistent()
-            .get(&blacklist_key)
-            .unwrap_or(false)
-        {
-            panic!("Worker is blacklisted");
-        }
+        require!(
+            !e.storage()
+                .persistent()
+                .get(&blacklist_key)
+                .unwrap_or(false),
+            QuipayError::AddressBlacklisted
+        );
 
         let key = DataKey::Worker(worker.clone());
-        if !e.storage().persistent().has(&key) {
-            panic!("Worker not registered");
-        }
+        require!(
+            e.storage().persistent().has(&key),
+            QuipayError::WorkerNotFound
+        );
 
         let profile = WorkerProfile {
             wallet: worker.clone(),
@@ -115,6 +125,8 @@ impl WorkforceRegistryContract {
             ),
             metadata_hash,
         );
+
+        Ok(())
     }
 
     /// Retrieves a worker's profile.
@@ -143,30 +155,36 @@ impl WorkforceRegistryContract {
         e.storage().persistent().has(&key)
     }
 
-    pub fn set_stream_active(e: Env, employer: Address, worker: Address, active: bool) {
+    pub fn set_stream_active(
+        e: Env,
+        employer: Address,
+        worker: Address,
+        active: bool,
+    ) -> Result<(), QuipayError> {
         employer.require_auth();
 
         // Check if worker is blacklisted
         let blacklist_key = DataKey::BlacklistedWorker(worker.clone());
-        if e.storage()
-            .persistent()
-            .get(&blacklist_key)
-            .unwrap_or(false)
-        {
-            panic!("Worker is blacklisted");
-        }
+        require!(
+            !e.storage()
+                .persistent()
+                .get(&blacklist_key)
+                .unwrap_or(false),
+            QuipayError::AddressBlacklisted
+        );
 
         let worker_key = DataKey::Worker(worker.clone());
-        if !e.storage().persistent().has(&worker_key) {
-            panic!("Worker not registered");
-        }
+        require!(
+            e.storage().persistent().has(&worker_key),
+            QuipayError::WorkerNotFound
+        );
 
         let idx_key = DataKey::EmployerActiveWorkerIndex(employer.clone(), worker.clone());
         let is_active = e.storage().persistent().has(&idx_key);
 
         if active {
             if is_active {
-                return;
+                return Ok(());
             }
 
             let count_key = DataKey::EmployerActiveWorkerCount(employer.clone());
@@ -190,14 +208,14 @@ impl WorkforceRegistryContract {
             );
         } else {
             if !is_active {
-                return;
+                return Ok(());
             }
 
             let count_key = DataKey::EmployerActiveWorkerCount(employer.clone());
             let count: u32 = e.storage().persistent().get(&count_key).unwrap_or(0);
             if count == 0 {
                 e.storage().persistent().remove(&idx_key);
-                return;
+                return Ok(());
             }
 
             let stored_index: u32 = e.storage().persistent().get(&idx_key).unwrap();
@@ -236,6 +254,8 @@ impl WorkforceRegistryContract {
                 (),
             );
         }
+
+        Ok(())
     }
 
     pub fn get_workers_by_employer(

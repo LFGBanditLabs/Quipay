@@ -35,6 +35,7 @@ pub enum QuipayError {
     RetentionNotMet = 1025,
     FeeTooHigh = 1026,
     AddressBlacklisted = 1027,
+    WorkerNotFound = 1028,
     Custom = 1999,
 }
 

@@ -3,6 +3,7 @@
 extern crate std;
 
 use super::*;
+use quipay_common::QuipayError;
 use soroban_sdk::{Address, Env, String, testutils::Address as _};
 use std::vec::Vec as StdVec;
 
@@ -22,7 +23,7 @@ fn test_register_and_get_worker() {
     assert_eq!(client.get_worker(&worker), None);
 
     // Register worker
-    client.register_worker(&worker, &preferred_token, &metadata_hash);
+    client.try_register_worker(&worker, &preferred_token, &metadata_hash).unwrap();
 
     // Verify registration
     assert_eq!(client.is_registered(&worker), true);
@@ -46,10 +47,10 @@ fn test_update_worker() {
     let hash1 = String::from_str(&e, "QmHash1");
     let hash2 = String::from_str(&e, "QmHash2");
 
-    client.register_worker(&worker, &token1, &hash1);
+    client.try_register_worker(&worker, &token1, &hash1).unwrap();
 
     // Update profile
-    client.update_worker(&worker, &token2, &hash2);
+    client.try_update_worker(&worker, &token2, &hash2).unwrap();
 
     let profile = client.get_worker(&worker).unwrap();
     assert_eq!(profile.preferred_token, token2);
@@ -57,7 +58,6 @@ fn test_update_worker() {
 }
 
 #[test]
-#[should_panic(expected = "Worker already registered")]
 fn test_duplicate_registration() {
     let e = Env::default();
     e.mock_all_auths();
@@ -68,12 +68,12 @@ fn test_duplicate_registration() {
     let token = Address::generate(&e);
     let hash = String::from_str(&e, "QmHash");
 
-    client.register_worker(&worker, &token, &hash);
-    client.register_worker(&worker, &token, &hash);
+    let _ = client.try_register_worker(&worker, &token, &hash).unwrap();
+    let result = client.try_register_worker(&worker, &token, &hash);
+    assert_eq!(result, Err(Ok(QuipayError::AlreadyInitialized)));
 }
 
 #[test]
-#[should_panic(expected = "Worker not registered")]
 fn test_update_nonexistent_worker() {
     let e = Env::default();
     e.mock_all_auths();
@@ -84,7 +84,8 @@ fn test_update_nonexistent_worker() {
     let token = Address::generate(&e);
     let hash = String::from_str(&e, "QmHash");
 
-    client.update_worker(&worker, &token, &hash);
+    let result = client.try_update_worker(&worker, &token, &hash);
+    assert_eq!(result, Err(Ok(QuipayError::WorkerNotFound)));
 }
 
 #[test]
@@ -102,8 +103,8 @@ fn test_get_workers_by_employer_pagination() {
     while i < 10 {
         let worker = Address::generate(&e);
         let metadata_hash = String::from_str(&e, "QmHash");
-        client.register_worker(&worker, &preferred_token, &metadata_hash);
-        client.set_stream_active(&employer, &worker, &true);
+        client.try_register_worker(&worker, &preferred_token, &metadata_hash).unwrap();
+        client.try_set_stream_active(&employer, &worker, &true).unwrap();
         workers.push(worker);
         i += 1;
     }
@@ -152,18 +153,18 @@ fn test_get_workers_by_employer_only_active_streams() {
     let w3 = Address::generate(&e);
     let metadata_hash = String::from_str(&e, "QmHash");
 
-    client.register_worker(&w1, &preferred_token, &metadata_hash);
-    client.register_worker(&w2, &preferred_token, &metadata_hash);
-    client.register_worker(&w3, &preferred_token, &metadata_hash);
+    client.try_register_worker(&w1, &preferred_token, &metadata_hash).unwrap();
+    client.try_register_worker(&w2, &preferred_token, &metadata_hash).unwrap();
+    client.try_register_worker(&w3, &preferred_token, &metadata_hash).unwrap();
 
-    client.set_stream_active(&employer, &w1, &true);
-    client.set_stream_active(&employer, &w2, &true);
-    client.set_stream_active(&employer, &w3, &true);
+    client.try_set_stream_active(&employer, &w1, &true).unwrap();
+    client.try_set_stream_active(&employer, &w2, &true).unwrap();
+    client.try_set_stream_active(&employer, &w3, &true).unwrap();
 
     let all = client.get_workers_by_employer(&employer, &0u32, &10u32);
     assert_eq!(all.len(), 3);
 
-    client.set_stream_active(&employer, &w2, &false);
+    client.try_set_stream_active(&employer, &w2, &false).unwrap();
 
     let after = client.get_workers_by_employer(&employer, &0u32, &10u32);
     assert_eq!(after.len(), 2);
@@ -186,8 +187,8 @@ fn test_query_performance_scales_with_page_size() {
     let mut i: u32 = 0;
     while i < 200 {
         let worker = Address::generate(&e);
-        client.register_worker(&worker, &preferred_token, &metadata_hash);
-        client.set_stream_active(&employer, &worker, &true);
+        client.try_register_worker(&worker, &preferred_token, &metadata_hash).unwrap();
+        client.try_set_stream_active(&employer, &worker, &true).unwrap();
         i += 1;
     }
 
