@@ -36,7 +36,7 @@ export class TestDatabase {
     // Set DATABASE_URL BEFORE calling initDb
     process.env.DATABASE_URL = connectionString;
 
-    // Let initDb() create the pool and run migrations
+    // Let initDb() create the pool
     await this.initializeDbPool();
 
     // Get the pool that initDb() created
@@ -46,6 +46,9 @@ export class TestDatabase {
     if (!this.pool) {
       throw new Error("Failed to initialize database pool");
     }
+
+    // Create schema for tests
+    await this.createSchema();
 
     return { connectionString, pool: this.pool };
   }
@@ -64,9 +67,6 @@ export class TestDatabase {
     await initDb();
 
     console.log("[TestDB] ✅ db/pool module initialized with test database");
-
-    // Create schema for tests
-    await this.createSchema();
   }
 
   /**

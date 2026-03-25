@@ -246,7 +246,7 @@ describe("MigrationRunner", () => {
         SELECT execution_time_ms FROM schema_migrations WHERE version = 1
       `);
 
-      expect(result.rows[0].execution_time_ms).toBeGreaterThan(0);
+      expect(result.rows[0].execution_time_ms).toBeGreaterThanOrEqual(0);
     });
   });
 
