@@ -15,11 +15,15 @@ const CreateStream = lazy(() => import("./pages/CreateStream"));
 const HelpPage = lazy(() => import("./pages/HelpPage"));
 const PayrollDashboard = lazy(() => import("./pages/PayrollDashboard"));
 const TreasuryManager = lazy(() => import("./pages/TreasuryManager"));
-const WithdrawPage = lazy(() => import("./pages/withdrawPage"));
+const WithdrawPage = lazy(() => import("./pages/WithdrawPage"));
 const Reports = lazy(() => import("./pages/Reports"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const WorkerDashboard = lazy(() => import("./pages/WorkerDashboard"));
 const DashboardCustomization = lazy(
   () => import("./pages/DashboardCustomization"),
+);
+const UIPrimitivesPreview = lazy(
+  () => import("./pages/UIPrimitivesPreview.tsx"),
 );
 
 function AppLoadingFallback() {
@@ -139,8 +143,18 @@ function App() {
             }
           />
 
+          <Route
+            path="/worker"
+            element={
+              <WalletGuard>
+                <WorkerDashboard />
+              </WalletGuard>
+            }
+          />
+
           {/* Public Routes */}
           <Route path="/help" element={<HelpPage />} />
+          <Route path="/ui-primitives" element={<UIPrimitivesPreview />} />
           <Route path="/debug" element={<Debugger />} />
           <Route path="/debug/:contractName" element={<Debugger />} />
           <Route path="*" element={<NotFound />} />

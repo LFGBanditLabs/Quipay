@@ -27,6 +27,7 @@ import React, {
   useRef,
   useMemo,
 } from "react";
+import { z } from "zod";
 import { Button } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
 import { useNotification } from "../hooks/useNotification";
@@ -180,48 +181,58 @@ function isValidStellarAddress(addr: string): boolean {
   return /^G[A-Z2-7]{55}$/.test(addr);
 }
 
+const streamSchema = z
+  .object({
+    workerAddress: z
+      .string()
+      .trim()
+      .min(1, "Worker address is required.")
+      .refine(
+        isValidStellarAddress,
+        "Must be a valid Stellar public key (starts with G, 56 characters).",
+      ),
+    token: z.string().min(1, "Please select a token."),
+    rate: z
+      .string()
+      .trim()
+      .min(1, "Rate is required.")
+      .refine((val) => {
+        const num = parseFloat(val);
+        return !isNaN(num) && num > 0;
+      }, "Rate must be a positive number."),
+    startDate: z
+      .string()
+      .min(1, "Start date is required.")
+      .refine((val) => {
+        const now = Date.now();
+        return new Date(val).getTime() >= now - 60_000;
+      }, "Start date cannot be in the past."),
+    endDate: z.string().min(1, "End date is required."),
+  })
+  .superRefine((data, ctx) => {
+    if (data.startDate && data.endDate) {
+      if (new Date(data.endDate) <= new Date(data.startDate)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "End date must be after the start date.",
+          path: ["endDate"],
+        });
+      }
+    }
+  });
+
 function validate(values: FormValues): FormErrors {
+  const result = streamSchema.safeParse(values);
+  if (result.success) {
+    return {};
+  }
   const errors: FormErrors = {};
-  const now = Date.now();
-
-  if (!values.workerAddress.trim()) {
-    errors.workerAddress = "Worker address is required.";
-  } else if (!isValidStellarAddress(values.workerAddress.trim())) {
-    errors.workerAddress =
-      "Must be a valid Stellar public key (starts with G, 56 characters).";
-  }
-
-  if (!values.token) {
-    errors.token = "Please select a token.";
-  }
-
-  const parsedRate = parseFloat(values.rate);
-  if (!values.rate.trim()) {
-    errors.rate = "Rate is required.";
-  } else if (isNaN(parsedRate) || parsedRate <= 0) {
-    errors.rate = "Rate must be a positive number.";
-  }
-
-  if (!values.startDate) {
-    errors.startDate = "Start date is required.";
-  }
-
-  if (!values.endDate) {
-    errors.endDate = "End date is required.";
-  } else if (
-    values.startDate &&
-    new Date(values.endDate) <= new Date(values.startDate)
-  ) {
-    errors.endDate = "End date must be after the start date.";
-  }
-
-  if (
-    values.startDate &&
-    new Date(values.startDate).getTime() < now - 60_000 /* 1-min grace */
-  ) {
-    errors.startDate = "Start date cannot be in the past.";
-  }
-
+  result.error.issues.forEach((issue) => {
+    const path = issue.path[0] as keyof FormErrors;
+    if (!errors[path]) {
+      errors[path] = issue.message;
+    }
+  });
   return errors;
 }
 
@@ -432,27 +443,47 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
 
       setTimeout(() => dispatch({ type: "RESET" }), 3500);
     } catch (err: unknown) {
-      const appError = translateError(err);
-      dispatch({
-        type: "SET_TX_PHASE",
-        phase: {
-          kind: "error",
-          message: appError.actionableStep
-            ? `${appError.message} ${appError.actionableStep}`
-            : appError.message,
-        },
-      });
+      let message = "An unknown error occurred.";
+      if (typeof err === "string") {
+        message = err;
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
 
-      addNotification(
-        appError.message,
-        appError.severity,
-        appError.actionableStep
-          ? {
-              label: "Retry",
-              onClick: () => void handleSubmit(e),
-            }
-          : undefined,
-      );
+      // Contract Error Code Mapping
+      const lowerMsg = message.toLowerCase();
+      if (lowerMsg.includes("invalidtimerange")) {
+        message = "Start date cannot be in the past (InvalidTimeRange).";
+      } else if (
+        lowerMsg.includes("1006") ||
+        lowerMsg.includes("insufficientbalance") ||
+        lowerMsg.includes("insufficient balance")
+      ) {
+        message =
+          "Treasury lacks sufficient funds for this stream (InsufficientBalance).";
+      } else if (lowerMsg.includes("invalidcliff")) {
+        message = "The configured cliff is invalid (InvalidCliff).";
+      } else if (
+        lowerMsg.includes("invalidamount") ||
+        lowerMsg.includes("1005")
+      ) {
+        message = "The stream amount or rate is invalid (InvalidAmount).";
+      } else if (lowerMsg.includes("streamnotfound")) {
+        message = "The specified stream could not be found (StreamNotFound).";
+      } else if (
+        lowerMsg.includes("invalidaddress") ||
+        lowerMsg.includes("1010")
+      ) {
+        message = "The provided address is invalid (InvalidAddress).";
+      } else {
+        const appError = translateError(err);
+        message = appError.actionableStep
+          ? `${appError.message} ${appError.actionableStep}`
+          : appError.message;
+      }
+
+      dispatch({ type: "SET_TX_PHASE", phase: { kind: "error", message } });
+      addNotification(`Stream failed: ${message}`, "error");
     }
   };
 
@@ -460,6 +491,8 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
     txPhase.kind === "simulating" ||
     txPhase.kind === "signing" ||
     txPhase.kind === "submitting";
+
+  const isCurrentFormValid = Object.keys(validate(values)).length === 0;
 
   if (!address) {
     return (
@@ -651,7 +684,9 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               variant="primary"
               size="md"
               type="submit"
-              disabled={isBusy || txPhase.kind === "success"}
+              disabled={
+                isBusy || txPhase.kind === "success" || !isCurrentFormValid
+              }
             >
               {isBusy ? <span className={tw.spinner} /> : "Create Stream"}
             </Button>

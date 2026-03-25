@@ -70,6 +70,7 @@ export const calculateDailyBurnRate = (
   let totalDailyBurn = 0;
 
   for (const stream of streams) {
+    if (!stream || stream.total_amount === undefined) continue;
     const remaining = stream.total_amount - stream.withdrawn_amount;
     if (remaining <= 0) continue;
 

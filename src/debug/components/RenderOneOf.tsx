@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { JSONSchema7 } from "json-schema";
 import { get } from "lodash";
 import { Select } from "@stellar/design-system";

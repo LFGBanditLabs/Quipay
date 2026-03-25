@@ -1,11 +1,11 @@
 import axios from "axios";
 import { createCircuitBreaker } from "../utils/circuitBreaker";
+import { sendWebhookNotification } from "../delivery";
 
 const notifierBreaker = createCircuitBreaker(axios.post, {
   name: "notifier_alerts",
   timeout: 5000,
 });
-import { sendWebhookNotification } from "../delivery";
 
 const ALERT_WEBHOOK_URL = process.env.ALERT_WEBHOOK_URL || "";
 const ALERT_EMAIL_ENABLED = process.env.ALERT_EMAIL_ENABLED === "true";
@@ -193,21 +193,8 @@ const sendSlackAlert = async (payload: TreasuryAlertPayload): Promise<void> => {
  * In production, integrate with SendGrid, AWS SES, or similar
  */
 const sendEmailAlert = async (payload: TreasuryAlertPayload): Promise<void> => {
-  // Placeholder for email integration
+  // TODO: integrate with email service provider (e.g. SendGrid)
   console.log(
-    `[Notifier] 📧 Email alert would be sent for employer ${payload.employer}`,
+    `[Notifier] Email alert would be sent for employer ${payload.employer}`,
   );
-  console.log(
-    `[Notifier] ℹ️  To enable email alerts, integrate with an email service provider`,
-  );
-
-  // Example integration with SendGrid:
-  // const sgMail = require('@sendgrid/mail');
-  // sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-  // await sgMail.send({
-  //   to: employerEmail,
-  //   from: 'alerts@quipay.com',
-  //   subject: 'Treasury Low Runway Alert',
-  //   html: generateEmailHtml(payload)
-  // });
 };

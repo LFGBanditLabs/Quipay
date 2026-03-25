@@ -19,7 +19,6 @@ import {
   createErrorLoggingMiddleware,
 } from "./audit/middleware";
 import { initDb } from "./db/pool";
-import { globalErrorHandler } from "./errors";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { standardRateLimiter } from "./middleware/rateLimiter";
 import { getPool } from "./db/pool";
@@ -100,12 +99,6 @@ app.use(
     }
   },
 );
-
-// Catch undefined routes - must come after all route registrations
-app.use(notFoundHandler);
-
-// Global centralized error handler - must be the very last middleware
-app.use(globalErrorHandler);
 
 // Start time for uptime calculation
 const startTime = Date.now();
