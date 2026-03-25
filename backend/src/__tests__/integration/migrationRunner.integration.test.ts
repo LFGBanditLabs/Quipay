@@ -1,26 +1,41 @@
 /**
- * Tests for the migration runner
+ * Integration Tests for MigrationRunner
+ * Tests database migrations with real PostgreSQL using testcontainers
  */
 
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  afterEach,
+} from "@jest/globals";
+import {
+  setupTestDatabase,
+  teardownTestDatabase,
+  TestDatabase,
+} from "../helpers/testcontainer";
 import { Pool } from "pg";
-import { MigrationRunner } from "../migrationRunner";
+import { MigrationRunner } from "../../db/migrationRunner";
 import fs from "fs";
 import path from "path";
 
 describe("MigrationRunner", () => {
+  let testDb: TestDatabase;
   let pool: Pool;
   let runner: MigrationRunner;
   let testMigrationsDir: string;
 
-  beforeAll(() => {
-    const dbUrl =
-      process.env.DATABASE_URL || "postgresql://localhost:5432/quipay_test";
-    pool = new Pool({ connectionString: dbUrl });
+  beforeAll(async () => {
+    testDb = await setupTestDatabase();
+    pool = testDb.getPool();
     testMigrationsDir = path.join(__dirname, "test_migrations");
   });
 
   afterAll(async () => {
-    await pool.end();
+    await teardownTestDatabase();
   });
 
   beforeEach(async () => {
