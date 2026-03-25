@@ -34,6 +34,7 @@ pub enum StreamStatus {
     Active = 0,
     Canceled = 1,
     Completed = 2,
+    Paused = 3,
 }
 
 #[contracttype]
@@ -60,6 +61,8 @@ pub struct Stream {
     pub status: StreamStatus,
     pub created_at: u64,
     pub closed_at: u64,
+    pub paused_at: u64,
+    pub total_paused_duration: u64,
 }
 
 #[contracttype]
@@ -895,6 +898,8 @@ impl PayrollStream {
             status: StreamStatus::Active,
             created_at: now,
             closed_at: 0,
+            paused_at: 0,
+            total_paused_duration: 0,
         };
 
         env.storage()
@@ -1381,46 +1386,43 @@ impl PayrollStream {
 
     fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
         let is_closed = Self::is_closed(stream);
-        let effective_ts = if is_closed {
+        let mut effective_ts = if is_closed {
             core::cmp::min(timestamp, stream.closed_at)
         } else {
             timestamp
         };
 
+        // Adjust effective_ts for currently paused streams
+        if stream.status == StreamStatus::Paused {
+            effective_ts = core::cmp::min(effective_ts, stream.paused_at);
+        }
+
+        // Subtract total paused duration from the elapsed time
+        let mut elapsed_reduction = stream.total_paused_duration;
+
         if effective_ts < stream.cliff_ts {
             return 0;
         }
-        if effective_ts <= stream.start_ts {
-            if effective_ts == stream.start_ts && stream.end_ts == stream.start_ts {
+
+        let start_with_pauses = stream.start_ts.saturating_add(elapsed_reduction);
+
+        if effective_ts <= start_with_pauses {
+            if effective_ts == start_with_pauses && stream.end_ts == stream.start_ts {
                 return stream.total_amount;
             }
             return 0;
         }
 
-        if effective_ts >= stream.end_ts
+        let end_with_pauses = stream.end_ts.saturating_add(elapsed_reduction);
+
+        if effective_ts >= end_with_pauses
             || (stream.status == StreamStatus::Completed && effective_ts >= stream.closed_at)
         {
             return stream.total_amount;
         }
-        if is_closed && stream.status == StreamStatus::Canceled {
-            // For canceled streams, cap at proportion up to closed_at
-            let elapsed = effective_ts - stream.start_ts;
-            let duration = stream.end_ts - stream.start_ts;
-            if duration == 0 {
-                return stream.total_amount;
-            }
-            let elapsed_i = elapsed as i128;
-            let duration_i = duration as i128;
-            return stream
-                .total_amount
-                .checked_mul(elapsed_i)
-                .unwrap_or(stream.total_amount)
-                .checked_div(duration_i)
-                .unwrap_or(stream.total_amount);
-        }
 
-        let elapsed: u64 = effective_ts - stream.start_ts;
-        let duration: u64 = stream.end_ts - stream.start_ts;
+        let elapsed: u64 = effective_ts.saturating_sub(start_with_pauses);
+        let duration: u64 = stream.end_ts.saturating_sub(stream.start_ts);
         if duration == 0 {
             return stream.total_amount;
         }
@@ -1437,6 +1439,10 @@ impl PayrollStream {
     }
 }
 
+mod stream_extension;
+mod stream_pause;
+mod extension_test;
+mod pause_test;
 mod test;
 
 #[cfg(test)]
@@ -1444,6 +1450,3 @@ mod integration_test;
 
 #[cfg(test)]
 mod proptest;
-
-mod stream_extension;
-mod extension_test;
