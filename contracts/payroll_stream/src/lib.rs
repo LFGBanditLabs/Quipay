@@ -11,7 +11,8 @@ pub enum DataKey {
     RetentionSecs,
     Vault,
     Gateway,
-    PendingUpgrade, // (wasm_hash, execute_after_timestamp)
+    PendingUpgrade,    // (wasm_hash, execute_after_timestamp)
+    EarlyCancelFeeBps, // Basis points for early cancellation fee (max 1000 = 10%)
 }
 
 #[contracttype]
@@ -93,6 +94,9 @@ const DEFAULT_RETENTION_SECS: u64 = 30 * 24 * 60 * 60;
 // 48 hours in seconds for timelock
 const TIMELOCK_DURATION: u64 = 48 * 60 * 60;
 
+// Maximum early cancellation fee: 1000 basis points = 10%
+const MAX_EARLY_CANCEL_FEE_BPS: u32 = 1000;
+
 // Event symbols for timelock
 const UPGRADE_PROPOSED: soroban_sdk::Symbol = soroban_sdk::symbol_short!("up_prop");
 const UPGRADE_EXECUTED: soroban_sdk::Symbol = soroban_sdk::symbol_short!("up_exec");
@@ -145,6 +149,26 @@ impl PayrollStream {
         env.storage()
             .instance()
             .set(&DataKey::RetentionSecs, &retention_secs);
+        Ok(())
+    }
+
+    /// Set early cancellation fee as basis points (max 1000 = 10%)
+    /// Only admin can call this function
+    pub fn set_early_cancel_fee(env: Env, fee_bps: u32) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+
+        if fee_bps > MAX_EARLY_CANCEL_FEE_BPS {
+            return Err(QuipayError::FeeTooHigh);
+        }
+
+        env.storage()
+            .instance()
+            .set(&DataKey::EarlyCancelFeeBps, &fee_bps);
         Ok(())
     }
 
@@ -467,8 +491,13 @@ impl PayrollStream {
             .checked_sub(stream.withdrawn_amount)
             .expect("remaining liability underflow");
 
+        // Calculate and charge early cancellation fee
+        let cancel_fee = Self::calculate_early_cancel_fee(&env, remaining_liability);
+
         if remaining_liability > 0 {
             use soroban_sdk::{IntoVal, Symbol, vec};
+
+            // Remove remaining liability from vault
             env.invoke_contract::<()>(
                 &vault,
                 &Symbol::new(&env, "remove_liability"),
@@ -478,6 +507,20 @@ impl PayrollStream {
                     remaining_liability.into_val(&env),
                 ],
             );
+
+            // If there's a cancellation fee, pay it to worker
+            if cancel_fee > 0 {
+                env.invoke_contract::<()>(
+                    &vault,
+                    &Symbol::new(&env, "payout_liability"),
+                    vec![
+                        &env,
+                        stream.worker.clone().into_val(&env),
+                        stream.token.clone().into_val(&env),
+                        cancel_fee.into_val(&env),
+                    ],
+                );
+            }
         }
 
         Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
@@ -608,8 +651,13 @@ impl PayrollStream {
             .checked_sub(stream.withdrawn_amount)
             .ok_or(QuipayError::Custom)?;
 
+        // Calculate and charge early cancellation fee
+        let cancel_fee = Self::calculate_early_cancel_fee(&env, remaining_liability);
+
         if remaining_liability > 0 {
             use soroban_sdk::{IntoVal, Symbol, vec};
+
+            // Remove remaining liability from vault
             env.invoke_contract::<()>(
                 &vault,
                 &Symbol::new(&env, "remove_liability"),
@@ -619,6 +667,20 @@ impl PayrollStream {
                     remaining_liability.into_val(&env),
                 ],
             );
+
+            // If there's a cancellation fee, pay it to worker
+            if cancel_fee > 0 {
+                env.invoke_contract::<()>(
+                    &vault,
+                    &Symbol::new(&env, "payout_liability"),
+                    vec![
+                        &env,
+                        stream.worker.clone().into_val(&env),
+                        stream.token.clone().into_val(&env),
+                        cancel_fee.into_val(&env),
+                    ],
+                );
+            }
         }
 
         Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
@@ -1081,6 +1143,14 @@ impl PayrollStream {
         env.storage().instance().get(&DataKey::PendingUpgrade)
     }
 
+    /// Get the current early cancellation fee in basis points
+    pub fn get_early_cancel_fee(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::EarlyCancelFeeBps)
+            .unwrap_or(0)
+    }
+
     fn require_not_paused(env: &Env) -> Result<(), QuipayError> {
         if env
             .storage()
@@ -1125,6 +1195,25 @@ impl PayrollStream {
 
     fn vested_amount(stream: &Stream, now: u64) -> i128 {
         Self::vested_amount_at(stream, now)
+    }
+
+    /// Calculate early cancellation fee based on remaining amount
+    fn calculate_early_cancel_fee(env: &Env, remaining_amount: i128) -> i128 {
+        let fee_bps: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::EarlyCancelFeeBps)
+            .unwrap_or(0); // Default to 0 if not set
+
+        if fee_bps == 0 || remaining_amount <= 0 {
+            return 0;
+        }
+
+        remaining_amount
+            .checked_mul(fee_bps as i128)
+            .unwrap_or(0)
+            .checked_div(10000) // Convert basis points to actual amount
+            .unwrap_or(0)
     }
 
     fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {

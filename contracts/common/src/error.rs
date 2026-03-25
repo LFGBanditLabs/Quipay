@@ -32,6 +32,7 @@ pub enum QuipayError {
     InvalidCliff = 1022,
     StartTimeInPast = 1023,
     Overflow = 1024,
+    FeeTooHigh = 1025,
     Custom = 1999,
 }
 
