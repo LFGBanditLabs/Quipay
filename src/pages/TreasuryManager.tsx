@@ -257,7 +257,7 @@ const TreasuryManager: React.FC = () => {
                   Asset Code (Any Stellar Asset)
                 </Text>
               </label>
-              {/* @ts-expect-error - SDS Input missing standard HTML attributes in its type definition */}
+
               <Input
                 id="deposit-token"
                 label=""
@@ -271,7 +271,7 @@ const TreasuryManager: React.FC = () => {
                 aria-required="true"
                 pattern="^[A-Z0-9]{1,12}$"
               />
-              {/* @ts-expect-error - SDS Input missing standard HTML attributes in its type definition */}
+
               <Input
                 id="deposit-amount"
                 label="Amount"
@@ -286,7 +286,7 @@ const TreasuryManager: React.FC = () => {
                 required
                 aria-required="true"
               />
-              {/* @ts-expect-error - SDS Button button type prop missing in its type definition */}
+
               <Button variant="primary" size="md" type="submit">
                 Deposit
               </Button>
@@ -325,7 +325,7 @@ const TreasuryManager: React.FC = () => {
                   </option>
                 ))}
               </select>
-              {/* @ts-expect-error - SDS Input missing standard HTML attributes in its type definition */}
+
               <Input
                 id="withdraw-amount"
                 label="Amount"
@@ -340,7 +340,7 @@ const TreasuryManager: React.FC = () => {
                 required
                 aria-required="true"
               />
-              {/* @ts-expect-error - SDS Button missing standard HTML attributes in its type definition */}
+
               <Button variant="primary" size="md" type="submit">
                 Withdraw
               </Button>
