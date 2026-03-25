@@ -62,18 +62,9 @@ async function initializeServices() {
   return auditLogger;
 }
 
-// Initialize services before starting routes
-let auditLogger: ReturnType<typeof getAuditLogger>;
-initializeServices()
-  .then((logger) => {
-    auditLogger = logger;
-    console.log("[Backend] ✅ Services initialized");
-  })
-  .catch((err) => {
-    console.error("[Backend] Failed to initialize services:", err);
-  });
-
 // Interactive API documentation (Swagger UI)
+app.use("/api-docs", docsRouter);
+// Backwards-compatible alias
 app.use("/docs", docsRouter);
 
 app.use("/webhooks", webhookRouter);
@@ -83,22 +74,6 @@ app.use("/discord", discordRouter);
 app.use("/ai", aiRouter);
 app.use("/admin", adminRouter); // RBAC-protected admin endpoints
 app.use("/analytics", analyticsRouter);
-
-// Error logging middleware (should be after routes)
-app.use(
-  (
-    err: Error,
-    req: express.Request,
-    res: express.Response,
-    next: express.NextFunction,
-  ) => {
-    if (auditLogger) {
-      createErrorLoggingMiddleware(auditLogger)(err, req, res, next);
-    } else {
-      next(err);
-    }
-  },
-);
 
 // Start time for uptime calculation
 const startTime = Date.now();
@@ -259,11 +234,102 @@ app.use(notFoundHandler);
 // Global error handler - must be last
 app.use(errorHandler);
 
-app.listen(port, () => {
-  console.log(
-    `🚀 Quipay Automation Engine Status API listening at http://localhost:${port}`,
-  );
-  startStellarListener();
-  startScheduler();
-  startMonitor();
-});
+/**
+ * Main application startup function.
+ * Ensures all services are initialized before accepting requests.
+ */
+async function main() {
+  let auditLogger: ReturnType<typeof getAuditLogger>;
+
+  try {
+    // Initialize all services before starting the server
+    auditLogger = await initializeServices();
+    console.log("[Backend] ✅ Services initialized");
+
+    // Add error logging middleware after initialization
+    app.use(
+      (
+        err: Error,
+        req: express.Request,
+        res: express.Response,
+        next: express.NextFunction,
+      ) => {
+        if (auditLogger) {
+          createErrorLoggingMiddleware(auditLogger)(err, req, res, next);
+        } else {
+          next(err);
+        }
+      },
+    );
+
+    // Start the server and only start background services after it's listening
+    const server = app.listen(port, () => {
+      console.log(
+        `🚀 Quipay Automation Engine Status API listening at http://localhost:${port}`,
+      );
+    });
+
+    // Start background services after server is listening
+    startStellarListener();
+    startScheduler();
+    startMonitor();
+
+    // Handle server errors
+    server.on("error", (err: any) => {
+      if (err.code === "EADDRINUSE") {
+        console.error(`[Backend] Port ${port} is already in use`);
+        process.exit(1);
+      }
+      console.error("[Backend] Server error:", err);
+      process.exit(1);
+    });
+
+    // Handle uncaught exceptions
+    process.on("uncaughtException", (err) => {
+      console.error("[Backend] Uncaught Exception:", err);
+      if (auditLogger) {
+        auditLogger.error("Uncaught exception", err, { action_type: "system" });
+      }
+      process.exit(1);
+    });
+
+    // Handle unhandled promise rejections
+    process.on("unhandledRejection", (reason, promise) => {
+      console.error(
+        "[Backend] Unhandled Rejection at:",
+        promise,
+        "reason:",
+        reason,
+      );
+      if (auditLogger) {
+        auditLogger.error(
+          "Unhandled rejection",
+          reason instanceof Error ? reason : new Error(String(reason)),
+          { action_type: "system" },
+        );
+      }
+    });
+
+    // Graceful shutdown
+    process.on("SIGTERM", () => {
+      console.log("[Backend] SIGTERM received. Shutting down gracefully...");
+      server.close(() => {
+        console.log("[Backend] HTTP server closed");
+        if (auditLogger) {
+          auditLogger.shutdown().then(() => {
+            console.log("[Backend] Audit logger closed");
+            process.exit(0);
+          });
+        } else {
+          process.exit(0);
+        }
+      });
+    });
+  } catch (err) {
+    console.error("[Backend] Failed to initialize services:", err);
+    process.exit(1);
+  }
+}
+
+// Start the application
+main();

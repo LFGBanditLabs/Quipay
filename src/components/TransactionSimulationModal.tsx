@@ -25,6 +25,14 @@ export interface TransactionPreview {
   contractAddress: string;
   /** Current balances before the tx */
   currentBalances: { token: string; symbol: string; amount: number }[];
+  /** Token transfers expected after the transaction is signed */
+  expectedTransfers?: {
+    label: string;
+    symbol: string;
+    amount: number;
+  }[];
+  /** State mutations the user should expect from the contract call */
+  stateChanges?: string[];
 }
 
 interface TransactionSimulationModalProps {
@@ -41,6 +49,10 @@ interface TransactionSimulationModalProps {
   onConfirm: () => void;
   /** User clicked "Cancel" or closed the modal */
   onCancel: () => void;
+  /**
+   * When set, shows a non-blocking warning if estimated fee exceeds this XLM balance.
+   */
+  nativeXlmBalance?: number;
 }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -252,6 +264,7 @@ export default function TransactionSimulationModal({
   onSimulate,
   onConfirm,
   onCancel,
+  nativeXlmBalance,
 }: TransactionSimulationModalProps) {
   const [simResult, setSimResult] = useState<SimulationResult | null>(null);
   const [simLoading, setSimLoading] = useState(false);
@@ -294,6 +307,12 @@ export default function TransactionSimulationModal({
     simResult.status !== "restore_required";
 
   const willFail = simResult?.status === "error";
+
+  const insufficientXlm =
+    nativeXlmBalance !== undefined &&
+    simResult &&
+    simResult.status === "success" &&
+    simResult.estimatedFeeXLM > nativeXlmBalance;
 
   if (!open) return null;
 
@@ -537,6 +556,44 @@ export default function TransactionSimulationModal({
           color: var(--tsm-muted);
         }
 
+        /* ── Expected transfers ── */
+        .tsm-transfer-list,
+        .tsm-state-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .tsm-transfer-item,
+        .tsm-state-item {
+          background: var(--tsm-surface);
+          border: 1px solid var(--tsm-border);
+          border-radius: 10px;
+          padding: 10px 12px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          font-size: 13px;
+        }
+        .tsm-transfer-label {
+          color: var(--tsm-text);
+          font-weight: 600;
+        }
+        .tsm-transfer-amount {
+          font-family: 'DM Mono', monospace;
+          color: var(--tsm-accent2);
+          white-space: nowrap;
+        }
+        .tsm-state-item {
+          color: var(--tsm-text);
+          line-height: 1.45;
+        }
+        .tsm-state-index {
+          font-family: 'DM Mono', monospace;
+          color: var(--tsm-muted);
+          flex-shrink: 0;
+        }
+
         /* ── Resources grid ── */
         .tsm-resources {
           display: grid;
@@ -677,6 +734,22 @@ export default function TransactionSimulationModal({
           margin-top: -8px;
           padding: 0 24px 12px;
         }
+
+        .tsm-xlm-warn {
+          margin-top: 14px;
+          padding: 12px 14px;
+          border-radius: 10px;
+          border: 1px solid rgba(245, 158, 11, 0.45);
+          background: rgba(245, 158, 11, 0.1);
+          font-size: 12px;
+          line-height: 1.45;
+          color: var(--tsm-text);
+        }
+        .tsm-xlm-warn strong {
+          display: block;
+          margin-bottom: 4px;
+          color: #f59e0b;
+        }
       `}</style>
 
       <div
@@ -794,6 +867,29 @@ export default function TransactionSimulationModal({
                   </div>
                 </div>
 
+                {insufficientXlm &&
+                  simResult &&
+                  nativeXlmBalance !== undefined && (
+                    <div className="tsm-xlm-warn" role="status">
+                      <strong>Insufficient XLM for fees</strong>
+                      <p>
+                        Estimated network fee is about{" "}
+                        {simResult.estimatedFeeXLM.toLocaleString("en-US", {
+                          minimumFractionDigits: 7,
+                          maximumFractionDigits: 7,
+                        })}{" "}
+                        XLM, but only about{" "}
+                        {nativeXlmBalance.toLocaleString("en-US", {
+                          minimumFractionDigits: 7,
+                          maximumFractionDigits: 7,
+                        })}{" "}
+                        XLM is available for fees. Add XLM to this account to
+                        avoid submission failures. You can still proceed —
+                        simulation passed.
+                      </p>
+                    </div>
+                  )}
+
                 {/* Resource usage */}
                 {simResult.resources && (
                   <div>
@@ -817,6 +913,53 @@ export default function TransactionSimulationModal({
                           {simResult.resources.readBytes.toLocaleString()}
                         </span>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {preview.expectedTransfers &&
+                  preview.expectedTransfers.length > 0 && (
+                    <div>
+                      <div className="tsm-section-label">
+                        Expected Token Transfers
+                      </div>
+                      <div className="tsm-transfer-list">
+                        {preview.expectedTransfers.map((transfer) => (
+                          <div
+                            key={`${transfer.label}-${transfer.symbol}`}
+                            className="tsm-transfer-item"
+                          >
+                            <span className="tsm-transfer-label">
+                              {transfer.label}
+                            </span>
+                            <span className="tsm-transfer-amount">
+                              {transfer.amount.toLocaleString("en-US", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 6,
+                              })}{" "}
+                              {transfer.symbol}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                {preview.stateChanges && preview.stateChanges.length > 0 && (
+                  <div>
+                    <div className="tsm-section-label">State Changes</div>
+                    <div className="tsm-state-list">
+                      {preview.stateChanges.map((change, index) => (
+                        <div
+                          key={`${index}-${change}`}
+                          className="tsm-state-item"
+                        >
+                          <span className="tsm-state-index">
+                            {String(index + 1).padStart(2, "0")}
+                          </span>
+                          <span>{change}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -959,6 +1102,18 @@ export function DemoSimulationButton() {
     currentBalances: [
       { token: "USDC", symbol: "USDC", amount: 1250.0 },
       { token: "XLM", symbol: "XLM", amount: 10.5 },
+    ],
+    expectedTransfers: [
+      {
+        label: "Worker receives",
+        symbol: "USDC",
+        amount: 250,
+      },
+    ],
+    stateChanges: [
+      "Reduce the stream's remaining balance",
+      "Increase the worker's claim history",
+      "Emit a withdrawn event for the stream",
     ],
   };
 

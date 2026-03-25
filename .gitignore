@@ -57,6 +57,10 @@ error.md
 # macOS-specific files
 .DS_Store
 
+# test output artifacts
+playwright-report/
+test-results/
+
 # generated contract clients
 packages/*
 # if you have other workspace packages, add them here
@@ -67,3 +71,4 @@ src/contracts/*
 !src/contracts/util.ts
 !src/contracts/payroll_stream.ts
 !src/contracts/automation_gateway.ts
+!src/contracts/payroll_vault.ts
