@@ -1,13 +1,18 @@
 import React, { useState, useEffect } from "react";
-import { Layout, Text, Loader } from "@stellar/design-system";
+import { Layout, Text, Loader, Button } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
 import { useStreams, WorkerStream } from "../hooks/useStreams";
 import { EarningsDisplay } from "../components/EarningsDisplay";
+import PaymentReceipt from "../components/PaymentReceipt";
 
 const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
   const [currentEarnings, setCurrentEarnings] = useState(0);
   const [timeUntilCliff, setTimeUntilCliff] = useState<string>("");
   const [isBeforeCliff, setIsBeforeCliff] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+
+  // Check if stream is completed (100% earned)
+  const isCompleted = currentEarnings >= stream.totalAmount;
 
   useEffect(() => {
     const calculate = () => {
@@ -155,6 +160,25 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
       >
         Withdraw Funds
       </button>
+
+      {/* Download Receipt Button for Completed Streams */}
+      {isCompleted && (
+        <div className="mt-3">
+          <button
+            className="w-full rounded-xl border border-[var(--border)] bg-transparent px-3 py-3 font-semibold text-[var(--text)] transition-opacity hover:opacity-90"
+            onClick={() => setShowReceiptModal(true)}
+          >
+            📄 Download Receipt
+          </button>
+        </div>
+      )}
+
+      {/* Receipt Modal */}
+      <PaymentReceipt
+        visible={showReceiptModal}
+        streamId={stream.id}
+        onClose={() => setShowReceiptModal(false)}
+      />
     </div>
   );
 };
