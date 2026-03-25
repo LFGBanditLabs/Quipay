@@ -40,6 +40,10 @@ interface TransactionSimulationModalProps {
   onConfirm: () => void;
   /** User clicked "Cancel" or closed the modal */
   onCancel: () => void;
+  /**
+   * When set, shows a non-blocking warning if estimated fee exceeds this XLM balance.
+   */
+  nativeXlmBalance?: number;
 }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -251,6 +255,7 @@ export default function TransactionSimulationModal({
   onSimulate,
   onConfirm,
   onCancel,
+  nativeXlmBalance,
 }: TransactionSimulationModalProps) {
   const [simResult, setSimResult] = useState<SimulationResult | null>(null);
   const [simLoading, setSimLoading] = useState(false);
@@ -293,6 +298,12 @@ export default function TransactionSimulationModal({
     simResult.status !== "restore_required";
 
   const willFail = simResult?.status === "error";
+
+  const insufficientXlm =
+    nativeXlmBalance !== undefined &&
+    simResult &&
+    simResult.status === "success" &&
+    simResult.estimatedFeeXLM > nativeXlmBalance;
 
   if (!open) return null;
 
@@ -676,6 +687,22 @@ export default function TransactionSimulationModal({
           margin-top: -8px;
           padding: 0 24px 12px;
         }
+
+        .tsm-xlm-warn {
+          margin-top: 14px;
+          padding: 12px 14px;
+          border-radius: 10px;
+          border: 1px solid rgba(245, 158, 11, 0.45);
+          background: rgba(245, 158, 11, 0.1);
+          font-size: 12px;
+          line-height: 1.45;
+          color: var(--tsm-text);
+        }
+        .tsm-xlm-warn strong {
+          display: block;
+          margin-bottom: 4px;
+          color: #f59e0b;
+        }
       `}</style>
 
       <div
@@ -792,6 +819,29 @@ export default function TransactionSimulationModal({
                     </div>
                   </div>
                 </div>
+
+                {insufficientXlm &&
+                  simResult &&
+                  nativeXlmBalance !== undefined && (
+                    <div className="tsm-xlm-warn" role="status">
+                      <strong>Insufficient XLM for fees</strong>
+                      <p>
+                        Estimated network fee is about{" "}
+                        {simResult.estimatedFeeXLM.toLocaleString("en-US", {
+                          minimumFractionDigits: 7,
+                          maximumFractionDigits: 7,
+                        })}{" "}
+                        XLM, but only about{" "}
+                        {nativeXlmBalance.toLocaleString("en-US", {
+                          minimumFractionDigits: 7,
+                          maximumFractionDigits: 7,
+                        })}{" "}
+                        XLM is available for fees. Add XLM to this account to
+                        avoid submission failures. You can still proceed —
+                        simulation passed.
+                      </p>
+                    </div>
+                  )}
 
                 {/* Resource usage */}
                 {simResult.resources && (
