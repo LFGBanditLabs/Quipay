@@ -58,6 +58,13 @@ pub struct WithdrawResult {
 
 #[contracttype]
 #[derive(Clone, Debug)]
+pub struct StreamHealth {
+    pub solvency_ratio: i128,  // Ratio as basis points (10000 = 100%)
+    pub days_of_runway: u64,    // Days until insolvency
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
 struct BatchWithdrawalCandidate {
     stream_id: u64,
     stream: Stream,
@@ -754,6 +761,120 @@ impl PayrollStream {
         let now = env.ledger().timestamp();
         let vested = Self::vested_amount(&stream, now);
         Some(vested.checked_sub(stream.withdrawn_amount).unwrap_or(0))
+    }
+
+    /// Check if a stream is currently solvent (vault has enough funds to cover remaining liability)
+    pub fn is_stream_solvent(env: Env, stream_id: u64) -> Option<bool> {
+        let key = StreamKey::Stream(stream_id);
+        let stream: Stream = env.storage().persistent().get(&key)?;
+
+        // If stream is closed, it's considered solvent
+        if Self::is_closed(&stream) {
+            return Some(true);
+        }
+
+        let vault: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Vault)
+            .expect("vault not configured");
+
+        // Calculate remaining liability
+        let remaining_liability = stream
+            .total_amount
+            .checked_sub(stream.withdrawn_amount)
+            .unwrap_or(0);
+
+        // Check vault solvency for this stream's remaining liability
+        use soroban_sdk::{IntoVal, Symbol, vec};
+        let solvent: bool = env.invoke_contract(
+            &vault,
+            &Symbol::new(&env, "check_solvency"),
+            vec![
+                &env,
+                stream.token.clone().into_val(&env),
+                remaining_liability.into_val(&env),
+            ],
+        );
+
+        Some(solvent)
+    }
+
+    /// Get stream health information including solvency ratio and days of runway
+    pub fn get_stream_health(env: Env, stream_id: u64) -> Option<StreamHealth> {
+        let key = StreamKey::Stream(stream_id);
+        let stream: Stream = env.storage().persistent().get(&key)?;
+
+        // If stream is closed, return perfect health
+        if Self::is_closed(&stream) {
+            return Some(StreamHealth {
+                solvency_ratio: 10000, // 100%
+                days_of_runway: u64::MAX, // Infinite runway
+            });
+        }
+
+        let vault: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Vault)
+            .expect("vault not configured");
+
+        let remaining_liability = stream
+            .total_amount
+            .checked_sub(stream.withdrawn_amount)
+            .unwrap_or(0);
+
+        // If no remaining liability, stream is fully funded
+        if remaining_liability == 0 {
+            return Some(StreamHealth {
+                solvency_ratio: 10000, // 100%
+                days_of_runway: u64::MAX, // Infinite runway
+            });
+        }
+
+        use soroban_sdk::{IntoVal, Symbol, vec};
+        
+        // Get vault balance and liability for this token
+        let vault_balance: i128 = env.invoke_contract(
+            &vault,
+            &Symbol::new(&env, "get_balance"),
+            vec![&env, stream.token.clone().into_val(&env)],
+        );
+        
+        let vault_liability: i128 = env.invoke_contract(
+            &vault,
+            &Symbol::new(&env, "get_liability"),
+            vec![&env, stream.token.clone().into_val(&env)],
+        );
+
+        let available_balance = vault_balance.saturating_sub(vault_liability);
+        
+        // Calculate solvency ratio as basis points (10000 = 100%)
+        let solvency_ratio = if remaining_liability > 0 {
+            let ratio = available_balance
+                .checked_mul(10000)
+                .unwrap_or(0)
+                .checked_div(remaining_liability)
+                .unwrap_or(0);
+            ratio.min(10000) // Cap at 100%
+        } else {
+            10000
+        };
+
+        // Calculate days of runway based on stream rate
+        let days_of_runway = if stream.rate > 0 && available_balance > 0 {
+            let seconds_of_runway = available_balance / stream.rate;
+            (seconds_of_runway / (24 * 60 * 60)) as u64 // Convert to days
+        } else if available_balance >= remaining_liability {
+            u64::MAX // Infinite runway if fully funded
+        } else {
+            0 // No runway if insufficient funds
+        };
+
+        Some(StreamHealth {
+            solvency_ratio,
+            days_of_runway,
+        })
     }
 
     pub fn get_streams_by_employer(
