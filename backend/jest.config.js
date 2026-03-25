@@ -14,4 +14,6 @@ module.exports = {
   maxWorkers: 1,
   // Setup files
   setupFilesAfterEnv: ["<rootDir>/src/__tests__/setup.ts"],
+  // Force exit after tests complete (for integration tests with containers)
+  forceExit: true,
 };
