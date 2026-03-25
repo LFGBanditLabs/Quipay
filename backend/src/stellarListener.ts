@@ -21,6 +21,10 @@ const getEventsBreaker = createCircuitBreaker(server.getEvents.bind(server), {
   timeout: 10000,
 });
 
+// Store interval IDs for cleanup
+let pollingIntervalId: NodeJS.Timeout | null = null;
+let simulationIntervalId: NodeJS.Timeout | null = null;
+
 /**
  * Starts polling the Soroban RPC for Quipay contract events.
  */
@@ -41,7 +45,7 @@ export const startStellarListener = async () => {
     let latestLedger = await getLatestLedgerInternal();
 
     // Poll every 5 seconds
-    setInterval(async () => {
+    pollingIntervalId = setInterval(async () => {
       try {
         const currentLedger = await getLatestLedgerInternal();
         if (currentLedger <= latestLedger) return;
@@ -73,6 +77,22 @@ export const startStellarListener = async () => {
   } catch (err: any) {
     console.error(`[Stellar Listener] Initialization failed: ${err.message}`);
   }
+};
+
+/**
+ * Stops the Stellar listener polling.
+ * Used primarily for testing cleanup.
+ */
+export const stopStellarListener = () => {
+  if (pollingIntervalId) {
+    clearInterval(pollingIntervalId);
+    pollingIntervalId = null;
+  }
+  if (simulationIntervalId) {
+    clearInterval(simulationIntervalId);
+    simulationIntervalId = null;
+  }
+  console.log("[Stellar Listener] 🛑 Listener stopped");
 };
 
 const getLatestLedgerInternal = async (): Promise<number> => {
@@ -130,7 +150,7 @@ const parseAndDeliverEvent = (event: rpc.Api.EventResponse) => {
 
 // Simulation fallback for integration testing without a real contract
 const simulateEvents = () => {
-  setInterval(() => {
+  simulationIntervalId = setInterval(() => {
     const simulatedEventTypes = ["withdrawal", "new_stream"];
     const randomType =
       simulatedEventTypes[
