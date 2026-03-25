@@ -6,25 +6,50 @@ import { EarningsDisplay } from "../components/EarningsDisplay";
 
 const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
   const [currentEarnings, setCurrentEarnings] = useState(0);
+  const [timeUntilCliff, setTimeUntilCliff] = useState<string>("");
+  const [isBeforeCliff, setIsBeforeCliff] = useState(false);
 
   useEffect(() => {
     const calculate = () => {
       const now = Date.now() / 1000;
-      const elapsed = now - stream.startTime;
-      if (elapsed < 0) {
+      const timeToCliff = stream.cliffTime - now;
+
+      // Check if we're before the cliff
+      setIsBeforeCliff(timeToCliff > 0);
+
+      // Update countdown timer
+      if (timeToCliff > 0) {
+        const days = Math.floor(timeToCliff / 86400);
+        const hours = Math.floor((timeToCliff % 86400) / 3600);
+        const minutes = Math.floor((timeToCliff % 3600) / 60);
+        const seconds = Math.floor(timeToCliff % 60);
+        setTimeUntilCliff(`${days}d ${hours}h ${minutes}m ${seconds}s`);
+      } else {
+        setTimeUntilCliff("Unlocked");
+      }
+
+      // Calculate earnings (only start accruing after cliff)
+      if (timeToCliff > 0) {
         setCurrentEarnings(0);
         return;
       }
-      const earned = elapsed * stream.flowRate;
+
+      const elapsedAfterCliff = now - stream.cliffTime;
+      if (elapsedAfterCliff < 0) {
+        setCurrentEarnings(0);
+        return;
+      }
+      const earned = elapsedAfterCliff * stream.flowRate;
       setCurrentEarnings(Math.min(earned, stream.totalAmount));
     };
 
     calculate();
-    const interval = setInterval(calculate, 100);
+    const interval = setInterval(calculate, 1000);
     return () => clearInterval(interval);
   }, [stream]);
 
-  const percentage = (currentEarnings / stream.totalAmount) * 100;
+  const percentage =
+    stream.totalAmount > 0 ? (currentEarnings / stream.totalAmount) * 100 : 0;
   const availableToWithdraw = Math.max(
     0,
     currentEarnings - stream.claimedAmount,
@@ -46,9 +71,53 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
         </div>
       </div>
 
+      {/* Cliff Status Indicator */}
+      {isBeforeCliff ? (
+        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+          <div className="mb-1 flex items-center gap-2">
+            <span className="text-lg">🔒</span>
+            <span className="text-sm font-semibold text-amber-500">
+              Locked Until Cliff Unlocks
+            </span>
+          </div>
+          <div className="text-xs text-amber-400/80">
+            Time remaining:{" "}
+            <span className="font-mono font-semibold">{timeUntilCliff}</span>
+          </div>
+          <div className="mt-2 text-xs text-amber-300/70">
+            💡 Your earnings will start streaming after the cliff period ends
+          </div>
+        </div>
+      ) : (
+        <div className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
+          <div className="mb-1 flex items-center gap-2">
+            <span className="text-lg">✅</span>
+            <span className="text-sm font-semibold text-emerald-500">
+              Cliff Unlocked - Earnings Active
+            </span>
+          </div>
+          {timeUntilCliff === "Unlocked" && (
+            <div className="text-xs text-emerald-400/80">
+              Your stream is fully active and earning
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="my-6">
-        <div className="mb-2 text-sm uppercase tracking-[0.05em] text-[var(--muted)]">
+        <div className="mb-2 flex items-center gap-2 text-sm uppercase tracking-[0.05em] text-[var(--muted)]">
           Current Earnings
+          <div className="group relative">
+            <span className="cursor-help text-[var(--muted)]">ⓘ</span>
+            <div className="invisible absolute left-0 top-6 z-10 w-64 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-xs text-[var(--text)] shadow-lg group-hover:visible">
+              <p className="font-semibold">How the Cliff Works</p>
+              <p className="mt-1 text-[var(--muted)]">
+                A cliff is a waiting period before your earnings begin to
+                stream. Once the cliff period ends, earnings start streaming in
+                real-time and you can withdraw available funds.
+              </p>
+            </div>
+          </div>
         </div>
         <div className="text-[1.75rem] font-bold text-[var(--text)]">
           {currentEarnings.toFixed(7)} {stream.tokenSymbol}

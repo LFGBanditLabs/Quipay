@@ -14,6 +14,7 @@ export interface WorkerStream {
   flowRate: number; // amount per second (in token units, not stroops)
   tokenSymbol: string;
   startTime: number; // unix timestamp in seconds
+  cliffTime: number; // unix timestamp in seconds (cliff unlock time)
   totalAmount: number; // total allocated (in token units)
   claimedAmount: number;
 }
@@ -81,6 +82,7 @@ export const useStreams = (workerAddress: string | undefined) => {
                 flowRate: Number(s.rate) / STROOPS_PER_UNIT,
                 tokenSymbol,
                 startTime: Number(s.start_ts),
+                cliffTime: Number(s.cliff_ts),
                 totalAmount: Number(s.total_amount) / STROOPS_PER_UNIT,
                 claimedAmount: Number(s.withdrawn_amount) / STROOPS_PER_UNIT,
               };
