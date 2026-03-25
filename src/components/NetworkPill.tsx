@@ -59,15 +59,20 @@ const NetworkPill: React.FC = () => {
         alignItems: "center",
         gap: "6px",
         cursor: "help",
-        border: isNetworkMismatch || status !== "online" ? `1px solid ${color}` : "none",
-        transition: "all 0.2s ease"
+        border:
+          isNetworkMismatch || status !== "online"
+            ? `1px solid ${color}`
+            : "none",
+        transition: "all 0.2s ease",
       }}
       title={title}
     >
       {icon}
       <span>{appNetwork}</span>
       {congestion === "high" && (
-        <span className="ml-1" title="High Network Congestion">🔥</span>
+        <span className="ml-1" title="High Network Congestion">
+          🔥
+        </span>
       )}
     </div>
   );
