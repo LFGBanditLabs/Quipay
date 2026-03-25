@@ -235,7 +235,9 @@ export function useTransactionData() {
   }, [allTransactions, filter]);
 
   const monthlyTransactions = useMemo(() => {
-    return allTransactions.filter((tx) => monthLabel(tx.date) === selectedMonth);
+    return allTransactions.filter(
+      (tx) => monthLabel(tx.date) === selectedMonth,
+    );
   }, [allTransactions, selectedMonth]);
 
   const monthlySummary = useMemo(
