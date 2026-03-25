@@ -780,7 +780,11 @@ export default function TransactionSimulationModal({
                 </div>
               </div>
             </div>
-            <button className="tsm-close" onClick={onCancel} aria-label={t("transaction.close")}>
+            <button
+              className="tsm-close"
+              onClick={onCancel}
+              aria-label={t("transaction.close")}
+            >
               <IconX />
             </button>
           </div>
@@ -790,11 +794,15 @@ export default function TransactionSimulationModal({
             <div className="tsm-tx-summary">
               <div className="tsm-tx-desc">{preview.description}</div>
               <div className="tsm-tx-row">
-                <span className="tsm-tx-label">{t("transaction.function")}</span>
+                <span className="tsm-tx-label">
+                  {t("transaction.function")}
+                </span>
                 <span className="tsm-tx-val">{preview.contractFunction}()</span>
               </div>
               <div className="tsm-tx-row">
-                <span className="tsm-tx-label">{t("transaction.contract")}</span>
+                <span className="tsm-tx-label">
+                  {t("transaction.contract")}
+                </span>
                 <span className="tsm-tx-val">{preview.contractAddress}</span>
               </div>
             </div>
@@ -838,7 +846,9 @@ export default function TransactionSimulationModal({
 
                 {/* Gas cost */}
                 <div>
-                  <div className="tsm-section-label">{t("transaction.est_gas_cost")}</div>
+                  <div className="tsm-section-label">
+                    {t("transaction.est_gas_cost")}
+                  </div>
                   <div className="tsm-gas-card">
                     <div className="tsm-gas-item">
                       <span className="tsm-gas-label">
@@ -857,7 +867,9 @@ export default function TransactionSimulationModal({
                       </span>
                     </div>
                     <div className="tsm-gas-item">
-                      <span className="tsm-gas-label">{t("transaction.stroops_label")}</span>
+                      <span className="tsm-gas-label">
+                        {t("transaction.stroops_label")}
+                      </span>
                       <span className="tsm-gas-val">
                         {simResult.estimatedFeeStroops > 0
                           ? fmtStroops(simResult.estimatedFeeStroops)
@@ -877,10 +889,13 @@ export default function TransactionSimulationModal({
                       <strong>{t("transaction.xlm_fee_warn_title")}</strong>
                       <p>
                         {t("transaction.xlm_fee_warn_body", {
-                          fee: simResult.estimatedFeeXLM.toLocaleString("en-US", {
-                            minimumFractionDigits: 7,
-                            maximumFractionDigits: 7,
-                          }),
+                          fee: simResult.estimatedFeeXLM.toLocaleString(
+                            "en-US",
+                            {
+                              minimumFractionDigits: 7,
+                              maximumFractionDigits: 7,
+                            },
+                          ),
                           balance: nativeXlmBalance.toLocaleString("en-US", {
                             minimumFractionDigits: 7,
                             maximumFractionDigits: 7,
@@ -967,7 +982,9 @@ export default function TransactionSimulationModal({
                 {/* Resulting balances */}
                 {simResult.balanceChanges.length > 0 && (
                   <div>
-                    <div className="tsm-section-label">{t("transaction.resulting_balances")}</div>
+                    <div className="tsm-section-label">
+                      {t("transaction.resulting_balances")}
+                    </div>
                     {simResult.balanceChanges.map((b) => (
                       <BalanceRow key={b.token} b={b} />
                     ))}

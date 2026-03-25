@@ -125,7 +125,10 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
           {currentEarnings.toFixed(7)} {stream.tokenSymbol}
         </div>
         <div className="mt-1 text-sm text-[var(--muted)]">
-          {t("worker.of_total", { amount: stream.totalAmount, symbol: stream.tokenSymbol })}
+          {t("worker.of_total", {
+            amount: stream.totalAmount,
+            symbol: stream.tokenSymbol,
+          })}
         </div>
       </div>
 

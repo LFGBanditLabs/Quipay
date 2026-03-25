@@ -526,11 +526,10 @@ export default function HelpCenter() {
           <h1 className="hc-hero-title">
             {t("help.hero_title_line1")}
             <br />
-            {t("help.hero_title_line2")} <span>{t("help.hero_title_highlight")}</span>
+            {t("help.hero_title_line2")}{" "}
+            <span>{t("help.hero_title_highlight")}</span>
           </h1>
-          <p style={{ color: "var(--bg)" }}>
-            {t("help.hero_subtitle")}
-          </p>
+          <p style={{ color: "var(--bg)" }}>{t("help.hero_subtitle")}</p>
           <div className="hc-search-wrap">
             <span className="hc-search-icon">
               <IconSearch />
@@ -598,9 +597,7 @@ export default function HelpCenter() {
             <div className="hc-empty">
               <div className="hc-empty-icon">🔍</div>
               <div className="hc-empty-title">{t("help.no_results_title")}</div>
-              <div className="hc-empty-sub">
-                {t("help.no_results_sub")}
-              </div>
+              <div className="hc-empty-sub">{t("help.no_results_sub")}</div>
             </div>
           ) : (
             Object.entries(grouped).map(([cat, items]) => (

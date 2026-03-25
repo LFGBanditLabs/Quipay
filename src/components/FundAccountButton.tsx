@@ -29,7 +29,10 @@ const FundAccountButton: React.FC = () => {
             "detail" in body &&
             typeof body.detail === "string"
           ) {
-            addNotification(t("fund.error_detail", { detail: body.detail }), "error");
+            addNotification(
+              t("fund.error_detail", { detail: body.detail }),
+              "error",
+            );
           } else {
             addNotification(t("fund.error_unknown"), "error");
           }

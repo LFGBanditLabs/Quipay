@@ -181,7 +181,9 @@ export const WalletButton = () => {
                 disabled={disconnecting}
                 className="flex-1 rounded-xl border border-rose-300/35 bg-gradient-to-r from-rose-500 to-pink-500 px-3 py-2 text-sm font-semibold text-white transition hover:from-rose-400 hover:to-pink-400 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {disconnecting ? t("wallet.disconnecting") : t("wallet.disconnect")}
+                {disconnecting
+                  ? t("wallet.disconnecting")
+                  : t("wallet.disconnect")}
               </button>
             </div>
           </div>

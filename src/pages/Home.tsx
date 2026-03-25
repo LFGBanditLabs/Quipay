@@ -362,10 +362,32 @@ const Home: React.FC = () => {
   const { t } = useTranslation();
   const stats = useMemo<StatMetric[]>(
     () => [
-      { id: "streams", label: t("home.stat_total_streams"), value: 12480, format: "number" },
-      { id: "value-streamed", label: t("home.stat_total_value"), value: 3847500, format: "currency", suffix: " USDC" },
-      { id: "active-workers", label: t("home.stat_active_workers"), value: 1820, format: "number" },
-      { id: "avg-duration", label: t("home.stat_avg_duration"), value: 6.4, format: "duration", suffix: " hrs" },
+      {
+        id: "streams",
+        label: t("home.stat_total_streams"),
+        value: 12480,
+        format: "number",
+      },
+      {
+        id: "value-streamed",
+        label: t("home.stat_total_value"),
+        value: 3847500,
+        format: "currency",
+        suffix: " USDC",
+      },
+      {
+        id: "active-workers",
+        label: t("home.stat_active_workers"),
+        value: 1820,
+        format: "number",
+      },
+      {
+        id: "avg-duration",
+        label: t("home.stat_avg_duration"),
+        value: 6.4,
+        format: "duration",
+        suffix: " hrs",
+      },
     ],
     [t],
   );
