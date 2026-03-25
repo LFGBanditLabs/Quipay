@@ -1,5 +1,6 @@
 import { vaultService } from "./vaultService";
 import { VaultClient } from "./vaultClient";
+import { logServiceError, logServiceInfo } from "../audit/serviceLogger";
 
 export interface LeastPrivilegePolicy {
   name: string;
@@ -66,11 +67,15 @@ ${pathRules.join("\n")}
         QUIPAY_POLICIES.AGENT_KEY_ACCESS.name,
         policyDocument,
       );
-      console.log("[LeastPrivilegeAccess] Created agent policy successfully");
+      await logServiceInfo(
+        "LeastPrivilegeAccess",
+        "Created agent policy successfully",
+      );
       return true;
     } catch (error) {
-      console.error(
-        "[LeastPrivilegeAccess] Failed to create agent policy:",
+      await logServiceError(
+        "LeastPrivilegeAccess",
+        "Failed to create agent policy",
         error,
       );
       return false;
@@ -86,13 +91,15 @@ ${pathRules.join("\n")}
         QUIPAY_POLICIES.KEY_ROTATION.name,
         policyDocument,
       );
-      console.log(
-        "[LeastPrivilegeAccess] Created rotation policy successfully",
+      await logServiceInfo(
+        "LeastPrivilegeAccess",
+        "Created rotation policy successfully",
       );
       return true;
     } catch (error) {
-      console.error(
-        "[LeastPrivilegeAccess] Failed to create rotation policy:",
+      await logServiceError(
+        "LeastPrivilegeAccess",
+        "Failed to create rotation policy",
         error,
       );
       return false;
@@ -105,12 +112,20 @@ ${pathRules.join("\n")}
   ): Promise<boolean> {
     try {
       await this.client.createAppRole(roleName, policyNames);
-      console.log(`[LeastPrivilegeAccess] Created AppRole: ${roleName}`);
+      await logServiceInfo("LeastPrivilegeAccess", "Created AppRole", {
+        role_name: roleName,
+        policy_names: policyNames,
+      });
       return true;
     } catch (error) {
-      console.error(
-        `[LeastPrivilegeAccess] Failed to create AppRole ${roleName}:`,
+      await logServiceError(
+        "LeastPrivilegeAccess",
+        "Failed to create AppRole",
         error,
+        {
+          role_name: roleName,
+          policy_names: policyNames,
+        },
       );
       return false;
     }
@@ -123,13 +138,15 @@ ${pathRules.join("\n")}
       await this.createAppRole("quipay-agent", ["quipay-agent-key-access"]);
       await this.createAppRole("quipay-rotation", ["quipay-key-rotation"]);
 
-      console.log(
-        "[LeastPrivilegeAccess] Successfully set up least privilege access",
+      await logServiceInfo(
+        "LeastPrivilegeAccess",
+        "Successfully set up least privilege access",
       );
       return true;
     } catch (error) {
-      console.error(
-        "[LeastPrivilegeAccess] Failed to set up least privilege access:",
+      await logServiceError(
+        "LeastPrivilegeAccess",
+        "Failed to set up least privilege access",
         error,
       );
       return false;

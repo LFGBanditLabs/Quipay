@@ -1,5 +1,6 @@
 import { vaultService, VaultService } from "./vaultService";
 import { Keypair, TransactionBuilder } from "@stellar/stellar-sdk";
+import { logServiceError, logServiceWarn } from "../audit/serviceLogger";
 
 export interface SecureKeyConfig {
   keyName: string;
@@ -36,8 +37,10 @@ export class SecureKeyManager {
 
     const config = this.keyConfigs.get(keyName);
     if (!config) {
-      console.warn(
-        `[SecureKeyManager] Key ${keyName} not registered, registering now`,
+      await logServiceWarn(
+        "SecureKeyManager",
+        "Key not registered, registering now",
+        { key_name: keyName },
       );
       this.registerKey(keyName);
     }
@@ -59,8 +62,11 @@ export class SecureKeyManager {
 
     const privateKey = await this.vaultService.getSecret(keyName);
     if (!privateKey) {
-      console.error(
-        `[SecureKeyManager] Failed to retrieve key ${keyName} from Vault`,
+      await logServiceError(
+        "SecureKeyManager",
+        "Failed to retrieve key from Vault",
+        new Error("Missing private key"),
+        { key_name: keyName },
       );
       return null;
     }
@@ -70,10 +76,9 @@ export class SecureKeyManager {
       this.cachedKeys.set(keyName, { keypair, cachedAt: Date.now() });
       return keypair;
     } catch (error) {
-      console.error(
-        `[SecureKeyManager] Invalid private key for ${keyName}:`,
-        error,
-      );
+      await logServiceError("SecureKeyManager", "Invalid private key", error, {
+        key_name: keyName,
+      });
       return null;
     }
   }

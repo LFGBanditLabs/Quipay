@@ -31,6 +31,17 @@ pub enum StateKey {
     // Additional state that should persist across upgrades
     TreasuryBalance(Address), // Funds held for payroll (Token -> Amount)
     TotalLiability(Address),  // Amount owed to recipients (Token -> Amount)
+    // Timelock storage
+    PendingUpgrade, // (wasm_hash, execute_after_timestamp)
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PendingUpgrade {
+    pub wasm_hash: BytesN<32>,
+    pub execute_after: u64,
+    pub proposed_at: u64,
+    pub proposed_by: Address,
 }
 
 #[contracttype]
@@ -47,8 +58,12 @@ pub struct PayrollVault;
 
 // Event symbols
 const UPGRADED: Symbol = symbol_short!("upgrd");
-#[allow(dead_code)]
-const VERSION: Symbol = symbol_short!("version");
+const UPGRADE_PROPOSED: Symbol = symbol_short!("up_prop");
+const UPGRADE_EXECUTED: Symbol = symbol_short!("up_exec");
+const UPGRADE_CANCELED: Symbol = symbol_short!("up_cancel");
+
+// 48 hours in seconds
+const TIMELOCK_DURATION: u64 = 48 * 60 * 60;
 
 #[contractimpl]
 impl PayrollVault {
@@ -77,50 +92,108 @@ impl PayrollVault {
         Ok(())
     }
 
-    /// Upgrade the contract to a new WASM code
-    /// Only the admin can call this function
-    ///
-    /// # Multisig Support
-    /// When the admin is a multisig Stellar account (e.g., 2-of-3), the Stellar network
-    /// validates that the transaction meets the signature threshold before it reaches
-    /// this contract. The `require_auth()` call then verifies the transaction was
-    /// properly authorized by the admin account. This enables decentralized governance
-    /// for DAOs and enterprise clients.
+    /// Legacy upgrade function - now requires timelock
+    /// DEPRECATED: Use propose_upgrade + execute_upgrade instead
     pub fn upgrade(
         e: Env,
         new_wasm_hash: BytesN<32>,
         new_version: (u32, u32, u32),
     ) -> Result<(), QuipayError> {
-        // Require admin authorization
-        // For multisig accounts, Stellar validates threshold signatures before this call
+        // For backwards compatibility, automatically propose and execute if no timelock is active
+        Self::propose_upgrade(e.clone(), new_wasm_hash.clone(), new_version)?;
+        Self::execute_upgrade(e, new_version)
+    }
+
+    /// Propose an upgrade with a 48-hour timelock
+    /// Only the admin can call this function
+    pub fn propose_upgrade(
+        e: Env,
+        new_wasm_hash: BytesN<32>,
+        new_version: (u32, u32, u32),
+    ) -> Result<(), QuipayError> {
         let admin = Self::get_admin(e.clone())?;
         admin.require_auth();
+
+        let now = e.ledger().timestamp();
+        let execute_after = now.saturating_add(TIMELOCK_DURATION);
+
+        // Check if there's already a pending upgrade
+        if e.storage().persistent().has(&StateKey::PendingUpgrade) {
+            return Err(QuipayError::Custom);
+        }
+
+        let pending_upgrade = PendingUpgrade {
+            wasm_hash: new_wasm_hash.clone(),
+            execute_after,
+            proposed_at: now,
+            proposed_by: admin.clone(),
+        };
+
+        e.storage()
+            .persistent()
+            .set(&StateKey::PendingUpgrade, &pending_upgrade);
+
+        // Emit upgrade proposed event
+        #[allow(deprecated)]
+        e.events().publish(
+            (UPGRADE_PROPOSED, admin),
+            (
+                new_wasm_hash,
+                new_version.0,
+                new_version.1,
+                new_version.2,
+                execute_after,
+            ),
+        );
+
+        Ok(())
+    }
+
+    /// Execute a proposed upgrade after the timelock period
+    /// Only the admin can call this function
+    pub fn execute_upgrade(e: Env, new_version: (u32, u32, u32)) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        let pending_upgrade: PendingUpgrade = e
+            .storage()
+            .persistent()
+            .get(&StateKey::PendingUpgrade)
+            .ok_or(QuipayError::Custom)?;
+
+        let now = e.ledger().timestamp();
+        if now < pending_upgrade.execute_after {
+            return Err(QuipayError::Custom);
+        }
 
         // Get current version for event
         let current_version = Self::get_version(e.clone())?;
 
-        // Perform the upgrade - this updates the contract's WASM code
-        // All persistent storage remains intact
+        // Perform the upgrade
         e.deployer()
-            .update_current_contract_wasm(new_wasm_hash.clone());
+            .update_current_contract_wasm(pending_upgrade.wasm_hash.clone());
 
-        // Update version info (WASM hash is passed as parameter, not stored)
+        // Update version info
         let (major, minor, patch) = new_version;
         let version_info = VersionInfo {
             major,
             minor,
             patch,
-            upgraded_at: e.ledger().timestamp(),
+            upgraded_at: now,
         };
         e.storage()
             .persistent()
             .set(&StateKey::Version, &version_info);
 
-        // Emit upgrade event
+        // Clear pending upgrade
+        e.storage().persistent().remove(&StateKey::PendingUpgrade);
+
+        // Emit upgrade executed event
         #[allow(deprecated)]
         e.events().publish(
-            (UPGRADED, admin.clone()),
+            (UPGRADE_EXECUTED, admin),
             (
+                pending_upgrade.wasm_hash,
                 current_version.major,
                 current_version.minor,
                 current_version.patch,
@@ -129,7 +202,38 @@ impl PayrollVault {
                 patch,
             ),
         );
+
         Ok(())
+    }
+
+    /// Cancel a pending upgrade
+    /// Only the admin can call this function
+    pub fn cancel_upgrade(e: Env) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        let pending_upgrade: PendingUpgrade = e
+            .storage()
+            .persistent()
+            .get(&StateKey::PendingUpgrade)
+            .ok_or(QuipayError::Custom)?;
+
+        // Clear pending upgrade
+        e.storage().persistent().remove(&StateKey::PendingUpgrade);
+
+        // Emit upgrade canceled event
+        #[allow(deprecated)]
+        e.events().publish(
+            (UPGRADE_CANCELED, admin),
+            (pending_upgrade.wasm_hash, pending_upgrade.execute_after),
+        );
+
+        Ok(())
+    }
+
+    /// Get the current pending upgrade (if any)
+    pub fn get_pending_upgrade(e: Env) -> Option<PendingUpgrade> {
+        e.storage().persistent().get(&StateKey::PendingUpgrade)
     }
 
     /// Get the current version information
@@ -275,7 +379,6 @@ impl PayrollVault {
         admin.require_auth();
 
         if amount <= 0 {
-            // panic!("allocation amount must be positive");
             return Err(QuipayError::InvalidAmount);
         }
 
@@ -286,7 +389,6 @@ impl PayrollVault {
         let liability: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
 
         if balance < liability + amount {
-            // panic!("insufficient funds for allocation");
             return Err(QuipayError::InsufficientBalance);
         }
 
@@ -321,7 +423,6 @@ impl PayrollVault {
         admin.require_auth();
 
         if amount <= 0 {
-            // panic!("release amount must be positive");
             return Err(QuipayError::InvalidAmount);
         }
 
@@ -329,8 +430,7 @@ impl PayrollVault {
         let liability: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
 
         if amount > liability {
-            // panic!("release amount exceeds liability");
-            return Err(QuipayError::InvalidAmount); // Or dedicated error
+            return Err(QuipayError::InvalidAmount);
         }
 
         e.storage()
@@ -373,18 +473,10 @@ impl PayrollVault {
         let liability: i128 = e.storage().persistent().get(&liability_key).unwrap_or(0);
 
         if amount > balance {
-            // panic!("insufficient treasury balance");
             return Err(QuipayError::InsufficientBalance);
         }
 
-        // Payout reduces liability AND balance
-        // We assume liability was allocated before.
-        // If not allocated, liability could go negative if we subtract blindly.
-        // But here we check if liability >= amount?
-        // Or maybe payout implies liability reduction.
-        // Let's assume payout reduces liability as debt is paid.
         if amount > liability {
-            // panic!("payout exceeds liability");
             return Err(QuipayError::InvalidAmount);
         }
 

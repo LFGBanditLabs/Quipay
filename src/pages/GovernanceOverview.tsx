@@ -256,14 +256,14 @@ const mockMultisigService = {
     ];
   },
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   approveProposal: async (proposalId: string): Promise<void> => {
     await new Promise((resolve) => setTimeout(resolve, 1500));
-    console.log(`Approved proposal ${proposalId}`);
   },
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   executeProposal: async (proposalId: string): Promise<void> => {
     await new Promise((resolve) => setTimeout(resolve, 2000));
-    console.log(`Executed proposal ${proposalId}`);
   },
 };
 
