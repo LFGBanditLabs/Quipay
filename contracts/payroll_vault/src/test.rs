@@ -222,6 +222,57 @@ fn test_multi_token_tracking() {
 }
 
 #[test]
+fn test_supported_tokens_and_treasury_summary() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    let token_a_admin = Address::generate(&env);
+    let token_a = env.register_stellar_asset_contract_v2(token_a_admin.clone());
+    let token_a_id = token_a.address();
+    let token_a_client = token::StellarAssetClient::new(&env, &token_a_id);
+
+    let token_b_admin = Address::generate(&env);
+    let token_b = env.register_stellar_asset_contract_v2(token_b_admin.clone());
+    let token_b_id = token_b.address();
+    let token_b_client = token::StellarAssetClient::new(&env, &token_b_id);
+
+    let user = Address::generate(&env);
+    token_a_client.mint(&user, &1000);
+    token_b_client.mint(&user, &1000);
+
+    client.deposit(&user, &token_a_id, &500);
+    client.deposit(&user, &token_b_id, &300);
+    client.deposit(&user, &token_a_id, &200);
+
+    let supported_tokens = client.get_supported_tokens();
+    assert_eq!(supported_tokens.len(), 2);
+    assert_eq!(supported_tokens.get(0).unwrap(), token_a_id);
+    assert_eq!(supported_tokens.get(1).unwrap(), token_b_id);
+
+    client.allocate_funds(&token_a_id, &400);
+    client.allocate_funds(&token_b_id, &200);
+
+    let summary = client.get_treasury_summary();
+    assert_eq!(summary.len(), 2);
+
+    let token_a_summary = summary.get(0).unwrap();
+    assert_eq!(token_a_summary.token, token_a_id);
+    assert_eq!(token_a_summary.balance, 700);
+    assert_eq!(token_a_summary.liability, 400);
+
+    let token_b_summary = summary.get(1).unwrap();
+    assert_eq!(token_b_summary.token, token_b_id);
+    assert_eq!(token_b_summary.balance, 300);
+    assert_eq!(token_b_summary.liability, 200);
+}
+
+#[test]
 fn test_payout_without_allocation() {
     let env = Env::default();
     env.mock_all_auths();
