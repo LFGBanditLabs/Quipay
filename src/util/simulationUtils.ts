@@ -11,6 +11,7 @@
 
 import {
   rpc,
+  FeeBumpTransaction,
   Transaction,
   TransactionBuilder,
   Networks,
@@ -53,7 +54,7 @@ export interface SimulationResult {
   /** Soroban resource usage breakdown */
   resources?: ResourceUsage;
   /** The transaction with injected auth + resource data, ready to sign */
-  preparedTransaction?: Transaction;
+  preparedTransaction?: Transaction | FeeBumpTransaction;
 }
 
 export interface CurrentBalance {
@@ -100,7 +101,7 @@ function buildServer(rpcUrlOverride?: string): rpc.Server {
  * @param rpcUrlOverride    - Optional Soroban RPC URL (defaults to env / testnet)
  */
 export async function simulateTransaction(
-  transaction: Transaction,
+  transaction: Transaction | FeeBumpTransaction,
   currentBalances: CurrentBalance[],
   rpcUrlOverride?: string,
 ): Promise<SimulationResult> {
@@ -154,7 +155,7 @@ export async function simulateTransaction(
   const resources = extractResources(simResponse);
 
   // Assemble transaction with injected auth (ready to sign)
-  let preparedTransaction: Transaction | undefined;
+  let preparedTransaction: Transaction | FeeBumpTransaction | undefined;
   try {
     preparedTransaction = rpc
       .assembleTransaction(transaction, simResponse)

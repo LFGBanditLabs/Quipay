@@ -105,6 +105,18 @@ const EmployerDashboard: React.FC = () => {
         { token: "USDC", symbol: "USDC", amount: 1250 },
         { token: "XLM", symbol: "XLM", amount: 10.5 },
       ],
+      expectedTransfers: [
+        {
+          label: "Worker receives",
+          symbol: tokenSymbol,
+          amount: Number(formattedAmount),
+        },
+      ],
+      stateChanges: [
+        "Reduce the stream's remaining balance",
+        "Increase the worker's claim history",
+        "Emit a withdraw event for the stream",
+      ],
     }),
     nativeXlmBalance: 10.5,
     onSimulate: async (): Promise<SimulationResult> => {

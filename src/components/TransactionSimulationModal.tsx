@@ -24,6 +24,14 @@ export interface TransactionPreview {
   contractAddress: string;
   /** Current balances before the tx */
   currentBalances: { token: string; symbol: string; amount: number }[];
+  /** Token transfers expected after the transaction is signed */
+  expectedTransfers?: {
+    label: string;
+    symbol: string;
+    amount: number;
+  }[];
+  /** State mutations the user should expect from the contract call */
+  stateChanges?: string[];
 }
 
 interface TransactionSimulationModalProps {
@@ -547,6 +555,44 @@ export default function TransactionSimulationModal({
           color: var(--tsm-muted);
         }
 
+        /* ── Expected transfers ── */
+        .tsm-transfer-list,
+        .tsm-state-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .tsm-transfer-item,
+        .tsm-state-item {
+          background: var(--tsm-surface);
+          border: 1px solid var(--tsm-border);
+          border-radius: 10px;
+          padding: 10px 12px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          font-size: 13px;
+        }
+        .tsm-transfer-label {
+          color: var(--tsm-text);
+          font-weight: 600;
+        }
+        .tsm-transfer-amount {
+          font-family: 'DM Mono', monospace;
+          color: var(--tsm-accent2);
+          white-space: nowrap;
+        }
+        .tsm-state-item {
+          color: var(--tsm-text);
+          line-height: 1.45;
+        }
+        .tsm-state-index {
+          font-family: 'DM Mono', monospace;
+          color: var(--tsm-muted);
+          flex-shrink: 0;
+        }
+
         /* ── Resources grid ── */
         .tsm-resources {
           display: grid;
@@ -870,6 +916,53 @@ export default function TransactionSimulationModal({
                   </div>
                 )}
 
+                {preview.expectedTransfers &&
+                  preview.expectedTransfers.length > 0 && (
+                    <div>
+                      <div className="tsm-section-label">
+                        Expected Token Transfers
+                      </div>
+                      <div className="tsm-transfer-list">
+                        {preview.expectedTransfers.map((transfer) => (
+                          <div
+                            key={`${transfer.label}-${transfer.symbol}`}
+                            className="tsm-transfer-item"
+                          >
+                            <span className="tsm-transfer-label">
+                              {transfer.label}
+                            </span>
+                            <span className="tsm-transfer-amount">
+                              {transfer.amount.toLocaleString("en-US", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 6,
+                              })}{" "}
+                              {transfer.symbol}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                {preview.stateChanges && preview.stateChanges.length > 0 && (
+                  <div>
+                    <div className="tsm-section-label">State Changes</div>
+                    <div className="tsm-state-list">
+                      {preview.stateChanges.map((change, index) => (
+                        <div
+                          key={`${index}-${change}`}
+                          className="tsm-state-item"
+                        >
+                          <span className="tsm-state-index">
+                            {String(index + 1).padStart(2, "0")}
+                          </span>
+                          <span>{change}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Resulting balances */}
                 {simResult.balanceChanges.length > 0 && (
                   <div>
@@ -1007,6 +1100,18 @@ export function DemoSimulationButton() {
     currentBalances: [
       { token: "USDC", symbol: "USDC", amount: 1250.0 },
       { token: "XLM", symbol: "XLM", amount: 10.5 },
+    ],
+    expectedTransfers: [
+      {
+        label: "Worker receives",
+        symbol: "USDC",
+        amount: 250,
+      },
+    ],
+    stateChanges: [
+      "Reduce the stream's remaining balance",
+      "Increase the worker's claim history",
+      "Emit a withdrawn event for the stream",
     ],
   };
 
