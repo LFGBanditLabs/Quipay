@@ -13,9 +13,6 @@ const formatNetworkName = (name: string) =>
 
 const appNetwork = formatNetworkName(stellarNetwork);
 
-const bgColor = "var(--surface)";
-const textColor = "var(--text)";
-
 const NetworkPill: React.FC = () => {
   const { network, address } = useWallet();
   const { status, congestion, latency } = useNetworkStatus();

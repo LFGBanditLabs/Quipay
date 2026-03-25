@@ -9,7 +9,7 @@ const NetworkStatusContext = createContext<NetworkStatusContextType | undefined>
 
 const REFRESH_INTERVAL = 30000; // 30 seconds
 
-export const NetworkStatusProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const NetworkStatusProvider = ({ children }: { children: React.ReactNode }) => {
   const [status, setStatus] = useState<NetworkStatus>({
     status: "online",
     latency: 0,
@@ -23,8 +23,10 @@ export const NetworkStatusProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, REFRESH_INTERVAL);
+    void refresh();
+    const interval = setInterval(() => {
+      void refresh();
+    }, REFRESH_INTERVAL);
     return () => clearInterval(interval);
   }, []);
 
