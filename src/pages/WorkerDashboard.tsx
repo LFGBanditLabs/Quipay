@@ -2,9 +2,11 @@ import React, { useState, useEffect } from "react";
 import { Layout, Text, Loader } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
 import { useStreams, WorkerStream } from "../hooks/useStreams";
+import { useNotification } from "../hooks/useNotification";
 import { EarningsDisplay } from "../components/EarningsDisplay";
 
 const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
+  const { addNotification } = useNotification();
   const [currentEarnings, setCurrentEarnings] = useState(0);
 
   useEffect(() => {
@@ -82,7 +84,7 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
 
       <button
         className="w-full rounded-xl border-0 bg-[var(--accent)] px-3 py-3 font-semibold text-white transition-opacity hover:opacity-90"
-        onClick={() => alert("Withdrawal triggered!")}
+        onClick={() => addNotification("Withdrawal triggered!", "success")}
       >
         Withdraw Funds
       </button>

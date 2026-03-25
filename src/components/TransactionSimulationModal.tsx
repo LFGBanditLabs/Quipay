@@ -12,6 +12,7 @@ import type { SimulationResult, TokenBalance } from "../util/simulationUtils";
 import type { AppError } from "../util/errors";
 import { translateError } from "../util/errors";
 import { ErrorMessage } from "./ErrorMessage";
+import { useNotification } from "../hooks/useNotification";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -886,6 +887,7 @@ export default function TransactionSimulationModal({
  * Remove before shipping.
  */
 export function DemoSimulationButton() {
+  const { addNotification } = useNotification();
   const [open, setOpen] = useState(false);
   const [scenario, setScenario] = useState<"success" | "error" | "restore">(
     "success",
@@ -1043,7 +1045,7 @@ export function DemoSimulationButton() {
         onSimulate={mockSimulate}
         onConfirm={() => {
           setOpen(false);
-          alert("Wallet signing flow triggered!");
+          addNotification("Wallet signing flow triggered!", "info");
         }}
         onCancel={() => setOpen(false)}
       />

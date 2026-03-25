@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Layout, Text } from "@stellar/design-system";
 import { useNavigate } from "react-router-dom";
 import Wizard from "../components/Wizard";
+import { useNotification } from "../hooks/useNotification";
 import Tooltip from "../components/Tooltip";
 import CollapsibleSection from "../components/CollapsibleSection";
 
@@ -21,6 +22,7 @@ const CreateStream: React.FC = () => {
   };
 
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [formData, setFormData] = useState({
     workerAddress: "",
     workerName: "",
@@ -207,7 +209,7 @@ const CreateStream: React.FC = () => {
   const handleComplete = () => {
     // In a real app, this would call the smart contract
     console.log("Creating stream with data:", formData);
-    alert("Payment stream created successfully!");
+    addNotification("Payment stream created successfully!", "success");
     void navigate("/dashboard");
   };
 
