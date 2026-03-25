@@ -182,6 +182,22 @@ To enable preview deployments:
 
 ---
 
+## ⚙️ Environment Variables
+
+The frontend reads the following environment variables at build time. Copy `.env.example` to `.env` and adjust as needed:
+
+| Variable                     | Default                     | Description                                                   |
+| ---------------------------- | --------------------------- | ------------------------------------------------------------- |
+| `PUBLIC_STELLAR_NETWORK`     | `LOCAL`                     | Stellar network to connect to (`LOCAL`, `TESTNET`, `MAINNET`) |
+| `PUBLIC_STELLAR_RPC_URL`     | `http://localhost:8000/rpc` | Soroban RPC endpoint                                          |
+| `PUBLIC_STELLAR_HORIZON_URL` | `http://localhost:8000`     | Stellar Horizon endpoint                                      |
+| `VITE_SITE_URL`              | `https://quipay.app`        | Canonical site URL for metadata                               |
+| `VITE_API_BASE_URL`          | `http://localhost:3001`     | Backend API base URL used by frontend hooks (e.g. analytics)  |
+
+> **Docker Compose:** When running via `docker compose up`, `VITE_API_BASE_URL` is set automatically in the frontend service configuration. See `docker-compose.yml` for defaults.
+
+---
+
 ## 📁 Project Structure
 
 ```

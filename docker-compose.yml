@@ -68,6 +68,7 @@ services:
       - stellar-local
     environment:
       - VITE_API_URL=http://localhost:3001
+      - VITE_API_BASE_URL=http://backend:3001
       - VITE_STELLAR_RPC_URL=http://localhost:8000/rpc
     ports:
       - "5173:80"
