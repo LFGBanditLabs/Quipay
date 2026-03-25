@@ -1,6 +1,7 @@
 import React from "react";
 import { Icon } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
+import { useNetworkStatus } from "../providers/NetworkStatusProvider";
 import { stellarNetwork } from "../contracts/util";
 
 // Format network name with first letter capitalized
@@ -17,41 +18,60 @@ const textColor = "var(--text)";
 
 const NetworkPill: React.FC = () => {
   const { network, address } = useWallet();
+  const { status, congestion, latency } = useNetworkStatus();
 
   // Check if there's a network mismatch
   const walletNetwork = formatNetworkName(network ?? "");
-  const isNetworkMismatch = walletNetwork !== appNetwork;
+  const isNetworkMismatch = !!address && walletNetwork !== appNetwork;
 
-  let title = "";
+  let title = `System Status: ${status.toUpperCase()} (${latency}ms)`;
   let color = "var(--sds-color-feedback-success)";
-  if (!address) {
-    title = "Connect your wallet using this network.";
-    color = "var(--muted)";
-  } else if (isNetworkMismatch) {
-    title = `Wallet is on ${walletNetwork}, connect to ${appNetwork} instead.`;
+  let icon = <Icon.Circle color={color} size="12px" />;
+
+  if (status === "offline") {
+    title = "Horizon RPC is currently unreachable. Transactions may fail.";
     color = "var(--sds-color-feedback-error)";
+    icon = <Icon.CloudOffline color={color} size="16px" />;
+  } else if (status === "degraded") {
+    title = `High RPC latency detected (${latency}ms). Transactions may be slow.`;
+    color = "var(--sds-color-feedback-warning)";
+    icon = <Icon.Activity color={color} size="16px" />;
+  }
+
+  if (congestion === "high") {
+    title += " | Network is heavily congested. Higher fees required.";
+  }
+
+  if (isNetworkMismatch) {
+    title = `Wallet mismatch: Wallet is on ${walletNetwork}, but app is on ${appNetwork}.`;
+    color = "var(--sds-color-feedback-error)";
+    icon = <Icon.AlertCircle color={color} size="16px" />;
   }
 
   return (
     <div
       role="status"
-      aria-label={`Network: ${appNetwork}${isNetworkMismatch ? `. Mismatch: wallet is on ${walletNetwork}` : ""}`}
       style={{
-        backgroundColor: bgColor,
-        color: textColor,
+        backgroundColor: "var(--surface)",
+        color: "var(--text)",
         padding: "4px 10px",
         borderRadius: "16px",
         fontSize: "12px",
         fontWeight: "bold",
         display: "flex",
         alignItems: "center",
-        gap: "4px",
-        cursor: isNetworkMismatch ? "help" : "default",
+        gap: "6px",
+        cursor: "help",
+        border: isNetworkMismatch || status !== "online" ? `1px solid ${color}` : "none",
+        transition: "all 0.2s ease"
       }}
       title={title}
     >
-      <Icon.Circle color={color} />
-      {appNetwork}
+      {icon}
+      <span>{appNetwork}</span>
+      {congestion === "high" && (
+        <span className="ml-1" title="High Network Congestion">🔥</span>
+      )}
     </div>
   );
 };
