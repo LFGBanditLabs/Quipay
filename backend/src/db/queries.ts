@@ -39,6 +39,23 @@ export interface VaultEventRecord {
   created_at: Date;
 }
 
+export type EmployerVerificationStatus = "pending" | "verified" | "rejected";
+
+export interface EmployerRecord {
+  employer_id: string;
+  business_name: string;
+  registration_number: string;
+  country_code: string;
+  contact_name: string | null;
+  contact_email: string | null;
+  verification_status: EmployerVerificationStatus;
+  verification_reason: string | null;
+  verification_metadata: Record<string, unknown>;
+  verified_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export interface TrendPoint {
   bucket: string; // ISO date string
   volume: string; // total amount in that period
@@ -53,6 +70,29 @@ export interface OverallStats {
   cancelled_streams: number;
   total_volume: string;
   total_withdrawn: string;
+}
+
+export interface EmployerPayrollSummary {
+  total_streams: number;
+  active_streams: number;
+  completed_streams: number;
+  cancelled_streams: number;
+  total_disbursed: string;
+}
+
+export interface EmployerMonthlyPayrollPoint {
+  month: string;
+  payroll_volume: string;
+}
+
+export interface EmployerWorkerPayrollBreakdown {
+  worker: string;
+  stream_count: number;
+  active_streams: number;
+  completed_streams: number;
+  cancelled_streams: number;
+  total_allocated: string;
+  total_disbursed: string;
 }
 
 export interface PayrollSchedule {
@@ -178,6 +218,7 @@ export const upsertStream = async (params: {
   globalCache.invalidateByPrefix("analytics:trends:");
   globalCache.del(`analytics:address:${params.employer}`);
   globalCache.del(`analytics:address:${params.worker}`);
+  globalCache.invalidateByPrefix(`analytics:payroll:${params.employer}:`);
 };
 
 export const recordWithdrawal = async (params: {
@@ -203,6 +244,10 @@ export const recordWithdrawal = async (params: {
   // Invalidate worker analytics cache
   globalCache.del(`analytics:address:${params.worker}`);
   globalCache.del("analytics:summary"); // total withdrawn changes
+  const stream = await getStreamById(params.streamId);
+  if (stream) {
+    globalCache.invalidateByPrefix(`analytics:payroll:${stream.employer}:`);
+  }
 };
 
 export const recordVaultEvent = async (params: {
@@ -250,6 +295,89 @@ export const getOverallStats = async (): Promise<OverallStats> => {
     total_volume: row.total_volume,
     total_withdrawn: row.total_withdrawn,
   };
+};
+
+export const getEmployerPayrollSummary = async (
+  employer: string,
+): Promise<EmployerPayrollSummary> => {
+  const res = await query<EmployerPayrollSummary>(
+    `SELECT
+        COUNT(*)                                      AS total_streams,
+        COUNT(*) FILTER (WHERE status = 'active')     AS active_streams,
+        COUNT(*) FILTER (WHERE status = 'completed')  AS completed_streams,
+        COUNT(*) FILTER (WHERE status = 'cancelled')  AS cancelled_streams,
+        COALESCE(SUM(withdrawn_amount), 0)            AS total_disbursed
+      FROM payroll_streams
+      WHERE employer = $1`,
+    [employer],
+  );
+
+  const row = res.rows[0];
+  return {
+    total_streams: Number(row?.total_streams ?? 0),
+    active_streams: Number(row?.active_streams ?? 0),
+    completed_streams: Number(row?.completed_streams ?? 0),
+    cancelled_streams: Number(row?.cancelled_streams ?? 0),
+    total_disbursed: row?.total_disbursed ?? "0",
+  };
+};
+
+export const getEmployerPayrollMonthly = async (
+  employer: string,
+): Promise<EmployerMonthlyPayrollPoint[]> => {
+  const res = await query<EmployerMonthlyPayrollPoint>(
+    `WITH months AS (
+        SELECT generate_series(
+          date_trunc('month', NOW()) - interval '11 months',
+          date_trunc('month', NOW()),
+          interval '1 month'
+        ) AS month_start
+      )
+      SELECT
+        to_char(months.month_start, 'YYYY-MM') AS month,
+        COALESCE(SUM(w.amount), 0)             AS payroll_volume
+      FROM months
+      LEFT JOIN payroll_streams s
+        ON s.employer = $1
+      LEFT JOIN withdrawals w
+        ON w.stream_id = s.stream_id
+       AND date_trunc('month', to_timestamp(w.ledger_ts)) = months.month_start
+      GROUP BY months.month_start
+      ORDER BY months.month_start ASC`,
+    [employer],
+  );
+
+  return res.rows;
+};
+
+export const getEmployerPayrollByWorker = async (
+  employer: string,
+): Promise<EmployerWorkerPayrollBreakdown[]> => {
+  const res = await query<EmployerWorkerPayrollBreakdown>(
+    `SELECT
+        worker,
+        COUNT(*)                                     AS stream_count,
+        COUNT(*) FILTER (WHERE status = 'active')    AS active_streams,
+        COUNT(*) FILTER (WHERE status = 'completed') AS completed_streams,
+        COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled_streams,
+        COALESCE(SUM(total_amount), 0)               AS total_allocated,
+        COALESCE(SUM(withdrawn_amount), 0)           AS total_disbursed
+      FROM payroll_streams
+      WHERE employer = $1
+      GROUP BY worker
+      ORDER BY worker ASC`,
+    [employer],
+  );
+
+  return res.rows.map((row) => ({
+    worker: row.worker,
+    stream_count: Number(row.stream_count),
+    active_streams: Number(row.active_streams),
+    completed_streams: Number(row.completed_streams),
+    cancelled_streams: Number(row.cancelled_streams),
+    total_allocated: row.total_allocated,
+    total_disbursed: row.total_disbursed,
+  }));
 };
 
 export const getStreamsByEmployer = async (
@@ -553,6 +681,89 @@ export const getTreasuryBalances = async (): Promise<TreasuryBalance[]> => {
   return res.rows;
 };
 
+export const getTreasuryBalanceByEmployer = async (
+  employer: string,
+): Promise<TreasuryBalance | null> => {
+  if (!getPool()) return null;
+  const res = await query<TreasuryBalance>(
+    `SELECT employer, balance, token, updated_at
+      FROM treasury_balances
+      WHERE employer = $1`,
+    [employer],
+  );
+  return res.rows[0] ?? null;
+};
+
+export const getEmployerById = async (
+  employerId: string,
+): Promise<EmployerRecord | null> => {
+  if (!getPool()) return null;
+  const res = await query<EmployerRecord>(
+    `SELECT * FROM employers WHERE employer_id = $1`,
+    [employerId],
+  );
+  return res.rows[0] ?? null;
+};
+
+export const upsertEmployerVerification = async (params: {
+  employerId: string;
+  businessName: string;
+  registrationNumber: string;
+  countryCode: string;
+  contactName?: string;
+  contactEmail?: string;
+  verificationStatus: EmployerVerificationStatus;
+  verificationReason: string | null;
+  verificationMetadata: Record<string, unknown>;
+}): Promise<EmployerRecord> => {
+  if (!getPool()) {
+    throw new Error("Database not configured");
+  }
+
+  const res = await query<EmployerRecord>(
+    `INSERT INTO employers (
+        employer_id,
+        business_name,
+        registration_number,
+        country_code,
+        contact_name,
+        contact_email,
+        verification_status,
+        verification_reason,
+        verification_metadata,
+        verified_at,
+        updated_at
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+      ON CONFLICT (employer_id) DO UPDATE
+        SET business_name = EXCLUDED.business_name,
+            registration_number = EXCLUDED.registration_number,
+            country_code = EXCLUDED.country_code,
+            contact_name = EXCLUDED.contact_name,
+            contact_email = EXCLUDED.contact_email,
+            verification_status = EXCLUDED.verification_status,
+            verification_reason = EXCLUDED.verification_reason,
+            verification_metadata = EXCLUDED.verification_metadata,
+            verified_at = EXCLUDED.verified_at,
+            updated_at = NOW()
+      RETURNING *`,
+    [
+      params.employerId,
+      params.businessName,
+      params.registrationNumber,
+      params.countryCode,
+      params.contactName ?? null,
+      params.contactEmail ?? null,
+      params.verificationStatus,
+      params.verificationReason,
+      params.verificationMetadata,
+      params.verificationStatus === "verified" ? new Date() : null,
+    ],
+  );
+
+  return res.rows[0];
+};
+
 export const getActiveLiabilities = async (): Promise<TreasuryLiability[]> => {
   if (!getPool()) return [];
   const res = await query<TreasuryLiability>(
@@ -603,6 +814,7 @@ export const updateTreasuryBalance = async (
                updated_at = NOW()`,
     [employer, balance.toString(), token],
   );
+  globalCache.invalidateByPrefix(`analytics:payroll:${employer}:`);
 };
 
 export const getMonitorLogs = async (

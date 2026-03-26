@@ -6,8 +6,16 @@ import {
   getStreamsByWorker,
   getPayrollTrends,
   getAddressStats,
+  getEmployerPayrollSummary,
+  getEmployerPayrollMonthly,
+  getEmployerPayrollByWorker,
 } from "./db/queries";
 import { globalCache } from "./utils/cache";
+import {
+  authenticateRequest,
+  requireUser,
+  AuthenticatedRequest,
+} from "./middleware/rbac";
 
 export const analyticsRouter = Router();
 
@@ -32,6 +40,102 @@ const timed = async <T>(
 };
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
+
+analyticsRouter.get(
+  "/payroll/summary",
+  authenticateRequest,
+  requireUser,
+  async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    try {
+      const cacheKey = `analytics:payroll:${req.user.id}:summary`;
+      const cached = globalCache.get(cacheKey);
+      if (cached) {
+        return res.set("X-Cache", "HIT").json({ ok: true, data: cached });
+      }
+
+      const { data, ms } = await timed(() =>
+        getEmployerPayrollSummary(req.user!.id),
+      );
+      globalCache.set(cacheKey, data, 5 * 60 * 1000);
+
+      res
+        .set("X-Cache", "MISS")
+        .set("X-Query-Time-Ms", String(ms))
+        .json({ ok: true, data });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      res.status(500).json({ ok: false, error: msg });
+    }
+  },
+);
+
+analyticsRouter.get(
+  "/payroll/monthly",
+  authenticateRequest,
+  requireUser,
+  async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    try {
+      const cacheKey = `analytics:payroll:${req.user.id}:monthly`;
+      const cached = globalCache.get(cacheKey);
+      if (cached) {
+        return res.set("X-Cache", "HIT").json({ ok: true, data: cached });
+      }
+
+      const { data, ms } = await timed(() =>
+        getEmployerPayrollMonthly(req.user!.id),
+      );
+      globalCache.set(cacheKey, data, 5 * 60 * 1000);
+
+      res
+        .set("X-Cache", "MISS")
+        .set("X-Query-Time-Ms", String(ms))
+        .json({ ok: true, data });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      res.status(500).json({ ok: false, error: msg });
+    }
+  },
+);
+
+analyticsRouter.get(
+  "/payroll/by-worker",
+  authenticateRequest,
+  requireUser,
+  async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    try {
+      const cacheKey = `analytics:payroll:${req.user.id}:by-worker`;
+      const cached = globalCache.get(cacheKey);
+      if (cached) {
+        return res.set("X-Cache", "HIT").json({ ok: true, data: cached });
+      }
+
+      const { data, ms } = await timed(() =>
+        getEmployerPayrollByWorker(req.user!.id),
+      );
+      globalCache.set(cacheKey, data, 5 * 60 * 1000);
+
+      res
+        .set("X-Cache", "MISS")
+        .set("X-Query-Time-Ms", String(ms))
+        .json({ ok: true, data });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      res.status(500).json({ ok: false, error: msg });
+    }
+  },
+);
 
 /**
  * GET /analytics/summary

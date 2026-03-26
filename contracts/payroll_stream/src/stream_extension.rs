@@ -2,6 +2,12 @@ use super::*;
 
 #[soroban_sdk::contractimpl]
 impl PayrollStream {
+    /// Extends a stream by increasing the total amount, the end time, or both.
+    ///
+    /// The stream rate is recomputed as `total_amount / (end_ts - start_ts)` using
+    /// integer division. Any remainder is truncated, so extensions that produce
+    /// short durations relative to the total amount can lose precision in the
+    /// resulting per-second rate.
     pub fn extend_stream(
         env: Env,
         stream_id: u64,
@@ -79,7 +85,10 @@ impl PayrollStream {
         let old_end_ts = stream.end_ts;
         stream.end_ts = new_end_time;
 
-        // Recalculate rate based on the total amount and the entire duration
+        // Recalculate rate based on the total amount and the entire duration.
+        // This uses integer division and therefore rounds down toward zero.
+        // Very small durations can magnify the discarded remainder, so callers
+        // should avoid extensions that compress large totals into tiny windows.
         let duration = stream
             .end_ts
             .checked_sub(stream.start_ts)

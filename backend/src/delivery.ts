@@ -10,6 +10,7 @@ import {
 } from "./db/queries";
 import { getPool } from "./db/pool";
 import { createCircuitBreaker } from "./utils/circuitBreaker";
+import { pushToDLQ } from "./db/dlq";
 
 const webhookBreaker = createCircuitBreaker(axios.post, {
   name: "webhook_delivery",
@@ -26,8 +27,9 @@ webhookBreaker.fallback((url: string) => {
   };
 });
 
-// Maximum attempts for exponential backoff retries
-const MAX_RETRIES = 6;
+// One initial attempt plus five retries with backoff: 1s, 2s, 4s, 8s, 16s.
+const MAX_RETRY_ATTEMPTS = 5;
+const MAX_ATTEMPTS = MAX_RETRY_ATTEMPTS + 1;
 
 const computeBackoffMs = (attemptNumber: number): number => {
   const baseMs = 1_000;
@@ -155,7 +157,7 @@ const attemptDeliveryOnce = async (params: {
     statusCode !== null && statusCode >= 200 && statusCode < 300;
   const retryable =
     !succeeded && isRetryableServerFailure(statusCode, rawError);
-  const hasMoreRetries = params.attemptNumber < MAX_RETRIES;
+  const hasMoreRetries = params.attemptNumber < MAX_ATTEMPTS;
   const nextRetryAt =
     retryable && hasMoreRetries
       ? new Date(Date.now() + computeBackoffMs(params.attemptNumber))
@@ -191,15 +193,31 @@ const attemptDeliveryOnce = async (params: {
 
   if (retryable && hasMoreRetries) {
     console.error(
-      `[Webhooks] ❌ Delivery failed '${params.eventType}' to ${params.url}. Scheduled retry ${params.attemptNumber}/${MAX_RETRIES} at ${nextRetryAt?.toISOString()}.`,
+      `[Webhooks] ❌ Delivery failed '${params.eventType}' to ${params.url}. Scheduled retry ${params.attemptNumber}/${MAX_ATTEMPTS} at ${nextRetryAt?.toISOString()}.`,
     );
     metricsManager.trackTransaction("failure", 0);
     return;
   }
 
   console.error(
-    `[Webhooks] 🚫 Delivery permanently failed '${params.eventType}' to ${params.url} after ${params.attemptNumber}/${MAX_RETRIES}.`,
+    `[Webhooks] 🚫 Delivery permanently failed '${params.eventType}' to ${params.url} after ${params.attemptNumber}/${MAX_ATTEMPTS}.`,
   );
+  if (getPool()) {
+    await pushToDLQ(
+      "webhook_delivery",
+      {
+        eventId: params.eventId,
+        url: params.url,
+        eventType: params.eventType,
+        requestPayload: params.outgoingPayload,
+      },
+      errorMessage ?? responseBody ?? "Webhook delivery failed",
+      {
+        attemptNumber: params.attemptNumber,
+        statusCode,
+      },
+    );
+  }
   metricsManager.trackTransaction("failure", 0);
 };
 
@@ -270,6 +288,19 @@ export const retryWebhookEvent = async (eventId: string): Promise<void> => {
       lastError: "Subscription not found (deleted or not loaded)",
       nextRetryAt: null,
     });
+    await pushToDLQ(
+      "webhook_delivery",
+      {
+        eventId,
+        url: ev.url,
+        eventType: ev.event_type,
+        requestPayload: ev.request_payload,
+      },
+      "Subscription not found (deleted or not loaded)",
+      {
+        attemptCount: ev.attempt_count,
+      },
+    );
     return;
   }
 

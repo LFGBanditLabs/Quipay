@@ -22,3 +22,10 @@ export {
   discordInteractionSchema,
   type DiscordInteractionInput,
 } from "./discord.schema";
+
+export {
+  employerOnboardingSchema,
+  employerTreasuryDepositSchema,
+  type EmployerOnboardingInput,
+  type EmployerTreasuryDepositInput,
+} from "./employers.schema";
