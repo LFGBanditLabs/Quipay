@@ -23,7 +23,9 @@ export interface AdminAuditLogFilters {
 /**
  * Log an admin action to the audit trail
  */
-export const logAdminAction = async (input: AdminAuditLogInput): Promise<void> => {
+export const logAdminAction = async (
+  input: AdminAuditLogInput,
+): Promise<void> => {
   const db = getDb();
   if (!db) {
     console.warn("[Admin Audit] Database not initialized, skipping audit log");
@@ -48,7 +50,7 @@ export const logAdminAction = async (input: AdminAuditLogInput): Promise<void> =
  * Get admin audit logs with pagination and filtering
  */
 export const getAdminAuditLogs = async (
-  filters: AdminAuditLogFilters = {}
+  filters: AdminAuditLogFilters = {},
 ): Promise<{ logs: any[]; total: number }> => {
   const db = getDb();
   if (!db) {
@@ -66,11 +68,11 @@ export const getAdminAuditLogs = async (
 
   // Build where conditions
   let whereClause = undefined;
-  
+
   if (startDate && endDate) {
     whereClause = and(
       gte(adminAuditLog.timestamp, startDate),
-      lte(adminAuditLog.timestamp, endDate)
+      lte(adminAuditLog.timestamp, endDate),
     );
   } else if (startDate) {
     whereClause = gte(adminAuditLog.timestamp, startDate);
@@ -89,14 +91,17 @@ export const getAdminAuditLogs = async (
   }
 
   // Get total count
-  const countResult = whereClause 
+  const countResult = whereClause
     ? await db.select().from(adminAuditLog).where(whereClause)
     : await db.select().from(adminAuditLog);
   const total = countResult.length;
 
   // Get paginated results
-  const logsQuery = db.select().from(adminAuditLog).orderBy(desc(adminAuditLog.timestamp));
-  const logs = whereClause 
+  const logsQuery = db
+    .select()
+    .from(adminAuditLog)
+    .orderBy(desc(adminAuditLog.timestamp));
+  const logs = whereClause
     ? await logsQuery.where(whereClause).limit(limit).offset(offset)
     : await logsQuery.limit(limit).offset(offset);
 
@@ -109,7 +114,7 @@ export const getAdminAuditLogs = async (
 export const getAuditLogsByAdmin = async (
   adminAddress: string,
   limit = 50,
-  offset = 0
+  offset = 0,
 ): Promise<any[]> => {
   const db = getDb();
   if (!db) {

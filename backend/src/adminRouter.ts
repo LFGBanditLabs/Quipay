@@ -15,10 +15,7 @@ import {
 import { enqueueJob } from "./queue/asyncQueue";
 import { sendWebhookNotification } from "./delivery"; // used for replay examples
 import { startSyncer } from "./syncer"; // used for replay examples
-import {
-  logAdminAction,
-  getAdminAuditLogs,
-} from "./db/adminAuditLog";
+import { logAdminAction, getAdminAuditLogs } from "./db/adminAuditLog";
 
 export const adminRouter = Router();
 
@@ -285,15 +282,8 @@ function getClientIP(req: Request): string | undefined {
 }
 
 // Middleware to log admin actions
-const logAdminActionMiddleware = (
-  actionName: string,
-  targetParam?: string,
-) => {
-  return async (
-    req: AuthenticatedRequest,
-    res: Response,
-    next: any,
-  ) => {
+const logAdminActionMiddleware = (actionName: string, targetParam?: string) => {
+  return async (req: AuthenticatedRequest, res: Response, next: any) => {
     // Store original json method
     const originalJson = res.json.bind(res);
 
@@ -323,8 +313,17 @@ const logAdminActionMiddleware = (
 };
 
 // Apply audit logging middleware to all admin mutation routes
-adminRouter.post("/users/:id/suspend", logAdminActionMiddleware("user_suspend", "id"));
+adminRouter.post(
+  "/users/:id/suspend",
+  logAdminActionMiddleware("user_suspend", "id"),
+);
 adminRouter.delete("/users/:id", logAdminActionMiddleware("user_delete", "id"));
-adminRouter.post("/scheduler/override", logAdminActionMiddleware("scheduler_override"));
-adminRouter.post("/dlq/:id/replay", logAdminActionMiddleware("dlq_replay", "id"));
+adminRouter.post(
+  "/scheduler/override",
+  logAdminActionMiddleware("scheduler_override"),
+);
+adminRouter.post(
+  "/dlq/:id/replay",
+  logAdminActionMiddleware("dlq_replay", "id"),
+);
 adminRouter.delete("/dlq/:id", logAdminActionMiddleware("dlq_discard", "id"));
