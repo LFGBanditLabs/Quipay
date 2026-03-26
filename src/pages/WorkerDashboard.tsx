@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Layout, Text } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
+import { useStreamSubscription } from "../hooks/useStreamSubscription";
 import {
   useStreams,
   WorkerStream,
@@ -24,6 +25,14 @@ const StreamCard: React.FC<{
   const [timeUntilCliff, setTimeUntilCliff] = useState<string>("");
   const [isBeforeCliff, setIsBeforeCliff] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
+  const [lastEventAmount, setLastEventAmount] = useState<number | null>(null);
+
+  useStreamSubscription((update) => {
+    // Make sure the withdrawal event matches this specific stream card
+    if (update.streamId === String(stream.id)) {
+      setLastEventAmount(update.amount);
+    }
+  });
 
   useEffect(() => {
     const calculate = () => {
