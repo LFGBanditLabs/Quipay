@@ -65,46 +65,40 @@ export const getAdminAuditLogs = async (
   } = filters;
 
   // Build where conditions
-  const conditions = [];
+  let whereClause = undefined;
   
   if (startDate && endDate) {
-    conditions.push(
-      and(
-        gte(adminAuditLog.timestamp, startDate),
-        lte(adminAuditLog.timestamp, endDate)
-      )
+    whereClause = and(
+      gte(adminAuditLog.timestamp, startDate),
+      lte(adminAuditLog.timestamp, endDate)
     );
   } else if (startDate) {
-    conditions.push(gte(adminAuditLog.timestamp, startDate));
+    whereClause = gte(adminAuditLog.timestamp, startDate);
   } else if (endDate) {
-    conditions.push(lte(adminAuditLog.timestamp, endDate));
+    whereClause = lte(adminAuditLog.timestamp, endDate);
   }
 
   if (adminAddress) {
-    conditions.push(eq(adminAuditLog.adminAddress, adminAddress));
+    const adminCond = eq(adminAuditLog.adminAddress, adminAddress);
+    whereClause = whereClause ? and(whereClause, adminCond) : adminCond;
   }
 
   if (action) {
-    conditions.push(eq(adminAuditLog.action, action));
+    const actionCond = eq(adminAuditLog.action, action);
+    whereClause = whereClause ? and(whereClause, actionCond) : actionCond;
   }
 
   // Get total count
-  let countQuery = db.select().from(adminAuditLog);
-  if (conditions.length > 0) {
-    countQuery = countQuery.where(conditions.reduce((acc, cond) => acc ? and(acc, cond) : cond));
-  }
-  
-  const allLogs = await countQuery;
-  const total = allLogs.length;
+  const countResult = whereClause 
+    ? await db.select().from(adminAuditLog).where(whereClause)
+    : await db.select().from(adminAuditLog);
+  const total = countResult.length;
 
   // Get paginated results
-  let query = db.select().from(adminAuditLog).orderBy(desc(adminAuditLog.timestamp));
-  
-  if (conditions.length > 0) {
-    query = query.where(conditions.reduce((acc, cond) => acc ? and(acc, cond) : cond));
-  }
-  
-  const logs = await query.limit(limit).offset(offset);
+  const logsQuery = db.select().from(adminAuditLog).orderBy(desc(adminAuditLog.timestamp));
+  const logs = whereClause 
+    ? await logsQuery.where(whereClause).limit(limit).offset(offset)
+    : await logsQuery.limit(limit).offset(offset);
 
   return { logs, total };
 };
