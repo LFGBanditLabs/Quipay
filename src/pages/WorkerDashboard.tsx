@@ -5,6 +5,7 @@ import { useWallet } from "../hooks/useWallet";
 import { useStreams, WorkerStream } from "../hooks/useStreams";
 import { useNotification } from "../hooks/useNotification";
 import { EarningsDisplay } from "../components/EarningsDisplay";
+import { formatTokenAmount } from "../util/tokenDecimals";
 
 const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
   const { addNotification } = useNotification();
@@ -71,7 +72,8 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
           </div>
         </div>
         <div className="rounded-md bg-emerald-500/10 px-2 py-1 text-sm text-emerald-500">
-          {stream.flowRate.toFixed(6)} {stream.tokenSymbol}/sec
+          {formatTokenAmount(stream.flowRate, stream.tokenSymbol, 5)}{" "}
+          {stream.tokenSymbol}/sec
         </div>
       </div>
 
@@ -124,7 +126,8 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
           </div>
         </div>
         <div className="text-[1.75rem] font-bold text-[var(--text)]">
-          {currentEarnings.toFixed(7)} {stream.tokenSymbol}
+          {formatTokenAmount(currentEarnings, stream.tokenSymbol)}{" "}
+          {stream.tokenSymbol}
         </div>
         <div className="mt-1 text-sm text-[var(--muted)]">
           {t("worker.of_total", {
@@ -152,7 +155,8 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
           {t("worker.available")}
         </span>
         <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>
-          {availableToWithdraw.toFixed(7)} {stream.tokenSymbol}
+          {formatTokenAmount(availableToWithdraw, stream.tokenSymbol)}{" "}
+          {stream.tokenSymbol}
         </span>
       </div>
 
@@ -192,7 +196,8 @@ const CompletedStreamCard: React.FC<{ stream: WorkerStream }> = ({
           {t("worker.total_paid")}
         </div>
         <div className="text-[1.5rem] font-bold text-[var(--text)]">
-          {stream.totalAmount.toFixed(7)} {stream.tokenSymbol}
+          {formatTokenAmount(stream.totalAmount, stream.tokenSymbol)}{" "}
+          {stream.tokenSymbol}
         </div>
       </div>
 
