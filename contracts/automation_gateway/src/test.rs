@@ -6,7 +6,7 @@ use soroban_sdk::{Address, Bytes, Env, testutils::Address as _, vec};
 // Dummy PayrollStream contract for testing gateway integration
 mod dummy_payroll_stream {
     use quipay_common::QuipayError;
-    use soroban_sdk::{Address, Env, Vec, contract, contractimpl, contracttype};
+    use soroban_sdk::{Address, Env, contract, contractimpl, contracttype};
 
     #[contracttype]
     #[derive(Clone)]
@@ -475,7 +475,7 @@ fn test_transfer_admin_backward_compatible() {
 
     // Use transfer_admin function (backward compatible)
     client.transfer_admin(&new_admin);
-    
+
     // Should transfer atomically
     assert_eq!(client.get_admin(), new_admin);
     assert_eq!(client.get_pending_admin(), None); // No pending admin left

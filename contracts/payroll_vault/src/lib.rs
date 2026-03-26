@@ -26,7 +26,7 @@ mod proptest;
 pub enum StateKey {
     // Persistent storage - survives upgrades
     Admin,
-    PendingAdmin,       // Two-step admin transfer
+    PendingAdmin, // Pending admin address (for two-step transfer)
     Version,
     AuthorizedContract, // Contract authorized to modify liabilities (e.g., PayrollStream)
     TokenList,          // Tokens tracked by the vault
@@ -262,70 +262,53 @@ impl PayrollVault {
             .ok_or(QuipayError::NotInitialized)
     }
 
-    /// Get the pending admin address (if any)
-    pub fn get_pending_admin(e: Env) -> Option<Address> {
-        e.storage().persistent().get(&StateKey::PendingAdmin)
-    }
-
-    /// Propose a new admin (step 1 of two-step transfer)
-    ///
-    /// # Multisig Support
-    /// The current admin must authorize this proposal. If the current admin is a multisig,
-    /// the transaction must meet its threshold.
-    pub fn propose_admin(e: Env, new_admin: Address) -> Result<(), QuipayError> {
-        let admin = Self::get_admin(e.clone())?;
-        admin.require_auth();
-
-        e.storage().persistent().set(&StateKey::PendingAdmin, &new_admin);
-        Ok(())
-    }
-
-    /// Accept admin role (step 2 of two-step transfer)
-    ///
-    /// # Multisig Support
-    /// The pending admin must authorize this acceptance. If the pending admin is a multisig,
-    /// the transaction must meet its threshold before the transfer is finalized.
-    pub fn accept_admin(e: Env) -> Result<(), QuipayError> {
-        let pending_admin: Address = e
-            .storage()
-            .persistent()
-            .get(&StateKey::PendingAdmin)
-            .ok_or(QuipayError::NoPendingAdmin)?;
-        
-        pending_admin.require_auth();
-
-        // Transfer admin rights
-        e.storage().persistent().set(&StateKey::Admin, &pending_admin);
-        // Clear pending admin
-        e.storage().persistent().remove(&StateKey::PendingAdmin);
-        
-        Ok(())
-    }
-
-    /// Transfer admin rights to a new address (backward compatible - atomic version)
-    ///
-    /// This function maintains backward compatibility by atomically proposing and accepting
-    /// the admin transfer. It calls propose_admin() and accept_admin() internally.
+    /// Transfer admin rights to a new address
     ///
     /// # Multisig Support
     /// Supports transferring admin to another multisig account. The current admin
     /// must authorize the transfer. If the current admin is a multisig, the transaction
     /// must meet its threshold. The new admin can also be a multisig account.
-    ///
-    /// # Security Note
-    /// For maximum security, use propose_admin() + accept_admin() separately to ensure
-    /// the new admin address is correct before finalizing the transfer.
     pub fn transfer_admin(e: Env, new_admin: Address) -> Result<(), QuipayError> {
         let admin = Self::get_admin(e.clone())?;
         admin.require_auth();
 
-        // Atomic two-step: propose and accept
-        e.storage().persistent().set(&StateKey::PendingAdmin, &new_admin);
-        
-        // Simulate accept by new admin (backward compatibility)
         e.storage().persistent().set(&StateKey::Admin, &new_admin);
+        Ok(())
+    }
+
+    /// Propose a new admin address (first step of two-step transfer)
+    /// Only the current admin can propose a new admin
+    pub fn propose_admin(e: Env, new_admin: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        e.storage()
+            .persistent()
+            .set(&StateKey::PendingAdmin, &new_admin);
+        Ok(())
+    }
+
+    /// Get the pending admin address (if any)
+    pub fn get_pending_admin(e: Env) -> Option<Address> {
+        e.storage().persistent().get(&StateKey::PendingAdmin)
+    }
+
+    /// Accept the admin role (second step of two-step transfer)
+    /// Only the pending admin can call this function
+    pub fn accept_admin(e: Env) -> Result<(), QuipayError> {
+        let pending_admin =
+            Self::get_pending_admin(e.clone()).ok_or(QuipayError::NoPendingAdmin)?;
+
+        pending_admin.require_auth();
+
+        // Set the new admin
+        e.storage()
+            .persistent()
+            .set(&StateKey::Admin, &pending_admin);
+
+        // Clear the pending admin
         e.storage().persistent().remove(&StateKey::PendingAdmin);
-        
+
         Ok(())
     }
 
@@ -463,7 +446,7 @@ impl PayrollVault {
         e.events().publish(
             (
                 symbol_short!("vault"),
-                symbol_short!("allocated"),
+                symbol_short!("alloc"),
                 token.clone(),
                 symbol_short!("admin"),
             ),
@@ -504,7 +487,7 @@ impl PayrollVault {
         e.events().publish(
             (
                 symbol_short!("vault"),
-                symbol_short!("released"),
+                symbol_short!("release"),
                 token.clone(),
                 symbol_short!("admin"),
             ),
@@ -668,9 +651,20 @@ impl PayrollVault {
             return Err(QuipayError::InsufficientBalance);
         }
 
-        let key = StateKey::TotalLiability(token);
+        let key = StateKey::TotalLiability(token.clone());
         let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
         e.storage().persistent().set(&key, &(current + amount));
+
+        e.events().publish(
+            (
+                symbol_short!("vault"),
+                symbol_short!("add_lia"),
+                token,
+                authorized,
+            ),
+            amount,
+        );
+
         Ok(())
     }
 
@@ -689,12 +683,23 @@ impl PayrollVault {
             return Err(QuipayError::InvalidAmount);
         }
 
-        let key = StateKey::TotalLiability(token);
+        let key = StateKey::TotalLiability(token.clone());
         let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
         if amount > current {
             return Err(QuipayError::InvalidAmount);
         }
         e.storage().persistent().set(&key, &(current - amount));
+
+        e.events().publish(
+            (
+                symbol_short!("vault"),
+                symbol_short!("rem_lia"),
+                token,
+                authorized,
+            ),
+            amount,
+        );
+
         Ok(())
     }
 

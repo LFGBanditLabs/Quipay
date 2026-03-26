@@ -558,8 +558,8 @@ fn test_remove_more_liability_than_exists_returns_error() {
     assert_eq!(client.get_liability(&token), 500);
 
     // Should return error - trying to remove more than exists
-    let res = client.try_remove_liability(&token, &600);
-    assert_eq!(res, Err(Ok(QuipayError::InvalidAmount)));
+    let result = client.try_remove_liability(&token, &600);
+    assert_eq!(result, Err(Ok(QuipayError::InvalidAmount)));
 }
 
 #[test]
@@ -579,8 +579,8 @@ fn test_add_zero_liability_returns_error() {
     client.set_authorized_contract(&authorized_contract);
 
     // Should return error - zero amount
-    let res = client.try_add_liability(&token, &0);
-    assert_eq!(res, Err(Ok(QuipayError::InvalidAmount)));
+    let result = client.try_add_liability(&token, &0);
+    assert_eq!(result, Err(Ok(QuipayError::InvalidAmount)));
 }
 
 #[test]
@@ -612,8 +612,8 @@ fn test_remove_zero_liability_returns_error() {
     client.add_liability(&token, &500);
 
     // Should return error - zero amount
-    let res = client.try_remove_liability(&token, &0);
-    assert_eq!(res, Err(Ok(QuipayError::InvalidAmount)));
+    let result = client.try_remove_liability(&token, &0);
+    assert_eq!(result, Err(Ok(QuipayError::InvalidAmount)));
 }
 
 #[test]
@@ -798,15 +798,15 @@ fn test_require_auth_for_set_authorized_contract_with_multisig() {
         Some(authorized_contract.clone())
     );
 
-    // Try to set authorized contract without admin auth - should return error
+    // Try to set authorized contract without initialization - should return error
     // This simulates a transaction that doesn't meet multisig threshold
     let env2 = Env::default();
     let contract_id2 = env2.register(PayrollVault, ());
     let client2 = PayrollVaultClient::new(&env2, &contract_id2);
-    // Don't initialize - this will cause an error when trying to get admin
+    // Don't initialize - this will cause NotInitialized error when trying to get admin
     let another_contract = Address::generate(&env2);
-    let res = client2.try_set_authorized_contract(&another_contract);
-    assert_eq!(res, Err(Ok(QuipayError::NotInitialized)));
+    let result = client2.try_set_authorized_contract(&another_contract);
+    assert_eq!(result, Err(Ok(QuipayError::NotInitialized)));
 }
 
 #[test]
