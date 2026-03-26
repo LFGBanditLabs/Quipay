@@ -98,6 +98,16 @@ export interface WebhookOutboundEventRecord {
   updated_at: Date;
 }
 
+export interface PayrollProofRecord {
+  id: number;
+  stream_id: number;
+  cid: string;
+  ipfs_url: string;
+  gateway_url: string;
+  proof_json: unknown;
+  created_at: Date;
+}
+
 // ─── Cursor helpers (for sync worker) ───────────────────────────────────────
 
 export const getLastSyncedLedger = async (
@@ -524,6 +534,17 @@ export interface MonitorLogEntry {
   created_at: Date;
 }
 
+export interface WorkerNotificationSettingsRecord {
+  worker: string;
+  email_enabled: boolean;
+  in_app_enabled: boolean;
+  cliff_unlock_alerts: boolean;
+  stream_ending_alerts: boolean;
+  low_runway_alerts: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export const getTreasuryBalances = async (): Promise<TreasuryBalance[]> => {
   if (!getPool()) return [];
   const res = await query<TreasuryBalance>(
@@ -602,6 +623,49 @@ export const getMonitorLogs = async (
     [limit],
   );
   return res.rows;
+};
+
+export const getWorkerNotificationSettings = async (
+  worker: string,
+): Promise<WorkerNotificationSettingsRecord | null> => {
+  if (!getPool()) return null;
+  const res = await query<WorkerNotificationSettingsRecord>(
+    `SELECT * FROM worker_notification_settings WHERE worker = $1`,
+    [worker],
+  );
+  return res.rows[0] ?? null;
+};
+
+export const upsertWorkerNotificationSettings = async (params: {
+  worker: string;
+  emailEnabled: boolean;
+  inAppEnabled: boolean;
+  cliffUnlockAlerts: boolean;
+  streamEndingAlerts: boolean;
+  lowRunwayAlerts: boolean;
+}): Promise<void> => {
+  if (!getPool()) return;
+  await query(
+    `INSERT INTO worker_notification_settings
+      (worker, email_enabled, in_app_enabled, cliff_unlock_alerts, stream_ending_alerts, low_runway_alerts, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, NOW())
+     ON CONFLICT (worker)
+     DO UPDATE SET
+       email_enabled = EXCLUDED.email_enabled,
+       in_app_enabled = EXCLUDED.in_app_enabled,
+       cliff_unlock_alerts = EXCLUDED.cliff_unlock_alerts,
+       stream_ending_alerts = EXCLUDED.stream_ending_alerts,
+       low_runway_alerts = EXCLUDED.low_runway_alerts,
+       updated_at = NOW()`,
+    [
+      params.worker,
+      params.emailEnabled,
+      params.inAppEnabled,
+      params.cliffUnlockAlerts,
+      params.streamEndingAlerts,
+      params.lowRunwayAlerts,
+    ],
+  );
 };
 
 // ─── Webhook outbound delivery logs ──────────────────────────────────────────
@@ -739,4 +803,52 @@ export const listWebhookOutboundEventsByOwner = async (params: {
     [params.ownerId, params.limit, params.offset],
   );
   return res.rows;
+};
+
+// ─── Stream read by ID ────────────────────────────────────────────────────────
+
+export const getStreamById = async (
+  streamId: number,
+): Promise<StreamRecord | null> => {
+  if (!getPool()) return null;
+  const res = await query<StreamRecord>(
+    `SELECT * FROM payroll_streams WHERE stream_id = $1`,
+    [streamId],
+  );
+  return res.rows[0] ?? null;
+};
+
+// ─── Payroll proof queries ────────────────────────────────────────────────────
+
+export const insertPayrollProof = async (params: {
+  streamId: number;
+  cid: string;
+  ipfsUrl: string;
+  gatewayUrl: string;
+  proofJson: unknown;
+}): Promise<void> => {
+  if (!getPool()) return;
+  await query(
+    `INSERT INTO payroll_proofs (stream_id, cid, ipfs_url, gateway_url, proof_json)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (stream_id) DO NOTHING`,
+    [
+      params.streamId,
+      params.cid,
+      params.ipfsUrl,
+      params.gatewayUrl,
+      JSON.stringify(params.proofJson),
+    ],
+  );
+};
+
+export const getProofByStreamId = async (
+  streamId: number,
+): Promise<PayrollProofRecord | null> => {
+  if (!getPool()) return null;
+  const res = await query<PayrollProofRecord>(
+    `SELECT * FROM payroll_proofs WHERE stream_id = $1`,
+    [streamId],
+  );
+  return res.rows[0] ?? null;
 };

@@ -4,7 +4,7 @@ extern crate std;
 use super::*;
 use quipay_common::QuipayError;
 use soroban_sdk::xdr::{ReadXdr, ToXdr};
-use soroban_sdk::{Address, BytesN, Env, TryIntoVal, testutils::Address as _, token, xdr};
+use soroban_sdk::{testutils::Address as _, token, xdr, Address, BytesN, Env, TryIntoVal};
 
 fn register_native_token_contract(env: &Env, admin: Address) -> Address {
     let _ = admin;
@@ -504,14 +504,13 @@ fn test_check_solvency_prevents_unfunded_liability() {
     token_admin_client.mint(&depositor, &500);
     client.deposit(&depositor, &token_id, &500);
 
-    // This would exceed balance (liability 0 + 501 > balance 500) and should panic
+    // This would exceed balance (liability 0 + 501 > balance 500) and should return error
     let res = client.try_add_liability(&token_id, &501);
-    assert!(res.is_err());
+    assert_eq!(res, Err(Ok(QuipayError::InsufficientBalance)));
 }
 
 #[test]
-#[should_panic(expected = "authorized contract not set")]
-fn test_add_liability_without_authorized_contract_panics() {
+fn test_add_liability_without_authorized_contract_returns_error() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -524,13 +523,13 @@ fn test_add_liability_without_authorized_contract_panics() {
     // Initialize but don't set authorized contract
     client.initialize(&admin);
 
-    // Should panic - no authorized contract set
-    client.add_liability(&token, &500);
+    // Should return error - no authorized contract set
+    let res = client.try_add_liability(&token, &500);
+    assert_eq!(res, Err(Ok(QuipayError::NotInitialized)));
 }
 
 #[test]
-#[should_panic(expected = "cannot remove more liability than exists")]
-fn test_remove_more_liability_than_exists_panics() {
+fn test_remove_more_liability_than_exists_returns_error() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -558,13 +557,13 @@ fn test_remove_more_liability_than_exists_panics() {
     client.add_liability(&token, &500);
     assert_eq!(client.get_liability(&token), 500);
 
-    // Should panic - trying to remove more than exists
-    client.remove_liability(&token, &600);
+    // Should return error - trying to remove more than exists
+    let result = client.try_remove_liability(&token, &600);
+    assert_eq!(result, Err(Ok(QuipayError::InvalidAmount)));
 }
 
 #[test]
-#[should_panic(expected = "liability amount must be positive")]
-fn test_add_zero_liability_panics() {
+fn test_add_zero_liability_returns_error() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -579,13 +578,13 @@ fn test_add_zero_liability_panics() {
     client.initialize(&admin);
     client.set_authorized_contract(&authorized_contract);
 
-    // Should panic - zero amount
-    client.add_liability(&token, &0);
+    // Should return error - zero amount
+    let result = client.try_add_liability(&token, &0);
+    assert_eq!(result, Err(Ok(QuipayError::InvalidAmount)));
 }
 
 #[test]
-#[should_panic(expected = "removal amount must be positive")]
-fn test_remove_zero_liability_panics() {
+fn test_remove_zero_liability_returns_error() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -612,8 +611,9 @@ fn test_remove_zero_liability_panics() {
     // Add some liability first
     client.add_liability(&token, &500);
 
-    // Should panic - zero amount
-    client.remove_liability(&token, &0);
+    // Should return error - zero amount
+    let result = client.try_remove_liability(&token, &0);
+    assert_eq!(result, Err(Ok(QuipayError::InvalidAmount)));
 }
 
 #[test]
@@ -779,7 +779,6 @@ fn test_require_auth_for_payout_with_multisig() {
 }
 
 #[test]
-#[should_panic(expected = "not initialized")]
 fn test_require_auth_for_set_authorized_contract_with_multisig() {
     let env = Env::default();
     env.mock_all_auths();
@@ -799,14 +798,15 @@ fn test_require_auth_for_set_authorized_contract_with_multisig() {
         Some(authorized_contract.clone())
     );
 
-    // Try to set authorized contract without admin auth - should panic
+    // Try to set authorized contract without initialization - should return error
     // This simulates a transaction that doesn't meet multisig threshold
     let env2 = Env::default();
     let contract_id2 = env2.register(PayrollVault, ());
     let client2 = PayrollVaultClient::new(&env2, &contract_id2);
-    // Don't initialize - this will cause a panic when trying to get admin
+    // Don't initialize - this will cause NotInitialized error when trying to get admin
     let another_contract = Address::generate(&env2);
-    client2.set_authorized_contract(&another_contract);
+    let result = client2.try_set_authorized_contract(&another_contract);
+    assert_eq!(result, Err(Ok(QuipayError::NotInitialized)));
 }
 
 #[test]
@@ -849,4 +849,169 @@ fn test_multisig_admin_can_perform_all_operations() {
     let new_multisig_admin = Address::generate(&env);
     client.transfer_admin(&new_multisig_admin);
     assert_eq!(client.get_admin(), new_multisig_admin);
+}
+
+// ============================================================================
+// Two-Step Admin Transfer Tests
+// ============================================================================
+
+#[test]
+fn test_two_step_admin_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize
+    client.initialize(&admin);
+    assert_eq!(client.get_admin(), admin);
+
+    // Step 1: Propose new admin
+    client.propose_admin(&new_admin);
+    assert_eq!(client.get_pending_admin(), Some(new_admin.clone()));
+    assert_eq!(client.get_admin(), admin); // Admin hasn't changed yet
+
+    // Step 2: Accept admin role
+    client.accept_admin();
+    assert_eq!(client.get_admin(), new_admin);
+    assert_eq!(client.get_pending_admin(), None); // Pending cleared
+}
+
+#[test]
+fn test_accept_admin_requires_pending() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Try to accept without pending admin - should fail with NoPendingAdmin
+    let result = client.try_accept_admin();
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().unwrap(), QuipayError::NoPendingAdmin);
+}
+
+#[test]
+fn test_accept_admin_requires_pending_admin_auth() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    client.initialize(&admin);
+    client.propose_admin(&new_admin);
+
+    // Note: In production, this would require new_admin.require_auth()
+    // but with mock_all_auths(), we can't test auth failures
+    client.accept_admin();
+    assert_eq!(client.get_admin(), new_admin);
+}
+
+#[test]
+fn test_transfer_admin_backward_compatible() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize
+    client.initialize(&admin);
+    assert_eq!(client.get_admin(), admin);
+
+    // Use old transfer_admin function (backward compatible)
+    client.transfer_admin(&new_admin);
+
+    // Should transfer atomically
+    assert_eq!(client.get_admin(), new_admin);
+    assert_eq!(client.get_pending_admin(), None); // No pending admin left
+}
+
+#[test]
+fn test_propose_admin_overwrites_previous_pending() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin1 = Address::generate(&env);
+    let new_admin2 = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Propose first admin
+    client.propose_admin(&new_admin1);
+    assert_eq!(client.get_pending_admin(), Some(new_admin1.clone()));
+
+    // Propose second admin (should overwrite)
+    client.propose_admin(&new_admin2);
+    assert_eq!(client.get_pending_admin(), Some(new_admin2.clone()));
+
+    // Accept should use the latest proposal
+    client.accept_admin();
+    assert_eq!(client.get_admin(), new_admin2);
+}
+
+#[test]
+fn test_two_step_admin_transfer_with_multisig() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+
+    // Simulate multisig addresses
+    let multisig_admin = Address::generate(&env);
+    let multisig_new_admin = Address::generate(&env);
+
+    client.initialize(&multisig_admin);
+
+    // Step 1: Current multisig admin proposes new multisig admin
+    client.propose_admin(&multisig_new_admin);
+    assert_eq!(client.get_pending_admin(), Some(multisig_new_admin.clone()));
+
+    // Step 2: New multisig admin accepts (simulating threshold met)
+    client.accept_admin();
+    assert_eq!(client.get_admin(), multisig_new_admin);
+    assert_eq!(client.get_pending_admin(), None);
+}
+
+#[test]
+fn test_high_value_withdraw_requires_multisig_signers() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    let signer2 = Address::generate(&env);
+    client.add_signer(&signer2);
+    client.set_threshold(&2);
+    client.set_withdrawal_threshold(&500);
+
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_id = token_contract.address();
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+    let employer = Address::generate(&env);
+
+    token_admin_client.mint(&employer, &2_000);
+    client.deposit(&employer, &token_id, &2_000);
+
+    // no liabilities so all funds are available, and amount >= threshold triggers multisig auth path
+    client.withdraw(&employer, &token_id, &600);
+    assert_eq!(client.get_treasury_balance(&token_id), 1_400);
 }

@@ -203,6 +203,76 @@ export const treasuryMonitorLog = pgTable(
   ],
 );
 
+// IPFS payroll proof records — one per completed stream
+export const payrollProofs = pgTable(
+  "payroll_proofs",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    streamId: bigint("stream_id", { mode: "number" })
+      .notNull()
+      .unique()
+      .references(() => payrollStreams.streamId),
+    /** IPFS CID v1 (base32) of the pinned proof JSON */
+    cid: text("cid").notNull(),
+    /** ipfs:// URI */
+    ipfsUrl: text("ipfs_url").notNull(),
+    /** Public HTTPS gateway URL */
+    gatewayUrl: text("gateway_url").notNull(),
+    /** Full proof document as stored on IPFS */
+    proofJson: jsonb("proof_json").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_proofs_stream_id").on(table.streamId),
+    index("idx_proofs_cid").on(table.cid),
+  ],
+);
+
+// Raw Prometheus scrape snapshots retained for short-term forensics
+export const metricSnapshots = pgTable(
+  "metric_snapshots",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    capturedAt: timestamp("captured_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    metricsText: text("metrics_text").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_metric_snapshots_captured_at").on(table.capturedAt.desc()),
+    index("idx_metric_snapshots_created_at").on(table.createdAt.desc()),
+  ],
+);
+
+// Worker notification delivery preferences
+export const workerNotificationSettings = pgTable(
+  "worker_notification_settings",
+  {
+    worker: text("worker").primaryKey(),
+    emailEnabled: boolean("email_enabled").notNull().default(true),
+    inAppEnabled: boolean("in_app_enabled").notNull().default(true),
+    cliffUnlockAlerts: boolean("cliff_unlock_alerts").notNull().default(true),
+    streamEndingAlerts: boolean("stream_ending_alerts").notNull().default(true),
+    lowRunwayAlerts: boolean("low_runway_alerts").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_worker_notification_settings_updated").on(
+      table.updatedAt.desc(),
+    ),
+  ],
+);
+
 // Audit logs for comprehensive action tracking
 export const auditLogs = pgTable(
   "audit_logs",
@@ -241,5 +311,31 @@ export const auditLogs = pgTable(
       table.createdAt.desc(),
     ),
     check("log_level_check", sql`log_level IN ('INFO', 'WARN', 'ERROR')`),
+  ],
+);
+
+// Admin audit trail for tracking administrative actions
+export const adminAuditLog = pgTable(
+  "admin_audit_log",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    adminAddress: text("admin_address").notNull(),
+    action: text("action").notNull(),
+    target: text("target"),
+    details: jsonb("details").notNull().default({}),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    timestamp: timestamp("timestamp", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_admin_audit_admin").on(table.adminAddress),
+    index("idx_admin_audit_action").on(table.action),
+    index("idx_admin_audit_timestamp").on(table.timestamp.desc()),
+    index("idx_admin_audit_admin_timestamp").on(
+      table.adminAddress,
+      table.timestamp.desc(),
+    ),
   ],
 );

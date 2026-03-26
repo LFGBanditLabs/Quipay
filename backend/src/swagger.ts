@@ -54,7 +54,7 @@ const swaggerDefinition = {
       HealthResponse: {
         type: "object",
         properties: {
-          status: { type: "string", example: "ok" },
+          status: { type: "string", enum: ["ok", "degraded"], example: "ok" },
           uptime: { type: "string", example: "120s" },
           timestamp: {
             type: "string",
@@ -65,6 +65,35 @@ const swaggerDefinition = {
           service: {
             type: "string",
             example: "quipay-automation-engine",
+          },
+          dependencies: {
+            type: "object",
+            properties: {
+              database: {
+                type: "object",
+                properties: {
+                  status: { type: "string", enum: ["healthy", "unhealthy"] },
+                  latencyMs: { type: "number", example: 12 },
+                  details: { type: "string", nullable: true },
+                },
+              },
+              stellarRpc: {
+                type: "object",
+                properties: {
+                  status: { type: "string", enum: ["healthy", "unhealthy"] },
+                  latencyMs: { type: "number", example: 48 },
+                  details: { type: "string", nullable: true },
+                },
+              },
+              vault: {
+                type: "object",
+                properties: {
+                  status: { type: "string", enum: ["healthy", "unhealthy"] },
+                  latencyMs: { type: "number", example: 15 },
+                  details: { type: "string", nullable: true },
+                },
+              },
+            },
           },
         },
       },
@@ -300,11 +329,20 @@ const swaggerDefinition = {
         tags: ["System"],
         summary: "Health check",
         description:
-          "Returns the operational status, uptime, and version of the automation engine.",
+          "Returns overall service health plus dependency checks for database, Stellar RPC, and Vault token validity.",
         operationId: "getHealth",
         responses: {
           200: {
-            description: "Service is healthy.",
+            description: "All dependencies are healthy.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/HealthResponse" },
+              },
+            },
+          },
+          503: {
+            description:
+              "Service is degraded because one or more dependencies are unhealthy.",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/HealthResponse" },
@@ -356,7 +394,7 @@ const swaggerDefinition = {
         tags: ["Monitor"],
         summary: "Treasury monitor status",
         description:
-          "Runs a treasury health check cycle and returns the result for all tracked employer addresses.",
+          "Runs a treasury health check cycle and returns the result for all tracked employer addresses. This endpoint is strict-rate-limited. If MONITOR_STATUS_ADMIN_TOKEN is configured, include it as `Authorization: Bearer <token>`.",
         operationId: "getMonitorStatus",
         responses: {
           200: {
@@ -364,6 +402,24 @@ const swaggerDefinition = {
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/MonitorStatusResponse" },
+              },
+            },
+          },
+          401: {
+            description:
+              "Unauthorized. Returned when MONITOR_STATUS_ADMIN_TOKEN is configured and the bearer token is missing or invalid.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          429: {
+            description:
+              "Too many requests. Strict rate limiter has been exceeded.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
               },
             },
           },
