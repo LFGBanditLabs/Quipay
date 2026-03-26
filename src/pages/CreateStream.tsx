@@ -5,10 +5,7 @@ import Wizard from "../components/Wizard";
 import { useNotification } from "../hooks/useNotification";
 import Tooltip from "../components/Tooltip";
 import CollapsibleSection from "../components/CollapsibleSection";
-import {
-  useStreamTemplates,
-  StreamTemplate,
-} from "../hooks/useStreamTemplates";
+import { useStreamTemplates } from "../hooks/useStreamTemplates";
 
 const CreateStream: React.FC = () => {
   const tw = {
