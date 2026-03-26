@@ -87,6 +87,21 @@ export class MockWallet {
             return (window as any).mockWallet.signTransaction(xdr);
           }
         };
+
+        if (isConnected) {
+          localStorage.setItem("walletId", JSON.stringify("mock-wallet"));
+          localStorage.setItem("walletAddress", JSON.stringify(publicKey));
+          localStorage.setItem("walletNetwork", JSON.stringify("TESTNET"));
+          localStorage.setItem(
+            "networkPassphrase",
+            JSON.stringify("Test SDF Network ; September 2015"),
+          );
+        } else {
+          localStorage.removeItem("walletId");
+          localStorage.removeItem("walletAddress");
+          localStorage.removeItem("walletNetwork");
+          localStorage.removeItem("networkPassphrase");
+        }
       },
       {
         publicKey: this.publicKey,
@@ -100,10 +115,20 @@ export class MockWallet {
    * Simulate wallet connection
    */
   async connect(): Promise<void> {
-    await this.page.evaluate(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window as any).mockWallet.isConnected = true;
-    });
+    await this.page.evaluate(
+      ({ publicKey }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).mockWallet.isConnected = true;
+        localStorage.setItem("walletId", JSON.stringify("mock-wallet"));
+        localStorage.setItem("walletAddress", JSON.stringify(publicKey));
+        localStorage.setItem("walletNetwork", JSON.stringify("TESTNET"));
+        localStorage.setItem(
+          "networkPassphrase",
+          JSON.stringify("Test SDF Network ; September 2015"),
+        );
+      },
+      { publicKey: this.publicKey },
+    );
   }
 
   /**
@@ -113,6 +138,10 @@ export class MockWallet {
     await this.page.evaluate(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).mockWallet.isConnected = false;
+      localStorage.removeItem("walletId");
+      localStorage.removeItem("walletAddress");
+      localStorage.removeItem("walletNetwork");
+      localStorage.removeItem("networkPassphrase");
     });
   }
 
