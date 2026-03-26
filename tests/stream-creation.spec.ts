@@ -3,7 +3,7 @@
  * Tests the critical user journey of creating a payment stream
  */
 
-import { test, expect, Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { MockWallet } from "./fixtures/wallet";
 import { fillStreamForm, waitForAlert } from "./helpers/test-utils";
 

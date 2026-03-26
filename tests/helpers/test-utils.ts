@@ -2,7 +2,7 @@
  * Test Utilities for Playwright E2E Tests
  */
 
-import { Page, expect } from "@playwright/test";
+import { Page } from "@playwright/test";
 
 /**
  * Fill the stream creation form

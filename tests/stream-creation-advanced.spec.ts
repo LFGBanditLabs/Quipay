@@ -5,7 +5,7 @@
 
 import { test, expect } from "@playwright/test";
 import { MockWallet } from "./fixtures/wallet";
-import { fillStreamForm, waitForAlert } from "./helpers/test-utils";
+import { fillStreamForm } from "./helpers/test-utils";
 
 test.describe("Stream Creation - Advanced Scenarios", () => {
   test("should handle wallet not connected state", async ({ page }) => {

@@ -32,6 +32,7 @@ export class MockWallet {
     await this.page.addInitScript(
       ({ publicKey, isConnected, shouldFailTransaction }) => {
         // Mock the wallet provider
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (window as any).mockWallet = {
           publicKey,
           isConnected,
@@ -45,6 +46,7 @@ export class MockWallet {
           },
 
           disconnect: async () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (window as any).mockWallet.isConnected = false;
           },
 
@@ -61,16 +63,23 @@ export class MockWallet {
         };
 
         // Mock the wallet kit
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (window as any).StellarWalletsKit = class {
-          async openModal() {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          async openModal(): Promise<any> {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             return (window as any).mockWallet.connect();
           }
 
-          async disconnect() {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          async disconnect(): Promise<any> {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             return (window as any).mockWallet.disconnect();
           }
 
-          async sign(xdr: string) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          async sign(xdr: string): Promise<any> {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             return (window as any).mockWallet.signTransaction(xdr);
           }
         };
@@ -88,6 +97,7 @@ export class MockWallet {
    */
   async connect(): Promise<void> {
     await this.page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).mockWallet.isConnected = true;
     });
   }
@@ -97,6 +107,7 @@ export class MockWallet {
    */
   async disconnect(): Promise<void> {
     await this.page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).mockWallet.isConnected = false;
     });
   }
