@@ -1,5 +1,22 @@
 import { Registry, Counter, Gauge, Histogram } from "prom-client";
 
+export interface DbPoolMetricSnapshot {
+  total: number;
+  active: number;
+  idle: number;
+  waiting: number;
+  max: number;
+  min: number;
+}
+
+let dbPoolMetricProvider: (() => DbPoolMetricSnapshot | null) | null = null;
+
+export function setDbPoolMetricsProvider(
+  provider: (() => DbPoolMetricSnapshot | null) | null,
+) {
+  dbPoolMetricProvider = provider;
+}
+
 const circuitBreakerState = new Gauge({
   name: "circuit_breaker_state",
   help: "Current state of the circuit breaker (0: closed, 1: open, 2: half-open)",
@@ -22,6 +39,54 @@ const circuitBreakerFallbacks = new Counter({
   name: "circuit_breaker_fallbacks_total",
   help: "Total number of circuit breaker fallbacks triggered",
   labelNames: ["name"],
+});
+
+const dbPoolTotalConnections = new Gauge({
+  name: "quipay_db_pool_total_connections",
+  help: "Total PostgreSQL connections currently opened by the pool",
+  collect() {
+    this.set(dbPoolMetricProvider?.()?.total ?? 0);
+  },
+});
+
+const dbPoolActiveConnections = new Gauge({
+  name: "quipay_db_pool_active_connections",
+  help: "Active PostgreSQL connections currently checked out from the pool",
+  collect() {
+    this.set(dbPoolMetricProvider?.()?.active ?? 0);
+  },
+});
+
+const dbPoolIdleConnections = new Gauge({
+  name: "quipay_db_pool_idle_connections",
+  help: "Idle PostgreSQL connections currently available in the pool",
+  collect() {
+    this.set(dbPoolMetricProvider?.()?.idle ?? 0);
+  },
+});
+
+const dbPoolWaitingClients = new Gauge({
+  name: "quipay_db_pool_waiting_clients",
+  help: "Requests currently waiting for a PostgreSQL connection from the pool",
+  collect() {
+    this.set(dbPoolMetricProvider?.()?.waiting ?? 0);
+  },
+});
+
+const dbPoolMaxConnections = new Gauge({
+  name: "quipay_db_pool_max_connections",
+  help: "Configured upper bound for PostgreSQL pool connections",
+  collect() {
+    this.set(dbPoolMetricProvider?.()?.max ?? 0);
+  },
+});
+
+const dbPoolMinConnections = new Gauge({
+  name: "quipay_db_pool_min_connections",
+  help: "Configured lower bound for PostgreSQL pool connections",
+  collect() {
+    this.set(dbPoolMetricProvider?.()?.min ?? 0);
+  },
 });
 
 export class MetricsManager {
@@ -58,6 +123,12 @@ export class MetricsManager {
     this.register.registerMetric(circuitBreakerFailures);
     this.register.registerMetric(circuitBreakerSuccesses);
     this.register.registerMetric(circuitBreakerFallbacks);
+    this.register.registerMetric(dbPoolTotalConnections);
+    this.register.registerMetric(dbPoolActiveConnections);
+    this.register.registerMetric(dbPoolIdleConnections);
+    this.register.registerMetric(dbPoolWaitingClients);
+    this.register.registerMetric(dbPoolMaxConnections);
+    this.register.registerMetric(dbPoolMinConnections);
   }
 
   public trackTransaction(
@@ -73,6 +144,10 @@ export class MetricsManager {
 
   public setSuccessRate(rate: number) {
     this.successRate.set(rate);
+  }
+
+  public async snapshot(): Promise<string> {
+    return this.register.metrics();
   }
 }
 

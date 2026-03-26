@@ -1,7 +1,7 @@
 #![no_std]
 use core::convert::TryFrom;
 use quipay_common::{QuipayError, require};
-use soroban_sdk::{Address, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype};
+use soroban_sdk::{Address, BytesN, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype};
 
 const MAX_BATCH_CREATE_STREAMS: u32 = 20;
 const MAX_STREAM_DURATION: u64 = 365 * 24 * 60 * 60; // 365 days in seconds
@@ -65,6 +65,7 @@ pub struct Stream {
     pub closed_at: u64,
     pub paused_at: u64,
     pub total_paused_duration: u64,
+    pub metadata_hash: Option<BytesN<32>>,
 }
 
 #[contracttype]
@@ -77,6 +78,7 @@ pub struct StreamParams {
     pub cliff_ts: u64,
     pub start_ts: u64,
     pub end_ts: u64,
+    pub metadata_hash: Option<BytesN<32>>,
 }
 
 #[contracttype]
@@ -271,6 +273,7 @@ impl PayrollStream {
         cliff_ts: u64,
         start_ts: u64,
         end_ts: u64,
+        metadata_hash: Option<BytesN<32>>,
     ) -> Result<u64, QuipayError> {
         Self::require_not_paused(&env)?;
         employer.require_auth();
@@ -285,6 +288,7 @@ impl PayrollStream {
             cliff_ts,
             start_ts,
             end_ts,
+            metadata_hash,
         )?;
 
         env.events().publish(
@@ -340,6 +344,7 @@ impl PayrollStream {
                 param.cliff_ts,
                 param.start_ts,
                 param.end_ts,
+                param.metadata_hash.clone(),
             )?;
 
             env.events().publish(
@@ -401,17 +406,8 @@ impl PayrollStream {
             .instance()
             .get(&DataKey::Vault)
             .ok_or(QuipayError::NotInitialized)?;
-        use soroban_sdk::{IntoVal, Symbol, vec};
-        env.invoke_contract::<()>(
-            &vault,
-            &Symbol::new(&env, "payout_liability"),
-            vec![
-                &env,
-                worker.clone().into_val(&env),
-                stream.token.clone().into_val(&env),
-                available.into_val(&env),
-            ],
-        );
+
+        Self::call_vault_payout(&env, &vault, worker.clone(), stream.token.clone(), available);
 
         stream.withdrawn_amount = stream
             .withdrawn_amount
@@ -529,17 +525,7 @@ impl PayrollStream {
                     let mut stream = candidate.stream;
                     let available = candidate.amount;
 
-                    use soroban_sdk::{IntoVal, Symbol, vec};
-                    env.invoke_contract::<()>(
-                        &vault,
-                        &Symbol::new(&env, "payout_liability"),
-                        vec![
-                            &env,
-                            caller.clone().into_val(&env),
-                            stream.token.clone().into_val(&env),
-                            available.into_val(&env),
-                        ],
-                    );
+                    Self::call_vault_payout(&env, &vault, caller.clone(), stream.token.clone(), available);
 
                     stream.withdrawn_amount = stream
                         .withdrawn_amount
@@ -638,17 +624,7 @@ impl PayrollStream {
 
         // Pay out owed amount to worker
         if owed > 0 {
-            use soroban_sdk::{IntoVal, Symbol, vec};
-            env.invoke_contract::<()>(
-                &vault,
-                &Symbol::new(&env, "payout_liability"),
-                vec![
-                    &env,
-                    stream.worker.clone().into_val(&env),
-                    stream.token.clone().into_val(&env),
-                    owed.into_val(&env),
-                ],
-            );
+            Self::call_vault_payout(&env, &vault, stream.worker.clone(), stream.token.clone(), owed);
             stream.withdrawn_amount = stream
                 .withdrawn_amount
                 .checked_add(owed)
@@ -665,31 +641,12 @@ impl PayrollStream {
         let cancel_fee = Self::calculate_early_cancel_fee(&env, remaining_liability);
 
         if remaining_liability > 0 {
-            use soroban_sdk::{IntoVal, Symbol, vec};
-
             // Remove remaining liability from vault
-            env.invoke_contract::<()>(
-                &vault,
-                &Symbol::new(&env, "remove_liability"),
-                vec![
-                    &env,
-                    stream.token.clone().into_val(&env),
-                    remaining_liability.into_val(&env),
-                ],
-            );
+            Self::call_vault_remove_liability(&env, &vault, stream.token.clone(), remaining_liability);
 
             // If there's a cancellation fee, pay it to worker
             if cancel_fee > 0 {
-                env.invoke_contract::<()>(
-                    &vault,
-                    &Symbol::new(&env, "payout_liability"),
-                    vec![
-                        &env,
-                        stream.worker.clone().into_val(&env),
-                        stream.token.clone().into_val(&env),
-                        cancel_fee.into_val(&env),
-                    ],
-                );
+                Self::call_vault_payout(&env, &vault, stream.worker.clone(), stream.token.clone(), cancel_fee);
             }
         }
 
@@ -738,6 +695,7 @@ impl PayrollStream {
         cliff_ts: u64,
         start_ts: u64,
         end_ts: u64,
+        metadata_hash: Option<BytesN<32>>,
     ) -> Result<u64, QuipayError> {
         Self::require_not_paused(&env)?;
 
@@ -751,7 +709,7 @@ impl PayrollStream {
 
         // Call the internal create stream logic
         Self::create_stream_internal(
-            env, employer, worker, token, rate, cliff_ts, start_ts, end_ts,
+            env, employer, worker, token, rate, cliff_ts, start_ts, end_ts, metadata_hash,
         )
     }
 
@@ -798,17 +756,7 @@ impl PayrollStream {
             .ok_or(QuipayError::NotInitialized)?;
 
         if owed > 0 {
-            use soroban_sdk::{IntoVal, Symbol, vec};
-            env.invoke_contract::<()>(
-                &vault,
-                &Symbol::new(&env, "payout_liability"),
-                vec![
-                    &env,
-                    stream.worker.clone().into_val(&env),
-                    stream.token.clone().into_val(&env),
-                    owed.into_val(&env),
-                ],
-            );
+            Self::call_vault_payout(&env, &vault, stream.worker.clone(), stream.token.clone(), owed);
             stream.withdrawn_amount = stream
                 .withdrawn_amount
                 .checked_add(owed)
@@ -825,31 +773,12 @@ impl PayrollStream {
         let cancel_fee = Self::calculate_early_cancel_fee(&env, remaining_liability);
 
         if remaining_liability > 0 {
-            use soroban_sdk::{IntoVal, Symbol, vec};
-
             // Remove remaining liability from vault
-            env.invoke_contract::<()>(
-                &vault,
-                &Symbol::new(&env, "remove_liability"),
-                vec![
-                    &env,
-                    stream.token.clone().into_val(&env),
-                    remaining_liability.into_val(&env),
-                ],
-            );
+            Self::call_vault_remove_liability(&env, &vault, stream.token.clone(), remaining_liability);
 
             // If there's a cancellation fee, pay it to worker
             if cancel_fee > 0 {
-                env.invoke_contract::<()>(
-                    &vault,
-                    &Symbol::new(&env, "payout_liability"),
-                    vec![
-                        &env,
-                        stream.worker.clone().into_val(&env),
-                        stream.token.clone().into_val(&env),
-                        cancel_fee.into_val(&env),
-                    ],
-                );
+                Self::call_vault_payout(&env, &vault, stream.worker.clone(), stream.token.clone(), cancel_fee);
             }
         }
 
@@ -879,6 +808,7 @@ impl PayrollStream {
         cliff_ts: u64,
         start_ts: u64,
         end_ts: u64,
+        metadata_hash: Option<BytesN<32>>,
     ) -> Result<u64, QuipayError> {
         if rate <= 0 {
             return Err(QuipayError::InvalidAmount);
@@ -963,6 +893,7 @@ impl PayrollStream {
             closed_at: 0,
             paused_at: 0,
             total_paused_duration: 0,
+            metadata_hash,
         };
 
         env.storage()
@@ -1007,6 +938,17 @@ impl PayrollStream {
         env.storage()
             .persistent()
             .get(&StreamKey::Stream(stream_id))
+    }
+
+    /// Returns the optional metadata hash for a stream.
+    /// The hash references an off-chain record (e.g. IPFS CID or database key)
+    /// containing human-readable context such as description, department, and payment type.
+    pub fn get_stream_metadata(env: Env, stream_id: u64) -> Option<BytesN<32>> {
+        let stream: Stream = env
+            .storage()
+            .persistent()
+            .get(&StreamKey::Stream(stream_id))?;
+        stream.metadata_hash
     }
 
     pub fn get_withdrawable(env: Env, stream_id: u64) -> Option<i128> {
@@ -1437,6 +1379,26 @@ impl PayrollStream {
             .unwrap_or(0)
     }
 
+    /// Invoke `payout_liability` on the vault contract.
+    fn call_vault_payout(env: &Env, vault: &Address, worker: Address, token: Address, amount: i128) {
+        use soroban_sdk::{IntoVal, Symbol, vec};
+        env.invoke_contract::<()>(
+            vault,
+            &Symbol::new(env, "payout_liability"),
+            vec![env, worker.into_val(env), token.into_val(env), amount.into_val(env)],
+        );
+    }
+
+    /// Invoke `remove_liability` on the vault contract.
+    fn call_vault_remove_liability(env: &Env, vault: &Address, token: Address, amount: i128) {
+        use soroban_sdk::{IntoVal, Symbol, vec};
+        env.invoke_contract::<()>(
+            vault,
+            &Symbol::new(env, "remove_liability"),
+            vec![env, token.into_val(env), amount.into_val(env)],
+        );
+    }
+
     fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
         let is_closed = Self::is_closed(stream);
         let mut effective_ts = if is_closed {
@@ -1492,7 +1454,10 @@ impl PayrollStream {
     }
 }
 
-mod duration_test;
+mod stream_extension;
+mod stream_pause;
+mod extension_test;
+mod pause_test;
 mod test;
 
 #[cfg(test)]

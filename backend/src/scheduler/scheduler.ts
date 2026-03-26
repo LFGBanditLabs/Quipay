@@ -72,6 +72,10 @@ interface ScheduledJob {
 }
 
 const activeJobs: Map<number, ScheduledJob> = new Map();
+let schedulerStarted = false;
+let refreshIntervalId: NodeJS.Timeout | null = null;
+let webhookRetryIntervalId: NodeJS.Timeout | null = null;
+let healthCheckIntervalId: NodeJS.Timeout | null = null;
 
 const log = (message: string, ...args: unknown[]) => {
   const timestamp = new Date().toISOString();
@@ -352,7 +356,7 @@ const refreshJobs = async (): Promise<void> => {
 };
 
 const startHealthCheck = (): void => {
-  setInterval(
+  healthCheckIntervalId = setInterval(
     () => {
       log(`Health check - Active jobs: ${activeJobs.size}`);
     },
@@ -364,7 +368,7 @@ const startWebhookRetryRunner = (): void => {
   const LOCK_ID = 424242;
   const taskName = "webhook-retry-runner";
 
-  setInterval(async () => {
+  webhookRetryIntervalId = setInterval(async () => {
     if (!getPool()) return;
     await withAdvisoryLock(
       LOCK_ID,
@@ -539,11 +543,17 @@ export const startScheduler = async (): Promise<void> => {
     return;
   }
 
+  if (schedulerStarted) {
+    log("Scheduler already running, skipping duplicate start");
+    return;
+  }
+
+  schedulerStarted = true;
   log("🚀 Starting payroll scheduler...");
 
   await refreshJobs();
 
-  setInterval(refreshJobs, SCHEDULER_POLL_INTERVAL_MS);
+  refreshIntervalId = setInterval(refreshJobs, SCHEDULER_POLL_INTERVAL_MS);
 
   startWebhookRetryRunner();
   startWorkerNotificationSchedulers();
@@ -557,6 +567,22 @@ export const startScheduler = async (): Promise<void> => {
 
 export const stopScheduler = (): void => {
   log("Stopping payroll scheduler...");
+  schedulerStarted = false;
+
+  if (refreshIntervalId) {
+    clearInterval(refreshIntervalId);
+    refreshIntervalId = null;
+  }
+
+  if (webhookRetryIntervalId) {
+    clearInterval(webhookRetryIntervalId);
+    webhookRetryIntervalId = null;
+  }
+
+  if (healthCheckIntervalId) {
+    clearInterval(healthCheckIntervalId);
+    healthCheckIntervalId = null;
+  }
 
   for (const [scheduleId] of activeJobs) {
     unscheduleJob(scheduleId);
