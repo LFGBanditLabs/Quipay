@@ -478,8 +478,7 @@ fn test_add_liability_without_authorized_contract_panics() {
 }
 
 #[test]
-#[should_panic(expected = "cannot remove more liability than exists")]
-fn test_remove_more_liability_than_exists_panics() {
+fn test_remove_more_liability_than_exists_returns_error() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -507,13 +506,13 @@ fn test_remove_more_liability_than_exists_panics() {
     client.add_liability(&token, &500);
     assert_eq!(client.get_liability(&token), 500);
 
-    // Should panic - trying to remove more than exists
-    client.remove_liability(&token, &600);
+    // Should return error - trying to remove more than exists
+    let result = client.try_remove_liability(&token, &600);
+    assert_eq!(result, Err(Ok(QuipayError::InvalidAmount)));
 }
 
 #[test]
-#[should_panic(expected = "liability amount must be positive")]
-fn test_add_zero_liability_panics() {
+fn test_add_zero_liability_returns_error() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -528,13 +527,13 @@ fn test_add_zero_liability_panics() {
     client.initialize(&admin);
     client.set_authorized_contract(&authorized_contract);
 
-    // Should panic - zero amount
-    client.add_liability(&token, &0);
+    // Should return error - zero amount
+    let result = client.try_add_liability(&token, &0);
+    assert_eq!(result, Err(Ok(QuipayError::InvalidAmount)));
 }
 
 #[test]
-#[should_panic(expected = "removal amount must be positive")]
-fn test_remove_zero_liability_panics() {
+fn test_remove_zero_liability_returns_error() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -561,8 +560,9 @@ fn test_remove_zero_liability_panics() {
     // Add some liability first
     client.add_liability(&token, &500);
 
-    // Should panic - zero amount
-    client.remove_liability(&token, &0);
+    // Should return error - zero amount
+    let result = client.try_remove_liability(&token, &0);
+    assert_eq!(result, Err(Ok(QuipayError::InvalidAmount)));
 }
 
 #[test]
@@ -728,7 +728,6 @@ fn test_require_auth_for_payout_with_multisig() {
 }
 
 #[test]
-#[should_panic(expected = "not initialized")]
 fn test_require_auth_for_set_authorized_contract_with_multisig() {
     let env = Env::default();
     env.mock_all_auths();
@@ -748,14 +747,15 @@ fn test_require_auth_for_set_authorized_contract_with_multisig() {
         Some(authorized_contract.clone())
     );
 
-    // Try to set authorized contract without admin auth - should panic
+    // Try to set authorized contract without initialization - should return error
     // This simulates a transaction that doesn't meet multisig threshold
     let env2 = Env::default();
     let contract_id2 = env2.register(PayrollVault, ());
     let client2 = PayrollVaultClient::new(&env2, &contract_id2);
-    // Don't initialize - this will cause a panic when trying to get admin
+    // Don't initialize - this will cause NotInitialized error when trying to get admin
     let another_contract = Address::generate(&env2);
-    client2.set_authorized_contract(&another_contract);
+    let result = client2.try_set_authorized_contract(&another_contract);
+    assert_eq!(result, Err(Ok(QuipayError::NotInitialized)));
 }
 
 #[test]
