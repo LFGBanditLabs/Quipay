@@ -56,6 +56,16 @@ services:
       - STELLAR_NETWORK=STANDALONE
     ports:
       - "3001:3001"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'wget -qO- http://localhost:3001/health | grep -q ''"status":"ok"''',
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   frontend:
     build:
@@ -64,8 +74,10 @@ services:
     container_name: quipay-frontend
     restart: always
     depends_on:
-      - backend
-      - stellar-local
+      backend:
+        condition: service_healthy
+      stellar-local:
+        condition: service_started
     environment:
       - VITE_API_URL=http://localhost:3001
       - VITE_API_BASE_URL=http://backend:3001
