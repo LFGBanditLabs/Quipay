@@ -26,7 +26,7 @@ jobs:
       automation_gateway_id: ${{ steps.deploy.outputs.automation_gateway_id }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Ensure deployer secret exists
         id: check_secret
