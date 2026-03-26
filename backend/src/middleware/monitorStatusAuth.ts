@@ -39,7 +39,9 @@ export function requireMonitorStatusAdminToken(
   const providedToken = bearerMatch?.[1]?.trim() ?? "";
 
   if (!providedToken || !secureCompare(providedToken, configuredToken)) {
-    res.status(401).json({ error: "Unauthorized: invalid monitor status token" });
+    res
+      .status(401)
+      .json({ error: "Unauthorized: invalid monitor status token" });
     return;
   }
 
