@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { scValToNative } from "@stellar/stellar-sdk";
 import type { Api } from "@stellar/stellar-sdk/rpc";
 import { useSubscription } from "./useSubscription";
@@ -24,10 +24,13 @@ export function useStreamSubscription(
   pollInterval = 5000,
 ) {
   const onWithdrawalRef = useRef(onWithdrawal);
-  onWithdrawalRef.current = onWithdrawal;
-
   const refetchRef = useRef(refetch);
-  refetchRef.current = refetch;
+
+  // FIX: Update refs inside useEffect so we don't mutate during render
+  useEffect(() => {
+    onWithdrawalRef.current = onWithdrawal;
+    refetchRef.current = refetch;
+  }, [onWithdrawal, refetch]);
 
   const handleEvent = useCallback((event: Api.EventResponse) => {
     try {
