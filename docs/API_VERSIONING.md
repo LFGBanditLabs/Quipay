@@ -8,10 +8,10 @@ This document outlines the API versioning strategy for the Quipay platform. It p
 
 ## Versioning Approach
 
-Quipay uses **URL Prefix Versioning** (e.g., `/v1/`, `/v2/`) as the primary mechanism for routing API requests. 
+Quipay uses **URL Prefix Versioning** (e.g., `/v1/`, `/v2/`) as the primary mechanism for routing API requests.
 This approach provides an explicit and straightforward integration experience, as developers can visually track the version they are consuming directly from the endpoint URLs.
 
-We do *not* rely on header-based versioning (e.g., `Accept: application/vnd.quipay.v1+json`) as the primary routing mechanism to ensure maximum simplicity and CDN cacheability.
+We do _not_ rely on header-based versioning (e.g., `Accept: application/vnd.quipay.v1+json`) as the primary routing mechanism to ensure maximum simplicity and CDN cacheability.
 
 ## What Constitutes a Breaking Change?
 
@@ -23,7 +23,8 @@ A new major API version (e.g., bumping from `v1` to `v2`) is strictly required w
 - Changing the validation rules for a field in a way that makes previously valid payloads invalid (e.g., adding a new required field, or making an optional field required).
 - Significantly altering the business logic or expected behavior of an endpoint in a way that breaks existing assumptions.
 
-**Non-breaking changes** (which do *not* require a version bump) include:
+**Non-breaking changes** (which do _not_ require a version bump) include:
+
 - Adding new endpoints.
 - Adding new, optional fields to existing request payloads.
 - Adding new fields to existing response bodies.
@@ -46,20 +47,23 @@ Whenever a new API version is introduced, a comprehensive migration guide must b
 ### Migration Guide: v[OLD] to v[NEW]
 
 **Release Date:** [YYYY-MM-DD]  
-**Sunset Date for v[OLD]:** [YYYY-MM-DD] *(Minimum 90 days from release)*
+**Sunset Date for v[OLD]:** [YYYY-MM-DD] _(Minimum 90 days from release)_
 
 #### Overview
+
 [Brief summary of why the new version was created and the primary benefits for migrating.]
 
 #### Summary of Breaking Changes
+
 - **Endpoints Removed:** [List of endpoints]
 - **Endpoints Renamed/Moved:** [e.g., `/v1/users` -> `/v2/accounts`]
 - **Payload Changes:** [e.g., `userId` is now `account_id`]
 
 #### Step-by-Step Migration
+
 1. **[Area 1]**: [Explanation of how to update integrations to accommodate the change, including before/after JSON payload or URL examples.]
 2. **[Area 2]**: [Explanation for the next area...]
 
 #### Need Help?
-Contact our integration support team or reach out on the Developer Community portal.
----
+
+## Contact our integration support team or reach out on the Developer Community portal.
