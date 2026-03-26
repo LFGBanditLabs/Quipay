@@ -230,6 +230,26 @@ export const payrollProofs = pgTable(
   ],
 );
 
+// Raw Prometheus scrape snapshots retained for short-term forensics
+export const metricSnapshots = pgTable(
+  "metric_snapshots",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    capturedAt: timestamp("captured_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    metricsText: text("metrics_text").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_metric_snapshots_captured_at").on(table.capturedAt.desc()),
+    index("idx_metric_snapshots_created_at").on(table.createdAt.desc()),
+  ],
+);
+
+// Worker notification delivery preferences
 export const workerNotificationSettings = pgTable(
   "worker_notification_settings",
   {
