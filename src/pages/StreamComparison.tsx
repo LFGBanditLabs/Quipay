@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { usePayroll, type Stream } from "../hooks/usePayroll";
 import { useTheme } from "../providers/ThemeProvider";
+import { useWallet } from "../hooks/useWallet";
 
 const MAX_SELECTED = 4;
 const MIN_SELECTED = 2;
@@ -90,7 +91,8 @@ function buildTimelineData(streams: Stream[]) {
 const StreamComparison: React.FC = () => {
   const navigate = useNavigate();
   const { theme } = useTheme();
-  const { streams, isLoading } = usePayroll();
+  const { address } = useWallet();
+  const { streams, isLoading } = usePayroll(address);
   const [selectedIds, setSelectedIds] = useState<string[]>(["1", "2", "3"]);
 
   const selectedStreams = useMemo(

@@ -30,7 +30,7 @@ const TreasuryManagement: React.FC = () => {
   const { addNotification } = useNotification();
   const { address } = useWallet();
   const { vaultData, totalLiabilities, isVaultLoading, refreshVaultData } =
-    usePayroll();
+    usePayroll(address);
   const [retentionSecs, setRetentionSecs] = useState("2592000"); // 30 days
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
 

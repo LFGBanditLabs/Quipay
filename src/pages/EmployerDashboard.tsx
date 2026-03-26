@@ -31,6 +31,9 @@ const EmployerDashboard: React.FC = () => {
     streamItem:
       "flex items-center justify-between gap-3.5 rounded-md border border-[var(--sds-color-neutral-border)] bg-[var(--sds-color-background-primary)] p-[15px] max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:p-4",
   };
+  const navigate = useNavigate();
+  const { addNotification } = useNotification();
+  const { address } = useWallet();
   const {
     treasuryBalances,
     totalLiabilities,
@@ -38,10 +41,7 @@ const EmployerDashboard: React.FC = () => {
     activeStreams,
     isLoading,
     refreshData,
-  } = usePayroll();
-  const navigate = useNavigate();
-  const { addNotification } = useNotification();
-  const { address } = useWallet();
+  } = usePayroll(address);
 
   const [streamToCancel, setStreamToCancel] = React.useState<Stream | null>(
     null,
