@@ -3,6 +3,15 @@ import {
   getAllVaultData,
   type TokenVaultData,
 } from "../contracts/payroll_vault";
+import {
+  getStreamsByEmployer,
+  getStreamById,
+  getTokenSymbol,
+  ContractStream,
+} from "../contracts/payroll_stream";
+
+/** Stellar uses 7 decimal places (10^7 stroops = 1 token unit). */
+const STROOPS_PER_UNIT = 1e7;
 
 export interface Stream {
   id: string;
@@ -36,7 +45,13 @@ const DEFAULT_TOKENS: Array<{
   },
 ];
 
-export const usePayroll = () => {
+export const usePayroll = (
+  employerAddress: string | undefined,
+  options?: {
+    offset?: number;
+    limit?: number;
+  },
+) => {
   const [treasuryBalances, setTreasuryBalances] = useState<TokenBalance[]>([]);
   const [totalLiabilities, setTotalLiabilities] = useState<string>("0");
   const [streams, setStreams] = useState<Stream[]>([]);
@@ -73,76 +88,133 @@ export const usePayroll = () => {
     }
   }, []);
 
+  const [error, setError] = useState<string | null>(null);
+  const [fetchTick, setFetchTick] = useState(0);
+
+  const refetch = useCallback(() => {
+    setFetchTick((t) => t + 1);
+  }, []);
+
+  const fetchStreams = useCallback(async (address: string) => {
+    try {
+      const streamIds = await getStreamsByEmployer(
+        address,
+        options?.offset,
+        options?.limit,
+      );
+
+      const streamResults = await Promise.all(
+        streamIds.map((id) => getStreamById(address, id)),
+      );
+
+      const employerStreams: Stream[] = await Promise.all(
+        streamIds
+          .map((id, i) => ({
+            id,
+            stream: streamResults[i],
+          }))
+          .filter(
+            (x): x is { id: bigint; stream: ContractStream } =>
+              x.stream !== null,
+          )
+          .map(async ({ id, stream: s }) => {
+            const streamId = id.toString();
+            const tokenSymbol = await getTokenSymbol(address, s.token);
+
+            // Convert bigint values to strings for display
+            const flowRate = (Number(s.rate) / STROOPS_PER_UNIT).toFixed(7);
+            const totalAmount = (
+              Number(s.total_amount) / STROOPS_PER_UNIT
+            ).toFixed(2);
+            const totalStreamed = (
+              Number(s.withdrawn_amount) / STROOPS_PER_UNIT
+            ).toFixed(2);
+
+            // Convert timestamps to date strings
+            const startDate = new Date(Number(s.start_ts) * 1000)
+              .toISOString()
+              .split("T")[0];
+            const endDate = new Date(Number(s.end_ts) * 1000)
+              .toISOString()
+              .split("T")[0];
+
+            // Map status numbers to strings
+            let status: "active" | "completed" | "cancelled";
+            switch (s.status) {
+              case 0:
+                status = "active";
+                break;
+              case 1:
+                status = "cancelled";
+                break;
+              case 2:
+                status = "completed";
+                break;
+              default:
+                status = "active";
+            }
+
+            return {
+              id: streamId,
+              employeeName: `Worker ${streamId.slice(0, 8)}`, // Placeholder name
+              employeeAddress: s.worker,
+              flowRate,
+              tokenSymbol,
+              startDate,
+              endDate,
+              totalAmount,
+              totalStreamed,
+              status,
+            };
+          }),
+      );
+
+      setStreams(employerStreams);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load stream data";
+      setError(message);
+      setStreams([]);
+    }
+  }, []);
+
   const refreshData = useCallback(async () => {
     await fetchVaultData();
-  }, [fetchVaultData]);
+    if (employerAddress) {
+      await fetchStreams(employerAddress);
+    }
+  }, [fetchVaultData, fetchStreams, employerAddress]);
 
   useEffect(() => {
-    // Simulate fetching data
+    if (!employerAddress) {
+      setStreams([]);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
     const fetchData = async () => {
       setIsLoading(true);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      setError(null);
 
-      // Try to fetch real vault data
-      await fetchVaultData();
+      try {
+        // Try to fetch real vault data
+        await fetchVaultData();
 
-      // Mock stream portfolio data (would come from contract in production)
-      setStreams([
-        {
-          id: "1",
-          employeeName: "Alice Smith",
-          employeeAddress: "GBSH...234",
-          flowRate: "0.0001",
-          tokenSymbol: "USDC",
-          startDate: "2023-10-01",
-          endDate: "2024-10-01",
-          totalAmount: "900.00",
-          totalStreamed: "450.00",
-          status: "active",
-        },
-        {
-          id: "2",
-          employeeName: "Bob Jones",
-          employeeAddress: "GBYZ...789",
-          flowRate: "0.0002",
-          tokenSymbol: "XLM",
-          startDate: "2023-10-15",
-          endDate: "2024-09-15",
-          totalAmount: "1200.00",
-          totalStreamed: "900.00",
-          status: "active",
-        },
-        {
-          id: "3",
-          employeeName: "Carol Diaz",
-          employeeAddress: "GCRT...998",
-          flowRate: "0.00005",
-          tokenSymbol: "USDC",
-          startDate: "2023-08-01",
-          endDate: "2024-02-01",
-          totalAmount: "650.00",
-          totalStreamed: "650.00",
-          status: "completed",
-        },
-        {
-          id: "4",
-          employeeName: "David Obi",
-          employeeAddress: "GDVO...551",
-          flowRate: "0.00008",
-          tokenSymbol: "USDC",
-          startDate: "2023-11-05",
-          endDate: "2024-06-05",
-          totalAmount: "700.00",
-          totalStreamed: "280.00",
-          status: "cancelled",
-        },
-      ]);
-
-      setIsLoading(false);
+        // Fetch real stream data from contract
+        await fetchStreams(employerAddress);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to load payroll data";
+        setError(message);
+        setStreams([]);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     void fetchData();
-  }, [fetchVaultData]);
+  }, [employerAddress, fetchTick, fetchVaultData, fetchStreams]);
 
   const activeStreams = streams.filter((stream) => stream.status === "active");
 
@@ -155,7 +227,9 @@ export const usePayroll = () => {
     vaultData,
     isLoading,
     isVaultLoading,
+    error,
     refreshData,
     refreshVaultData: fetchVaultData,
+    refetch,
   };
 };

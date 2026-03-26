@@ -424,6 +424,33 @@ export async function getStreamsByWorker(
   return ids ?? [];
 }
 
+// ─── getStreamsByEmployer ───────────────────────────────────────────────────────
+
+/**
+ * Calls `get_streams_by_employer` on the PayrollStream contract and returns the
+ * list of stream IDs created by `employerAddress`.
+ */
+export async function getStreamsByEmployer(
+  employerAddress: string,
+  offset?: number,
+  limit?: number,
+): Promise<bigint[]> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) return [];
+
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+  const ids = await simulateContractRead<bigint[]>(
+    employerAddress,
+    contract.call(
+      "get_streams_by_employer",
+      new Address(employerAddress).toScVal(),
+      nativeToScVal(offset !== undefined ? offset : null),
+      nativeToScVal(limit !== undefined ? limit : null),
+    ),
+  );
+
+  return ids ?? [];
+}
+
 // ─── getStreamById ────────────────────────────────────────────────────────────
 
 /**
