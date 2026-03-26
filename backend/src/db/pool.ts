@@ -1,7 +1,8 @@
 import { Pool, QueryResult, QueryResultRow } from "pg";
 import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
+import path from "path";
 import * as schema from "./schema";
-import { runMigrations } from "./migrate";
+import { MigrationRunner } from "./migrationRunner";
 import { serviceLogger } from "../audit/serviceLogger";
 
 let pool: Pool | null = null;
@@ -151,7 +152,9 @@ export const initDb = async (): Promise<void> => {
 
       // Run migrations as part of initialization flow so callers see a
       // fully-prepared schema. Any failure here will trigger a retry.
-      await runMigrations();
+      const migrationsDir = path.join(__dirname, "migrations");
+      const migrationRunner = new MigrationRunner(createdPool, migrationsDir);
+      await migrationRunner.migrate();
 
       await serviceLogger.info(
         "DbPool",
