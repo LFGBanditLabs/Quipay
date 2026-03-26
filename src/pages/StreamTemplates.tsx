@@ -1,19 +1,38 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck — @stellar/design-system types are incomplete for Badge, Card, Modal, Icon
 import React, { useState, useRef } from "react";
-import { Layout, Text, Button, Card, Badge, Icon, Modal, Input } from "@stellar/design-system";
-import { useStreamTemplates, StreamTemplate } from "../hooks/useStreamTemplates";
+import {
+  Layout,
+  Text,
+  Button,
+  Card,
+  Icon,
+  Modal,
+  Input,
+} from "@stellar/design-system";
+import {
+  useStreamTemplates,
+  StreamTemplate,
+} from "../hooks/useStreamTemplates";
 import { useNotification } from "../hooks/useNotification";
 import { useNavigate } from "react-router-dom";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 const StreamTemplates: React.FC = () => {
-  const { templates, deleteTemplate, updateTemplate, exportTemplates, importTemplates } = useStreamTemplates();
+  const {
+    templates,
+    deleteTemplate,
+    updateTemplate,
+    exportTemplates,
+    importTemplates,
+  } = useStreamTemplates();
   const { addNotification } = useNotification();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [editingTemplate, setEditingTemplate] = useState<StreamTemplate | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<StreamTemplate | null>(
+    null,
+  );
   const [editForm, setEditForm] = useState<Partial<StreamTemplate>>({});
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -30,8 +49,11 @@ const StreamTemplates: React.FC = () => {
         } else {
           throw new Error("Invalid format");
         }
-      } catch (err) {
-        addNotification("Failed to import templates. Invalid JSON file.", "error");
+      } catch {
+        addNotification(
+          "Failed to import templates. Invalid JSON file.",
+          "error",
+        );
       }
       if (fileInputRef.current) fileInputRef.current.value = "";
     };
@@ -61,7 +83,10 @@ const StreamTemplates: React.FC = () => {
 
   return (
     <Layout.Content>
-      <SeoHelmet title="Stream Templates | Quipay" description="Manage your reusable stream configurations." />
+      <SeoHelmet
+        title="Stream Templates | Quipay"
+        description="Manage your reusable stream configurations."
+      />
       <Layout.Inset>
         <div className="flex flex-col gap-8 animate-fade-in-up">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -81,7 +106,11 @@ const StreamTemplates: React.FC = () => {
                 className="hidden"
                 onChange={handleImport}
               />
-              <Button variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+              >
                 <Icon name="upload" size="sm" /> Import
               </Button>
               <Button variant="secondary" size="sm" onClick={exportTemplates}>
@@ -98,10 +127,22 @@ const StreamTemplates: React.FC = () => {
               <Text as="h3" size="lg" weight="bold" className="mb-2">
                 No Templates Found
               </Text>
-              <Text as="p" size="md" variant="secondary" className="mb-6 max-w-sm">
-                Create a stream and save it as a template to get started, or import an existing templates JSON file.
+              <Text
+                as="p"
+                size="md"
+                variant="secondary"
+                className="mb-6 max-w-sm"
+              >
+                Create a stream and save it as a template to get started, or
+                import an existing templates JSON file.
               </Text>
-              <Button variant="primary" size="sm" onClick={() => navigate("/create-stream")}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  void navigate("/create-stream");
+                }}
+              >
                 Create New Stream
               </Button>
             </div>
@@ -117,15 +158,31 @@ const StreamTemplates: React.FC = () => {
                       <Text as="h3" size="md" weight="bold">
                         {template.name}
                       </Text>
-                      <Text as="p" size="xs" variant="secondary" className="mt-1">
-                        Created {new Date(template.createdAt).toLocaleDateString()}
+                      <Text
+                        as="p"
+                        size="xs"
+                        variant="secondary"
+                        className="mt-1"
+                      >
+                        Created{" "}
+                        {new Date(template.createdAt).toLocaleDateString()}
                       </Text>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => startEdit(template)} title="Edit">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => startEdit(template)}
+                        title="Edit"
+                      >
                         <Icon name="edit" size="sm" />
                       </Button>
-                      <Button variant="secondary" size="sm" onClick={() => deleteTemplate(template.id)} title="Delete">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => deleteTemplate(template.id)}
+                        title="Delete"
+                      >
                         <Icon name="delete" size="sm" />
                       </Button>
                     </div>
@@ -133,16 +190,39 @@ const StreamTemplates: React.FC = () => {
 
                   <div className="flex-1 space-y-3 mb-6">
                     <div className="flex justify-between border-b border-[var(--border)] pb-2">
-                      <Text as="span" size="sm" variant="secondary">Recipient</Text>
-                      <Text as="span" size="sm" weight="medium" className="truncate max-w-[150px]" title={template.workerName || template.workerAddress}>{template.workerName || "Unnamed"}</Text>
+                      <Text as="span" size="sm" variant="secondary">
+                        Recipient
+                      </Text>
+                      <Text
+                        as="span"
+                        size="sm"
+                        weight="medium"
+                        className="truncate max-w-[150px]"
+                        title={template.workerName || template.workerAddress}
+                      >
+                        {template.workerName || "Unnamed"}
+                      </Text>
                     </div>
                     <div className="flex justify-between border-b border-[var(--border)] pb-2">
-                      <Text as="span" size="sm" variant="secondary">Amount</Text>
-                      <Text as="span" size="sm" weight="medium">{template.amount} {template.token}</Text>
+                      <Text as="span" size="sm" variant="secondary">
+                        Amount
+                      </Text>
+                      <Text as="span" size="sm" weight="medium">
+                        {template.amount} {template.token}
+                      </Text>
                     </div>
                     <div className="flex justify-between border-b border-[var(--border)] pb-2">
-                      <Text as="span" size="sm" variant="secondary">Schedule</Text>
-                      <Text as="span" size="sm" weight="medium" className="capitalize">{template.frequency} ({template.duration} days)</Text>
+                      <Text as="span" size="sm" variant="secondary">
+                        Schedule
+                      </Text>
+                      <Text
+                        as="span"
+                        size="sm"
+                        weight="medium"
+                        className="capitalize"
+                      >
+                        {template.frequency} ({template.duration} days)
+                      </Text>
                     </div>
                   </div>
 
@@ -150,7 +230,11 @@ const StreamTemplates: React.FC = () => {
                     variant="primary"
                     size="sm"
                     className="w-full justify-center"
-                    onClick={() => navigate("/create-stream", { state: { templateId: template.id } })}
+                    onClick={() => {
+                      void navigate("/create-stream", {
+                        state: { templateId: template.id },
+                      });
+                    }}
                   >
                     Create from template
                   </Button>
@@ -161,35 +245,50 @@ const StreamTemplates: React.FC = () => {
         </div>
       </Layout.Inset>
 
-      <Modal visible={!!editingTemplate} onClose={() => setEditingTemplate(null)}>
+      <Modal
+        visible={!!editingTemplate}
+        onClose={() => setEditingTemplate(null)}
+      >
         <Modal.Heading>Edit Template</Modal.Heading>
         <Modal.Body>
           <div className="space-y-4">
             <div>
-              <label className="mb-2 block text-sm font-medium">Template Name</label>
+              <label className="mb-2 block text-sm font-medium">
+                Template Name
+              </label>
               <Input
                 id="edit-name"
                 fieldSize="md"
                 value={editForm.name || ""}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({ ...editForm, name: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setEditForm({ ...editForm, name: e.target.value })
+                }
               />
             </div>
             <div>
-              <label className="mb-2 block text-sm font-medium">Worker Name</label>
+              <label className="mb-2 block text-sm font-medium">
+                Worker Name
+              </label>
               <Input
                 id="edit-worker-name"
                 fieldSize="md"
                 value={editForm.workerName || ""}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({ ...editForm, workerName: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setEditForm({ ...editForm, workerName: e.target.value })
+                }
               />
             </div>
             <div>
-              <label className="mb-2 block text-sm font-medium">Worker Address</label>
+              <label className="mb-2 block text-sm font-medium">
+                Worker Address
+              </label>
               <Input
                 id="edit-worker-addr"
                 fieldSize="md"
                 value={editForm.workerAddress || ""}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({ ...editForm, workerAddress: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setEditForm({ ...editForm, workerAddress: e.target.value })
+                }
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -200,7 +299,9 @@ const StreamTemplates: React.FC = () => {
                   fieldSize="md"
                   type="number"
                   value={editForm.amount || ""}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({ ...editForm, amount: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setEditForm({ ...editForm, amount: e.target.value })
+                  }
                 />
               </div>
               <div>
@@ -208,7 +309,9 @@ const StreamTemplates: React.FC = () => {
                 <select
                   className="w-full rounded-lg border border-[var(--border)] px-3.5 py-2.5 text-sm transition focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-transparent)] focus:outline-none"
                   value={editForm.token || "USDC"}
-                  onChange={(e) => setEditForm({ ...editForm, token: e.target.value })}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, token: e.target.value })
+                  }
                 >
                   <option value="USDC">USDC</option>
                   <option value="XLM">XLM</option>
@@ -217,11 +320,15 @@ const StreamTemplates: React.FC = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="mb-2 block text-sm font-medium">Frequency</label>
+                <label className="mb-2 block text-sm font-medium">
+                  Frequency
+                </label>
                 <select
                   className="w-full rounded-lg border border-[var(--border)] px-3.5 py-2.5 text-sm transition focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-transparent)] focus:outline-none"
                   value={editForm.frequency || "monthly"}
-                  onChange={(e) => setEditForm({ ...editForm, frequency: e.target.value })}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, frequency: e.target.value })
+                  }
                 >
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
@@ -230,21 +337,32 @@ const StreamTemplates: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium">Duration (Days)</label>
+                <label className="mb-2 block text-sm font-medium">
+                  Duration (Days)
+                </label>
                 <Input
                   id="edit-duration"
                   fieldSize="md"
                   type="number"
                   value={editForm.duration || 30}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({ ...editForm, duration: parseInt(e.target.value) || 30 })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setEditForm({
+                      ...editForm,
+                      duration: parseInt(e.target.value) || 30,
+                    })
+                  }
                 />
               </div>
             </div>
           </div>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setEditingTemplate(null)}>Cancel</Button>
-          <Button variant="primary" onClick={handleSaveEdit}>Save Changes</Button>
+          <Button variant="secondary" onClick={() => setEditingTemplate(null)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleSaveEdit}>
+            Save Changes
+          </Button>
         </Modal.Footer>
       </Modal>
     </Layout.Content>
