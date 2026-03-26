@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Layout, Text, Loader } from "@stellar/design-system";
+import { Layout, Text } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
 import {
   useStreams,
@@ -287,7 +287,12 @@ const WorkerDashboard: React.FC = () => {
         <Layout.Inset>
           <div className="mx-auto max-w-[1200px] px-8 py-8">
             <header className="mb-8">
-              <Skeleton variant="rect" width="300px" height="3rem" className="rounded-lg" />
+              <Skeleton
+                variant="rect"
+                width="300px"
+                height="3rem"
+                className="rounded-lg"
+              />
             </header>
 
             <section className="mb-12">
