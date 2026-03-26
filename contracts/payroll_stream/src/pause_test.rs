@@ -1,6 +1,7 @@
 #![cfg(test)]
 use super::*;
-use soroban_sdk::{testutils::Ledger as _};
+use crate::test::setup;
+use soroban_sdk::{testutils::Address as _, testutils::Ledger as _};
 
 #[test]
 fn test_pause_and_resume_stream_vesting() {
@@ -57,5 +58,5 @@ fn test_pause_stream_wrong_auth() {
 
     // Malicious user tries to pause
     let result = client.try_pause_stream(&stream_id, &malicious);
-    // Auth handled by require_auth in implementation
+    assert!(result.is_err());
 }

@@ -1,5 +1,6 @@
 use super::*;
 
+#[soroban_sdk::contractimpl]
 impl PayrollStream {
     pub fn pause_stream(env: Env, stream_id: u64, employer: Address) -> Result<(), QuipayError> {
         Self::require_not_paused(&env)?;

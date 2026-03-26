@@ -1,6 +1,7 @@
 #![cfg(test)]
 use super::*;
-use soroban_sdk::{testutils::Ledger as _};
+use crate::test::setup;
+use soroban_sdk::{testutils::Address as _, testutils::Ledger as _};
 
 #[test]
 fn test_extend_stream_duration() {
