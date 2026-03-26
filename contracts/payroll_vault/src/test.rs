@@ -4,7 +4,7 @@ extern crate std;
 use super::*;
 use quipay_common::QuipayError;
 use soroban_sdk::xdr::{ReadXdr, ToXdr};
-use soroban_sdk::{Address, BytesN, Env, TryIntoVal, testutils::Address as _, token, xdr};
+use soroban_sdk::{testutils::Address as _, token, xdr, Address, BytesN, Env, TryIntoVal};
 
 fn register_native_token_contract(env: &Env, admin: Address) -> Address {
     let _ = admin;
@@ -932,7 +932,7 @@ fn test_transfer_admin_backward_compatible() {
 
     // Use old transfer_admin function (backward compatible)
     client.transfer_admin(&new_admin);
-    
+
     // Should transfer atomically
     assert_eq!(client.get_admin(), new_admin);
     assert_eq!(client.get_pending_admin(), None); // No pending admin left
