@@ -22,6 +22,7 @@ const WorkerDashboard = lazy(() => import("./pages/WorkerDashboard"));
 const DashboardCustomization = lazy(
   () => import("./pages/DashboardCustomization"),
 );
+const StreamComparison = lazy(() => import("./pages/StreamComparison"));
 const UIPrimitivesPreview = lazy(
   () => import("./pages/UIPrimitivesPreview.tsx"),
 );
@@ -139,6 +140,14 @@ function App() {
             element={
               <WalletGuard>
                 <DashboardCustomization />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/stream-comparison"
+            element={
+              <WalletGuard>
+                <StreamComparison />
               </WalletGuard>
             }
           />

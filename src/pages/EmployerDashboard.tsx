@@ -276,15 +276,26 @@ const EmployerDashboard: React.FC = () => {
             <Text as="h2" size="lg">
               {t("dashboard.active_streams")}
             </Text>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => {
-                void navigate("/create-stream");
-              }}
-            >
-              {t("dashboard.create_new_stream")}
-            </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => {
+                  void navigate("/stream-comparison");
+                }}
+              >
+                Compare streams
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => {
+                  void navigate("/create-stream");
+                }}
+              >
+                {t("dashboard.create_new_stream")}
+              </Button>
+            </div>
           </div>
 
           {activeStreams.length === 0 ? (

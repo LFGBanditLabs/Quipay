@@ -11,7 +11,10 @@ export interface Stream {
   flowRate: string; // amount per second/block
   tokenSymbol: string;
   startDate: string;
+  endDate: string;
+  totalAmount: string;
   totalStreamed: string;
+  status: "active" | "completed" | "cancelled";
 }
 
 export interface TokenBalance {
@@ -36,7 +39,7 @@ const DEFAULT_TOKENS: Array<{
 export const usePayroll = () => {
   const [treasuryBalances, setTreasuryBalances] = useState<TokenBalance[]>([]);
   const [totalLiabilities, setTotalLiabilities] = useState<string>("0");
-  const [activeStreams, setActiveStreams] = useState<Stream[]>([]);
+  const [streams, setStreams] = useState<Stream[]>([]);
   const [vaultData, setVaultData] = useState<TokenVaultData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isVaultLoading, setIsVaultLoading] = useState<boolean>(false);
@@ -83,8 +86,8 @@ export const usePayroll = () => {
       // Try to fetch real vault data
       await fetchVaultData();
 
-      // Mock active streams data (would come from contract in production)
-      setActiveStreams([
+      // Mock stream portfolio data (would come from contract in production)
+      setStreams([
         {
           id: "1",
           employeeName: "Alice Smith",
@@ -92,7 +95,10 @@ export const usePayroll = () => {
           flowRate: "0.0001",
           tokenSymbol: "USDC",
           startDate: "2023-10-01",
+          endDate: "2024-10-01",
+          totalAmount: "900.00",
           totalStreamed: "450.00",
+          status: "active",
         },
         {
           id: "2",
@@ -101,7 +107,34 @@ export const usePayroll = () => {
           flowRate: "0.0002",
           tokenSymbol: "XLM",
           startDate: "2023-10-15",
+          endDate: "2024-09-15",
+          totalAmount: "1200.00",
           totalStreamed: "900.00",
+          status: "active",
+        },
+        {
+          id: "3",
+          employeeName: "Carol Diaz",
+          employeeAddress: "GCRT...998",
+          flowRate: "0.00005",
+          tokenSymbol: "USDC",
+          startDate: "2023-08-01",
+          endDate: "2024-02-01",
+          totalAmount: "650.00",
+          totalStreamed: "650.00",
+          status: "completed",
+        },
+        {
+          id: "4",
+          employeeName: "David Obi",
+          employeeAddress: "GDVO...551",
+          flowRate: "0.00008",
+          tokenSymbol: "USDC",
+          startDate: "2023-11-05",
+          endDate: "2024-06-05",
+          totalAmount: "700.00",
+          totalStreamed: "280.00",
+          status: "cancelled",
         },
       ]);
 
@@ -111,10 +144,13 @@ export const usePayroll = () => {
     void fetchData();
   }, [fetchVaultData]);
 
+  const activeStreams = streams.filter((stream) => stream.status === "active");
+
   return {
     treasuryBalances,
     totalLiabilities,
     activeStreamsCount: activeStreams.length,
+    streams,
     activeStreams,
     vaultData,
     isLoading,
