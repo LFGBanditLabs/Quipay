@@ -13,7 +13,7 @@ jobs:
     name: Automated Fuzzing
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Run Manual Fuzzing Harness
         run: |
           cd contracts/payroll_vault
@@ -23,7 +23,7 @@ jobs:
     name: Symbolic Execution (Kani)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install Kani
         run: |
           cargo install --locked kani-verifier

@@ -103,6 +103,44 @@ async function simulateContractRead<T>(
   return native ?? null;
 }
 
+// ─── buildDepositTx ─────────────────────────────────────────────────────────
+
+/**
+ * Simulates and builds a `deposit` transaction, returning the
+ * base64-encoded prepared XDR ready for signing.
+ */
+export async function buildDepositTx(
+  fromAddress: string,
+  token: string,
+  amount: bigint,
+): Promise<{ preparedXdr: string }> {
+  if (!PAYROLL_VAULT_CONTRACT_ID) {
+    throw new Error("VITE_PAYROLL_VAULT_CONTRACT_ID is not set.");
+  }
+
+  const server = getRpcServer();
+  const account = await server.getAccount(fromAddress);
+  const contract = new Contract(PAYROLL_VAULT_CONTRACT_ID);
+
+  const tx = new TransactionBuilder(account, {
+    fee: "1000000",
+    networkPassphrase,
+  })
+    .addOperation(
+      contract.call(
+        "deposit",
+        new Address(fromAddress).toScVal(),
+        tokenToScVal(token),
+        nativeToScVal(amount, { type: "i128" }),
+      ),
+    )
+    .setTimeout(30)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  return { preparedXdr: prepared.toXDR() };
+}
+
 // ─── getVaultBalance ─────────────────────────────────────────────────────────
 
 /**

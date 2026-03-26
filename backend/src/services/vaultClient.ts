@@ -48,6 +48,22 @@ export class VaultClient {
     }
   }
 
+  async lookupSelfToken(): Promise<boolean> {
+    try {
+      const response: any = await vaultBreaker.fire(
+        `${this.baseUrl}/v1/auth/token/lookup-self`,
+        {
+          method: "GET",
+          headers: this.getHeaders(),
+        },
+      );
+
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
   async readSecret(path: string, mountPoint: string = "secret"): Promise<any> {
     const response: any = await vaultBreaker.fire(
       `${this.baseUrl}/v1/${mountPoint}/data/${path}`,
