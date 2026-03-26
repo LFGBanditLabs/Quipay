@@ -13,6 +13,8 @@ pub struct WorkerProfile {
 #[derive(Clone)]
 #[contracttype]
 pub enum DataKey {
+    Admin,
+    PendingAdmin,
     Worker(Address),
     EmployerActiveWorkerCount(Address),
     EmployerActiveWorkerByIndex(Address, u32),
@@ -25,6 +27,67 @@ pub struct WorkforceRegistryContract;
 
 #[contractimpl]
 impl WorkforceRegistryContract {
+    /// Initialize the contract with an admin
+    pub fn initialize(e: Env, admin: Address) -> Result<(), QuipayError> {
+        if e.storage().persistent().has(&DataKey::Admin) {
+            return Err(QuipayError::AlreadyInitialized);
+        }
+
+        e.storage().persistent().set(&DataKey::Admin, &admin);
+        Ok(())
+    }
+
+    /// Get the current admin address
+    pub fn get_admin(e: Env) -> Result<Address, QuipayError> {
+        e.storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)
+    }
+
+    /// Propose a new admin address (first step of two-step transfer)
+    pub fn propose_admin(e: Env, new_admin: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        e.storage()
+            .persistent()
+            .set(&DataKey::PendingAdmin, &new_admin);
+        Ok(())
+    }
+
+    /// Get the pending admin address (if any)
+    pub fn get_pending_admin(e: Env) -> Option<Address> {
+        e.storage().persistent().get(&DataKey::PendingAdmin)
+    }
+
+    /// Accept the admin role (second step of two-step transfer)
+    pub fn accept_admin(e: Env) -> Result<(), QuipayError> {
+        let pending_admin =
+            Self::get_pending_admin(e.clone()).ok_or(QuipayError::NoPendingAdmin)?;
+
+        pending_admin.require_auth();
+
+        // Set the new admin
+        e.storage()
+            .persistent()
+            .set(&DataKey::Admin, &pending_admin);
+
+        // Clear the pending admin
+        e.storage().persistent().remove(&DataKey::PendingAdmin);
+
+        Ok(())
+    }
+
+    /// Transfer admin rights to a new address (one-step, backward compatible)
+    pub fn transfer_admin(e: Env, new_admin: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        e.storage().persistent().set(&DataKey::Admin, &new_admin);
+        Ok(())
+    }
+
     /// Registers a new worker profile.
     ///
     /// # Arguments
@@ -66,8 +129,8 @@ impl WorkforceRegistryContract {
 
         e.events().publish(
             (
-                symbol_short!("registry"),
-                symbol_short!("register"),
+                symbol_short!("w_reg"),
+                symbol_short!("reg"),
                 worker.clone(),
                 preferred_token.clone(),
             ),
@@ -118,8 +181,8 @@ impl WorkforceRegistryContract {
 
         e.events().publish(
             (
-                symbol_short!("registry"),
-                symbol_short!("updated"),
+                symbol_short!("w_reg"),
+                symbol_short!("upd"),
                 worker.clone(),
                 preferred_token.clone(),
             ),
@@ -199,12 +262,12 @@ impl WorkforceRegistryContract {
 
             e.events().publish(
                 (
-                    symbol_short!("stream"),
-                    symbol_short!("active"),
+                    symbol_short!("w_reg"),
+                    symbol_short!("st_act"),
                     employer.clone(),
                     worker.clone(),
                 ),
-                (),
+                true,
             );
         } else {
             if !is_active {
@@ -218,14 +281,20 @@ impl WorkforceRegistryContract {
                 return Ok(());
             }
 
-            let stored_index: u32 = e.storage().persistent().get(&idx_key)
+            let stored_index: u32 = e
+                .storage()
+                .persistent()
+                .get(&idx_key)
                 .ok_or(QuipayError::StorageError)?;
             let remove_pos: u32 = stored_index - 1;
             let last_pos: u32 = count - 1;
 
             if remove_pos != last_pos {
                 let last_key = DataKey::EmployerActiveWorkerByIndex(employer.clone(), last_pos);
-                let last_worker: Address = e.storage().persistent().get(&last_key)
+                let last_worker: Address = e
+                    .storage()
+                    .persistent()
+                    .get(&last_key)
                     .ok_or(QuipayError::StorageError)?;
 
                 let remove_key = DataKey::EmployerActiveWorkerByIndex(employer.clone(), remove_pos);
@@ -248,12 +317,12 @@ impl WorkforceRegistryContract {
 
             e.events().publish(
                 (
-                    symbol_short!("stream"),
-                    symbol_short!("inactive"),
+                    symbol_short!("w_reg"),
+                    symbol_short!("st_act"),
                     employer.clone(),
                     worker.clone(),
                 ),
-                (),
+                false,
             );
         }
 
@@ -283,9 +352,17 @@ impl WorkforceRegistryContract {
         let mut i = start;
         while i < end_exclusive {
             let by_index_key = DataKey::EmployerActiveWorkerByIndex(employer.clone(), i);
-            if let Some(worker) = e.storage().persistent().get::<DataKey, Address>(&by_index_key) {
+            if let Some(worker) = e
+                .storage()
+                .persistent()
+                .get::<DataKey, Address>(&by_index_key)
+            {
                 let worker_key = DataKey::Worker(worker);
-                if let Some(profile) = e.storage().persistent().get::<DataKey, WorkerProfile>(&worker_key) {
+                if let Some(profile) = e
+                    .storage()
+                    .persistent()
+                    .get::<DataKey, WorkerProfile>(&worker_key)
+                {
                     out.push_back(profile);
                 }
             }
@@ -295,15 +372,44 @@ impl WorkforceRegistryContract {
         out
     }
 
+    pub fn remove_worker(e: Env, employer: Address, worker: Address) -> Result<(), QuipayError> {
+        employer.require_auth();
+
+        let key = DataKey::Worker(worker.clone());
+        require!(
+            e.storage().persistent().has(&key),
+            QuipayError::WorkerNotFound
+        );
+
+        // Check and remove from employer active list if needed
+        let idx_key = DataKey::EmployerActiveWorkerIndex(employer.clone(), worker.clone());
+        if e.storage().persistent().has(&idx_key) {
+            Self::set_stream_active(e.clone(), employer.clone(), worker.clone(), false)?;
+        }
+
+        e.storage().persistent().remove(&key);
+
+        e.events().publish(
+            (
+                symbol_short!("w_reg"),
+                symbol_short!("rem"),
+                employer,
+                worker,
+            ),
+            (),
+        );
+
+        Ok(())
+    }
+
     /// Sets blacklist status for a worker (admin only)
     ///
     /// # Arguments
     /// * `e` - The environment.
-    /// * `admin` - The admin address.
     /// * `worker` - The worker address to blacklist/unblacklist.
     /// * `blacklisted` - True to blacklist, false to unblacklist.
-    pub fn set_blacklisted(e: Env, admin: Address, worker: Address, blacklisted: bool) {
-        // Check if caller is admin - this will need to be implemented based on your admin management
+    pub fn set_blacklisted(e: Env, worker: Address, blacklisted: bool) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
         admin.require_auth();
 
         let key = DataKey::BlacklistedWorker(worker.clone());
@@ -323,6 +429,8 @@ impl WorkforceRegistryContract {
             ),
             (),
         );
+
+        Ok(())
     }
 
     /// Checks if a worker is blacklisted

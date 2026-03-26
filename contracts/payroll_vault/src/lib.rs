@@ -26,6 +26,7 @@ mod proptest;
 pub enum StateKey {
     // Persistent storage - survives upgrades
     Admin,
+    PendingAdmin, // Pending admin address (for two-step transfer)
     Version,
     AuthorizedContract, // Contract authorized to modify liabilities (e.g., PayrollStream)
     TokenList,          // Tokens tracked by the vault
@@ -275,6 +276,42 @@ impl PayrollVault {
         Ok(())
     }
 
+    /// Propose a new admin address (first step of two-step transfer)
+    /// Only the current admin can propose a new admin
+    pub fn propose_admin(e: Env, new_admin: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        e.storage()
+            .persistent()
+            .set(&StateKey::PendingAdmin, &new_admin);
+        Ok(())
+    }
+
+    /// Get the pending admin address (if any)
+    pub fn get_pending_admin(e: Env) -> Option<Address> {
+        e.storage().persistent().get(&StateKey::PendingAdmin)
+    }
+
+    /// Accept the admin role (second step of two-step transfer)
+    /// Only the pending admin can call this function
+    pub fn accept_admin(e: Env) -> Result<(), QuipayError> {
+        let pending_admin =
+            Self::get_pending_admin(e.clone()).ok_or(QuipayError::NoPendingAdmin)?;
+
+        pending_admin.require_auth();
+
+        // Set the new admin
+        e.storage()
+            .persistent()
+            .set(&StateKey::Admin, &pending_admin);
+
+        // Clear the pending admin
+        e.storage().persistent().remove(&StateKey::PendingAdmin);
+
+        Ok(())
+    }
+
     pub fn deposit(e: Env, from: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
         from.require_auth();
         require_positive_amount!(amount);
@@ -409,7 +446,7 @@ impl PayrollVault {
         e.events().publish(
             (
                 symbol_short!("vault"),
-                symbol_short!("allocated"),
+                symbol_short!("alloc"),
                 token.clone(),
                 symbol_short!("admin"),
             ),
@@ -450,7 +487,7 @@ impl PayrollVault {
         e.events().publish(
             (
                 symbol_short!("vault"),
-                symbol_short!("released"),
+                symbol_short!("release"),
                 token.clone(),
                 symbol_short!("admin"),
             ),
@@ -614,9 +651,20 @@ impl PayrollVault {
             return Err(QuipayError::InsufficientBalance);
         }
 
-        let key = StateKey::TotalLiability(token);
+        let key = StateKey::TotalLiability(token.clone());
         let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
         e.storage().persistent().set(&key, &(current + amount));
+
+        e.events().publish(
+            (
+                symbol_short!("vault"),
+                symbol_short!("add_lia"),
+                token,
+                authorized,
+            ),
+            amount,
+        );
+
         Ok(())
     }
 
@@ -635,12 +683,23 @@ impl PayrollVault {
             return Err(QuipayError::InvalidAmount);
         }
 
-        let key = StateKey::TotalLiability(token);
+        let key = StateKey::TotalLiability(token.clone());
         let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
         if amount > current {
             return Err(QuipayError::InvalidAmount);
         }
         e.storage().persistent().set(&key, &(current - amount));
+
+        e.events().publish(
+            (
+                symbol_short!("vault"),
+                symbol_short!("rem_lia"),
+                token,
+                authorized,
+            ),
+            amount,
+        );
+
         Ok(())
     }
 

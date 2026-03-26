@@ -57,6 +57,8 @@ const CreateStream: React.FC = () => {
               placeholder="e.g. John Doe"
               value={formData.workerName}
               onChange={(e) => updateFormData("workerName", e.target.value)}
+              required
+              aria-required="true"
             />
           </div>
           <div className={tw.formGroup}>
@@ -67,9 +69,12 @@ const CreateStream: React.FC = () => {
             <input
               type="text"
               className={tw.input}
-              placeholder="G..."
+              placeholder="e.g. GABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
               value={formData.workerAddress}
               onChange={(e) => updateFormData("workerAddress", e.target.value)}
+              required
+              aria-required="true"
+              pattern="^G[A-Z2-7]{55}$"
             />
           </div>
         </div>
@@ -88,10 +93,13 @@ const CreateStream: React.FC = () => {
             </label>
             <input
               type="number"
+              min="0"
               className={tw.input}
               placeholder="0.00"
               value={formData.amount}
               onChange={(e) => updateFormData("amount", e.target.value)}
+              required
+              aria-required="true"
             />
           </div>
           <div className={tw.formGroup}>
@@ -100,6 +108,8 @@ const CreateStream: React.FC = () => {
               className={tw.select}
               value={formData.token}
               onChange={(e) => updateFormData("token", e.target.value)}
+              required
+              aria-required="true"
             >
               <option value="USDC">USDC</option>
               <option value="XLM">XLM</option>
@@ -120,6 +130,8 @@ const CreateStream: React.FC = () => {
               className={tw.input}
               value={formData.startDate}
               onChange={(e) => updateFormData("startDate", e.target.value)}
+              required
+              aria-required="true"
             />
           </div>
           <div className={tw.formGroup}>
@@ -129,6 +141,8 @@ const CreateStream: React.FC = () => {
               className={tw.input}
               value={formData.endDate}
               onChange={(e) => updateFormData("endDate", e.target.value)}
+              required
+              aria-required="true"
             />
           </div>
           <CollapsibleSection title="Advanced Schedule Options">
@@ -161,6 +175,8 @@ const CreateStream: React.FC = () => {
                       cliffDate: e.target.value,
                     })
                   }
+                  required={formData.advancedOptions.enableCliff}
+                  aria-required={formData.advancedOptions.enableCliff}
                 />
               </div>
             )}

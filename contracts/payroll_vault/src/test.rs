@@ -558,8 +558,8 @@ fn test_remove_more_liability_than_exists_returns_error() {
     assert_eq!(client.get_liability(&token), 500);
 
     // Should return error - trying to remove more than exists
-    let res = client.try_remove_liability(&token, &600);
-    assert_eq!(res, Err(Ok(QuipayError::InvalidAmount)));
+    let result = client.try_remove_liability(&token, &600);
+    assert_eq!(result, Err(Ok(QuipayError::InvalidAmount)));
 }
 
 #[test]
@@ -579,8 +579,8 @@ fn test_add_zero_liability_returns_error() {
     client.set_authorized_contract(&authorized_contract);
 
     // Should return error - zero amount
-    let res = client.try_add_liability(&token, &0);
-    assert_eq!(res, Err(Ok(QuipayError::InvalidAmount)));
+    let result = client.try_add_liability(&token, &0);
+    assert_eq!(result, Err(Ok(QuipayError::InvalidAmount)));
 }
 
 #[test]
@@ -612,8 +612,8 @@ fn test_remove_zero_liability_returns_error() {
     client.add_liability(&token, &500);
 
     // Should return error - zero amount
-    let res = client.try_remove_liability(&token, &0);
-    assert_eq!(res, Err(Ok(QuipayError::InvalidAmount)));
+    let result = client.try_remove_liability(&token, &0);
+    assert_eq!(result, Err(Ok(QuipayError::InvalidAmount)));
 }
 
 #[test]
@@ -798,15 +798,15 @@ fn test_require_auth_for_set_authorized_contract_with_multisig() {
         Some(authorized_contract.clone())
     );
 
-    // Try to set authorized contract without admin auth - should return error
+    // Try to set authorized contract without initialization - should return error
     // This simulates a transaction that doesn't meet multisig threshold
     let env2 = Env::default();
     let contract_id2 = env2.register(PayrollVault, ());
     let client2 = PayrollVaultClient::new(&env2, &contract_id2);
-    // Don't initialize - this will cause an error when trying to get admin
+    // Don't initialize - this will cause NotInitialized error when trying to get admin
     let another_contract = Address::generate(&env2);
-    let res = client2.try_set_authorized_contract(&another_contract);
-    assert_eq!(res, Err(Ok(QuipayError::NotInitialized)));
+    let result = client2.try_set_authorized_contract(&another_contract);
+    assert_eq!(result, Err(Ok(QuipayError::NotInitialized)));
 }
 
 #[test]
@@ -849,4 +849,140 @@ fn test_multisig_admin_can_perform_all_operations() {
     let new_multisig_admin = Address::generate(&env);
     client.transfer_admin(&new_multisig_admin);
     assert_eq!(client.get_admin(), new_multisig_admin);
+}
+
+// ============================================================================
+// Two-Step Admin Transfer Tests
+// ============================================================================
+
+#[test]
+fn test_two_step_admin_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize
+    client.initialize(&admin);
+    assert_eq!(client.get_admin(), admin);
+
+    // Step 1: Propose new admin
+    client.propose_admin(&new_admin);
+    assert_eq!(client.get_pending_admin(), Some(new_admin.clone()));
+    assert_eq!(client.get_admin(), admin); // Admin hasn't changed yet
+
+    // Step 2: Accept admin role
+    client.accept_admin();
+    assert_eq!(client.get_admin(), new_admin);
+    assert_eq!(client.get_pending_admin(), None); // Pending cleared
+}
+
+#[test]
+fn test_accept_admin_requires_pending() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Try to accept without pending admin - should fail with NoPendingAdmin
+    let result = client.try_accept_admin();
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().unwrap(), QuipayError::NoPendingAdmin);
+}
+
+#[test]
+fn test_accept_admin_requires_pending_admin_auth() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    client.initialize(&admin);
+    client.propose_admin(&new_admin);
+
+    // Note: In production, this would require new_admin.require_auth()
+    // but with mock_all_auths(), we can't test auth failures
+    client.accept_admin();
+    assert_eq!(client.get_admin(), new_admin);
+}
+
+#[test]
+fn test_transfer_admin_backward_compatible() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize
+    client.initialize(&admin);
+    assert_eq!(client.get_admin(), admin);
+
+    // Use old transfer_admin function (backward compatible)
+    client.transfer_admin(&new_admin);
+    
+    // Should transfer atomically
+    assert_eq!(client.get_admin(), new_admin);
+    assert_eq!(client.get_pending_admin(), None); // No pending admin left
+}
+
+#[test]
+fn test_propose_admin_overwrites_previous_pending() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin1 = Address::generate(&env);
+    let new_admin2 = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Propose first admin
+    client.propose_admin(&new_admin1);
+    assert_eq!(client.get_pending_admin(), Some(new_admin1.clone()));
+
+    // Propose second admin (should overwrite)
+    client.propose_admin(&new_admin2);
+    assert_eq!(client.get_pending_admin(), Some(new_admin2.clone()));
+
+    // Accept should use the latest proposal
+    client.accept_admin();
+    assert_eq!(client.get_admin(), new_admin2);
+}
+
+#[test]
+fn test_two_step_admin_transfer_with_multisig() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+
+    // Simulate multisig addresses
+    let multisig_admin = Address::generate(&env);
+    let multisig_new_admin = Address::generate(&env);
+
+    client.initialize(&multisig_admin);
+
+    // Step 1: Current multisig admin proposes new multisig admin
+    client.propose_admin(&multisig_new_admin);
+    assert_eq!(client.get_pending_admin(), Some(multisig_new_admin.clone()));
+
+    // Step 2: New multisig admin accepts (simulating threshold met)
+    client.accept_admin();
+    assert_eq!(client.get_admin(), multisig_new_admin);
+    assert_eq!(client.get_pending_admin(), None);
 }

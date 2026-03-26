@@ -3,10 +3,10 @@ extern crate std;
 
 use super::*;
 use quipay_common::QuipayError;
-use soroban_sdk::{Address, Env, IntoVal, testutils::Address as _, testutils::Ledger as _};
+use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, Address, Env, IntoVal};
 
 mod dummy_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct DummyVault;
     #[contractimpl]
@@ -27,7 +27,7 @@ mod dummy_vault {
 }
 
 mod rejecting_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct RejectingVault;
     #[contractimpl]
@@ -42,7 +42,7 @@ mod rejecting_vault {
 }
 
 mod selective_rejecting_payout_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct SelectiveRejectingPayoutVault;
     #[contractimpl]
@@ -62,7 +62,7 @@ mod selective_rejecting_payout_vault {
 
 /// Insolvent vault: check_solvency returns false so stream creation is blocked
 mod insolvent_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct InsolventVault;
     #[contractimpl]
@@ -76,7 +76,7 @@ mod insolvent_vault {
     }
 }
 
-fn setup(env: &Env) -> (PayrollStreamClient, Address, Address, Address, Address) {
+pub(crate) fn setup(env: &Env) -> (PayrollStreamClient, Address, Address, Address, Address) {
     let admin = Address::generate(env);
     let employer = Address::generate(env);
     let worker = Address::generate(env);
@@ -219,6 +219,34 @@ fn test_unpause_resumes_operations() {
         li.timestamp = 0;
     });
     client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
+}
+
+#[test]
+fn test_upgrade_functions_exempt_from_pause() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+
+    let contract_id = env.register(PayrollStream, ());
+    let client = PayrollStreamClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    client.set_paused(&true);
+    assert!(client.is_paused());
+
+    let wasm_hash: soroban_sdk::BytesN<32> = [0u8; 32].into_val(&env);
+    let result = client.try_propose_upgrade(&wasm_hash);
+    assert!(result.is_ok());
+
+    let pending = client.get_pending_upgrade();
+    assert!(pending.is_some());
+
+    let result = client.try_cancel_upgrade();
+    assert!(result.is_ok());
+
+    let pending = client.get_pending_upgrade();
+    assert!(pending.is_none());
 }
 
 #[test]
@@ -996,7 +1024,7 @@ fn test_withdraw_zero_available_returns_zero() {
 // ---------------------------------------------------------------------------
 
 mod mock_gateway {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct MockGateway;
     #[contractimpl]
@@ -1012,7 +1040,7 @@ mod mock_gateway {
 }
 
 mod auth_mock_gateway {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
 
     #[contract]
     pub struct AuthMockGateway;
@@ -1877,4 +1905,98 @@ fn test_multiple_workers_same_employer_independent_streams() {
     assert_eq!(worker1_streams.len(), 1);
     assert_eq!(worker2_streams.len(), 1);
     assert_eq!(worker3_streams.len(), 1);
+}
+
+// ============================================================================
+// Two-Step Admin Transfer Tests
+// ============================================================================
+
+#[test]
+fn test_two_step_admin_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollStream, ());
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize
+    client.init(&admin);
+    assert_eq!(client.get_admin(), admin);
+
+    // Step 1: Propose new admin
+    client.propose_admin(&new_admin);
+    assert_eq!(client.get_pending_admin(), Some(new_admin.clone()));
+    assert_eq!(client.get_admin(), admin); // Admin hasn't changed yet
+
+    // Step 2: Accept admin role
+    client.accept_admin();
+    assert_eq!(client.get_admin(), new_admin);
+    assert_eq!(client.get_pending_admin(), None); // Pending cleared
+}
+
+#[test]
+fn test_accept_admin_requires_pending() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollStream, ());
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    client.init(&admin);
+
+    // Try to accept without pending admin - should fail with NoPendingAdmin
+    let result = client.try_accept_admin();
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().unwrap(), QuipayError::NoPendingAdmin);
+}
+
+#[test]
+fn test_transfer_admin_backward_compatible() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollStream, ());
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize
+    client.init(&admin);
+    assert_eq!(client.get_admin(), admin);
+
+    // Use transfer_admin function (backward compatible)
+    client.transfer_admin(&new_admin);
+
+    // Should transfer atomically
+    assert_eq!(client.get_admin(), new_admin);
+    assert_eq!(client.get_pending_admin(), None); // No pending admin left
+}
+
+#[test]
+fn test_propose_admin_overwrites_previous_pending() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollStream, ());
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin1 = Address::generate(&env);
+    let new_admin2 = Address::generate(&env);
+
+    client.init(&admin);
+
+    // Propose first admin
+    client.propose_admin(&new_admin1);
+    assert_eq!(client.get_pending_admin(), Some(new_admin1.clone()));
+
+    // Propose second admin (should overwrite)
+    client.propose_admin(&new_admin2);
+    assert_eq!(client.get_pending_admin(), Some(new_admin2.clone()));
+
+    // Accept should use the latest proposal
+    client.accept_admin();
+    assert_eq!(client.get_admin(), new_admin2);
 }
