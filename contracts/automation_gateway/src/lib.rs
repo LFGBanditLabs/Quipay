@@ -28,7 +28,7 @@ pub struct Agent {
 #[contracttype]
 pub enum DataKey {
     Admin,
-    PendingAdmin,  // Two-step admin transfer
+    PendingAdmin, // Two-step admin transfer
     Agent(Address),
     PayrollStream,
 }
@@ -275,7 +275,9 @@ impl AutomationGateway {
         let admin = Self::get_admin(env.clone())?;
         admin.require_auth();
 
-        env.storage().instance().set(&DataKey::PendingAdmin, &new_admin);
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingAdmin, &new_admin);
         Ok(())
     }
 
@@ -286,14 +288,16 @@ impl AutomationGateway {
             .instance()
             .get(&DataKey::PendingAdmin)
             .ok_or(QuipayError::NoPendingAdmin)?;
-        
+
         pending_admin.require_auth();
 
         // Transfer admin rights
-        env.storage().instance().set(&DataKey::Admin, &pending_admin);
+        env.storage()
+            .instance()
+            .set(&DataKey::Admin, &pending_admin);
         // Clear pending admin
         env.storage().instance().remove(&DataKey::PendingAdmin);
-        
+
         Ok(())
     }
 
@@ -303,12 +307,14 @@ impl AutomationGateway {
         admin.require_auth();
 
         // Atomic two-step: propose and accept
-        env.storage().instance().set(&DataKey::PendingAdmin, &new_admin);
-        
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingAdmin, &new_admin);
+
         // Simulate accept by new admin (backward compatibility)
         env.storage().instance().set(&DataKey::Admin, &new_admin);
         env.storage().instance().remove(&DataKey::PendingAdmin);
-        
+
         Ok(())
     }
 

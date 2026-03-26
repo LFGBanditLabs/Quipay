@@ -1,7 +1,9 @@
 #![no_std]
 use core::convert::TryFrom;
 use quipay_common::{QuipayError, require};
-use soroban_sdk::{Address, BytesN, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype};
+use soroban_sdk::{
+    Address, BytesN, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype,
+};
 
 const MAX_BATCH_CREATE_STREAMS: u32 = 20;
 const MAX_STREAM_DURATION: u64 = 365 * 24 * 60 * 60; // 365 days in seconds
@@ -16,8 +18,10 @@ pub enum DataKey {
     RetentionSecs,
     Vault,
     Gateway,
-    PendingUpgrade,    // (wasm_hash, execute_after_timestamp)
-    EarlyCancelFeeBps, // Basis points for early cancellation fee (max 1000 = 10%)
+    PendingUpgrade,          // (wasm_hash, execute_after_timestamp)
+    EarlyCancelFeeBps,       // Basis points for early cancellation fee (max 1000 = 10%)
+    WithdrawalCooldown,      // Minimum seconds a worker must wait between withdrawals
+    LastWithdrawal(Address), // Timestamp of last successful withdrawal per worker
 }
 
 #[contracttype]
@@ -113,6 +117,9 @@ enum BatchWithdrawalPlan {
 
 const DEFAULT_RETENTION_SECS: u64 = 30 * 24 * 60 * 60;
 
+// Default withdrawal cooldown: 1 hour in seconds
+const DEFAULT_WITHDRAWAL_COOLDOWN: u64 = 60 * 60;
+
 // Storage entries (persistent) are automatically archived after their TTL runs out
 // unless we explicitly extend TTL. Long-running streams can be left untouched for
 // longer than the default TTL, so we bump TTL on each mutation path.
@@ -200,6 +207,30 @@ impl PayrollStream {
             .instance()
             .set(&DataKey::EarlyCancelFeeBps, &fee_bps);
         Ok(())
+    }
+
+    /// Set the minimum seconds a worker must wait between withdrawals.
+    /// A value of 0 disables the cooldown entirely. Only admin can call this.
+    pub fn set_withdrawal_cooldown(env: Env, seconds: u64) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        env.storage()
+            .instance()
+            .set(&DataKey::WithdrawalCooldown, &seconds);
+        Ok(())
+    }
+
+    /// Get the currently configured withdrawal cooldown in seconds.
+    /// Returns the 1-hour default when the admin has never configured it.
+    pub fn get_withdrawal_cooldown(env: Env) -> u64 {
+        env.storage()
+            .instance()
+            .get(&DataKey::WithdrawalCooldown)
+            .unwrap_or(DEFAULT_WITHDRAWAL_COOLDOWN)
     }
 
     pub fn set_vault(env: Env, vault: Address) -> Result<(), QuipayError> {
@@ -390,6 +421,24 @@ impl PayrollStream {
         }
 
         let now = env.ledger().timestamp();
+
+        // Enforce per-worker withdrawal cooldown
+        let cooldown: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::WithdrawalCooldown)
+            .unwrap_or(DEFAULT_WITHDRAWAL_COOLDOWN);
+        if cooldown > 0 {
+            let last_ts: u64 = env
+                .storage()
+                .persistent()
+                .get(&DataKey::LastWithdrawal(worker.clone()))
+                .unwrap_or(0);
+            if now < last_ts.saturating_add(cooldown) {
+                return Err(QuipayError::WithdrawalCooldown);
+            }
+        }
+
         let vested = Self::vested_amount(&stream, now);
         let available = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
 
@@ -407,7 +456,13 @@ impl PayrollStream {
             .get(&DataKey::Vault)
             .ok_or(QuipayError::NotInitialized)?;
 
-        Self::call_vault_payout(&env, &vault, worker.clone(), stream.token.clone(), available);
+        Self::call_vault_payout(
+            &env,
+            &vault,
+            worker.clone(),
+            stream.token.clone(),
+            available,
+        );
 
         stream.withdrawn_amount = stream
             .withdrawn_amount
@@ -420,6 +475,11 @@ impl PayrollStream {
         }
 
         env.storage().persistent().set(&key, &stream);
+
+        // Record this withdrawal timestamp for cooldown enforcement
+        env.storage()
+            .persistent()
+            .set(&DataKey::LastWithdrawal(worker.clone()), &now);
 
         env.events().publish(
             (
@@ -450,6 +510,24 @@ impl PayrollStream {
             .instance()
             .get(&DataKey::Vault)
             .ok_or(QuipayError::NotInitialized)?;
+
+        // Enforce per-worker withdrawal cooldown for the entire batch
+        let cooldown: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::WithdrawalCooldown)
+            .unwrap_or(DEFAULT_WITHDRAWAL_COOLDOWN);
+        if cooldown > 0 {
+            let last_ts: u64 = env
+                .storage()
+                .persistent()
+                .get(&DataKey::LastWithdrawal(caller.clone()))
+                .unwrap_or(0);
+            if now < last_ts.saturating_add(cooldown) {
+                return Err(QuipayError::WithdrawalCooldown);
+            }
+        }
+
         let mut plans: Vec<BatchWithdrawalPlan> = Vec::new(&env);
         let mut results: Vec<WithdrawResult> = Vec::new(&env);
 
@@ -525,7 +603,13 @@ impl PayrollStream {
                     let mut stream = candidate.stream;
                     let available = candidate.amount;
 
-                    Self::call_vault_payout(&env, &vault, caller.clone(), stream.token.clone(), available);
+                    Self::call_vault_payout(
+                        &env,
+                        &vault,
+                        caller.clone(),
+                        stream.token.clone(),
+                        available,
+                    );
 
                     stream.withdrawn_amount = stream
                         .withdrawn_amount
@@ -540,6 +624,11 @@ impl PayrollStream {
                     env.storage().persistent().set(&key, &stream);
                     // Keep both the stream state and the worker index entry alive.
                     Self::bump_stream_storage_ttl(&env, candidate.stream_id, &caller);
+
+                    // Record this withdrawal timestamp for cooldown enforcement
+                    env.storage()
+                        .persistent()
+                        .set(&DataKey::LastWithdrawal(caller.clone()), &now);
 
                     env.events().publish(
                         (
@@ -624,7 +713,13 @@ impl PayrollStream {
 
         // Pay out owed amount to worker
         if owed > 0 {
-            Self::call_vault_payout(&env, &vault, stream.worker.clone(), stream.token.clone(), owed);
+            Self::call_vault_payout(
+                &env,
+                &vault,
+                stream.worker.clone(),
+                stream.token.clone(),
+                owed,
+            );
             stream.withdrawn_amount = stream
                 .withdrawn_amount
                 .checked_add(owed)
@@ -642,11 +737,22 @@ impl PayrollStream {
 
         if remaining_liability > 0 {
             // Remove remaining liability from vault
-            Self::call_vault_remove_liability(&env, &vault, stream.token.clone(), remaining_liability);
+            Self::call_vault_remove_liability(
+                &env,
+                &vault,
+                stream.token.clone(),
+                remaining_liability,
+            );
 
             // If there's a cancellation fee, pay it to worker
             if cancel_fee > 0 {
-                Self::call_vault_payout(&env, &vault, stream.worker.clone(), stream.token.clone(), cancel_fee);
+                Self::call_vault_payout(
+                    &env,
+                    &vault,
+                    stream.worker.clone(),
+                    stream.token.clone(),
+                    cancel_fee,
+                );
             }
         }
 
@@ -709,7 +815,15 @@ impl PayrollStream {
 
         // Call the internal create stream logic
         Self::create_stream_internal(
-            env, employer, worker, token, rate, cliff_ts, start_ts, end_ts, metadata_hash,
+            env,
+            employer,
+            worker,
+            token,
+            rate,
+            cliff_ts,
+            start_ts,
+            end_ts,
+            metadata_hash,
         )
     }
 
@@ -756,7 +870,13 @@ impl PayrollStream {
             .ok_or(QuipayError::NotInitialized)?;
 
         if owed > 0 {
-            Self::call_vault_payout(&env, &vault, stream.worker.clone(), stream.token.clone(), owed);
+            Self::call_vault_payout(
+                &env,
+                &vault,
+                stream.worker.clone(),
+                stream.token.clone(),
+                owed,
+            );
             stream.withdrawn_amount = stream
                 .withdrawn_amount
                 .checked_add(owed)
@@ -774,11 +894,22 @@ impl PayrollStream {
 
         if remaining_liability > 0 {
             // Remove remaining liability from vault
-            Self::call_vault_remove_liability(&env, &vault, stream.token.clone(), remaining_liability);
+            Self::call_vault_remove_liability(
+                &env,
+                &vault,
+                stream.token.clone(),
+                remaining_liability,
+            );
 
             // If there's a cancellation fee, pay it to worker
             if cancel_fee > 0 {
-                Self::call_vault_payout(&env, &vault, stream.worker.clone(), stream.token.clone(), cancel_fee);
+                Self::call_vault_payout(
+                    &env,
+                    &vault,
+                    stream.worker.clone(),
+                    stream.token.clone(),
+                    cancel_fee,
+                );
             }
         }
 
@@ -1380,12 +1511,23 @@ impl PayrollStream {
     }
 
     /// Invoke `payout_liability` on the vault contract.
-    fn call_vault_payout(env: &Env, vault: &Address, worker: Address, token: Address, amount: i128) {
+    fn call_vault_payout(
+        env: &Env,
+        vault: &Address,
+        worker: Address,
+        token: Address,
+        amount: i128,
+    ) {
         use soroban_sdk::{IntoVal, Symbol, vec};
         env.invoke_contract::<()>(
             vault,
             &Symbol::new(env, "payout_liability"),
-            vec![env, worker.into_val(env), token.into_val(env), amount.into_val(env)],
+            vec![
+                env,
+                worker.into_val(env),
+                token.into_val(env),
+                amount.into_val(env),
+            ],
         );
     }
 
@@ -1454,10 +1596,10 @@ impl PayrollStream {
     }
 }
 
-mod stream_extension;
-mod stream_pause;
 mod extension_test;
 mod pause_test;
+mod stream_extension;
+mod stream_pause;
 mod test;
 
 #[cfg(test)]

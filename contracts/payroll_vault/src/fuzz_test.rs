@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use crate::{PayrollVault, PayrollVaultClient};
-use soroban_sdk::{testutils::Address as _, token, Address, Env};
+use soroban_sdk::{Address, Env, testutils::Address as _, token};
 
 pub fn run_fuzz_iteration(
     env: &Env,
@@ -64,7 +64,7 @@ pub fn run_fuzz_iteration(
 
 #[test]
 fn test_manual_fuzz() {
-    use rand::{thread_rng, Rng};
+    use rand::{Rng, thread_rng};
 
     // Run 1000 "real" random iterations to simulate intensive fuzzing
     let mut rng = thread_rng();
