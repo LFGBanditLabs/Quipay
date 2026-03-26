@@ -39,7 +39,11 @@ pub enum QuipayError {
     BatchTooLarge = 1029,
     NoPendingAdmin = 1030,
     NotPendingAdmin = 1031,
-    Custom = 1999,
+    SignerNotFound = 1032,
+    AlreadySigner = 1033,
+    InvalidThreshold = 1034,
+    InsufficientSignatures = 1035,
+    NoSigners = 1036,
 }
 
 /// Macro for requiring a condition to be true, returning an error if false

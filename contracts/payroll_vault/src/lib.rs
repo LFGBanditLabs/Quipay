@@ -1,8 +1,8 @@
 #![no_std]
 #![allow(unexpected_cfgs)]
-use quipay_common::{QuipayError, require_positive_amount};
+use quipay_common::{require_positive_amount, QuipayError};
 use soroban_sdk::{
-    Address, BytesN, Env, Symbol, Vec, contract, contractimpl, contracttype, symbol_short, token,
+    contract, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env, Symbol, Vec,
 };
 
 #[cfg(test)]
@@ -26,7 +26,7 @@ mod proptest;
 pub enum StateKey {
     // Persistent storage - survives upgrades
     Admin,
-    PendingAdmin,       // Two-step admin transfer
+    PendingAdmin, // Two-step admin transfer
     Version,
     AuthorizedContract, // Contract authorized to modify liabilities (e.g., PayrollStream)
     TokenList,          // Tokens tracked by the vault
@@ -35,6 +35,10 @@ pub enum StateKey {
     TotalLiability(Address),  // Amount owed to recipients (Token -> Amount)
     // Timelock storage
     PendingUpgrade, // (wasm_hash, execute_after_timestamp)
+    // Multi-sig storage
+    Signers,             // Vec<Address> - list of authorized signers
+    Threshold,           // u32 - M of N required
+    WithdrawalThreshold, // i128 - amount above which multisig is required
 }
 
 #[contracttype]
@@ -63,6 +67,16 @@ pub struct TreasuryTokenSummary {
     pub liability: i128,
 }
 
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct MultiSigOp {
+    pub op_type: Symbol,
+    pub params_hash: BytesN<32>,
+    pub approvals: Vec<Address>,
+    pub proposed_at: u64,
+    pub proposer: Address,
+}
+
 #[contract]
 pub struct PayrollVault;
 
@@ -71,9 +85,15 @@ const UPGRADED: Symbol = symbol_short!("upgrd");
 const UPGRADE_PROPOSED: Symbol = symbol_short!("up_prop");
 const UPGRADE_EXECUTED: Symbol = symbol_short!("up_exec");
 const UPGRADE_CANCELED: Symbol = symbol_short!("up_cancel");
+const SIGNER_ADDED: Symbol = symbol_short!("sig_add");
+const SIGNER_REMOVED: Symbol = symbol_short!("sig_rm");
+const THRESHOLD_SET: Symbol = symbol_short!("thr_set");
 
 // 48 hours in seconds
 const TIMELOCK_DURATION: u64 = 48 * 60 * 60;
+
+// Default withdrawal threshold for multisig requirement (100,000 units)
+const DEFAULT_WITHDRAWAL_THRESHOLD: i128 = 100_000;
 
 #[contractimpl]
 impl PayrollVault {
@@ -96,6 +116,19 @@ impl PayrollVault {
         e.storage()
             .persistent()
             .set(&StateKey::Version, &initial_version);
+
+        // Initialize with admin as the first signer
+        let signers = Vec::from(&e, &[admin.clone()]);
+        e.storage().persistent().set(&StateKey::Signers, &signers);
+
+        // Initialize threshold to 1 (single admin)
+        e.storage().persistent().set(&StateKey::Threshold, &1u32);
+
+        // Set default withdrawal threshold
+        e.storage().persistent().set(
+            &StateKey::WithdrawalThreshold,
+            &DEFAULT_WITHDRAWAL_THRESHOLD,
+        );
 
         // Authorized contract starts as None - must be set by admin later
         // No need to initialize balances/liabilities as they are maps
@@ -276,7 +309,9 @@ impl PayrollVault {
         let admin = Self::get_admin(e.clone())?;
         admin.require_auth();
 
-        e.storage().persistent().set(&StateKey::PendingAdmin, &new_admin);
+        e.storage()
+            .persistent()
+            .set(&StateKey::PendingAdmin, &new_admin);
         Ok(())
     }
 
@@ -291,14 +326,16 @@ impl PayrollVault {
             .persistent()
             .get(&StateKey::PendingAdmin)
             .ok_or(QuipayError::NoPendingAdmin)?;
-        
+
         pending_admin.require_auth();
 
         // Transfer admin rights
-        e.storage().persistent().set(&StateKey::Admin, &pending_admin);
+        e.storage()
+            .persistent()
+            .set(&StateKey::Admin, &pending_admin);
         // Clear pending admin
         e.storage().persistent().remove(&StateKey::PendingAdmin);
-        
+
         Ok(())
     }
 
@@ -320,14 +357,174 @@ impl PayrollVault {
         admin.require_auth();
 
         // Atomic two-step: propose and accept
-        e.storage().persistent().set(&StateKey::PendingAdmin, &new_admin);
-        
+        e.storage()
+            .persistent()
+            .set(&StateKey::PendingAdmin, &new_admin);
+
         // Simulate accept by new admin (backward compatibility)
         e.storage().persistent().set(&StateKey::Admin, &new_admin);
         e.storage().persistent().remove(&StateKey::PendingAdmin);
-        
+
         Ok(())
     }
+
+    // ==================== Multi-sig Admin Functions ====================
+
+    /// Add a new authorized signer
+    /// Only admin can call this function
+    pub fn add_signer(e: Env, new_signer: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        let mut signers: Vec<Address> = e
+            .storage()
+            .persistent()
+            .get(&StateKey::Signers)
+            .ok_or(QuipayError::NoSigners)?;
+
+        // Check if already a signer
+        let mut i = 0;
+        while i < signers.len() {
+            if let Some(s) = signers.get(i) {
+                if s == new_signer {
+                    return Err(QuipayError::AlreadySigner);
+                }
+            }
+            i += 1;
+        }
+
+        signers.push_back(new_signer.clone());
+        e.storage().persistent().set(&StateKey::Signers, &signers);
+
+        e.events().publish((SIGNER_ADDED, admin), new_signer);
+        Ok(())
+    }
+
+    /// Remove an authorized signer
+    /// Only admin can call this function
+    pub fn remove_signer(e: Env, signer_to_remove: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        let mut signers: Vec<Address> = e
+            .storage()
+            .persistent()
+            .get(&StateKey::Signers)
+            .ok_or(QuipayError::NoSigners)?;
+
+        let threshold: u32 = e
+            .storage()
+            .persistent()
+            .get(&StateKey::Threshold)
+            .unwrap_or(1);
+
+        // Ensure we don't go below threshold
+        if signers.len() <= threshold {
+            return Err(QuipayError::InvalidThreshold);
+        }
+
+        let mut found = false;
+        let mut new_signers = Vec::new(&e);
+        let mut i = 0;
+        while i < signers.len() {
+            if let Some(s) = signers.get(i) {
+                if s == signer_to_remove {
+                    found = true;
+                } else {
+                    new_signers.push_back(s);
+                }
+            }
+            i += 1;
+        }
+
+        if !found {
+            return Err(QuipayError::SignerNotFound);
+        }
+
+        e.storage()
+            .persistent()
+            .set(&StateKey::Signers, &new_signers);
+        e.events()
+            .publish((SIGNER_REMOVED, admin), signer_to_remove);
+        Ok(())
+    }
+
+    /// Set the M-of-N threshold for multi-sig operations
+    /// Only admin can call this function
+    pub fn set_threshold(e: Env, threshold: u32) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        let signers: Vec<Address> = e
+            .storage()
+            .persistent()
+            .get(&StateKey::Signers)
+            .ok_or(QuipayError::NoSigners)?;
+
+        if threshold == 0 || threshold > signers.len() {
+            return Err(QuipayError::InvalidThreshold);
+        }
+
+        e.storage()
+            .persistent()
+            .set(&StateKey::Threshold, &threshold);
+        e.events().publish((THRESHOLD_SET, admin), threshold);
+        Ok(())
+    }
+
+    /// Set the withdrawal threshold (amount above which multisig is required)
+    /// Only admin can call this function
+    pub fn set_withdrawal_threshold(e: Env, threshold: i128) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        if threshold < 0 {
+            return Err(QuipayError::InvalidAmount);
+        }
+
+        e.storage()
+            .persistent()
+            .set(&StateKey::WithdrawalThreshold, &threshold);
+        Ok(())
+    }
+
+    /// Get all authorized signers
+    pub fn get_signers(e: Env) -> Vec<Address> {
+        e.storage()
+            .persistent()
+            .get(&StateKey::Signers)
+            .unwrap_or(Vec::new(&e))
+    }
+
+    /// Get the current threshold
+    pub fn get_threshold(e: Env) -> u32 {
+        e.storage()
+            .persistent()
+            .get(&StateKey::Threshold)
+            .unwrap_or(1)
+    }
+
+    /// Check if an address is an authorized signer
+    pub fn is_signer(e: Env, address: Address) -> bool {
+        let signers: Vec<Address> = e
+            .storage()
+            .persistent()
+            .get(&StateKey::Signers)
+            .unwrap_or(Vec::new(&e));
+
+        let mut i = 0;
+        while i < signers.len() {
+            if let Some(s) = signers.get(i) {
+                if s == address {
+                    return true;
+                }
+            }
+            i += 1;
+        }
+        false
+    }
+
+    // ==================== Treasury Operations ====================
 
     pub fn deposit(e: Env, from: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
         from.require_auth();
