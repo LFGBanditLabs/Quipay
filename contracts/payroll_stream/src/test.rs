@@ -76,7 +76,7 @@ mod insolvent_vault {
     }
 }
 
-fn setup(env: &Env) -> (PayrollStreamClient, Address, Address, Address, Address) {
+pub(crate) fn setup(env: &Env) -> (PayrollStreamClient, Address, Address, Address, Address) {
     let admin = Address::generate(env);
     let employer = Address::generate(env);
     let worker = Address::generate(env);
@@ -1941,7 +1941,7 @@ fn test_transfer_admin_backward_compatible() {
 
     // Use transfer_admin function (backward compatible)
     client.transfer_admin(&new_admin);
-    
+
     // Should transfer atomically
     assert_eq!(client.get_admin(), new_admin);
     assert_eq!(client.get_pending_admin(), None); // No pending admin left
