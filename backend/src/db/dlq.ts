@@ -60,6 +60,25 @@ export const getPendingDLQItems = async (
   return result.rows as DLQItem[];
 };
 
+export const getPendingDLQItemsByJobType = async (
+  jobType: string,
+  limit: number = 50,
+  offset: number = 0,
+): Promise<DLQItem[]> => {
+  const pool = getPool();
+  if (!pool) throw new Error("Database pool not initialized");
+
+  const query = `
+    SELECT id, job_type, payload, error_stack, context, status, created_at, updated_at
+    FROM dead_letter_queue
+    WHERE status = 'pending' AND job_type = $1
+    ORDER BY created_at DESC
+    LIMIT $2 OFFSET $3;
+  `;
+  const result = await pool.query(query, [jobType, limit, offset]);
+  return result.rows as DLQItem[];
+};
+
 /**
  * Retrieves a specific DLQ item by ID.
  */

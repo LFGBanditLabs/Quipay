@@ -95,8 +95,12 @@ export class TestDatabase {
     await this.pool.query(`
       TRUNCATE TABLE 
         audit_logs,
+        dead_letter_queue,
+        employers,
         treasury_monitor_log,
         treasury_balances,
+        webhook_outbound_attempts,
+        webhook_outbound_events,
         scheduler_logs,
         payroll_schedules,
         vault_events,
