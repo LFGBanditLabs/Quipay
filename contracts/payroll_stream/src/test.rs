@@ -1,4 +1,5 @@
 #![cfg(test)]
+#![allow(deprecated)]
 extern crate std;
 
 use super::*;

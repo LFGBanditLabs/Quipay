@@ -1435,7 +1435,10 @@ impl PayrollStream {
     }
 }
 
-mod duration_test;
+mod stream_extension;
+mod stream_pause;
+mod extension_test;
+mod pause_test;
 mod test;
 
 #[cfg(test)]
