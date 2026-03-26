@@ -3,10 +3,10 @@ extern crate std;
 
 use super::*;
 use quipay_common::QuipayError;
-use soroban_sdk::{Address, Env, IntoVal, testutils::Address as _, testutils::Ledger as _};
+use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, Address, Env, IntoVal};
 
 mod dummy_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct DummyVault;
     #[contractimpl]
@@ -27,7 +27,7 @@ mod dummy_vault {
 }
 
 mod rejecting_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct RejectingVault;
     #[contractimpl]
@@ -42,7 +42,7 @@ mod rejecting_vault {
 }
 
 mod selective_rejecting_payout_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct SelectiveRejectingPayoutVault;
     #[contractimpl]
@@ -62,7 +62,7 @@ mod selective_rejecting_payout_vault {
 
 /// Insolvent vault: check_solvency returns false so stream creation is blocked
 mod insolvent_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct InsolventVault;
     #[contractimpl]
@@ -219,6 +219,34 @@ fn test_unpause_resumes_operations() {
         li.timestamp = 0;
     });
     client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
+}
+
+#[test]
+fn test_upgrade_functions_exempt_from_pause() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+
+    let contract_id = env.register(PayrollStream, ());
+    let client = PayrollStreamClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    client.set_paused(&true);
+    assert!(client.is_paused());
+
+    let wasm_hash: soroban_sdk::BytesN<32> = [0u8; 32].into_val(&env);
+    let result = client.try_propose_upgrade(&wasm_hash);
+    assert!(result.is_ok());
+
+    let pending = client.get_pending_upgrade();
+    assert!(pending.is_some());
+
+    let result = client.try_cancel_upgrade();
+    assert!(result.is_ok());
+
+    let pending = client.get_pending_upgrade();
+    assert!(pending.is_none());
 }
 
 #[test]
@@ -996,7 +1024,7 @@ fn test_withdraw_zero_available_returns_zero() {
 // ---------------------------------------------------------------------------
 
 mod mock_gateway {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct MockGateway;
     #[contractimpl]
@@ -1012,7 +1040,7 @@ mod mock_gateway {
 }
 
 mod auth_mock_gateway {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
 
     #[contract]
     pub struct AuthMockGateway;
