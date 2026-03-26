@@ -15,10 +15,7 @@ import {
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import { Permission } from "../contracts/automation_gateway";
 import { useTheme } from "../providers/ThemeProvider";
-import {
-  useStreamTemplates,
-  StreamTemplate,
-} from "../hooks/useStreamTemplates";
+import { useStreamTemplates } from "../hooks/useStreamTemplates";
 
 // Types for local state
 interface TeamMember {
