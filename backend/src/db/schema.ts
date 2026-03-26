@@ -230,6 +230,29 @@ export const payrollProofs = pgTable(
   ],
 );
 
+export const workerNotificationSettings = pgTable(
+  "worker_notification_settings",
+  {
+    worker: text("worker").primaryKey(),
+    emailEnabled: boolean("email_enabled").notNull().default(true),
+    inAppEnabled: boolean("in_app_enabled").notNull().default(true),
+    cliffUnlockAlerts: boolean("cliff_unlock_alerts").notNull().default(true),
+    streamEndingAlerts: boolean("stream_ending_alerts").notNull().default(true),
+    lowRunwayAlerts: boolean("low_runway_alerts").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_worker_notification_settings_updated").on(
+      table.updatedAt.desc(),
+    ),
+  ],
+);
+
 // Audit logs for comprehensive action tracking
 export const auditLogs = pgTable(
   "audit_logs",

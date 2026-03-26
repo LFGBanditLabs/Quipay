@@ -43,7 +43,13 @@ interface AuditLog {
   status: "success" | "failure" | "pending";
 }
 
-type TabId = "team" | "roles" | "audit" | "approvals" | "templates";
+type TabId =
+  | "team"
+  | "roles"
+  | "audit"
+  | "approvals"
+  | "templates"
+  | "notifications";
 
 const AVAILABLE_PERMISSIONS = [
   {
@@ -124,6 +130,14 @@ const Settings: React.FC = () => {
 
   const [auditSearch, setAuditSearch] = useState("");
   const [auditFilter, setAuditFilter] = useState("all");
+
+  const [notificationSettings, setNotificationSettings] = useState({
+    emailEnabled: true,
+    inAppEnabled: true,
+    cliffUnlockAlerts: true,
+    streamEndingAlerts: true,
+    lowRunwayAlerts: true,
+  });
 
   // Mock Data
   const [members] = useState<TeamMember[]>([
@@ -786,10 +800,166 @@ const Settings: React.FC = () => {
     </div>
   );
 
+  const renderNotifications = () => (
+    <div className="flex flex-col gap-6 animate-fade-in-up">
+      <div className="flex items-center justify-between">
+        <div>
+          <Text as="h2" size="lg" weight="medium">
+            Notification Preferences
+          </Text>
+          <Text as="p" size="sm" variant="secondary">
+            Configure how you receive alerts about your streams.
+          </Text>
+        </div>
+      </div>
+
+      <Card className="p-6 rounded-2xl border border-(--border) bg-(--surface-subtle)">
+        <div className="flex flex-col gap-6">
+          <div>
+            <Text as="h3" size="md" weight="bold" className="mb-4">
+              Delivery Channels
+            </Text>
+            <div className="flex flex-col gap-3">
+              <label className="flex items-center gap-3 p-3 rounded-xl border border-(--border) bg-(--surface) hover:border-indigo-500/30 cursor-pointer transition-all">
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.emailEnabled}
+                  onChange={(e) =>
+                    setNotificationSettings({
+                      ...notificationSettings,
+                      emailEnabled: e.target.checked,
+                    })
+                  }
+                  className="w-5 h-5 rounded-lg border-2 border-(--border)"
+                />
+                <div>
+                  <Text as="span" size="sm" weight="medium">
+                    Email Notifications
+                  </Text>
+                  <Text as="p" size="xs" variant="secondary">
+                    Receive alerts via email
+                  </Text>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-3 rounded-xl border border-(--border) bg-(--surface) hover:border-indigo-500/30 cursor-pointer transition-all">
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.inAppEnabled}
+                  onChange={(e) =>
+                    setNotificationSettings({
+                      ...notificationSettings,
+                      inAppEnabled: e.target.checked,
+                    })
+                  }
+                  className="w-5 h-5 rounded-lg border-2 border-(--border)"
+                />
+                <div>
+                  <Text as="span" size="sm" weight="medium">
+                    In-App Notifications
+                  </Text>
+                  <Text as="p" size="xs" variant="secondary">
+                    Show alerts in the dashboard
+                  </Text>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <Text as="h3" size="md" weight="bold" className="mb-4">
+              Alert Types
+            </Text>
+            <div className="flex flex-col gap-3">
+              <label className="flex items-center gap-3 p-3 rounded-xl border border-(--border) bg-(--surface) hover:border-indigo-500/30 cursor-pointer transition-all">
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.cliffUnlockAlerts}
+                  onChange={(e) =>
+                    setNotificationSettings({
+                      ...notificationSettings,
+                      cliffUnlockAlerts: e.target.checked,
+                    })
+                  }
+                  className="w-5 h-5 rounded-lg border-2 border-(--border)"
+                />
+                <div>
+                  <Text as="span" size="sm" weight="medium">
+                    Cliff Unlock Alerts
+                  </Text>
+                  <Text as="p" size="xs" variant="secondary">
+                    Notify when cliff period ends and funds become available
+                  </Text>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-3 rounded-xl border border-(--border) bg-(--surface) hover:border-indigo-500/30 cursor-pointer transition-all">
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.streamEndingAlerts}
+                  onChange={(e) =>
+                    setNotificationSettings({
+                      ...notificationSettings,
+                      streamEndingAlerts: e.target.checked,
+                    })
+                  }
+                  className="w-5 h-5 rounded-lg border-2 border-(--border)"
+                />
+                <div>
+                  <Text as="span" size="sm" weight="medium">
+                    Stream Ending Alerts
+                  </Text>
+                  <Text as="p" size="xs" variant="secondary">
+                    Notify when stream is about to end (within 3 days)
+                  </Text>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-3 rounded-xl border border-(--border) bg-(--surface) hover:border-indigo-500/30 cursor-pointer transition-all">
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.lowRunwayAlerts}
+                  onChange={(e) =>
+                    setNotificationSettings({
+                      ...notificationSettings,
+                      lowRunwayAlerts: e.target.checked,
+                    })
+                  }
+                  className="w-5 h-5 rounded-lg border-2 border-(--border)"
+                />
+                <div>
+                  <Text as="span" size="sm" weight="medium">
+                    Low Runway Alerts
+                  </Text>
+                  <Text as="p" size="xs" variant="secondary">
+                    Notify when employer treasury runway drops below 7 days
+                  </Text>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                setNotification({
+                  message: "Notification preferences saved!",
+                  type: "success",
+                });
+              }}
+            >
+              Save Preferences
+            </Button>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+
   const tabs: { id: TabId; label: string; icon: string }[] = [
     { id: "team", label: "Team", icon: "user" },
     { id: "roles", label: "Roles", icon: "settings" },
     { id: "templates", label: "Templates", icon: "fileText" },
+    { id: "notifications", label: "Notifications", icon: "bell" },
     { id: "approvals", label: "Approvals", icon: "check" },
     { id: "audit", label: "Audit Log", icon: "fileText" },
   ];
@@ -893,6 +1063,7 @@ const Settings: React.FC = () => {
           {activeTab === "team" && renderTeamPortal()}
           {activeTab === "roles" && renderRolesUI()}
           {activeTab === "templates" && renderTemplates()}
+          {activeTab === "notifications" && renderNotifications()}
           {activeTab === "audit" && renderAuditLog()}
           {activeTab === "approvals" && renderApprovals()}
         </div>
