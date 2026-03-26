@@ -118,9 +118,17 @@ export class TestDatabase {
 
     if (this.container) {
       console.log("[TestDB] Stopping container...");
-      await this.container.stop();
-      this.container = null;
-      console.log("[TestDB] ✅ Container stopped");
+      try {
+        await this.container.stop();
+        console.log("[TestDB] ✅ Container stopped");
+      } catch (error) {
+        // In some constrained CI or local environments, Docker may deny
+        // stop() even though tests have already completed successfully.
+        // Swallow the error so it does not cause the entire suite to fail.
+        console.warn("[TestDB] ⚠️ Failed to stop container cleanly", error);
+      } finally {
+        this.container = null;
+      }
     }
   }
 }
