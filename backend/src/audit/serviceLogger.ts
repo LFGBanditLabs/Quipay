@@ -1,5 +1,14 @@
 import { getAuditLogger, isAuditLoggerInitialized } from "./init";
 import { LogContext } from "./types";
+import { requestContext } from "../middleware/requestId";
+
+function enrichContext(context: LogContext = {}): LogContext {
+  const store = requestContext.getStore();
+  if (store?.requestId) {
+    return { ...context, request_id: store.requestId };
+  }
+  return context;
+}
 
 function formatFallbackMessage(service: string, message: string): string {
   return `[${service}] ${message}`;
@@ -23,15 +32,16 @@ export async function logServiceInfo(
   context: LogContext = {},
 ): Promise<void> {
   try {
+    const enrichedContext = enrichContext(context);
     if (!isAuditLoggerInitialized()) {
-      console.log(formatFallbackMessage(service, message), context);
+      console.log(formatFallbackMessage(service, message), enrichedContext);
       return;
     }
 
     await getAuditLogger().info(message, {
       action_type: "system",
       service,
-      ...context,
+      ...enrichedContext,
     });
   } catch (error) {
     console.error(formatFallbackMessage(service, message), error);
@@ -44,15 +54,16 @@ export async function logServiceWarn(
   context: LogContext = {},
 ): Promise<void> {
   try {
+    const enrichedContext = enrichContext(context);
     if (!isAuditLoggerInitialized()) {
-      console.warn(formatFallbackMessage(service, message), context);
+      console.warn(formatFallbackMessage(service, message), enrichedContext);
       return;
     }
 
     await getAuditLogger().warn(message, {
       action_type: "system",
       service,
-      ...context,
+      ...enrichedContext,
     });
   } catch (error) {
     console.error(formatFallbackMessage(service, message), error);
@@ -68,15 +79,16 @@ export async function logServiceError(
   const normalizedError = normalizeError(error);
 
   try {
+    const enrichedContext = enrichContext(context);
     if (!isAuditLoggerInitialized()) {
-      console.error(formatFallbackMessage(service, message), normalizedError);
+      console.error(formatFallbackMessage(service, message), normalizedError, enrichedContext);
       return;
     }
 
     await getAuditLogger().error(message, normalizedError, {
       action_type: "system",
       service,
-      ...context,
+      ...enrichedContext,
     });
   } catch (logError) {
     console.error(formatFallbackMessage(service, message), normalizedError);
