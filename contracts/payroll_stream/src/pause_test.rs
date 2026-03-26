@@ -62,3 +62,77 @@ fn test_pause_stream_wrong_auth() {
     let result = client.try_pause_stream(&stream_id, &malicious);
     assert!(result.is_err());
 }
+
+#[test]
+fn test_admin_pause_and_resume_stream() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, admin) = setup(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 0);
+    let stream_id = client.create_stream(&employer, &worker, &token, &1, &0, &0, &100, &None);
+
+    // Admin pauses
+    client.admin_pause_stream(&stream_id);
+    let stream = client.get_stream(&stream_id).unwrap();
+    assert_eq!(stream.status, StreamStatus::Paused);
+
+    // Admin resumes
+    env.ledger().with_mut(|li| li.timestamp = 10);
+    client.admin_resume_stream(&stream_id);
+    let stream = client.get_stream(&stream_id).unwrap();
+    assert_eq!(stream.status, StreamStatus::Active);
+    assert_eq!(stream.total_paused_duration, 10);
+}
+
+#[test]
+fn test_withdraw_from_paused_stream() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _admin) = setup(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 0);
+    let stream_id = client.create_stream(&employer, &worker, &token, &1, &0, &0, &100, &None);
+
+    // Fast forward to t=25
+    env.ledger().with_mut(|li| li.timestamp = 25);
+    assert_eq!(client.get_withdrawable(&stream_id), Some(25));
+
+    // Pause at t=25
+    client.pause_stream(&stream_id, &employer);
+
+    // Fast forward to t=50 (paused)
+    env.ledger().with_mut(|li| li.timestamp = 50);
+    // Should still only have 25 available
+    assert_eq!(client.get_withdrawable(&stream_id), Some(25));
+
+    // Worker withdraws while paused
+    let withdrawn = client.withdraw(&stream_id, &worker);
+    assert_eq!(withdrawn, 25);
+
+    // Check state
+    let stream = client.get_stream(&stream_id).unwrap();
+    assert_eq!(stream.withdrawn_amount, 25);
+    assert_eq!(client.get_withdrawable(&stream_id), Some(0));
+}
+
+#[test]
+fn test_cliff_ts_equals_start_ts() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _admin) = setup(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 0);
+    
+    // Create stream with cliff_ts == start_ts
+    let stream_id = client.create_stream(&employer, &worker, &token, &1, &10, &10, &100, &None);
+    
+    let stream = client.get_stream(&stream_id).unwrap();
+    // Should be normalized to effective_cliff = start_ts = 10
+    assert_eq!(stream.cliff_ts, 10);
+    assert_eq!(stream.start_ts, 10);
+
+    // Verify it vests immediately after t=10
+    env.ledger().with_mut(|li| li.timestamp = 11);
+    assert_eq!(client.get_withdrawable(&stream_id), Some(1));
+}

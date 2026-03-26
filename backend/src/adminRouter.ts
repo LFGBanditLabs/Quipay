@@ -8,12 +8,13 @@ import {
 } from "./middleware/rbac";
 import {
   getPendingDLQItems,
+  getPendingDLQItemsByJobType,
   getDLQItemById,
   updateDLQItemStatus,
   deleteDLQItem,
 } from "./db/dlq";
 import { enqueueJob } from "./queue/asyncQueue";
-import { sendWebhookNotification } from "./delivery"; // used for replay examples
+import { sendWebhookNotification, retryWebhookEvent } from "./delivery"; // used for replay examples
 import { startSyncer } from "./syncer"; // used for replay examples
 import { logAdminAction, getAdminAuditLogs } from "./db/adminAuditLog";
 
@@ -137,6 +138,28 @@ adminRouter.get(
   },
 );
 
+adminRouter.get(
+  "/webhooks/dead-letter",
+  requireAdmin,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+      const items = await getPendingDLQItemsByJobType(
+        "webhook_delivery",
+        limit,
+        offset,
+      );
+      res.json({ items });
+    } catch (err: any) {
+      res.status(500).json({
+        error: "Failed to fetch webhook dead-letter items",
+        details: err.message,
+      });
+    }
+  },
+);
+
 /**
  * POST /admin/dlq/:id/replay
  * SuperAdmin-only: Manually replay a terminally failed job.
@@ -189,6 +212,55 @@ adminRouter.post(
       res
         .status(500)
         .json({ error: "Failed to replay DLQ item", details: err.message });
+    }
+  },
+);
+
+adminRouter.post(
+  "/webhooks/dead-letter/:id/retry",
+  requireSuperAdmin,
+  async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+    const id = req.params.id as string;
+    try {
+      const item = await getDLQItemById(id);
+      if (!item || item.job_type !== "webhook_delivery") {
+        return res
+          .status(404)
+          .json({ error: "Webhook dead-letter item not found" });
+      }
+
+      if (item.status !== "pending") {
+        return res.status(400).json({
+          error: `Dead-letter item already processed. Status: ${item.status}`,
+        });
+      }
+
+      const payload = item.payload as {
+        eventId?: string;
+        eventType?: string;
+        requestPayload?: unknown;
+      };
+
+      if (payload.eventId) {
+        await retryWebhookEvent(payload.eventId);
+      } else {
+        await sendWebhookNotification(
+          payload.eventType || "dead_letter_retry",
+          payload.requestPayload,
+        );
+      }
+
+      await updateDLQItemStatus(id, "replayed");
+
+      return res.json({
+        message: `Retried webhook dead-letter item ${id}`,
+        requestedBy: req.user,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        error: "Failed to retry webhook dead-letter item",
+        details: err.message,
+      });
     }
   },
 );

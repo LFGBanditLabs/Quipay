@@ -22,6 +22,9 @@ import { adminRouter } from "../../adminRouter";
 
 jest.mock("../../db/dlq", () => ({
   getPendingDLQItems: jest.fn<() => Promise<[]>>().mockResolvedValue([]),
+  getPendingDLQItemsByJobType: jest
+    .fn<() => Promise<[]>>()
+    .mockResolvedValue([]),
   getDLQItemById: jest.fn<() => Promise<null>>().mockResolvedValue(null),
   updateDLQItemStatus: jest
     .fn<() => Promise<void>>()
@@ -83,6 +86,7 @@ describe("Admin Router – Authentication & RBAC Integration Tests", () => {
       ["GET", "/admin/analytics"],
       ["GET", "/admin/scheduler/override"],
       ["GET", "/admin/dlq"],
+      ["GET", "/admin/webhooks/dead-letter"],
       ["GET", "/admin/me"],
     ];
 
@@ -114,6 +118,13 @@ describe("Admin Router – Authentication & RBAC Integration Tests", () => {
 
     it("POST /admin/dlq/:id/replay with no credentials returns 401", async () => {
       const res = await request(app).post("/admin/dlq/99/replay");
+      expect(res.status).toBe(401);
+    });
+
+    it("POST /admin/webhooks/dead-letter/:id/retry with no credentials returns 401", async () => {
+      const res = await request(app).post(
+        "/admin/webhooks/dead-letter/99/retry",
+      );
       expect(res.status).toBe(401);
     });
 
@@ -207,6 +218,13 @@ describe("Admin Router – Authentication & RBAC Integration Tests", () => {
       expect(res.status).toBe(403);
     });
 
+    it("standard user cannot access GET /admin/webhooks/dead-letter", async () => {
+      const res = await request(app)
+        .get("/admin/webhooks/dead-letter")
+        .set(userHeaders);
+      expect(res.status).toBe(403);
+    });
+
     it("standard user cannot access GET /admin/scheduler/override", async () => {
       const res = await request(app)
         .get("/admin/scheduler/override")
@@ -250,6 +268,13 @@ describe("Admin Router – Authentication & RBAC Integration Tests", () => {
       expect(res.status).toBe(403);
     });
 
+    it("admin cannot access POST /admin/webhooks/dead-letter/:id/retry (superadmin-only)", async () => {
+      const res = await request(app)
+        .post("/admin/webhooks/dead-letter/99/retry")
+        .set(adminHeaders);
+      expect(res.status).toBe(403);
+    });
+
     it("standard user cannot access DELETE /admin/users/:id", async () => {
       const res = await request(app).delete("/admin/users/42").set(userHeaders);
       expect(res.status).toBe(403);
@@ -279,6 +304,13 @@ describe("Admin Router – Authentication & RBAC Integration Tests", () => {
 
     it("admin can access GET /admin/dlq", async () => {
       const res = await request(app).get("/admin/dlq").set(adminHeaders);
+      expect(res.status).toBe(200);
+    });
+
+    it("admin can access GET /admin/webhooks/dead-letter", async () => {
+      const res = await request(app)
+        .get("/admin/webhooks/dead-letter")
+        .set(adminHeaders);
       expect(res.status).toBe(200);
     });
 

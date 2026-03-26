@@ -183,6 +183,43 @@ export const treasuryBalances = pgTable("treasury_balances", {
     .defaultNow(),
 });
 
+// Employer onboarding + KYB verification state
+export const employers = pgTable(
+  "employers",
+  {
+    employerId: text("employer_id").primaryKey(),
+    businessName: text("business_name").notNull(),
+    registrationNumber: text("registration_number").notNull().unique(),
+    countryCode: text("country_code").notNull(),
+    contactName: text("contact_name"),
+    contactEmail: text("contact_email"),
+    verificationStatus: text("verification_status")
+      .notNull()
+      .default("pending"),
+    verificationReason: text("verification_reason"),
+    verificationMetadata: jsonb("verification_metadata").notNull().default({}),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_employers_status").on(table.verificationStatus),
+    index("idx_employers_country_status").on(
+      table.countryCode,
+      table.verificationStatus,
+    ),
+    index("idx_employers_updated_at").on(table.updatedAt.desc()),
+    check(
+      "employer_verification_status_check",
+      sql`verification_status IN ('pending', 'verified', 'rejected')`,
+    ),
+  ],
+);
+
 // Treasury monitor logs
 export const treasuryMonitorLog = pgTable(
   "treasury_monitor_log",

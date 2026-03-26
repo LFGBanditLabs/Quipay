@@ -295,6 +295,12 @@ impl PayrollStream {
         Ok(())
     }
 
+    /// Create a new payroll stream.
+    ///
+    /// ### Time Granularity
+    /// - `start_ts` must be greater than or equal to the current ledger timestamp.
+    /// - Ledger timestamps have block-level precision (not second-precise).
+    /// - Streams starting in the same block as creation (`start_ts == now`) are allowed.
     pub fn create_stream(
         env: Env,
         employer: Address,
@@ -402,6 +408,12 @@ impl PayrollStream {
         Ok(stream_ids)
     }
 
+    /// Withdraw vested funds from a stream.
+    ///
+    /// ### Paused Streams
+    /// - If a stream is paused, vesting stops at the `paused_at` timestamp.
+    /// - The worker can still withdraw any amount that was vested up to the pause time.
+    /// - The available amount is calculated as `vested_at(paused_at) - withdrawn_amount`.
     pub fn withdraw(env: Env, stream_id: u64, worker: Address) -> Result<i128, QuipayError> {
         Self::require_not_paused(&env)?;
         worker.require_auth();
@@ -952,7 +964,7 @@ impl PayrollStream {
             return Err(QuipayError::InvalidTimeRange);
         }
 
-        let effective_cliff = if cliff_ts == 0 { start_ts } else { cliff_ts };
+        let effective_cliff = if cliff_ts <= start_ts { start_ts } else { cliff_ts };
         if effective_cliff > end_ts {
             return Err(QuipayError::InvalidCliff);
         }
