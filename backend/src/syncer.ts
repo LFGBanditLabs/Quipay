@@ -11,6 +11,7 @@ import {
 import { enqueueJob } from "./queue/asyncQueue";
 import { serviceLogger } from "./audit/serviceLogger";
 import { generateAndStoreProof } from "./services/proofService";
+import { emitStreamEvent } from "./websocket/server";
 
 const SOROBAN_RPC_URL =
   process.env.PUBLIC_STELLAR_RPC_URL || "https://soroban-testnet.stellar.org";
@@ -106,6 +107,15 @@ const ingestEvents = async (events: rpc.Api.EventResponse[]): Promise<void> => {
           status: "active",
           ledger: event.ledger,
         });
+
+        // Emit WebSocket event
+        emitStreamEvent(
+          "stream_created",
+          event.ledger.toString(),
+          { ledger: event.ledger },
+          (event.contractId as any).toString(),
+          (event.contractId as any).toString(),
+        );
       } else if (parsed.kind === "withdrawal") {
         await recordWithdrawal({
           streamId: event.ledger,
@@ -114,6 +124,18 @@ const ingestEvents = async (events: rpc.Api.EventResponse[]): Promise<void> => {
           ledger: event.ledger,
           ledgerTs: event.ledger, // ledger timestamp approximation
         });
+
+        // Emit WebSocket event
+        emitStreamEvent(
+          "withdrawal",
+          event.ledger.toString(),
+          {
+            ledger: event.ledger,
+            worker: (event.contractId as any).toString(),
+          },
+          undefined,
+          (event.contractId as any).toString(),
+        );
       } else if (parsed.kind === "stream_cancelled") {
         await upsertStream({
           streamId: event.ledger,
@@ -127,6 +149,15 @@ const ingestEvents = async (events: rpc.Api.EventResponse[]): Promise<void> => {
           closedAt: event.ledger,
           ledger: event.ledger,
         });
+
+        // Emit WebSocket event
+        emitStreamEvent(
+          "stream_cancelled",
+          event.ledger.toString(),
+          { ledger: event.ledger },
+          (event.contractId as any).toString(),
+          (event.contractId as any).toString(),
+        );
       } else if (parsed.kind === "stream_completed") {
         await upsertStream({
           streamId: event.ledger,
@@ -140,6 +171,16 @@ const ingestEvents = async (events: rpc.Api.EventResponse[]): Promise<void> => {
           closedAt: event.ledger,
           ledger: event.ledger,
         });
+
+        // Emit WebSocket event
+        emitStreamEvent(
+          "stream_completed",
+          event.ledger.toString(),
+          { ledger: event.ledger },
+          (event.contractId as any).toString(),
+          (event.contractId as any).toString(),
+        );
+
         // Generate and pin an IPFS payroll proof for this completed stream
         const streamRecord = await getStreamById(event.ledger);
         if (streamRecord) {

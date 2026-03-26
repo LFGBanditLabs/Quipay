@@ -339,3 +339,28 @@ export const adminAuditLog = pgTable(
     ),
   ],
 );
+
+// Payroll report schedules for automated email reports
+export const payrollReportSchedules = pgTable(
+  "payroll_report_schedules",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    employerId: text("employer_id").notNull(),
+    frequency: text("frequency").notNull(), // 'weekly' | 'monthly'
+    email: text("email").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
+    nextSendAt: timestamp("next_send_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_report_schedules_employer").on(table.employerId),
+    index("idx_report_schedules_enabled").on(table.enabled),
+    index("idx_report_schedules_next_send").on(table.nextSendAt),
+  ],
+);
