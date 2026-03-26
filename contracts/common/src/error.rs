@@ -44,6 +44,7 @@ pub enum QuipayError {
     InvalidThreshold = 1034,
     InsufficientSignatures = 1035,
     NoSigners = 1036,
+    Custom = 1999,
 }
 
 /// Macro for requiring a condition to be true, returning an error if false

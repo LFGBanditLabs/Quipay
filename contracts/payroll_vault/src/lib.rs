@@ -118,7 +118,8 @@ impl PayrollVault {
             .set(&StateKey::Version, &initial_version);
 
         // Initialize with admin as the first signer
-        let signers = Vec::from(&e, &[admin.clone()]);
+        let mut signers = Vec::new(&e);
+        signers.push_back(admin.clone());
         e.storage().persistent().set(&StateKey::Signers, &signers);
 
         // Initialize threshold to 1 (single admin)
@@ -406,7 +407,7 @@ impl PayrollVault {
         let admin = Self::get_admin(e.clone())?;
         admin.require_auth();
 
-        let mut signers: Vec<Address> = e
+        let signers: Vec<Address> = e
             .storage()
             .persistent()
             .get(&StateKey::Signers)
