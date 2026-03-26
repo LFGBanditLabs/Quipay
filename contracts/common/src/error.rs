@@ -44,6 +44,7 @@ pub enum QuipayError {
     InvalidThreshold = 1034,
     InsufficientSignatures = 1035,
     NoSigners = 1036,
+    WithdrawalCooldown = 1037,
     Custom = 1999,
 }
 

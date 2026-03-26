@@ -14,7 +14,9 @@ fn test_extend_stream_duration() {
     });
 
     // Create a 10s stream with rate 100 (total 1000)
-    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None);
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None,
+    );
     let stream_before = client.get_stream(&stream_id).unwrap();
     assert_eq!(stream_before.end_ts, 10);
     assert_eq!(stream_before.total_amount, 1000);
@@ -41,7 +43,9 @@ fn test_extend_stream_amount() {
     });
 
     // Create a 10s stream with rate 100 (total 1000)
-    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None);
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None,
+    );
 
     // Add 1000 tokens, keep end time at 10
     // Rate should become (1000 + 1000) / 10 = 200
@@ -64,7 +68,9 @@ fn test_extend_stream_duration_and_amount() {
     });
 
     // Create a 10s stream with rate 100 (total 1000)
-    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None);
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None,
+    );
 
     // Add 1000 tokens, extend to 20s
     // Rate should become (1000 + 1000) / 20 = 100
@@ -108,7 +114,9 @@ fn test_extend_stream_invalid_end_time() {
         li.timestamp = 0;
     });
 
-    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None);
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None,
+    );
 
     // Try to reduce end time
     let result = client.try_extend_stream(&stream_id, &0, &5u64);
@@ -126,7 +134,9 @@ fn test_extend_stream_wrong_auth() {
         li.timestamp = 0;
     });
 
-    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None);
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None,
+    );
 
     // Malicious user tries to extend stream
     let result = client.try_extend_stream(&stream_id, &0, &20u64);

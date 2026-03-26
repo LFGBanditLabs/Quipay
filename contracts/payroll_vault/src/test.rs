@@ -4,7 +4,7 @@ extern crate std;
 use super::*;
 use quipay_common::QuipayError;
 use soroban_sdk::xdr::{ReadXdr, ToXdr};
-use soroban_sdk::{testutils::Address as _, token, xdr, Address, BytesN, Env, TryIntoVal};
+use soroban_sdk::{Address, BytesN, Env, TryIntoVal, testutils::Address as _, token, xdr};
 
 fn register_native_token_contract(env: &Env, admin: Address) -> Address {
     let _ = admin;

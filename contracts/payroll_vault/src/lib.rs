@@ -1,8 +1,8 @@
 #![no_std]
 #![allow(unexpected_cfgs)]
-use quipay_common::{require_positive_amount, QuipayError};
+use quipay_common::{QuipayError, require_positive_amount};
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env, Symbol, Vec,
+    Address, BytesN, Env, Symbol, Vec, contract, contractimpl, contracttype, symbol_short, token,
 };
 
 #[cfg(test)]

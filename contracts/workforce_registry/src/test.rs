@@ -23,7 +23,9 @@ fn test_register_and_get_worker() {
     assert_eq!(client.get_worker(&worker), None);
 
     // Register worker
-    client.try_register_worker(&worker, &preferred_token, &metadata_hash).unwrap();
+    client
+        .try_register_worker(&worker, &preferred_token, &metadata_hash)
+        .unwrap();
 
     // Verify registration
     assert_eq!(client.is_registered(&worker), true);
@@ -47,7 +49,9 @@ fn test_update_worker() {
     let hash1 = String::from_str(&e, "QmHash1");
     let hash2 = String::from_str(&e, "QmHash2");
 
-    client.try_register_worker(&worker, &token1, &hash1).unwrap();
+    client
+        .try_register_worker(&worker, &token1, &hash1)
+        .unwrap();
 
     // Update profile
     client.try_update_worker(&worker, &token2, &hash2).unwrap();
@@ -103,8 +107,12 @@ fn test_get_workers_by_employer_pagination() {
     while i < 10 {
         let worker = Address::generate(&e);
         let metadata_hash = String::from_str(&e, "QmHash");
-        client.try_register_worker(&worker, &preferred_token, &metadata_hash).unwrap();
-        client.try_set_stream_active(&employer, &worker, &true).unwrap();
+        client
+            .try_register_worker(&worker, &preferred_token, &metadata_hash)
+            .unwrap();
+        client
+            .try_set_stream_active(&employer, &worker, &true)
+            .unwrap();
         workers.push(worker);
         i += 1;
     }
@@ -153,9 +161,15 @@ fn test_get_workers_by_employer_only_active_streams() {
     let w3 = Address::generate(&e);
     let metadata_hash = String::from_str(&e, "QmHash");
 
-    client.try_register_worker(&w1, &preferred_token, &metadata_hash).unwrap();
-    client.try_register_worker(&w2, &preferred_token, &metadata_hash).unwrap();
-    client.try_register_worker(&w3, &preferred_token, &metadata_hash).unwrap();
+    client
+        .try_register_worker(&w1, &preferred_token, &metadata_hash)
+        .unwrap();
+    client
+        .try_register_worker(&w2, &preferred_token, &metadata_hash)
+        .unwrap();
+    client
+        .try_register_worker(&w3, &preferred_token, &metadata_hash)
+        .unwrap();
 
     client.try_set_stream_active(&employer, &w1, &true).unwrap();
     client.try_set_stream_active(&employer, &w2, &true).unwrap();
@@ -164,7 +178,9 @@ fn test_get_workers_by_employer_only_active_streams() {
     let all = client.get_workers_by_employer(&employer, &0u32, &10u32);
     assert_eq!(all.len(), 3);
 
-    client.try_set_stream_active(&employer, &w2, &false).unwrap();
+    client
+        .try_set_stream_active(&employer, &w2, &false)
+        .unwrap();
 
     let after = client.get_workers_by_employer(&employer, &0u32, &10u32);
     assert_eq!(after.len(), 2);
@@ -187,8 +203,12 @@ fn test_query_performance_scales_with_page_size() {
     let mut i: u32 = 0;
     while i < 200 {
         let worker = Address::generate(&e);
-        client.try_register_worker(&worker, &preferred_token, &metadata_hash).unwrap();
-        client.try_set_stream_active(&employer, &worker, &true).unwrap();
+        client
+            .try_register_worker(&worker, &preferred_token, &metadata_hash)
+            .unwrap();
+        client
+            .try_set_stream_active(&employer, &worker, &true)
+            .unwrap();
         i += 1;
     }
 
@@ -226,9 +246,15 @@ fn test_get_workers_with_missing_storage_entries() {
     let w2 = Address::generate(&e);
     let w3 = Address::generate(&e);
 
-    let _ = client.try_register_worker(&w1, &preferred_token, &metadata_hash).unwrap();
-    let _ = client.try_register_worker(&w2, &preferred_token, &metadata_hash).unwrap();
-    let _ = client.try_register_worker(&w3, &preferred_token, &metadata_hash).unwrap();
+    let _ = client
+        .try_register_worker(&w1, &preferred_token, &metadata_hash)
+        .unwrap();
+    let _ = client
+        .try_register_worker(&w2, &preferred_token, &metadata_hash)
+        .unwrap();
+    let _ = client
+        .try_register_worker(&w3, &preferred_token, &metadata_hash)
+        .unwrap();
 
     let _ = client.try_set_stream_active(&employer, &w1, &true).unwrap();
     let _ = client.try_set_stream_active(&employer, &w2, &true).unwrap();
@@ -243,7 +269,7 @@ fn test_get_workers_with_missing_storage_entries() {
 
     // Should not panic and should skip the corrupted entry
     let workers = client.get_workers_by_employer(&employer, &0u32, &10u32);
-    
+
     // Should return only the valid workers (w1 and w3), skipping w2
     assert_eq!(workers.len(), 2);
     assert!(workers.iter().any(|p| p.wallet == w1));
@@ -327,7 +353,7 @@ fn test_transfer_admin_backward_compatible() {
 
     // Use transfer_admin function (backward compatible)
     client.transfer_admin(&new_admin);
-    
+
     // Should transfer atomically
     assert_eq!(client.get_admin(), new_admin);
     assert_eq!(client.get_pending_admin(), None); // No pending admin left
