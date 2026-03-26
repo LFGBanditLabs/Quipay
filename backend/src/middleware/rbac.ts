@@ -25,12 +25,8 @@ export const ROLE_MAP: Record<string, Role> = {
  * Augments the base Express Request with the authenticated user payload.
  * Populated by `authenticateRequest` middleware above the RBAC check.
  */
-export interface AuthenticatedRequest extends ExpressRequest<
-  Record<string, string>,
-  any,
-  any,
-  any
-> {
+export interface AuthenticatedRequest
+  extends ExpressRequest<Record<string, string>, any, any, any> {
   user?: {
     id: string;
     role: Role;
