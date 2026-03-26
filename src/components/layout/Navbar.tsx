@@ -17,6 +17,7 @@ const Navbar: React.FC = () => {
     { to: "/worker", label: t("nav.worker") },
     { to: "/workforce", label: t("nav.workforce") },
     { to: "/reports", label: t("nav.reports") },
+    { to: "/templates", label: "Templates" },
     { to: "/governance", label: t("nav.governance") },
   ];
 

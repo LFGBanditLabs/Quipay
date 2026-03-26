@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Layout, Text } from "@stellar/design-system";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Wizard from "../components/Wizard";
 import { useNotification } from "../hooks/useNotification";
 import Tooltip from "../components/Tooltip";
@@ -25,7 +25,9 @@ const CreateStream: React.FC = () => {
   const navigate = useNavigate();
   const { addNotification } = useNotification();
   const { templates, addTemplate } = useStreamTemplates();
+  const location = useLocation();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [hasLoadedFromLocation, setHasLoadedFromLocation] = useState(false);
   const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [formData, setFormData] = useState({
@@ -63,6 +65,8 @@ const CreateStream: React.FC = () => {
           : "";
       setFormData({
         ...formData,
+        workerName: template.workerName || "",
+        workerAddress: template.workerAddress || "",
         amount: template.amount,
         token: template.token,
         frequency: template.frequency,
@@ -77,6 +81,13 @@ const CreateStream: React.FC = () => {
       addNotification(`Loaded template: ${template.name}`, "success");
     }
   };
+
+  React.useEffect(() => {
+    if (!hasLoadedFromLocation && location.state?.templateId && templates.length > 0) {
+      loadTemplate(location.state.templateId);
+      setHasLoadedFromLocation(true);
+    }
+  }, [location.state, templates, hasLoadedFromLocation]);
 
   const handleSaveAsTemplate = () => {
     if (!templateName.trim()) {
@@ -99,6 +110,8 @@ const CreateStream: React.FC = () => {
       : undefined;
     addTemplate({
       name: templateName.trim(),
+      workerName: formData.workerName,
+      workerAddress: formData.workerAddress,
       token: formData.token,
       amount: formData.amount,
       frequency: formData.frequency,
