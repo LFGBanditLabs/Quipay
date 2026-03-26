@@ -2,16 +2,25 @@ import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Layout, Text, Loader } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
-import { useStreams, WorkerStream } from "../hooks/useStreams";
+import {
+  useStreams,
+  WorkerStream,
+  WithdrawalRecord,
+} from "../hooks/useStreams";
 import { useNotification } from "../hooks/useNotification";
 import { EarningsDisplay } from "../components/EarningsDisplay";
+import { StreamTimeline } from "../components/StreamTimeline";
 
-const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
+const StreamCard: React.FC<{
+  stream: WorkerStream;
+  withdrawals: WithdrawalRecord[];
+}> = ({ stream, withdrawals }) => {
   const { addNotification } = useNotification();
   const { t } = useTranslation();
   const [currentEarnings, setCurrentEarnings] = useState(0);
   const [timeUntilCliff, setTimeUntilCliff] = useState<string>("");
   const [isBeforeCliff, setIsBeforeCliff] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(false);
 
   useEffect(() => {
     const calculate = () => {
@@ -156,20 +165,34 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
         </span>
       </div>
 
-      <button
-        className="w-full rounded-xl border-0 bg-[var(--accent)] px-3 py-3 font-semibold text-white transition-opacity hover:opacity-90"
-        onClick={() => addNotification("Withdrawal triggered!", "success")}
-      >
-        {t("worker.withdraw_funds")}
-      </button>
+      <div className="flex flex-col gap-3">
+        <button
+          className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-3 font-semibold text-[var(--text)] transition-colors hover:bg-[var(--surface-subtle)]"
+          onClick={() => setShowTimeline(!showTimeline)}
+        >
+          {showTimeline ? "Hide Timeline" : "Show Timeline"}
+        </button>
+        <button
+          className="w-full rounded-xl border-0 bg-[var(--accent)] px-3 py-3 font-semibold text-white transition-opacity hover:opacity-90"
+          onClick={() => addNotification("Withdrawal triggered!", "success")}
+        >
+          {t("worker.withdraw_funds")}
+        </button>
+      </div>
+
+      {showTimeline && (
+        <StreamTimeline stream={stream} withdrawals={withdrawals} />
+      )}
     </div>
   );
 };
 
-const CompletedStreamCard: React.FC<{ stream: WorkerStream }> = ({
-  stream,
-}) => {
+const CompletedStreamCard: React.FC<{
+  stream: WorkerStream;
+  withdrawals: WithdrawalRecord[];
+}> = ({ stream, withdrawals }) => {
   const { t } = useTranslation();
+  const [showTimeline, setShowTimeline] = useState(false);
 
   return (
     <div className="relative overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface-subtle)] p-6">
@@ -233,6 +256,17 @@ const CompletedStreamCard: React.FC<{ stream: WorkerStream }> = ({
         <div className="mt-3 truncate text-center font-mono text-[10px] text-[var(--muted)]">
           {t("worker.proof_cid_label")}: {stream.proofCid}
         </div>
+      )}
+
+      <button
+        className="mt-4 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-3 font-semibold text-[var(--text)] transition-colors hover:bg-[var(--surface-subtle)]"
+        onClick={() => setShowTimeline(!showTimeline)}
+      >
+        {showTimeline ? "Hide Timeline" : "Show Timeline"}
+      </button>
+
+      {showTimeline && (
+        <StreamTimeline stream={stream} withdrawals={withdrawals} />
       )}
     </div>
   );
@@ -312,7 +346,13 @@ const WorkerDashboard: React.FC = () => {
           ) : (
             <div className="mb-12 grid grid-cols-[repeat(auto-fill,minmax(350px,1fr))] gap-6 max-[768px]:grid-cols-1">
               {activeStreams.map((stream) => (
-                <StreamCard key={stream.id} stream={stream} />
+                <StreamCard
+                  key={stream.id}
+                  stream={stream}
+                  withdrawals={withdrawalHistory.filter(
+                    (w) => w.streamId === stream.id,
+                  )}
+                />
               ))}
             </div>
           )}
@@ -324,7 +364,13 @@ const WorkerDashboard: React.FC = () => {
               </h2>
               <div className="mb-12 grid grid-cols-[repeat(auto-fill,minmax(350px,1fr))] gap-6 max-[768px]:grid-cols-1">
                 {completedStreams.map((stream) => (
-                  <CompletedStreamCard key={stream.id} stream={stream} />
+                  <CompletedStreamCard
+                    key={stream.id}
+                    stream={stream}
+                    withdrawals={withdrawalHistory.filter(
+                      (w) => w.streamId === stream.id,
+                    )}
+                  />
                 ))}
               </div>
             </>

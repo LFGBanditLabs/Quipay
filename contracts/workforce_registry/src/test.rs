@@ -250,3 +250,106 @@ fn test_get_workers_with_missing_storage_entries() {
     assert!(workers.iter().any(|p| p.wallet == w3));
     assert!(!workers.iter().any(|p| p.wallet == w2));
 }
+
+// ============================================================================
+// Two-Step Admin Transfer Tests
+// ============================================================================
+
+#[test]
+fn test_initialize_and_get_admin() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    // Initialize
+    client.initialize(&admin);
+    assert_eq!(client.get_admin(), admin);
+}
+
+#[test]
+fn test_two_step_admin_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize
+    client.initialize(&admin);
+    assert_eq!(client.get_admin(), admin);
+
+    // Step 1: Propose new admin
+    client.propose_admin(&new_admin);
+    assert_eq!(client.get_pending_admin(), Some(new_admin.clone()));
+    assert_eq!(client.get_admin(), admin); // Admin hasn't changed yet
+
+    // Step 2: Accept admin role
+    client.accept_admin();
+    assert_eq!(client.get_admin(), new_admin);
+    assert_eq!(client.get_pending_admin(), None); // Pending cleared
+}
+
+#[test]
+fn test_accept_admin_requires_pending() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Try to accept without pending admin - should fail with NoPendingAdmin
+    let result = client.try_accept_admin();
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().unwrap(), QuipayError::NoPendingAdmin);
+}
+
+#[test]
+fn test_transfer_admin_backward_compatible() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize
+    client.initialize(&admin);
+    assert_eq!(client.get_admin(), admin);
+
+    // Use transfer_admin function (backward compatible)
+    client.transfer_admin(&new_admin);
+    
+    // Should transfer atomically
+    assert_eq!(client.get_admin(), new_admin);
+    assert_eq!(client.get_pending_admin(), None); // No pending admin left
+}
+
+#[test]
+fn test_set_blacklisted_requires_admin() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let worker = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Admin can blacklist
+    client.set_blacklisted(&worker, &true);
+    assert_eq!(client.is_blacklisted(&worker), true);
+
+    // Admin can unblacklist
+    client.set_blacklisted(&worker, &false);
+    assert_eq!(client.is_blacklisted(&worker), false);
+}

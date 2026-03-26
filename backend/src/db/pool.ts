@@ -64,7 +64,6 @@ export const initDb = async (): Promise<void> => {
   // eslint-disable-next-line no-constant-condition
   while (true) {
     attempt += 1;
-
     try {
       const min = parseInt(
         process.env.DB_POOL_MIN || String(DEFAULT_POOL_MIN),

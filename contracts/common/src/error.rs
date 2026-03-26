@@ -37,6 +37,8 @@ pub enum QuipayError {
     AddressBlacklisted = 1027,
     WorkerNotFound = 1028,
     BatchTooLarge = 1029,
+    NoPendingAdmin = 1030,
+    NotPendingAdmin = 1031,
     Custom = 1999,
 }
 
