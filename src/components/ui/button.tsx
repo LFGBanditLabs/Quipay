@@ -1,5 +1,4 @@
 /* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-redundant-type-constituents */
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 

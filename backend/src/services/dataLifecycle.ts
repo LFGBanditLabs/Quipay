@@ -15,12 +15,10 @@ interface ScheduledTask {
 
 const ARCHIVE_RETENTION_ENABLED =
   process.env.ARCHIVE_RETENTION_ENABLED !== "false";
-const METRIC_SNAPSHOT_ENABLED =
-  process.env.METRIC_SNAPSHOT_ENABLED !== "false";
+const METRIC_SNAPSHOT_ENABLED = process.env.METRIC_SNAPSHOT_ENABLED !== "false";
 const ARCHIVE_RETENTION_CRON =
   process.env.ARCHIVE_RETENTION_CRON || "0 3 * * *";
-const METRIC_SNAPSHOT_CRON =
-  process.env.METRIC_SNAPSHOT_CRON || "*/5 * * * *";
+const METRIC_SNAPSHOT_CRON = process.env.METRIC_SNAPSHOT_CRON || "*/5 * * * *";
 
 let archiveTask: ScheduledTask | null = null;
 let metricSnapshotTask: ScheduledTask | null = null;

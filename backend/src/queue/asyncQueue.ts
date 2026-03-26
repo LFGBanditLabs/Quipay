@@ -11,9 +11,10 @@ const queueConcurrency = Number.parseInt(
 );
 
 export const globalQueue = new PQueue({
-  concurrency: Number.isFinite(queueConcurrency) && queueConcurrency > 0
-    ? queueConcurrency
-    : 5,
+  concurrency:
+    Number.isFinite(queueConcurrency) && queueConcurrency > 0
+      ? queueConcurrency
+      : 5,
 });
 
 let queueShuttingDown = false;

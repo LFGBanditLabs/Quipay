@@ -1,10 +1,7 @@
 import { Pool, PoolClient, QueryResult, QueryResultRow } from "pg";
 import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "./schema";
-import {
-  DbPoolMetricSnapshot,
-  setDbPoolMetricsProvider,
-} from "../metrics";
+import { DbPoolMetricSnapshot, setDbPoolMetricsProvider } from "../metrics";
 
 let pool: Pool | null = null;
 let db: NodePgDatabase<typeof schema> | null = null;
@@ -86,9 +83,7 @@ const applySessionTimeouts = async (
   await poolClient.query("SET idle_in_transaction_session_timeout = $1", [
     config.idleInTransactionSessionTimeoutMillis,
   ]);
-  await poolClient.query("SET application_name = $1", [
-    config.applicationName,
-  ]);
+  await poolClient.query("SET application_name = $1", [config.applicationName]);
 };
 
 /**

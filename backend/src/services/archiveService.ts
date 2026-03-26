@@ -92,8 +92,7 @@ const PII_SALT =
   process.env.VAULT_TOKEN ||
   "quipay-archive-salt";
 
-const EMAIL_REGEX =
-  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const EMAIL_REGEX = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const STELLAR_ADDRESS_REGEX = /\bG[A-Z2-7]{55}\b/g;
 
 const PII_FIELD_NAMES = new Set([
@@ -316,7 +315,9 @@ const archiveAuditLogs = async (
           row.log_level,
           row.message,
           row.action_type,
-          row.employer ? anonymizer.pseudonymize("employer", row.employer) : null,
+          row.employer
+            ? anonymizer.pseudonymize("employer", row.employer)
+            : null,
           JSON.stringify(anonymizer.anonymizeValue(row.context)),
           row.transaction_hash,
           row.block_number,
