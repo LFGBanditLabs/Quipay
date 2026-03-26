@@ -1,18 +1,40 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Layout, Text, Loader } from "@stellar/design-system";
+import { Layout, Text } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
-import { useStreams, WorkerStream } from "../hooks/useStreams";
+import { useStreamSubscription } from "../hooks/useStreamSubscription";
+import {
+  useStreams,
+  WorkerStream,
+  WithdrawalRecord,
+} from "../hooks/useStreams";
 import { useNotification } from "../hooks/useNotification";
 import { EarningsDisplay } from "../components/EarningsDisplay";
 import CopyButton from "../components/CopyButton";
+import { formatTokenAmount } from "../util/tokenDecimals";
+import { StreamTimeline } from "../components/StreamTimeline";
+import { StreamCardSkeleton } from "../components/dashboard/StreamCardSkeleton";
+import { EarningsSkeleton } from "../components/dashboard/EarningsSkeleton";
+import { Skeleton } from "../components/Loading/Skeleton";
 
-const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
+const StreamCard: React.FC<{
+  stream: WorkerStream;
+  withdrawals: WithdrawalRecord[];
+}> = ({ stream, withdrawals }) => {
   const { addNotification } = useNotification();
   const { t } = useTranslation();
   const [currentEarnings, setCurrentEarnings] = useState(0);
   const [timeUntilCliff, setTimeUntilCliff] = useState<string>("");
   const [isBeforeCliff, setIsBeforeCliff] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(false);
+  const [lastEventAmount, setLastEventAmount] = useState<number | null>(null);
+
+  useStreamSubscription((update) => {
+    // Make sure the withdrawal event matches this specific stream card
+    if (update.streamId === String(stream.id)) {
+      setLastEventAmount(update.amount);
+    }
+  });
 
   useEffect(() => {
     const calculate = () => {
@@ -55,6 +77,7 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
 
   const percentage =
     stream.totalAmount > 0 ? (currentEarnings / stream.totalAmount) * 100 : 0;
+  const remaining = Math.max(0, stream.totalAmount - currentEarnings);
   const availableToWithdraw = Math.max(
     0,
     currentEarnings - stream.claimedAmount,
@@ -76,7 +99,8 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
           </div>
         </div>
         <div className="rounded-md bg-emerald-500/10 px-2 py-1 text-sm text-emerald-500">
-          {stream.flowRate.toFixed(6)} {stream.tokenSymbol}/sec
+          {formatTokenAmount(stream.flowRate, stream.tokenSymbol, 5)}{" "}
+          {stream.tokenSymbol}/sec
         </div>
       </div>
 
@@ -129,7 +153,8 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
           </div>
         </div>
         <div className="text-[1.75rem] font-bold text-[var(--text)]">
-          {currentEarnings.toFixed(7)} {stream.tokenSymbol}
+          {formatTokenAmount(currentEarnings, stream.tokenSymbol)}{" "}
+          {stream.tokenSymbol}
         </div>
         <div className="mt-1 text-sm text-[var(--muted)]">
           {t("worker.of_total", {
@@ -139,15 +164,58 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
         </div>
       </div>
 
-      <div className="my-4 h-2 overflow-hidden rounded bg-[var(--surface)]">
+      {/* Animated Progress Bar */}
+      <div className="stream-progress-bar">
         <div
-          className="h-full bg-gradient-to-r from-indigo-600 to-sky-500 transition-[width] duration-500"
+          className="stream-progress-fill"
           style={{ width: `${Math.min(100, percentage)}%` }}
-        ></div>
+        />
       </div>
+
+      {/* Streamed / Remaining Stats */}
+      <div className="stream-stats">
+        <div className="stream-stat">
+          <span className="stream-stat-label">Streamed so far</span>
+          <span className="stream-stat-value">
+            {currentEarnings.toFixed(7)} {stream.tokenSymbol}
+          </span>
+        </div>
+        <div className="stream-stat" style={{ textAlign: "right" }}>
+          <span className="stream-stat-label">Remaining</span>
+          <span className="stream-stat-value">
+            {remaining.toFixed(7)} {stream.tokenSymbol}
+          </span>
+        </div>
+      </div>
+
+      {/* Withdrawal Countdown */}
+      <div
+        className={`stream-countdown ${
+          isBeforeCliff
+            ? "stream-countdown--locked"
+            : "stream-countdown--available"
+        }`}
+      >
+        <span className="stream-countdown-dot" />
+        <span className="stream-countdown-label">
+          {isBeforeCliff ? "Next withdrawal in" : "Withdrawal available"}
+        </span>
+        {isBeforeCliff && (
+          <span className="stream-countdown-time">{timeUntilCliff}</span>
+        )}
+      </div>
+
+      {/* Last event indicator */}
+      {lastEventAmount !== null && (
+        <div className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/8 px-3 py-2 text-xs text-sky-400">
+          ⚡ Last withdrawal detected: {lastEventAmount.toFixed(7)}{" "}
+          {stream.tokenSymbol}
+        </div>
+      )}
 
       <div
         style={{
+          marginTop: "1rem",
           marginBottom: "1rem",
           display: "flex",
           justifyContent: "space-between",
@@ -157,25 +225,41 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
           {t("worker.available")}
         </span>
         <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>
-          {availableToWithdraw.toFixed(7)} {stream.tokenSymbol}
+          {formatTokenAmount(availableToWithdraw, stream.tokenSymbol)}{" "}
+          {stream.tokenSymbol}
         </span>
       </div>
 
-      <button
-        type="button"
-        className="w-full rounded-xl border-0 bg-[var(--accent)] px-3 py-3 font-semibold text-white transition-opacity hover:opacity-90"
-        onClick={() => addNotification("Withdrawal triggered!", "success")}
-      >
-        {t("worker.withdraw_funds")}
-      </button>
+      <div className="flex flex-col gap-3">
+        <button
+          type="button"
+          className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-3 font-semibold text-[var(--text)] transition-colors hover:bg-[var(--surface-subtle)]"
+          onClick={() => setShowTimeline(!showTimeline)}
+        >
+          {showTimeline ? "Hide Timeline" : "Show Timeline"}
+        </button>
+        <button
+          type="button"
+          className="w-full rounded-xl border-0 bg-[var(--accent)] px-3 py-3 font-semibold text-white transition-opacity hover:opacity-90"
+          onClick={() => addNotification("Withdrawal triggered!", "success")}
+        >
+          {t("worker.withdraw_funds")}
+        </button>
+      </div>
+
+      {showTimeline && (
+        <StreamTimeline stream={stream} withdrawals={withdrawals} />
+      )}
     </div>
   );
 };
 
-const CompletedStreamCard: React.FC<{ stream: WorkerStream }> = ({
-  stream,
-}) => {
+const CompletedStreamCard: React.FC<{
+  stream: WorkerStream;
+  withdrawals: WithdrawalRecord[];
+}> = ({ stream, withdrawals }) => {
   const { t } = useTranslation();
+  const [showTimeline, setShowTimeline] = useState(false);
 
   return (
     <div className="relative overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface-subtle)] p-6">
@@ -202,7 +286,8 @@ const CompletedStreamCard: React.FC<{ stream: WorkerStream }> = ({
           {t("worker.total_paid")}
         </div>
         <div className="text-[1.5rem] font-bold text-[var(--text)]">
-          {stream.totalAmount.toFixed(7)} {stream.tokenSymbol}
+          {formatTokenAmount(stream.totalAmount, stream.tokenSymbol)}{" "}
+          {stream.tokenSymbol}
         </div>
       </div>
 
@@ -244,6 +329,17 @@ const CompletedStreamCard: React.FC<{ stream: WorkerStream }> = ({
           {t("worker.proof_cid_label")}: {stream.proofCid}
         </div>
       )}
+
+      <button
+        className="mt-4 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-3 font-semibold text-[var(--text)] transition-colors hover:bg-[var(--surface-subtle)]"
+        onClick={() => setShowTimeline(!showTimeline)}
+      >
+        {showTimeline ? "Hide Timeline" : "Show Timeline"}
+      </button>
+
+      {showTimeline && (
+        <StreamTimeline stream={stream} withdrawals={withdrawals} />
+      )}
     </div>
   );
 };
@@ -256,9 +352,33 @@ const WorkerDashboard: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-24">
-        <Loader />
-      </div>
+      <Layout.Content>
+        <Layout.Inset>
+          <div className="mx-auto max-w-[1200px] px-8 py-8">
+            <header className="mb-8">
+              <Skeleton
+                variant="rect"
+                width="300px"
+                height="3rem"
+                className="rounded-lg"
+              />
+            </header>
+
+            <section className="mb-12">
+              <EarningsSkeleton />
+            </section>
+
+            <h2 className="mb-6">
+              <Skeleton variant="rect" width="200px" height="2rem" />
+            </h2>
+            <div className="mb-12 grid grid-cols-[repeat(auto-fill,minmax(350px,1fr))] gap-6 max-[768px]:grid-cols-1">
+              {[1, 2, 3].map((i) => (
+                <StreamCardSkeleton key={i} />
+              ))}
+            </div>
+          </div>
+        </Layout.Inset>
+      </Layout.Content>
     );
   }
 
@@ -323,7 +443,13 @@ const WorkerDashboard: React.FC = () => {
           ) : (
             <div className="mb-12 grid grid-cols-[repeat(auto-fill,minmax(350px,1fr))] gap-6 max-[768px]:grid-cols-1">
               {activeStreams.map((stream) => (
-                <StreamCard key={stream.id} stream={stream} />
+                <StreamCard
+                  key={stream.id}
+                  stream={stream}
+                  withdrawals={withdrawalHistory.filter(
+                    (w) => w.streamId === stream.id,
+                  )}
+                />
               ))}
             </div>
           )}
@@ -335,7 +461,13 @@ const WorkerDashboard: React.FC = () => {
               </h2>
               <div className="mb-12 grid grid-cols-[repeat(auto-fill,minmax(350px,1fr))] gap-6 max-[768px]:grid-cols-1">
                 {completedStreams.map((stream) => (
-                  <CompletedStreamCard key={stream.id} stream={stream} />
+                  <CompletedStreamCard
+                    key={stream.id}
+                    stream={stream}
+                    withdrawals={withdrawalHistory.filter(
+                      (w) => w.streamId === stream.id,
+                    )}
+                  />
                 ))}
               </div>
             </>

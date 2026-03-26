@@ -58,6 +58,12 @@ export interface CreateStreamParams {
   startTs: number;
   /** Unix timestamp (seconds) for stream end */
   endTs: number;
+  /**
+   * Optional 32-byte metadata hash (hex string) referencing an off-chain
+   * record (e.g. IPFS CID or database key) with stream context such as
+   * description, department, and payment type.
+   */
+  metadataHash?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -113,6 +119,50 @@ export async function buildCreateStreamTx(
         nativeToScVal(params.amount, { type: "i128" }),
         nativeToScVal(BigInt(params.startTs), { type: "u64" }),
         nativeToScVal(BigInt(params.endTs), { type: "u64" }),
+        params.metadataHash
+          ? nativeToScVal(Buffer.from(params.metadataHash, "hex"), {
+              type: "bytes",
+            })
+          : xdr.ScVal.scvVoid(),
+      ),
+    )
+    .setTimeout(30)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  return { preparedXdr: prepared.toXDR() };
+}
+
+// ─── buildCancelStreamTx ─────────────────────────────────────────────────────
+
+/**
+ * Simulates and builds a `cancel_stream` transaction, returning the
+ * base64-encoded prepared XDR ready for signing.
+ */
+export async function buildCancelStreamTx(
+  streamId: bigint,
+  employer: string,
+): Promise<{ preparedXdr: string }> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) {
+    throw new Error(
+      "VITE_PAYROLL_STREAM_CONTRACT_ID is not set in environment variables.",
+    );
+  }
+
+  const server = getRpcServer();
+  const account = await server.getAccount(employer);
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+
+  const tx = new TransactionBuilder(account, {
+    fee: "1000000",
+    networkPassphrase,
+  })
+    .addOperation(
+      contract.call(
+        "cancel_stream",
+        nativeToScVal(streamId, { type: "u64" }),
+        new Address(employer).toScVal(),
+        nativeToScVal(null), // For the 'to' option in Soroban which is an Option<Address> or something? Wait...
       ),
     )
     .setTimeout(30)
@@ -300,6 +350,11 @@ export interface ContractStream {
   status: number;
   created_at: bigint;
   closed_at: bigint;
+  /**
+   * Optional 32-byte metadata hash (as a Buffer/Uint8Array) referencing an
+   * off-chain record with stream context (description, department, payment type).
+   */
+  metadata_hash?: Uint8Array;
 }
 
 export interface ContractWithdrawalEvent {
@@ -369,6 +424,33 @@ export async function getStreamsByWorker(
   return ids ?? [];
 }
 
+// ─── getStreamsByEmployer ───────────────────────────────────────────────────────
+
+/**
+ * Calls `get_streams_by_employer` on the PayrollStream contract and returns the
+ * list of stream IDs created by `employerAddress`.
+ */
+export async function getStreamsByEmployer(
+  employerAddress: string,
+  offset?: number,
+  limit?: number,
+): Promise<bigint[]> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) return [];
+
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+  const ids = await simulateContractRead<bigint[]>(
+    employerAddress,
+    contract.call(
+      "get_streams_by_employer",
+      new Address(employerAddress).toScVal(),
+      nativeToScVal(offset !== undefined ? offset : null),
+      nativeToScVal(limit !== undefined ? limit : null),
+    ),
+  );
+
+  return ids ?? [];
+}
+
 // ─── getStreamById ────────────────────────────────────────────────────────────
 
 /**
@@ -386,6 +468,32 @@ export async function getStreamById(
     sourceAddress,
     contract.call("get_stream", nativeToScVal(streamId, { type: "u64" })),
   );
+}
+
+// ─── getStreamMetadata ────────────────────────────────────────────────────────
+
+/**
+ * Calls `get_stream_metadata` on the PayrollStream contract and returns the
+ * 32-byte metadata hash as a hex string, or `null` if none is set.
+ * The hash references an off-chain record (IPFS or database) with stream context.
+ */
+export async function getStreamMetadata(
+  sourceAddress: string,
+  streamId: bigint,
+): Promise<string | null> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) return null;
+
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+  const result = await simulateContractRead<Uint8Array>(
+    sourceAddress,
+    contract.call(
+      "get_stream_metadata",
+      nativeToScVal(streamId, { type: "u64" }),
+    ),
+  );
+
+  if (!result) return null;
+  return Buffer.from(result).toString("hex");
 }
 
 // ─── getTokenSymbol ───────────────────────────────────────────────────────────

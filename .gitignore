@@ -72,3 +72,4 @@ src/contracts/*
 !src/contracts/payroll_stream.ts
 !src/contracts/automation_gateway.ts
 !src/contracts/payroll_vault.ts
+!src/contracts/workforce_registry.ts

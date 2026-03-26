@@ -1,12 +1,14 @@
 import React from "react";
 import { Layout, Text, Button } from "@stellar/design-system";
 import { useTranslation } from "react-i18next";
-import { usePayroll } from "../hooks/usePayroll";
+import { usePayroll, Stream } from "../hooks/usePayroll";
 import { useNavigate } from "react-router-dom";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import WithdrawButton from "../components/WithdrawButton";
 import EmptyState from "../components/EmptyState";
 import StreamVisualizer from "../components/StreamVisualizer";
+import { CancelStreamModal } from "../components/CancelStreamModal";
+import { buildCancelStreamTx } from "../contracts/payroll_stream";
 import { useWallet } from "../hooks/useWallet";
 import { useNotification } from "../hooks/useNotification";
 import { SkeletonCard, SkeletonRow } from "../components/Loading";
@@ -38,19 +40,23 @@ const EmployerDashboard: React.FC = () => {
     activeStreamsCount,
     activeStreams,
     isLoading,
-  } = usePayroll();
+    refreshData,
+  } = usePayroll(address);
 
-  type LocalStream = (typeof activeStreams)[number];
-  const [streamToCancel, setStreamToCancel] =
-    React.useState<LocalStream | null>(null);
+  const [streamToCancel, setStreamToCancel] = React.useState<Stream | null>(
+    null,
+  );
 
-  const handleConfirmCancel = () => {
+  const handleConfirmCancel = async () => {
     if (!streamToCancel || !address) return;
     try {
+      const streamIdBigInt = BigInt(streamToCancel.id);
+      await buildCancelStreamTx(streamIdBigInt, address);
       addNotification(
         `Successfully requested cancellation for stream ${streamToCancel.id}`,
         "success",
       );
+      await refreshData();
     } catch (e) {
       console.error(e);
       addNotification("Failed to cancel stream", "error");
@@ -397,65 +403,14 @@ const EmployerDashboard: React.FC = () => {
       </Layout.Inset>
 
       {streamToCancel && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 50,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(0,0,0,0.5)",
-          }}
-        >
-          <div
-            style={{
-              background: "var(--surface)",
-              borderRadius: "16px",
-              padding: "2rem",
-              maxWidth: "400px",
-              width: "90%",
-            }}
-          >
-            <Text as="h2" size="lg" weight="semi-bold">
-              Cancel Stream
-            </Text>
-            <Text
-              as="p"
-              size="sm"
-              style={{ color: "var(--muted)", margin: "1rem 0" }}
-            >
-              Are you sure you want to cancel the stream for{" "}
-              <strong>{streamToCancel.employeeName}</strong>? This action cannot
-              be undone.
-            </Text>
-            <div
-              style={{
-                display: "flex",
-                gap: "1rem",
-                justifyContent: "flex-end",
-              }}
-            >
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setStreamToCancel(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => {
-                  handleConfirmCancel();
-                  setStreamToCancel(null);
-                }}
-              >
-                Confirm Cancel
-              </Button>
-            </div>
-          </div>
-        </div>
+        <CancelStreamModal
+          isOpen={!!streamToCancel}
+          onClose={() => setStreamToCancel(null)}
+          onConfirm={handleConfirmCancel}
+          employeeName={streamToCancel.employeeName}
+          flowRate={streamToCancel.flowRate}
+          tokenSymbol={streamToCancel.tokenSymbol}
+        />
       )}
     </Layout.Content>
   );

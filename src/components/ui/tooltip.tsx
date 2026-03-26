@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-redundant-type-constituents */
 "use client";
 
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";

@@ -5,6 +5,7 @@ import {
   StreamEarning,
 } from "../hooks/useRealTimeEarnings";
 import { WorkerStream } from "../hooks/useStreams";
+import { formatTokenAmount } from "../util/tokenDecimals";
 
 interface EarningsDisplayProps {
   streams: WorkerStream[];
@@ -44,7 +45,7 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
             Real-time Total Earnings
           </span>
           <div className="text-[3.5rem] font-extrabold leading-none text-[var(--text)] max-[992px]:text-[2.5rem]">
-            {earnings.totalEarned.toFixed(7)}
+            {formatTokenAmount(earnings.totalEarned, activeToken)}
             <span className="ml-2 text-2xl font-normal text-[var(--text)]/80">
               {activeToken}
             </span>
@@ -92,7 +93,9 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
                   }}
                   itemStyle={{ color: "var(--text)" }}
                   formatter={(value: number | string | undefined) => [
-                    typeof value === "number" ? value.toFixed(6) : value || "",
+                    typeof value === "number"
+                      ? formatTokenAmount(value, activeToken)
+                      : value || "",
                     "Earned",
                   ]}
                 />
@@ -112,7 +115,7 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
             Current Flow Rate
           </div>
           <div className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-xl font-semibold text-emerald-500">
-            +{(earnings.hourlyRate / 3600).toFixed(6)}{" "}
+            +{formatTokenAmount(earnings.hourlyRate / 3600, activeToken, 5)}{" "}
             <span style={{ fontSize: "0.75rem" }}>{activeToken}/s</span>
           </div>
         </div>
@@ -122,7 +125,7 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
             1 Hour Projection
           </div>
           <div className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-xl font-semibold text-[var(--accent)]">
-            {earnings.projectedOneHour.toFixed(4)}{" "}
+            {formatTokenAmount(earnings.projectedOneHour, activeToken)}{" "}
             <span style={{ fontSize: "0.75rem" }}>{activeToken}</span>
           </div>
         </div>
@@ -132,7 +135,7 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
             24 Hour Projection
           </div>
           <div className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-xl font-semibold text-[var(--accent)]">
-            {earnings.projectedTwentyFourHours.toFixed(4)}{" "}
+            {formatTokenAmount(earnings.projectedTwentyFourHours, activeToken)}{" "}
             <span style={{ fontSize: "0.75rem" }}>{activeToken}</span>
           </div>
         </div>

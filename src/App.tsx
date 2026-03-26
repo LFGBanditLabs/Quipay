@@ -19,9 +19,12 @@ const WithdrawPage = lazy(() => import("./pages/WithdrawPage"));
 const Reports = lazy(() => import("./pages/Reports"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const WorkerDashboard = lazy(() => import("./pages/WorkerDashboard"));
+const WorkforceRegistry = lazy(() => import("./pages/WorkforceRegistry"));
 const DashboardCustomization = lazy(
   () => import("./pages/DashboardCustomization"),
 );
+const StreamTemplates = lazy(() => import("./pages/StreamTemplates"));
+const StreamComparison = lazy(() => import("./pages/StreamComparison"));
 const UIPrimitivesPreview = lazy(
   () => import("./pages/UIPrimitivesPreview.tsx"),
 );
@@ -142,12 +145,36 @@ function App() {
               </WalletGuard>
             }
           />
+          <Route
+            path="/templates"
+            element={
+              <WalletGuard>
+                <StreamTemplates />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/stream-comparison"
+            element={
+              <WalletGuard>
+                <StreamComparison />
+              </WalletGuard>
+            }
+          />
 
           <Route
             path="/worker"
             element={
               <WalletGuard>
                 <WorkerDashboard />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/workforce"
+            element={
+              <WalletGuard>
+                <WorkforceRegistry />
               </WalletGuard>
             }
           />

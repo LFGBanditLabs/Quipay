@@ -21,6 +21,7 @@ import {
   approveProposal as approveProposalService,
   executeProposal as executeProposalService,
 } from "../services/governanceService";
+import { shortenAddress } from "../util/address";
 
 const tw = {
   loadingContainer: "flex flex-col items-center justify-center gap-4 p-[60px]",
@@ -131,11 +132,6 @@ export interface MultisigConfig {
   signers: string[];
   isCurrentUserSigner: boolean;
 }
-
-const shortenAddress = (address: string): string => {
-  if (address.length <= 12) return address;
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-};
 
 const formatDate = (date: Date): string => {
   return date.toLocaleDateString("en-US", {

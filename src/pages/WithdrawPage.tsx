@@ -9,6 +9,7 @@ import {
   PAYROLL_STREAM_CONTRACT_ID,
 } from "../contracts/payroll_stream";
 import { simulatePayrollStreamWithdrawFee } from "../util/withdrawFeeEstimate";
+import { formatTokenAmount } from "../util/tokenDecimals";
 
 const STROOPS_PER_UNIT = 1e7;
 
@@ -141,7 +142,7 @@ export default function WithdrawPage() {
         <TransactionSimulationModal
           open={showSim}
           preview={{
-            description: `Withdraw ${loadingWithdrawable ? "..." : withdrawableAmount.toFixed(2)} ${selectedStream.tokenSymbol}`,
+            description: `Withdraw ${loadingWithdrawable ? "..." : formatTokenAmount(withdrawableAmount, selectedStream.tokenSymbol)} ${selectedStream.tokenSymbol}`,
             contractFunction: "withdraw",
             contractAddress: PAYROLL_STREAM_CONTRACT_ID
               ? `${PAYROLL_STREAM_CONTRACT_ID.slice(0, 5)}...${PAYROLL_STREAM_CONTRACT_ID.slice(-4)}`

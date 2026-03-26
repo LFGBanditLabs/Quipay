@@ -4,6 +4,7 @@ import { ErrorMessage } from "./ErrorMessage";
 import TransactionSimulationModal from "./TransactionSimulationModal";
 import type { TransactionPreview } from "./TransactionSimulationModal";
 import type { SimulationResult } from "../util/simulationUtils";
+import { shortenAddress } from "../util/address";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,10 +54,6 @@ function formatAmount(raw: bigint, decimals: number): string {
   const frac = raw % divisor;
   const fracStr = frac.toString().padStart(decimals, "0").slice(0, 2);
   return `${whole.toLocaleString()}.${fracStr}`;
-}
-
-function shortenHash(hash: string): string {
-  return `${hash.slice(0, 6)}…${hash.slice(-4)}`;
 }
 
 // ─── Icons (inline SVG, zero dependencies) ───────────────────────────────────
@@ -631,7 +628,7 @@ export default function WithdrawButton({
                   rel="noopener noreferrer"
                   title={txHash}
                 >
-                  {shortenHash(txHash)} ↗
+                  {shortenAddress(txHash)} ↗
                 </a>
               </div>
             </div>
@@ -649,7 +646,7 @@ export default function WithdrawButton({
                   rel="noopener noreferrer"
                   title={txHash}
                 >
-                  {shortenHash(txHash)} ↗
+                  {shortenAddress(txHash)} ↗
                 </a>
               </div>
               <button

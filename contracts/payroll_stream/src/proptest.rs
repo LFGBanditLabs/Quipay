@@ -3,10 +3,10 @@ extern crate std;
 
 use crate::{PayrollStream, PayrollStreamClient, Stream, StreamStatus};
 use proptest::prelude::*;
-use soroban_sdk::{testutils::Address as _, testutils::Ledger, Address, Env};
+use soroban_sdk::{Address, Env, testutils::Address as _, testutils::Ledger};
 
 mod dummy_vault {
-    use soroban_sdk::{contract, contractimpl, Address, Env};
+    use soroban_sdk::{Address, Env, contract, contractimpl};
     #[contract]
     pub struct DummyVault;
     #[contractimpl]
@@ -60,7 +60,7 @@ proptest! {
         let start_ts = initial_time.saturating_add(start_offset);
         let end_ts = start_ts.saturating_add(duration);
 
-        let stream_id = client.create_stream(&employer, &worker, &token, &rate, &0u64, &start_ts, &end_ts);
+        let stream_id = client.create_stream(&employer, &worker, &token, &rate, &0u64, &start_ts, &end_ts, &None);
 
         let mut current_time = initial_time;
         let steps = std::cmp::min(time_leaps.len(), actions.len());
@@ -337,6 +337,9 @@ fn construct_stream(
         status,
         created_at: start_ts.saturating_sub(100),
         closed_at,
+        paused_at: 0,
+        total_paused_duration: 0,
+        metadata_hash: None,
     }
 }
 
