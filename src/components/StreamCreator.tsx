@@ -91,7 +91,7 @@ const SUPPORTED_TOKENS: { label: string; value: string; decimal: number }[] = [
 
 /** PayrollVault contract ID for solvency checks */
 const PAYROLL_VAULT_CONTRACT_ID: string =
-  (import.meta.env.VITE_PAYROLL_VAULT_CONTRACT_ID as string | undefined) ?? "";
+  import.meta.env.VITE_PAYROLL_VAULT_CONTRACT_ID ?? "";
 
 // ─── Form state ───────────────────────────────────────────────────────────────
 
@@ -691,7 +691,6 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
         <form
           id={id("form")}
           onSubmit={(e) => void handleSubmit(e)}
-          noValidate
           className={tw.form}
         >
           <div className={tw.fieldGroup}>
@@ -703,15 +702,18 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               name="workerAddress"
               type="text"
               className={`${tw.input} ${errors.workerAddress ? tw.inputError : ""}`}
-              placeholder="G..."
+              placeholder="e.g. GABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
               value={values.workerAddress}
               onChange={handleChange}
               disabled={isBusy}
               spellCheck={false}
+              required
+              aria-required="true"
               aria-describedby={
                 errors.workerAddress ? id("workerAddress-error") : undefined
               }
               aria-invalid={!!errors.workerAddress}
+              pattern="^G[A-Z2-7]{55}$"
             />
             <div aria-live="assertive">
               <ErrorMessage error={errors.workerAddress || null} />
@@ -730,11 +732,14 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               name="rate"
               type="number"
               step="any"
+              min="0"
               className={`${tw.input} ${errors.rate ? tw.inputError : ""}`}
               placeholder="e.g. 0.0001"
               value={values.rate}
               onChange={handleChange}
               disabled={isBusy}
+              required
+              aria-required="true"
               aria-describedby={errors.rate ? id("rate-error") : undefined}
               aria-invalid={!!errors.rate}
             />
@@ -757,6 +762,8 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
                 value={values.startDate}
                 onChange={handleChange}
                 disabled={isBusy}
+                required
+                aria-required="true"
               />
             </div>
             <div className={tw.fieldGroup}>
@@ -772,6 +779,8 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
                 value={values.endDate}
                 onChange={handleChange}
                 disabled={isBusy}
+                required
+                aria-required="true"
               />
             </div>
           </div>

@@ -124,6 +124,10 @@ export class VaultService {
     return this.client.healthCheck();
   }
 
+  async isTokenValid(): Promise<boolean> {
+    return this.client.lookupSelfToken();
+  }
+
   async getPolicy(policyName: string): Promise<string | null> {
     try {
       return await this.client.readPolicy(policyName);

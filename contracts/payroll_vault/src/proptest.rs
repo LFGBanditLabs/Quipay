@@ -5,7 +5,7 @@ use crate::{PayrollVault, PayrollVaultClient};
 use proptest::prelude::*;
 use soroban_sdk::token::Client as TokenClient;
 use soroban_sdk::token::StellarAssetClient;
-use soroban_sdk::{Address, Env, testutils::Address as _};
+use soroban_sdk::{testutils::Address as _, Address, Env};
 
 fn create_token_contract<'a>(
     env: &Env,

@@ -138,23 +138,58 @@ Transaction hashes and public addresses are preserved for audit purposes.
 
 ### Database Migrations
 
-Database schema is managed using **Drizzle ORM**. This provides version-controlled migrations and a type-safe schema definition in TypeScript.
+The backend uses a custom migration system with version tracking and rollback support.
 
-- **Schema Definition**: [src/db/schema.ts](file:///Users/inhousecodes/Documents/QuicPay/Quipay/backend/src/db/schema.ts)
-- **Migration Files**: `backend/drizzle/`
+#### Migration System Features
 
-Migrations are automatically applied on application startup via `initDb()`.
+- **Version tracking**: Each migration has a unique version number
+- **Checksum validation**: Detects if applied migrations have been modified
+- **Transaction support**: Each migration runs in a transaction (rollback on failure)
+- **Rollback capability**: Each migration has a corresponding rollback file
+- **Execution tracking**: Records when migrations were applied and how long they took
 
 #### Migration Commands
+
+```bash
+# Apply pending migrations
+npm run migrate
+
+# Check migration status
+npm run migrate:status
+
+# Rollback last migration
+npm run migrate:rollback
+
+# Create new migration
+npm run migrate:create
+```
+
+#### Migration Files
+
+Migrations are stored in `src/db/migrations/` with the naming pattern:
+
+- `{version}_{name}.sql` - The migration SQL
+- `{version}_{name}_rollback.sql` - The rollback SQL
+
+Example:
+
+- `001_initial_schema.sql`
+- `001_initial_schema_rollback.sql`
+
+See [src/db/migrations/README.md](src/db/migrations/README.md) for detailed migration documentation and best practices.
+
+#### Drizzle ORM Migrations
+
+The project also uses **Drizzle ORM** for schema definition and alternative migration generation:
+
+- **Schema Definition**: [src/db/schema.ts](src/db/schema.ts)
+- **Drizzle Migrations**: `backend/drizzle/`
 
 ```bash
 # Generate a new migration after schema changes
 npm run migration:generate
 
-# Manually run migrations (typically handled by app startup)
-npm run migration:run
-
-# Push schema changes directly to DB (development only - bypasses migration files)
+# Push schema changes directly to DB (development only)
 npm run migration:push
 ```
 

@@ -36,7 +36,7 @@ export class TestDatabase {
     // Set DATABASE_URL BEFORE calling initDb
     process.env.DATABASE_URL = connectionString;
 
-    // Let initDb() create the pool and run migrations
+    // Let initDb() create the pool
     await this.initializeDbPool();
 
     // Get the pool that initDb() created
@@ -46,6 +46,9 @@ export class TestDatabase {
     if (!this.pool) {
       throw new Error("Failed to initialize database pool");
     }
+
+    // Create schema for tests
+    await this.createSchema();
 
     return { connectionString, pool: this.pool };
   }
@@ -64,6 +67,23 @@ export class TestDatabase {
     await initDb();
 
     console.log("[TestDB] ✅ db/pool module initialized with test database");
+  }
+
+  /**
+   * Create database schema for tests
+   */
+  async createSchema(): Promise<void> {
+    if (!this.pool) return;
+
+    const fs = require("fs");
+    const path = require("path");
+
+    // Read and execute schema.sql
+    const schemaPath = path.join(__dirname, "../../db/schema.sql");
+    const schemaSql = fs.readFileSync(schemaPath, "utf-8");
+
+    await this.pool.query(schemaSql);
+    console.log("[TestDB] ✅ Schema created");
   }
 
   /**
@@ -118,9 +138,17 @@ export class TestDatabase {
 
     if (this.container) {
       console.log("[TestDB] Stopping container...");
-      await this.container.stop();
-      this.container = null;
-      console.log("[TestDB] ✅ Container stopped");
+      try {
+        await this.container.stop();
+        console.log("[TestDB] ✅ Container stopped");
+      } catch (error) {
+        // In some constrained CI or local environments, Docker may deny
+        // stop() even though tests have already completed successfully.
+        // Swallow the error so it does not cause the entire suite to fail.
+        console.warn("[TestDB] ⚠️ Failed to stop container cleanly", error);
+      } finally {
+        this.container = null;
+      }
     }
   }
 }

@@ -1,45 +1,78 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+/**
+ * Migration CLI
+ * Run migrations, check status, or rollback
+ */
+
 import { Pool } from "pg";
+import { MigrationRunner } from "./migrationRunner";
 import path from "path";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-/**
- * Runs database migrations.
- * This can be called as a standalone script or integrated into application startup.
- */
-export const runMigrations = async () => {
-  const url = process.env.DATABASE_URL;
-  if (!url) {
-    console.warn(
-      "[Migration] ⚠️  DATABASE_URL is not set. Skipping migrations.",
-    );
-    return;
+const migrationsDir = path.join(__dirname, "migrations");
+
+async function main() {
+  const command = process.argv[2] || "up";
+
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    console.error("❌ DATABASE_URL environment variable is required");
+    process.exit(1);
   }
 
-  console.log("[Migration] ⏳ Running migrations...");
-
-  const pool = new Pool({ connectionString: url });
-  const db = drizzle(pool);
+  const pool = new Pool({ connectionString: dbUrl });
+  const runner = new MigrationRunner(pool, migrationsDir);
 
   try {
-    // Migration files are generated into the 'drizzle' directory at the root
-    const migrationsFolder = path.join(process.cwd(), "drizzle");
+    switch (command) {
+      case "up":
+      case "migrate":
+        await runner.migrate();
+        break;
 
-    await migrate(db, { migrationsFolder });
+      case "status":
+        const status = await runner.getStatus();
+        console.log("\n📊 Migration Status:");
+        console.log(`   Total migrations: ${status.totalMigrations}`);
+        console.log(`   Applied: ${status.appliedMigrations.length}`);
+        console.log(`   Pending: ${status.pendingMigrations.length}`);
 
-    console.log("[Migration] ✅ Migrations completed successfully.");
+        if (status.appliedMigrations.length > 0) {
+          console.log("\n✅ Applied Migrations:");
+          for (const m of status.appliedMigrations) {
+            console.log(
+              `   ${m.version}_${m.name} (${m.execution_time_ms}ms) - ${m.applied_at.toISOString()}`,
+            );
+          }
+        }
+
+        if (status.pendingMigrations.length > 0) {
+          console.log("\n⏳ Pending Migrations:");
+          for (const m of status.pendingMigrations) {
+            console.log(`   ${m.version}_${m.name}`);
+          }
+        }
+        break;
+
+      case "rollback":
+        await runner.rollback();
+        break;
+
+      default:
+        console.error(`❌ Unknown command: ${command}`);
+        console.log("\nUsage:");
+        console.log("  npm run migrate          - Apply pending migrations");
+        console.log("  npm run migrate:status   - Show migration status");
+        console.log("  npm run migrate:rollback - Rollback last migration");
+        process.exit(1);
+    }
   } catch (error) {
-    console.error("[Migration] ❌ Migration failed:", error);
+    console.error("❌ Migration failed:", error);
     process.exit(1);
   } finally {
     await pool.end();
   }
-};
-
-// Run if called directly
-if (require.main === module) {
-  runMigrations();
 }
+
+main();

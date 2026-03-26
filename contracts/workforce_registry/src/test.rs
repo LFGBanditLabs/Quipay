@@ -209,3 +209,147 @@ fn test_query_performance_scales_with_page_size() {
     assert!(large_cost > small_cost);
     assert!(large_cost < small_cost.saturating_mul(20));
 }
+
+#[test]
+fn test_get_workers_with_missing_storage_entries() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
+
+    let employer = Address::generate(&e);
+    let preferred_token = Address::generate(&e);
+    let metadata_hash = String::from_str(&e, "QmHash");
+
+    // Register workers and activate streams
+    let w1 = Address::generate(&e);
+    let w2 = Address::generate(&e);
+    let w3 = Address::generate(&e);
+
+    let _ = client.try_register_worker(&w1, &preferred_token, &metadata_hash).unwrap();
+    let _ = client.try_register_worker(&w2, &preferred_token, &metadata_hash).unwrap();
+    let _ = client.try_register_worker(&w3, &preferred_token, &metadata_hash).unwrap();
+
+    let _ = client.try_set_stream_active(&employer, &w1, &true).unwrap();
+    let _ = client.try_set_stream_active(&employer, &w2, &true).unwrap();
+    let _ = client.try_set_stream_active(&employer, &w3, &true).unwrap();
+
+    // Simulate corrupted state by manually removing a worker profile
+    // This tests that get_workers_by_employer handles missing entries gracefully
+    let worker_key = DataKey::Worker(w2.clone());
+    e.as_contract(&contract_id, || {
+        e.storage().persistent().remove(&worker_key);
+    });
+
+    // Should not panic and should skip the corrupted entry
+    let workers = client.get_workers_by_employer(&employer, &0u32, &10u32);
+    
+    // Should return only the valid workers (w1 and w3), skipping w2
+    assert_eq!(workers.len(), 2);
+    assert!(workers.iter().any(|p| p.wallet == w1));
+    assert!(workers.iter().any(|p| p.wallet == w3));
+    assert!(!workers.iter().any(|p| p.wallet == w2));
+}
+
+// ============================================================================
+// Two-Step Admin Transfer Tests
+// ============================================================================
+
+#[test]
+fn test_initialize_and_get_admin() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    // Initialize
+    client.initialize(&admin);
+    assert_eq!(client.get_admin(), admin);
+}
+
+#[test]
+fn test_two_step_admin_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize
+    client.initialize(&admin);
+    assert_eq!(client.get_admin(), admin);
+
+    // Step 1: Propose new admin
+    client.propose_admin(&new_admin);
+    assert_eq!(client.get_pending_admin(), Some(new_admin.clone()));
+    assert_eq!(client.get_admin(), admin); // Admin hasn't changed yet
+
+    // Step 2: Accept admin role
+    client.accept_admin();
+    assert_eq!(client.get_admin(), new_admin);
+    assert_eq!(client.get_pending_admin(), None); // Pending cleared
+}
+
+#[test]
+fn test_accept_admin_requires_pending() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Try to accept without pending admin - should fail with NoPendingAdmin
+    let result = client.try_accept_admin();
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().unwrap(), QuipayError::NoPendingAdmin);
+}
+
+#[test]
+fn test_transfer_admin_backward_compatible() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize
+    client.initialize(&admin);
+    assert_eq!(client.get_admin(), admin);
+
+    // Use transfer_admin function (backward compatible)
+    client.transfer_admin(&new_admin);
+    
+    // Should transfer atomically
+    assert_eq!(client.get_admin(), new_admin);
+    assert_eq!(client.get_pending_admin(), None); // No pending admin left
+}
+
+#[test]
+fn test_set_blacklisted_requires_admin() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let worker = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Admin can blacklist
+    client.set_blacklisted(&worker, &true);
+    assert_eq!(client.is_blacklisted(&worker), true);
+
+    // Admin can unblacklist
+    client.set_blacklisted(&worker, &false);
+    assert_eq!(client.is_blacklisted(&worker), false);
+}

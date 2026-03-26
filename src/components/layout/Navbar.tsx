@@ -98,7 +98,9 @@ const Navbar: React.FC = () => {
                 <button
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                   className="min-h-11 min-w-11 rounded-lg p-2 text-[var(--muted)] transition-all duration-200 hover:bg-[var(--surface-subtle)] hover:text-[var(--text)]"
-                  aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+                  aria-label={
+                    isMenuOpen ? t("nav.close_menu") : t("nav.open_menu")
+                  }
                   aria-expanded={isMenuOpen}
                 >
                   {isMenuOpen ? (

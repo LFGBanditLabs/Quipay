@@ -28,6 +28,7 @@ pub struct Agent {
 #[contracttype]
 pub enum DataKey {
     Admin,
+    PendingAdmin,  // Two-step admin transfer
     Agent(Address),
     PayrollStream,
 }
@@ -262,6 +263,53 @@ impl AutomationGateway {
             .instance()
             .get(&DataKey::Admin)
             .ok_or(QuipayError::NotInitialized)
+    }
+
+    /// Get the pending admin address (if any)
+    pub fn get_pending_admin(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::PendingAdmin)
+    }
+
+    /// Propose a new admin (step 1 of two-step transfer)
+    pub fn propose_admin(env: Env, new_admin: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(env.clone())?;
+        admin.require_auth();
+
+        env.storage().instance().set(&DataKey::PendingAdmin, &new_admin);
+        Ok(())
+    }
+
+    /// Accept admin role (step 2 of two-step transfer)
+    pub fn accept_admin(env: Env) -> Result<(), QuipayError> {
+        let pending_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::PendingAdmin)
+            .ok_or(QuipayError::NoPendingAdmin)?;
+        
+        pending_admin.require_auth();
+
+        // Transfer admin rights
+        env.storage().instance().set(&DataKey::Admin, &pending_admin);
+        // Clear pending admin
+        env.storage().instance().remove(&DataKey::PendingAdmin);
+        
+        Ok(())
+    }
+
+    /// Transfer admin rights to a new address (backward compatible - atomic version)
+    pub fn transfer_admin(env: Env, new_admin: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(env.clone())?;
+        admin.require_auth();
+
+        // Atomic two-step: propose and accept
+        env.storage().instance().set(&DataKey::PendingAdmin, &new_admin);
+        
+        // Simulate accept by new admin (backward compatibility)
+        env.storage().instance().set(&DataKey::Admin, &new_admin);
+        env.storage().instance().remove(&DataKey::PendingAdmin);
+        
+        Ok(())
     }
 
     /// Set the PayrollStream contract address.

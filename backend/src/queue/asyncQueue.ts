@@ -5,7 +5,19 @@ import { pushToDLQ } from "../db/dlq";
  * Shared in-memory queue for handling background async tasks.
  * Concurrency controls how many jobs run simultaneously.
  */
-export const globalQueue = new PQueue({ concurrency: 5 });
+const queueConcurrency = Number.parseInt(
+  process.env.QUEUE_CONCURRENCY || "5",
+  10,
+);
+
+export const globalQueue = new PQueue({
+  concurrency:
+    Number.isFinite(queueConcurrency) && queueConcurrency > 0
+      ? queueConcurrency
+      : 5,
+});
+
+let queueShuttingDown = false;
 
 export interface JobOptions {
   /** The descriptive job type for logging and the DLQ */
@@ -32,6 +44,14 @@ export const enqueueJob = <T>(
   jobFn: () => Promise<T>,
   options: JobOptions,
 ): Promise<void> => {
+  if (queueShuttingDown) {
+    return Promise.reject(
+      new Error(
+        `Queue is shutting down and cannot accept '${options.jobType}' jobs`,
+      ),
+    );
+  }
+
   const {
     jobType,
     payload,
@@ -90,3 +110,29 @@ export const enqueueJob = <T>(
     }
   });
 };
+
+export const beginQueueShutdown = (): void => {
+  queueShuttingDown = true;
+  globalQueue.pause();
+};
+
+export const waitForQueueToDrain = async (
+  timeoutMs = 30_000,
+): Promise<void> => {
+  const timeout = new Promise<never>((_, reject) => {
+    const timer = setTimeout(() => {
+      clearTimeout(timer);
+      reject(
+        new Error(`Timed out waiting for queue to drain after ${timeoutMs}ms`),
+      );
+    }, timeoutMs);
+  });
+
+  await Promise.race([globalQueue.onIdle(), timeout]);
+};
+
+export const getQueueStats = () => ({
+  size: globalQueue.size,
+  pending: globalQueue.pending,
+  isPaused: globalQueue.isPaused,
+});
