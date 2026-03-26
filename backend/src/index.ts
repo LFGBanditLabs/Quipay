@@ -11,9 +11,11 @@ import { analyticsRouter } from "./analytics";
 import { docsRouter } from "./swagger";
 import { proofsRouter } from "./routes/proofs";
 import { stellarRouter } from "./routes/stellar";
+import { reportsRouter } from "./routes/reports";
 import { startStellarListener } from "./stellarListener";
 import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
 import { startMonitor, runMonitorCycle } from "./monitor/monitor";
+import { startPayrollReportScheduler } from "./scheduler/reportScheduler";
 import { NonceManager } from "./services/nonceManager";
 import { initAuditLogger, getAuditLogger } from "./audit/init";
 import {
@@ -80,6 +82,7 @@ app.use("/admin", adminRouter); // RBAC-protected admin endpoints
 app.use("/analytics", analyticsRouter);
 app.use("/proofs", proofsRouter);
 app.use("/stellar", stellarRouter);
+app.use("/reports", reportsRouter);
 
 // Start time for uptime calculation
 const startTime = Date.now();
@@ -278,6 +281,7 @@ async function main() {
     startStellarListener();
     startScheduler();
     startMonitor();
+    startPayrollReportScheduler();
 
     // Handle server errors
     server.on("error", (err: any) => {
