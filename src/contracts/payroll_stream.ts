@@ -120,10 +120,10 @@ export async function buildCreateStreamTx(
         nativeToScVal(BigInt(params.startTs), { type: "u64" }),
         nativeToScVal(BigInt(params.endTs), { type: "u64" }),
         params.metadataHash
-          ? xdr.ScVal.scvOption(
-              xdr.ScVal.scvBytes(Buffer.from(params.metadataHash, "hex")),
-            )
-          : xdr.ScVal.scvOption(null),
+          ? nativeToScVal(Buffer.from(params.metadataHash, "hex"), {
+              type: "bytes",
+            })
+          : xdr.ScVal.scvVoid(),
       ),
     )
     .setTimeout(30)
