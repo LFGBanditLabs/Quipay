@@ -33,7 +33,9 @@ function ModalContent({
   children,
   showCloseButton = true,
   ...props
-}: DialogPrimitive.Popup.Props & { showCloseButton?: boolean }) {
+}: React.HTMLAttributes<HTMLDivElement> & {
+  showCloseButton?: boolean;
+}) {
   return (
     <DialogPortal>
       {/* Glassmorphic backdrop */}

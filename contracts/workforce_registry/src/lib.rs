@@ -13,6 +13,8 @@ pub struct WorkerProfile {
 #[derive(Clone)]
 #[contracttype]
 pub enum DataKey {
+    Admin,
+    PendingAdmin,  // Two-step admin transfer
     Worker(Address),
     EmployerActiveWorkerCount(Address),
     EmployerActiveWorkerByIndex(Address, u32),
@@ -25,6 +27,71 @@ pub struct WorkforceRegistryContract;
 
 #[contractimpl]
 impl WorkforceRegistryContract {
+    /// Initialize the contract with an admin
+    pub fn initialize(e: Env, admin: Address) -> Result<(), QuipayError> {
+        require!(
+            !e.storage().persistent().has(&DataKey::Admin),
+            QuipayError::AlreadyInitialized
+        );
+        e.storage().persistent().set(&DataKey::Admin, &admin);
+        Ok(())
+    }
+
+    /// Get the current admin address
+    pub fn get_admin(e: Env) -> Result<Address, QuipayError> {
+        e.storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)
+    }
+
+    /// Get the pending admin address (if any)
+    pub fn get_pending_admin(e: Env) -> Option<Address> {
+        e.storage().persistent().get(&DataKey::PendingAdmin)
+    }
+
+    /// Propose a new admin (step 1 of two-step transfer)
+    pub fn propose_admin(e: Env, new_admin: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        e.storage().persistent().set(&DataKey::PendingAdmin, &new_admin);
+        Ok(())
+    }
+
+    /// Accept admin role (step 2 of two-step transfer)
+    pub fn accept_admin(e: Env) -> Result<(), QuipayError> {
+        let pending_admin: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingAdmin)
+            .ok_or(QuipayError::NoPendingAdmin)?;
+        
+        pending_admin.require_auth();
+
+        // Transfer admin rights
+        e.storage().persistent().set(&DataKey::Admin, &pending_admin);
+        // Clear pending admin
+        e.storage().persistent().remove(&DataKey::PendingAdmin);
+        
+        Ok(())
+    }
+
+    /// Transfer admin rights to a new address (backward compatible - atomic version)
+    pub fn transfer_admin(e: Env, new_admin: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        // Atomic two-step: propose and accept
+        e.storage().persistent().set(&DataKey::PendingAdmin, &new_admin);
+        
+        // Simulate accept by new admin (backward compatibility)
+        e.storage().persistent().set(&DataKey::Admin, &new_admin);
+        e.storage().persistent().remove(&DataKey::PendingAdmin);
+        
+        Ok(())
+    }
+
     /// Registers a new worker profile.
     ///
     /// # Arguments
@@ -299,11 +366,11 @@ impl WorkforceRegistryContract {
     ///
     /// # Arguments
     /// * `e` - The environment.
-    /// * `admin` - The admin address.
     /// * `worker` - The worker address to blacklist/unblacklist.
     /// * `blacklisted` - True to blacklist, false to unblacklist.
-    pub fn set_blacklisted(e: Env, admin: Address, worker: Address, blacklisted: bool) {
-        // Check if caller is admin - this will need to be implemented based on your admin management
+    pub fn set_blacklisted(e: Env, worker: Address, blacklisted: bool) -> Result<(), QuipayError> {
+        // Require admin authorization
+        let admin = Self::get_admin(e.clone())?;
         admin.require_auth();
 
         let key = DataKey::BlacklistedWorker(worker.clone());
@@ -323,6 +390,8 @@ impl WorkforceRegistryContract {
             ),
             (),
         );
+
+        Ok(())
     }
 
     /// Checks if a worker is blacklisted

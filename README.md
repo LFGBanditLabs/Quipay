@@ -45,6 +45,7 @@ Quipay is a decentralized payroll protocol enabling **continuous salary streamin
 - **Instant Access** - Withdraw earned salary anytime, no waiting for payday
 - **Real-Time Earnings** - See your balance grow every second
 - **Flexible Withdrawals** - Partial or full payouts on demand
+- **Stream History Timeline** - Interactive visual timeline of your stream lifecycle
 - **Multi-Stream Support** - Manage multiple income sources in one place
 - **Payment History** - Complete transaction transparency
 

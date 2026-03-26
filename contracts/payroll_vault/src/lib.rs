@@ -26,6 +26,7 @@ mod proptest;
 pub enum StateKey {
     // Persistent storage - survives upgrades
     Admin,
+    PendingAdmin,       // Two-step admin transfer
     Version,
     AuthorizedContract, // Contract authorized to modify liabilities (e.g., PayrollStream)
     TokenList,          // Tokens tracked by the vault
@@ -261,17 +262,70 @@ impl PayrollVault {
             .ok_or(QuipayError::NotInitialized)
     }
 
-    /// Transfer admin rights to a new address
+    /// Get the pending admin address (if any)
+    pub fn get_pending_admin(e: Env) -> Option<Address> {
+        e.storage().persistent().get(&StateKey::PendingAdmin)
+    }
+
+    /// Propose a new admin (step 1 of two-step transfer)
+    ///
+    /// # Multisig Support
+    /// The current admin must authorize this proposal. If the current admin is a multisig,
+    /// the transaction must meet its threshold.
+    pub fn propose_admin(e: Env, new_admin: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        e.storage().persistent().set(&StateKey::PendingAdmin, &new_admin);
+        Ok(())
+    }
+
+    /// Accept admin role (step 2 of two-step transfer)
+    ///
+    /// # Multisig Support
+    /// The pending admin must authorize this acceptance. If the pending admin is a multisig,
+    /// the transaction must meet its threshold before the transfer is finalized.
+    pub fn accept_admin(e: Env) -> Result<(), QuipayError> {
+        let pending_admin: Address = e
+            .storage()
+            .persistent()
+            .get(&StateKey::PendingAdmin)
+            .ok_or(QuipayError::NoPendingAdmin)?;
+        
+        pending_admin.require_auth();
+
+        // Transfer admin rights
+        e.storage().persistent().set(&StateKey::Admin, &pending_admin);
+        // Clear pending admin
+        e.storage().persistent().remove(&StateKey::PendingAdmin);
+        
+        Ok(())
+    }
+
+    /// Transfer admin rights to a new address (backward compatible - atomic version)
+    ///
+    /// This function maintains backward compatibility by atomically proposing and accepting
+    /// the admin transfer. It calls propose_admin() and accept_admin() internally.
     ///
     /// # Multisig Support
     /// Supports transferring admin to another multisig account. The current admin
     /// must authorize the transfer. If the current admin is a multisig, the transaction
     /// must meet its threshold. The new admin can also be a multisig account.
+    ///
+    /// # Security Note
+    /// For maximum security, use propose_admin() + accept_admin() separately to ensure
+    /// the new admin address is correct before finalizing the transfer.
     pub fn transfer_admin(e: Env, new_admin: Address) -> Result<(), QuipayError> {
         let admin = Self::get_admin(e.clone())?;
         admin.require_auth();
 
+        // Atomic two-step: propose and accept
+        e.storage().persistent().set(&StateKey::PendingAdmin, &new_admin);
+        
+        // Simulate accept by new admin (backward compatibility)
         e.storage().persistent().set(&StateKey::Admin, &new_admin);
+        e.storage().persistent().remove(&StateKey::PendingAdmin);
+        
         Ok(())
     }
 
