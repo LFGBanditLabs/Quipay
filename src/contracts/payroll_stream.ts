@@ -58,6 +58,12 @@ export interface CreateStreamParams {
   startTs: number;
   /** Unix timestamp (seconds) for stream end */
   endTs: number;
+  /**
+   * Optional 32-byte metadata hash (hex string) referencing an off-chain
+   * record (e.g. IPFS CID or database key) with stream context such as
+   * description, department, and payment type.
+   */
+  metadataHash?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -113,6 +119,11 @@ export async function buildCreateStreamTx(
         nativeToScVal(params.amount, { type: "i128" }),
         nativeToScVal(BigInt(params.startTs), { type: "u64" }),
         nativeToScVal(BigInt(params.endTs), { type: "u64" }),
+        params.metadataHash
+          ? nativeToScVal(Buffer.from(params.metadataHash, "hex"), {
+              type: "bytes",
+            })
+          : xdr.ScVal.scvVoid(),
       ),
     )
     .setTimeout(30)
@@ -339,6 +350,11 @@ export interface ContractStream {
   status: number;
   created_at: bigint;
   closed_at: bigint;
+  /**
+   * Optional 32-byte metadata hash (as a Buffer/Uint8Array) referencing an
+   * off-chain record with stream context (description, department, payment type).
+   */
+  metadata_hash?: Uint8Array;
 }
 
 export interface ContractWithdrawalEvent {
@@ -425,6 +441,32 @@ export async function getStreamById(
     sourceAddress,
     contract.call("get_stream", nativeToScVal(streamId, { type: "u64" })),
   );
+}
+
+// ─── getStreamMetadata ────────────────────────────────────────────────────────
+
+/**
+ * Calls `get_stream_metadata` on the PayrollStream contract and returns the
+ * 32-byte metadata hash as a hex string, or `null` if none is set.
+ * The hash references an off-chain record (IPFS or database) with stream context.
+ */
+export async function getStreamMetadata(
+  sourceAddress: string,
+  streamId: bigint,
+): Promise<string | null> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) return null;
+
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+  const result = await simulateContractRead<Uint8Array>(
+    sourceAddress,
+    contract.call(
+      "get_stream_metadata",
+      nativeToScVal(streamId, { type: "u64" }),
+    ),
+  );
+
+  if (!result) return null;
+  return Buffer.from(result).toString("hex");
 }
 
 // ─── getTokenSymbol ───────────────────────────────────────────────────────────
