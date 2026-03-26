@@ -6,7 +6,7 @@ use soroban_sdk::{Address, Bytes, Env, testutils::Address as _, vec};
 // Dummy PayrollStream contract for testing gateway integration
 mod dummy_payroll_stream {
     use quipay_common::QuipayError;
-    use soroban_sdk::{Address, Env, Vec, contract, contractimpl, contracttype};
+    use soroban_sdk::{Address, Env, contract, contractimpl, contracttype};
 
     #[contracttype]
     #[derive(Clone)]
@@ -411,4 +411,98 @@ fn test_admin_modify_permissions() {
     client.set_agent_permissions(&agent, &vec![&env, Permission::RebalanceTreasury]);
     assert!(!client.is_authorized(&agent, &Permission::CancelStream));
     assert!(client.is_authorized(&agent, &Permission::RebalanceTreasury));
+}
+
+// ============================================================================
+// Two-Step Admin Transfer Tests
+// ============================================================================
+
+#[test]
+fn test_two_step_admin_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(AutomationGateway, ());
+    let client = AutomationGatewayClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize
+    client.init(&admin);
+    assert_eq!(client.get_admin(), admin);
+
+    // Step 1: Propose new admin
+    client.propose_admin(&new_admin);
+    assert_eq!(client.get_pending_admin(), Some(new_admin.clone()));
+    assert_eq!(client.get_admin(), admin); // Admin hasn't changed yet
+
+    // Step 2: Accept admin role
+    client.accept_admin();
+    assert_eq!(client.get_admin(), new_admin);
+    assert_eq!(client.get_pending_admin(), None); // Pending cleared
+}
+
+#[test]
+fn test_accept_admin_requires_pending() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(AutomationGateway, ());
+    let client = AutomationGatewayClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    client.init(&admin);
+
+    // Try to accept without pending admin - should fail with NoPendingAdmin
+    let result = client.try_accept_admin();
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().unwrap(), QuipayError::NoPendingAdmin);
+}
+
+#[test]
+fn test_transfer_admin_backward_compatible() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(AutomationGateway, ());
+    let client = AutomationGatewayClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize
+    client.init(&admin);
+    assert_eq!(client.get_admin(), admin);
+
+    // Use transfer_admin function (backward compatible)
+    client.transfer_admin(&new_admin);
+
+    // Should transfer atomically
+    assert_eq!(client.get_admin(), new_admin);
+    assert_eq!(client.get_pending_admin(), None); // No pending admin left
+}
+
+#[test]
+fn test_propose_admin_overwrites_previous_pending() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(AutomationGateway, ());
+    let client = AutomationGatewayClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin1 = Address::generate(&env);
+    let new_admin2 = Address::generate(&env);
+
+    client.init(&admin);
+
+    // Propose first admin
+    client.propose_admin(&new_admin1);
+    assert_eq!(client.get_pending_admin(), Some(new_admin1.clone()));
+
+    // Propose second admin (should overwrite)
+    client.propose_admin(&new_admin2);
+    assert_eq!(client.get_pending_admin(), Some(new_admin2.clone()));
+
+    // Accept should use the latest proposal
+    client.accept_admin();
+    assert_eq!(client.get_admin(), new_admin2);
 }

@@ -9,6 +9,7 @@ import { aiRouter } from "./ai";
 import { adminRouter } from "./adminRouter";
 import { analyticsRouter } from "./analytics";
 import { docsRouter } from "./swagger";
+import { proofsRouter } from "./routes/proofs";
 import { startStellarListener } from "./stellarListener";
 import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
 import { startMonitor, runMonitorCycle } from "./monitor/monitor";
@@ -20,11 +21,13 @@ import {
 } from "./audit/middleware";
 import { initDb } from "./db/pool";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
-import { standardRateLimiter } from "./middleware/rateLimiter";
+import { strictRateLimiter } from "./middleware/rateLimiter";
 import { getPool } from "./db/pool";
 import Redis from "ioredis";
 import { rpc } from "@stellar/stellar-sdk";
 import { secretsBootstrap } from "./services/secretsBootstrap";
+import { requireMonitorStatusAdminToken } from "./middleware/monitorStatusAuth";
+import { getHealthResponse } from "./health";
 
 dotenv.config();
 
@@ -74,6 +77,7 @@ app.use("/discord", discordRouter);
 app.use("/ai", aiRouter);
 app.use("/admin", adminRouter); // RBAC-protected admin endpoints
 app.use("/analytics", analyticsRouter);
+app.use("/proofs", proofsRouter);
 
 // Start time for uptime calculation
 const startTime = Date.now();
@@ -101,15 +105,9 @@ export const nonceManager = new NonceManager(
  * @api {get} /health Health check endpoint
  * @apiDescription Returns the status and heartbeat of the automation engine.
  */
-app.get("/health", (req, res) => {
-  const uptime = Math.floor((Date.now() - startTime) / 1000);
-  res.json({
-    status: "ok",
-    uptime: `${uptime}s`,
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || "0.0.1",
-    service: "quipay-automation-engine",
-  });
+app.get("/health", async (req, res) => {
+  const { httpStatus, body } = await getHealthResponse(startTime);
+  res.status(httpStatus).json(body);
 });
 
 /**
@@ -183,20 +181,25 @@ app.get("/scheduler/status", (req, res) => {
 
 /**
  * @api {get} /monitor/status Treasury monitor status endpoint
- * @apiDescription Returns the current treasury health status for all employers.
+ * @apiDescription Runs one monitor cycle. Protected by strict rate limiting and optional bearer token auth.
  */
-app.get("/monitor/status", async (req, res) => {
-  try {
-    const statuses = await runMonitorCycle();
-    res.json({
-      status: "ok",
-      employers: statuses,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (ex: any) {
-    res.status(500).json({ error: ex.message });
-  }
-});
+app.get(
+  "/monitor/status",
+  strictRateLimiter,
+  requireMonitorStatusAdminToken,
+  async (req, res) => {
+    try {
+      const statuses = await runMonitorCycle();
+      res.json({
+        status: "ok",
+        employers: statuses,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (ex: any) {
+      res.status(500).json({ error: ex.message });
+    }
+  },
+);
 
 /**
  * @api {post} /test/concurrent-tx Simulated high-throughput endpoint

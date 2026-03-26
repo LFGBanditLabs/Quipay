@@ -15,6 +15,7 @@ import {
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import { Permission } from "../contracts/automation_gateway";
 import { useTheme } from "../providers/ThemeProvider";
+import { useStreamTemplates } from "../hooks/useStreamTemplates";
 
 // Types for local state
 interface TeamMember {
@@ -42,7 +43,13 @@ interface AuditLog {
   status: "success" | "failure" | "pending";
 }
 
-type TabId = "team" | "roles" | "audit" | "approvals";
+type TabId =
+  | "team"
+  | "roles"
+  | "audit"
+  | "approvals"
+  | "templates"
+  | "notifications";
 
 const AVAILABLE_PERMISSIONS = [
   {
@@ -112,6 +119,7 @@ const ROLES: CustomRole[] = [
 
 const Settings: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
+  const { templates, deleteTemplate } = useStreamTemplates();
   const [activeTab, setActiveTab] = useState<TabId>("team");
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
@@ -122,6 +130,14 @@ const Settings: React.FC = () => {
 
   const [auditSearch, setAuditSearch] = useState("");
   const [auditFilter, setAuditFilter] = useState("all");
+
+  const [notificationSettings, setNotificationSettings] = useState({
+    emailEnabled: true,
+    inAppEnabled: true,
+    cliffUnlockAlerts: true,
+    streamEndingAlerts: true,
+    lowRunwayAlerts: true,
+  });
 
   // Mock Data
   const [members] = useState<TeamMember[]>([
@@ -680,9 +696,270 @@ const Settings: React.FC = () => {
     </div>
   );
 
+  const renderTemplates = () => (
+    <div className="flex flex-col gap-6 animate-fade-in-up">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Text as="h2" size="lg" weight="medium">
+              Stream Templates
+            </Text>
+            <Badge variant="secondary" size="sm" className="opacity-70">
+              {templates.length} Templates
+            </Badge>
+          </div>
+          <Text as="p" size="sm" variant="secondary">
+            Saved payroll configurations for quick stream creation.
+          </Text>
+        </div>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => void window.open("/create-stream", "_blank")}
+        >
+          <Icon name="add" size="sm" /> Create Template
+        </Button>
+      </div>
+
+      {templates.length === 0 ? (
+        <div className="py-16 flex flex-col items-center justify-center text-center rounded-3xl border-2 border-dashed border-(--border) bg-(--surface-subtle)/30">
+          <div className="w-16 h-16 bg-linear-to-br from-indigo-500/10 to-purple-500/10 rounded-full flex items-center justify-center mb-4">
+            <Icon name="fileText" size="lg" className="text-indigo-400" />
+          </div>
+          <Text as="h3" size="lg" weight="bold" className="mb-2">
+            No Templates Yet
+          </Text>
+          <Text as="p" size="md" variant="secondary" className="mb-6 max-w-xs">
+            Save stream configurations as templates to quickly create payroll
+            streams with preset values.
+          </Text>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void window.open("/create-stream", "_blank")}
+          >
+            Create Your First Stream
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {templates.map((template) => (
+            <Card
+              key={template.id}
+              className="p-5 rounded-2xl border border-(--border) bg-(--surface-subtle) hover:border-indigo-500/30 hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-300 group"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <Text
+                    as="h3"
+                    size="md"
+                    weight="bold"
+                    className="group-hover:text-indigo-400 transition-colors"
+                  >
+                    {template.name}
+                  </Text>
+                  <Text as="p" size="xs" variant="secondary" className="mt-0.5">
+                    {new Date(template.createdAt).toLocaleDateString()}
+                  </Text>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  onClick={() => deleteTemplate(template.id)}
+                >
+                  <Icon name="delete" size="xs" />
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  size="sm"
+                  style={{
+                    backgroundColor: "var(--accent-transparent-strong)",
+                    color: "var(--accent)",
+                    border: "1px solid var(--accent-transparent)",
+                  }}
+                >
+                  {template.token}
+                </Badge>
+                <Badge variant="secondary" size="sm">
+                  {template.frequency}
+                </Badge>
+                <Badge variant="secondary" size="sm">
+                  {template.duration} days
+                </Badge>
+                {template.enableCliff && (
+                  <Badge variant="warning" size="sm">
+                    Cliff: {template.cliffDuration} days
+                  </Badge>
+                )}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderNotifications = () => (
+    <div className="flex flex-col gap-6 animate-fade-in-up">
+      <div className="flex items-center justify-between">
+        <div>
+          <Text as="h2" size="lg" weight="medium">
+            Notification Preferences
+          </Text>
+          <Text as="p" size="sm" variant="secondary">
+            Configure how you receive alerts about your streams.
+          </Text>
+        </div>
+      </div>
+
+      <Card className="p-6 rounded-2xl border border-(--border) bg-(--surface-subtle)">
+        <div className="flex flex-col gap-6">
+          <div>
+            <Text as="h3" size="md" weight="bold" className="mb-4">
+              Delivery Channels
+            </Text>
+            <div className="flex flex-col gap-3">
+              <label className="flex items-center gap-3 p-3 rounded-xl border border-(--border) bg-(--surface) hover:border-indigo-500/30 cursor-pointer transition-all">
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.emailEnabled}
+                  onChange={(e) =>
+                    setNotificationSettings({
+                      ...notificationSettings,
+                      emailEnabled: e.target.checked,
+                    })
+                  }
+                  className="w-5 h-5 rounded-lg border-2 border-(--border)"
+                />
+                <div>
+                  <Text as="span" size="sm" weight="medium">
+                    Email Notifications
+                  </Text>
+                  <Text as="p" size="xs" variant="secondary">
+                    Receive alerts via email
+                  </Text>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-3 rounded-xl border border-(--border) bg-(--surface) hover:border-indigo-500/30 cursor-pointer transition-all">
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.inAppEnabled}
+                  onChange={(e) =>
+                    setNotificationSettings({
+                      ...notificationSettings,
+                      inAppEnabled: e.target.checked,
+                    })
+                  }
+                  className="w-5 h-5 rounded-lg border-2 border-(--border)"
+                />
+                <div>
+                  <Text as="span" size="sm" weight="medium">
+                    In-App Notifications
+                  </Text>
+                  <Text as="p" size="xs" variant="secondary">
+                    Show alerts in the dashboard
+                  </Text>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <Text as="h3" size="md" weight="bold" className="mb-4">
+              Alert Types
+            </Text>
+            <div className="flex flex-col gap-3">
+              <label className="flex items-center gap-3 p-3 rounded-xl border border-(--border) bg-(--surface) hover:border-indigo-500/30 cursor-pointer transition-all">
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.cliffUnlockAlerts}
+                  onChange={(e) =>
+                    setNotificationSettings({
+                      ...notificationSettings,
+                      cliffUnlockAlerts: e.target.checked,
+                    })
+                  }
+                  className="w-5 h-5 rounded-lg border-2 border-(--border)"
+                />
+                <div>
+                  <Text as="span" size="sm" weight="medium">
+                    Cliff Unlock Alerts
+                  </Text>
+                  <Text as="p" size="xs" variant="secondary">
+                    Notify when cliff period ends and funds become available
+                  </Text>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-3 rounded-xl border border-(--border) bg-(--surface) hover:border-indigo-500/30 cursor-pointer transition-all">
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.streamEndingAlerts}
+                  onChange={(e) =>
+                    setNotificationSettings({
+                      ...notificationSettings,
+                      streamEndingAlerts: e.target.checked,
+                    })
+                  }
+                  className="w-5 h-5 rounded-lg border-2 border-(--border)"
+                />
+                <div>
+                  <Text as="span" size="sm" weight="medium">
+                    Stream Ending Alerts
+                  </Text>
+                  <Text as="p" size="xs" variant="secondary">
+                    Notify when stream is about to end (within 3 days)
+                  </Text>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-3 rounded-xl border border-(--border) bg-(--surface) hover:border-indigo-500/30 cursor-pointer transition-all">
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.lowRunwayAlerts}
+                  onChange={(e) =>
+                    setNotificationSettings({
+                      ...notificationSettings,
+                      lowRunwayAlerts: e.target.checked,
+                    })
+                  }
+                  className="w-5 h-5 rounded-lg border-2 border-(--border)"
+                />
+                <div>
+                  <Text as="span" size="sm" weight="medium">
+                    Low Runway Alerts
+                  </Text>
+                  <Text as="p" size="xs" variant="secondary">
+                    Notify when employer treasury runway drops below 7 days
+                  </Text>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                setNotification({
+                  message: "Notification preferences saved!",
+                  type: "success",
+                });
+              }}
+            >
+              Save Preferences
+            </Button>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+
   const tabs: { id: TabId; label: string; icon: string }[] = [
     { id: "team", label: "Team", icon: "user" },
     { id: "roles", label: "Roles", icon: "settings" },
+    { id: "templates", label: "Templates", icon: "fileText" },
+    { id: "notifications", label: "Notifications", icon: "bell" },
     { id: "approvals", label: "Approvals", icon: "check" },
     { id: "audit", label: "Audit Log", icon: "fileText" },
   ];
@@ -785,6 +1062,8 @@ const Settings: React.FC = () => {
         <div className="min-h-125">
           {activeTab === "team" && renderTeamPortal()}
           {activeTab === "roles" && renderRolesUI()}
+          {activeTab === "templates" && renderTemplates()}
+          {activeTab === "notifications" && renderNotifications()}
           {activeTab === "audit" && renderAuditLog()}
           {activeTab === "approvals" && renderApprovals()}
         </div>
