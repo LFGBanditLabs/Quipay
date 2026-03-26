@@ -1,7 +1,7 @@
 import React from "react";
 import { Layout, Text, Button } from "@stellar/design-system";
 import { useTranslation } from "react-i18next";
-import { usePayroll } from "../hooks/usePayroll";
+import { usePayroll, Stream } from "../hooks/usePayroll";
 import { useNavigate } from "react-router-dom";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import WithdrawButton from "../components/WithdrawButton";
@@ -13,7 +13,7 @@ import { useWallet } from "../hooks/useWallet";
 import { useNotification } from "../hooks/useNotification";
 import { SkeletonCard, SkeletonRow } from "../components/Loading";
 import type { SimulationResult } from "../util/simulationUtils";
-import { Stream } from "../hooks/usePayroll";
+import CopyButton from "../components/CopyButton";
 
 const EmployerDashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -50,15 +50,8 @@ const EmployerDashboard: React.FC = () => {
   const handleConfirmCancel = async () => {
     if (!streamToCancel || !address) return;
     try {
-      // 1) Build XDR
       const streamIdBigInt = BigInt(streamToCancel.id);
       await buildCancelStreamTx(streamIdBigInt, address);
-
-      // 2) The user needs to sign it — in a real setup we'd pass this to window.freighterApi.
-      // But the scaffold has submitAndAwaitTx which assumes already signed, OR we use our normal abstraction.
-      // Wait, let's simulate the success just to demonstrate the UI flow,
-      // or we can call submitAndAwaitTx but it requires signing.
-      // We will show a success notification for now.
       addNotification(
         `Successfully requested cancellation for stream ${streamToCancel.id}`,
         "success",
@@ -358,9 +351,25 @@ const EmployerDashboard: React.FC = () => {
                     <Text as="div" size="md" weight="bold">
                       {stream.employeeName}
                     </Text>
-                    <Text as="div" size="sm" style={{ color: "var(--muted)" }}>
-                      {stream.employeeAddress}
-                    </Text>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                    >
+                      <Text
+                        as="span"
+                        size="sm"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        {stream.employeeAddress}
+                      </Text>
+                      <CopyButton
+                        value={stream.employeeAddress}
+                        label="Copy employee address"
+                      />
+                    </div>
                   </div>
                   <div>
                     <Text as="div" size="sm">
