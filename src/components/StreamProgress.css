@@ -1,0 +1,108 @@
+/* ── Stream Progress Bar Shimmer ────────────────────────────────────────────── */
+
+@keyframes stream-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.stream-progress-bar {
+  position: relative;
+  height: 0.625rem; /* 10px */
+  overflow: hidden;
+  border-radius: 9999px;
+  background: var(--surface, #1e1e2e);
+}
+
+.stream-progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #4f46e5, #0ea5e9, #4f46e5);
+  background-size: 200% 100%;
+  animation: stream-shimmer 2.4s ease-in-out infinite;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Stat Rows ─────────────────────────────────────────────────────────────── */
+
+.stream-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.stream-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.stream-stat-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted, #94a3b8);
+}
+
+.stream-stat-value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text, #e2e8f0);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Withdrawal Countdown ──────────────────────────────────────────────────── */
+
+.stream-countdown {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.stream-countdown--locked {
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.08);
+  color: #f59e0b;
+}
+
+.stream-countdown--available {
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.08);
+  color: #10b981;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.stream-countdown-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.stream-countdown-label {
+  font-weight: 600;
+}
+
+.stream-countdown-time {
+  margin-left: auto;
+  font-family: monospace;
+  font-weight: 600;
+}
