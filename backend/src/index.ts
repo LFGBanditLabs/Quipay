@@ -10,6 +10,7 @@ import { adminRouter } from "./adminRouter";
 import { analyticsRouter } from "./analytics";
 import { docsRouter } from "./swagger";
 import { proofsRouter } from "./routes/proofs";
+import { stellarRouter } from "./routes/stellar";
 import { startStellarListener } from "./stellarListener";
 import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
 import { startMonitor, runMonitorCycle } from "./monitor/monitor";
@@ -78,6 +79,7 @@ app.use("/ai", aiRouter);
 app.use("/admin", adminRouter); // RBAC-protected admin endpoints
 app.use("/analytics", analyticsRouter);
 app.use("/proofs", proofsRouter);
+app.use("/stellar", stellarRouter);
 
 // Start time for uptime calculation
 const startTime = Date.now();
