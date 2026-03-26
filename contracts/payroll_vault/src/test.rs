@@ -4,7 +4,7 @@ extern crate std;
 use super::*;
 use quipay_common::QuipayError;
 use soroban_sdk::xdr::{ReadXdr, ToXdr};
-use soroban_sdk::{Address, BytesN, Env, TryIntoVal, testutils::Address as _, token, xdr};
+use soroban_sdk::{testutils::Address as _, token, xdr, Address, BytesN, Env, TryIntoVal};
 
 fn register_native_token_contract(env: &Env, admin: Address) -> Address {
     let _ = admin;
@@ -932,7 +932,7 @@ fn test_transfer_admin_backward_compatible() {
 
     // Use old transfer_admin function (backward compatible)
     client.transfer_admin(&new_admin);
-    
+
     // Should transfer atomically
     assert_eq!(client.get_admin(), new_admin);
     assert_eq!(client.get_pending_admin(), None); // No pending admin left
@@ -985,4 +985,33 @@ fn test_two_step_admin_transfer_with_multisig() {
     client.accept_admin();
     assert_eq!(client.get_admin(), multisig_new_admin);
     assert_eq!(client.get_pending_admin(), None);
+}
+
+#[test]
+fn test_high_value_withdraw_requires_multisig_signers() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    let signer2 = Address::generate(&env);
+    client.add_signer(&signer2);
+    client.set_threshold(&2);
+    client.set_withdrawal_threshold(&500);
+
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_id = token_contract.address();
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+    let employer = Address::generate(&env);
+
+    token_admin_client.mint(&employer, &2_000);
+    client.deposit(&employer, &token_id, &2_000);
+
+    // no liabilities so all funds are available, and amount >= threshold triggers multisig auth path
+    client.withdraw(&employer, &token_id, &600);
+    assert_eq!(client.get_treasury_balance(&token_id), 1_400);
 }
