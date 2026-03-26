@@ -24,8 +24,7 @@ const mockGetEmployerById = getEmployerById as jest.Mock;
 const mockGetTreasuryBalanceByEmployer =
   getTreasuryBalanceByEmployer as jest.Mock;
 const mockUpsertEmployerVerification = upsertEmployerVerification as jest.Mock;
-const mockVerifyBusinessRegistration =
-  verifyBusinessRegistration as jest.Mock;
+const mockVerifyBusinessRegistration = verifyBusinessRegistration as jest.Mock;
 
 const buildApp = () => {
   const app = express();

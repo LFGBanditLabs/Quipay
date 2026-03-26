@@ -57,7 +57,9 @@ analyticsRouter.get(
         return res.set("X-Cache", "HIT").json({ ok: true, data: cached });
       }
 
-      const { data, ms } = await timed(() => getEmployerPayrollSummary(req.user!.id));
+      const { data, ms } = await timed(() =>
+        getEmployerPayrollSummary(req.user!.id),
+      );
       globalCache.set(cacheKey, data, 5 * 60 * 1000);
 
       res
@@ -87,7 +89,9 @@ analyticsRouter.get(
         return res.set("X-Cache", "HIT").json({ ok: true, data: cached });
       }
 
-      const { data, ms } = await timed(() => getEmployerPayrollMonthly(req.user!.id));
+      const { data, ms } = await timed(() =>
+        getEmployerPayrollMonthly(req.user!.id),
+      );
       globalCache.set(cacheKey, data, 5 * 60 * 1000);
 
       res

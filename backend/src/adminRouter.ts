@@ -14,10 +14,7 @@ import {
   deleteDLQItem,
 } from "./db/dlq";
 import { enqueueJob } from "./queue/asyncQueue";
-import {
-  sendWebhookNotification,
-  retryWebhookEvent,
-} from "./delivery"; // used for replay examples
+import { sendWebhookNotification, retryWebhookEvent } from "./delivery"; // used for replay examples
 import { startSyncer } from "./syncer"; // used for replay examples
 import { logAdminAction, getAdminAuditLogs } from "./db/adminAuditLog";
 
@@ -227,7 +224,9 @@ adminRouter.post(
     try {
       const item = await getDLQItemById(id);
       if (!item || item.job_type !== "webhook_delivery") {
-        return res.status(404).json({ error: "Webhook dead-letter item not found" });
+        return res
+          .status(404)
+          .json({ error: "Webhook dead-letter item not found" });
       }
 
       if (item.status !== "pending") {

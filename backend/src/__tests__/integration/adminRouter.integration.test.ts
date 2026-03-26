@@ -22,7 +22,9 @@ import { adminRouter } from "../../adminRouter";
 
 jest.mock("../../db/dlq", () => ({
   getPendingDLQItems: jest.fn<() => Promise<[]>>().mockResolvedValue([]),
-  getPendingDLQItemsByJobType: jest.fn<() => Promise<[]>>().mockResolvedValue([]),
+  getPendingDLQItemsByJobType: jest
+    .fn<() => Promise<[]>>()
+    .mockResolvedValue([]),
   getDLQItemById: jest.fn<() => Promise<null>>().mockResolvedValue(null),
   updateDLQItemStatus: jest
     .fn<() => Promise<void>>()
@@ -120,7 +122,9 @@ describe("Admin Router – Authentication & RBAC Integration Tests", () => {
     });
 
     it("POST /admin/webhooks/dead-letter/:id/retry with no credentials returns 401", async () => {
-      const res = await request(app).post("/admin/webhooks/dead-letter/99/retry");
+      const res = await request(app).post(
+        "/admin/webhooks/dead-letter/99/retry",
+      );
       expect(res.status).toBe(401);
     });
 

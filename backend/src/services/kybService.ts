@@ -69,11 +69,7 @@ export const verifyBusinessRegistration = async (params: {
       ? response.data.status.toLowerCase()
       : "pending";
 
-  if (
-    status !== "pending" &&
-    status !== "verified" &&
-    status !== "rejected"
-  ) {
+  if (status !== "pending" && status !== "verified" && status !== "rejected") {
     return {
       status: "pending",
       reason: "Unknown verification status from KYB provider",
@@ -89,7 +85,10 @@ export const verifyBusinessRegistration = async (params: {
         : undefined,
     metadata:
       response.data && typeof response.data === "object"
-        ? { provider: "external", ...(response.data as Record<string, unknown>) }
+        ? {
+            provider: "external",
+            ...(response.data as Record<string, unknown>),
+          }
         : { provider: "external" },
   };
 };
