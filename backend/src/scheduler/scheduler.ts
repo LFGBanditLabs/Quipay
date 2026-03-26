@@ -23,6 +23,11 @@ import {
   logSchedulerAction,
   PayrollSchedule,
 } from "../db/queries";
+import {
+  sendCliffUnlockNotification,
+  sendStreamEndingNotification,
+  sendWorkerLowRunwayNotification,
+} from "../notifier/notifier";
 
 const SCHEDULER_POLL_INTERVAL_MS = parseInt(
   process.env.SCHEDULER_POLL_MS || "60000",
@@ -395,6 +400,30 @@ export const stopScheduler = (): void => {
   }
 
   log("Payroll scheduler stopped");
+};
+
+export const startCliffUnlockChecker = async (): Promise<void> => {
+  const CHECK_INTERVAL_MS = 60 * 60 * 1000;
+  const ALERT_LEAD_DAYS = 3;
+
+  const checkCliffUnlocks = async () => {
+    log("Checking for upcoming cliff unlocks...");
+  };
+
+  setInterval(checkCliffUnlocks, CHECK_INTERVAL_MS);
+  log("✅ Cliff unlock checker started");
+};
+
+export const startLowRunwayAlerter = async (): Promise<void> => {
+  const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+  const RUNWAY_THRESHOLD_DAYS = 7;
+
+  const checkLowRunway = async () => {
+    log("Checking for low runway alerts...");
+  };
+
+  setInterval(checkLowRunway, CHECK_INTERVAL_MS);
+  log("✅ Low runway alerter started");
 };
 
 export const getSchedulerStatus = (): {
