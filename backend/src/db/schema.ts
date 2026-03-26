@@ -293,3 +293,29 @@ export const auditLogs = pgTable(
     check("log_level_check", sql`log_level IN ('INFO', 'WARN', 'ERROR')`),
   ],
 );
+
+// Admin audit trail for tracking administrative actions
+export const adminAuditLog = pgTable(
+  "admin_audit_log",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    adminAddress: text("admin_address").notNull(),
+    action: text("action").notNull(),
+    target: text("target"),
+    details: jsonb("details").notNull().default({}),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    timestamp: timestamp("timestamp", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_admin_audit_admin").on(table.adminAddress),
+    index("idx_admin_audit_action").on(table.action),
+    index("idx_admin_audit_timestamp").on(table.timestamp.desc()),
+    index("idx_admin_audit_admin_timestamp").on(
+      table.adminAddress,
+      table.timestamp.desc(),
+    ),
+  ],
+);

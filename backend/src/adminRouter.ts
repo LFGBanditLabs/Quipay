@@ -1,4 +1,4 @@
-import { Router, Response } from "express";
+import { Router, Response, Request } from "express";
 import {
   authenticateRequest,
   requireAdmin,
@@ -15,6 +15,10 @@ import {
 import { enqueueJob } from "./queue/asyncQueue";
 import { sendWebhookNotification } from "./delivery"; // used for replay examples
 import { startSyncer } from "./syncer"; // used for replay examples
+import {
+  logAdminAction,
+  getAdminAuditLogs,
+} from "./db/adminAuditLog";
 
 export const adminRouter = Router();
 
@@ -224,3 +228,103 @@ adminRouter.get(
     res.json({ user: req.user });
   },
 );
+
+/**
+ * GET /admin/audit-log
+ * Admin-only: retrieve audit trail logs with pagination and filtering
+ */
+adminRouter.get(
+  "/audit-log",
+  requireAdmin,
+  async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+    try {
+      const {
+        startDate,
+        endDate,
+        admin: adminAddress,
+        action,
+        limit = "50",
+        offset = "0",
+      } = req.query;
+
+      const filters = {
+        startDate: startDate ? new Date(startDate as string) : undefined,
+        endDate: endDate ? new Date(endDate as string) : undefined,
+        adminAddress: adminAddress as string | undefined,
+        action: action as string | undefined,
+        limit: parseInt(limit as string, 10),
+        offset: parseInt(offset as string, 10),
+      };
+
+      const { logs, total } = await getAdminAuditLogs(filters);
+
+      res.json({
+        logs,
+        pagination: {
+          total,
+          limit: filters.limit,
+          offset: filters.offset,
+          hasMore: filters.offset + filters.limit < total,
+        },
+      });
+    } catch (err: any) {
+      res
+        .status(500)
+        .json({ error: "Failed to fetch audit logs", details: err.message });
+    }
+  },
+);
+
+// Helper function to extract client IP from request
+function getClientIP(req: Request): string | undefined {
+  return (
+    (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    req.ip
+  );
+}
+
+// Middleware to log admin actions
+const logAdminActionMiddleware = (
+  actionName: string,
+  targetParam?: string,
+) => {
+  return async (
+    req: AuthenticatedRequest,
+    res: Response,
+    next: any,
+  ) => {
+    // Store original json method
+    const originalJson = res.json.bind(res);
+
+    // Override json method to log after response is prepared
+    res.json = (body: any) => {
+      // Log the admin action asynchronously (don't block response)
+      void logAdminAction({
+        adminAddress: req.user?.id || "unknown",
+        action: actionName,
+        target: targetParam ? req.params[targetParam] : undefined,
+        details: {
+          method: req.method,
+          path: req.path,
+          query: req.query,
+          body: req.body,
+          responseBody: body,
+        },
+        ipAddress: getClientIP(req),
+        userAgent: req.headers["user-agent"],
+      });
+
+      return originalJson(body);
+    };
+
+    next();
+  };
+};
+
+// Apply audit logging middleware to all admin mutation routes
+adminRouter.post("/users/:id/suspend", logAdminActionMiddleware("user_suspend", "id"));
+adminRouter.delete("/users/:id", logAdminActionMiddleware("user_delete", "id"));
+adminRouter.post("/scheduler/override", logAdminActionMiddleware("scheduler_override"));
+adminRouter.post("/dlq/:id/replay", logAdminActionMiddleware("dlq_replay", "id"));
+adminRouter.delete("/dlq/:id", logAdminActionMiddleware("dlq_discard", "id"));
