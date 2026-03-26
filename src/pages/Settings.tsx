@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck — @stellar/design-system types are incomplete for Badge, Card, Modal, Icon
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Layout,
   Text,
@@ -16,6 +17,7 @@ import { SeoHelmet } from "../components/seo/SeoHelmet";
 import { Permission } from "../contracts/automation_gateway";
 import { useTheme } from "../providers/ThemeProvider";
 import { useStreamTemplates } from "../hooks/useStreamTemplates";
+import LanguageSwitcher from "../components/LanguageSwitcher";
 
 // Types for local state
 interface TeamMember {
@@ -112,6 +114,7 @@ const ROLES: CustomRole[] = [
 ];
 
 const Settings: React.FC = () => {
+  const { t } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const { templates, deleteTemplate } = useStreamTemplates();
   const [activeTab, setActiveTab] = useState<TabId>("team");
@@ -205,14 +208,14 @@ const Settings: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Text as="h2" size="lg" weight="medium">
-              Team Management
+              {t("settings.team_management")}
             </Text>
             <Badge variant="secondary" size="sm" className="opacity-70">
-              {members.length} Members
+              {t("settings.members_count", { count: members.length })}
             </Badge>
           </div>
           <Text as="p" size="sm" variant="secondary">
-            Invite and manage members of your treasury vault.
+            {t("settings.team_description")}
           </Text>
         </div>
         <Button
@@ -220,7 +223,7 @@ const Settings: React.FC = () => {
           size="sm"
           onClick={() => setIsMemberModalOpen(true)}
         >
-          <Icon name="add" size="sm" /> Add Member
+          <Icon name="add" size="sm" /> {t("settings.add_member")}
         </Button>
       </div>
 
@@ -253,7 +256,7 @@ const Settings: React.FC = () => {
                   </Badge>
                   {member.status === "pending" && (
                     <Badge variant="warning" size="sm">
-                      Pending
+                      {t("settings.pending")}
                     </Badge>
                   )}
                 </div>
@@ -295,10 +298,10 @@ const Settings: React.FC = () => {
                   className="text-indigo-400"
                 >
                   {member.role === "Admin"
-                    ? "Full Access"
+                    ? t("settings.full_access")
                     : member.role === "Viewer"
-                      ? "Read Only"
-                      : "Limited Permissions"}
+                      ? t("settings.read_only")
+                      : t("settings.limited_permissions")}
                 </Text>
               </div>
               <Button variant="secondary" size="xs">
@@ -316,10 +319,10 @@ const Settings: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <Text as="h2" size="lg" weight="medium">
-            Custom Roles
+            {t("settings.custom_roles")}
           </Text>
           <Text as="p" size="sm" variant="secondary">
-            Define granular permissions for different team responsibilities.
+            {t("settings.custom_roles_description")}
           </Text>
         </div>
         <Button
@@ -327,7 +330,7 @@ const Settings: React.FC = () => {
           size="sm"
           onClick={() => setIsRoleModalOpen(true)}
         >
-          <Icon name="add" size="sm" /> Create Role
+          <Icon name="add" size="sm" /> {t("settings.create_role")}
         </Button>
       </div>
 
@@ -357,7 +360,7 @@ const Settings: React.FC = () => {
                 </Text>
               </div>
               <Button variant="secondary" size="xs">
-                Edit
+                {t("settings.edit")}
               </Button>
             </div>
             <div className="flex flex-wrap gap-2 mt-auto">
@@ -406,7 +409,7 @@ const Settings: React.FC = () => {
     document.body.removeChild(link);
 
     setNotification({
-      message: "Audit logs exported successfully!",
+      message: t("settings.audit_export_success"),
       type: "success",
     });
   };
@@ -416,11 +419,10 @@ const Settings: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <Text as="h2" size="lg" weight="medium">
-            Audit Logs
+            {t("settings.audit_logs")}
           </Text>
           <Text as="p" size="sm" variant="secondary">
-            A permanent, verifiable record of all actions performed by
-            authorized wallets.
+            {t("settings.audit_logs_description")}
           </Text>
         </div>
         <div className="flex gap-3">
@@ -430,7 +432,7 @@ const Settings: React.FC = () => {
             className="shadow-sm"
             onClick={handleExportCSV}
           >
-            <Icon name="download" size="sm" /> Export CSV
+            <Icon name="download" size="sm" /> {t("settings.export_csv")}
           </Button>
         </div>
       </div>
@@ -463,9 +465,9 @@ const Settings: React.FC = () => {
             onChange={(e) => setAuditFilter(e.target.value)}
           >
             <option value="all">All Status</option>
-            <option value="success">Success</option>
-            <option value="failure">Failure</option>
-            <option value="pending">Pending</option>
+            <option value="success">{t("settings.success")}</option>
+            <option value="failure">{t("settings.failure")}</option>
+            <option value="pending">{t("settings.pending")}</option>
           </select>
         </div>
       </div>
@@ -642,11 +644,10 @@ const Settings: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <Text as="h2" size="lg" weight="medium">
-            Approval Requests
+            {t("settings.approval_requests")}
           </Text>
           <Text as="p" size="sm" variant="secondary">
-            Queue of high-value treasury operations awaiting multi-sig
-            authorization.
+            {t("settings.approval_requests_description")}
           </Text>
         </div>
       </div>
@@ -661,7 +662,7 @@ const Settings: React.FC = () => {
           />
         </div>
         <Text as="h3" size="lg" weight="bold" className="mb-2">
-          Queue is Empty
+          {t("settings.queue_empty")}
         </Text>
         <Text
           as="p"
@@ -669,14 +670,14 @@ const Settings: React.FC = () => {
           variant="secondary"
           className="mb-8 max-w-xs leading-relaxed"
         >
-          No pending treasury actions currently require your digital signature.
+          {t("settings.queue_empty_description")}
         </Text>
         <Button
           variant="secondary"
           size="sm"
           onClick={() => void window.open("/governance", "_blank")}
         >
-          View Governance Overview
+          {t("settings.view_governance_overview")}
         </Button>
       </div>
     </div>
@@ -688,14 +689,14 @@ const Settings: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Text as="h2" size="lg" weight="medium">
-              Stream Templates
+              {t("settings.stream_templates")}
             </Text>
             <Badge variant="secondary" size="sm" className="opacity-70">
-              {templates.length} Templates
+              {t("settings.templates_count", { count: templates.length })}
             </Badge>
           </div>
           <Text as="p" size="sm" variant="secondary">
-            Saved payroll configurations for quick stream creation.
+            {t("settings.stream_templates_description")}
           </Text>
         </div>
         <Button
@@ -703,7 +704,7 @@ const Settings: React.FC = () => {
           size="sm"
           onClick={() => void window.open("/create-stream", "_blank")}
         >
-          <Icon name="add" size="sm" /> Create Template
+          <Icon name="add" size="sm" /> {t("settings.create_template")}
         </Button>
       </div>
 
@@ -713,18 +714,17 @@ const Settings: React.FC = () => {
             <Icon name="fileText" size="lg" className="text-indigo-400" />
           </div>
           <Text as="h3" size="lg" weight="bold" className="mb-2">
-            No Templates Yet
+            {t("settings.no_templates_yet")}
           </Text>
           <Text as="p" size="md" variant="secondary" className="mb-6 max-w-xs">
-            Save stream configurations as templates to quickly create payroll
-            streams with preset values.
+            {t("settings.no_templates_description")}
           </Text>
           <Button
             variant="secondary"
             size="sm"
             onClick={() => void window.open("/create-stream", "_blank")}
           >
-            Create Your First Stream
+            {t("settings.create_first_stream")}
           </Button>
         </div>
       ) : (
@@ -775,7 +775,7 @@ const Settings: React.FC = () => {
                 </Badge>
                 {template.enableCliff && (
                   <Badge variant="warning" size="sm">
-                    Cliff: {template.cliffDuration} days
+                    {t("settings.cliff_days", { days: template.cliffDuration })}
                   </Badge>
                 )}
               </div>
@@ -787,18 +787,18 @@ const Settings: React.FC = () => {
   );
 
   const tabs: { id: TabId; label: string; icon: string }[] = [
-    { id: "team", label: "Team", icon: "user" },
-    { id: "roles", label: "Roles", icon: "settings" },
-    { id: "templates", label: "Templates", icon: "fileText" },
-    { id: "approvals", label: "Approvals", icon: "check" },
-    { id: "audit", label: "Audit Log", icon: "fileText" },
+    { id: "team", label: t("settings.tab_team"), icon: "user" },
+    { id: "roles", label: t("settings.tab_roles"), icon: "settings" },
+    { id: "templates", label: t("settings.tab_templates"), icon: "fileText" },
+    { id: "approvals", label: t("settings.tab_approvals"), icon: "check" },
+    { id: "audit", label: t("settings.tab_audit_log"), icon: "fileText" },
   ];
 
   return (
     <Layout.Content>
       <SeoHelmet
-        title="Security & Governance Settings | Quipay"
-        description="Manage team access, custom roles, multi-sig approvals, and view structured audit logs for your Quipay treasury."
+        title={t("settings.seo_title")}
+        description={t("settings.seo_description")}
       />
       <Layout.Inset>
         <header className="mb-10">
@@ -809,54 +809,62 @@ const Settings: React.FC = () => {
               weight="bold"
               className="mb-2 tracking-tight"
             >
-              Vault Settings
+              {t("settings.vault_settings")}
             </Text>
-            <button
-              onClick={toggleTheme}
-              aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
-              className="flex items-center gap-2 rounded-xl border border-(--border) bg-(--surface-subtle) px-4 py-2 text-sm font-medium text-(--muted) transition-all duration-200 hover:bg-(--surface) hover:text-(--text) hover:shadow-md"
-            >
-              {theme === "light" ? (
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                </svg>
-              ) : (
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="12" cy="12" r="5" />
-                  <line x1="12" y1="1" x2="12" y2="3" />
-                  <line x1="12" y1="21" x2="12" y2="23" />
-                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                  <line x1="1" y1="12" x2="3" y2="12" />
-                  <line x1="21" y1="12" x2="23" y2="12" />
-                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                </svg>
-              )}
-              {theme === "light" ? "Dark Mode" : "Light Mode"}
-            </button>
+            <div className="flex items-center gap-3">
+              <LanguageSwitcher />
+              <button
+                onClick={toggleTheme}
+                aria-label={
+                  theme === "light"
+                    ? t("settings.switch_to_dark_mode")
+                    : t("settings.switch_to_light_mode")
+                }
+                className="flex items-center gap-2 rounded-xl border border-(--border) bg-(--surface-subtle) px-4 py-2 text-sm font-medium text-(--muted) transition-all duration-200 hover:bg-(--surface) hover:text-(--text) hover:shadow-md"
+              >
+                {theme === "light" ? (
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                  </svg>
+                ) : (
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="5" />
+                    <line x1="12" y1="1" x2="12" y2="3" />
+                    <line x1="12" y1="21" x2="12" y2="23" />
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                    <line x1="1" y1="12" x2="3" y2="12" />
+                    <line x1="21" y1="12" x2="23" y2="12" />
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                  </svg>
+                )}
+                {theme === "light"
+                  ? t("settings.dark_mode")
+                  : t("settings.light_mode")}
+              </button>
+            </div>
           </div>
           <Text as="p" size="md" variant="secondary" className="max-w-2xl">
-            Configure granular access controls, manage your treasury team, and
-            monitor all organizational activity through structured audit trails.
+            {t("settings.header_description")}
           </Text>
         </header>
 
@@ -864,7 +872,11 @@ const Settings: React.FC = () => {
           <Notification
             variant={notification.type}
             onClose={() => setNotification(null)}
-            title={notification.type === "success" ? "Success" : "Error"}
+            title={
+              notification.type === "success"
+                ? t("settings.success")
+                : t("settings.error")
+            }
             className="mb-8 animate-slide-up"
           >
             {notification.message}

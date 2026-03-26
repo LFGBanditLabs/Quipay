@@ -9,6 +9,7 @@ import SolvencyCard from "../components/dashboard/SolvencyCard";
 import { DepositModal } from "../components/DepositModal";
 import { buildDepositTx } from "../contracts/payroll_vault";
 import { useWallet } from "../hooks/useWallet";
+import { usePreflightChecks } from "../hooks/usePreflightChecks";
 
 const TreasuryManagement: React.FC = () => {
   const tw = {
@@ -28,6 +29,7 @@ const TreasuryManagement: React.FC = () => {
 
   const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const runPreflightChecks = usePreflightChecks();
   const { address } = useWallet();
   const { vaultData, totalLiabilities, isVaultLoading, refreshVaultData } =
     usePayroll();
@@ -35,7 +37,14 @@ const TreasuryManagement: React.FC = () => {
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
 
   const handleDeposit = async (tokenAddress: string, amount: string) => {
-    if (!address) {
+    const ok = runPreflightChecks({
+      actionLabel: "depositing funds",
+    });
+    if (!ok) {
+      return;
+    }
+    const walletAddress = address;
+    if (!walletAddress) {
       addNotification("Please connect your wallet first", "error");
       return;
     }
@@ -49,7 +58,7 @@ const TreasuryManagement: React.FC = () => {
     );
 
     try {
-      await buildDepositTx(address, tokenAddress, amountBigInt);
+      await buildDepositTx(walletAddress, tokenAddress, amountBigInt);
       // Here usually we would sign and submit the transaction.
       // For this scaffold, we're just simulating success.
       addNotification(

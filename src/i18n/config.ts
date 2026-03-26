@@ -22,31 +22,34 @@ const resources = {
   },
 };
 
+export const SUPPORTED_LOCALES = ["en", "es"] as const;
+export const LOCALE_STORAGE_KEY = "quipay_locale";
+
 void i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     resources,
     fallbackLng: "en",
+    supportedLngs: [...SUPPORTED_LOCALES],
+    load: "languageOnly",
     interpolation: {
       escapeValue: false,
     },
     detection: {
       order: ["localStorage", "navigator"],
+      lookupLocalStorage: LOCALE_STORAGE_KEY,
       caches: ["localStorage"],
     },
   });
 
-// Handle RTL/LTR based on language
+// Handle document language metadata.
 i18n.on("languageChanged", (lng) => {
-  const dir = lng === "ar" ? "rtl" : "ltr";
-  document.documentElement.dir = dir;
+  document.documentElement.dir = "ltr";
   document.documentElement.lang = lng;
 });
 
-// Initialize direction on load
-const initialDir = i18n.language === "ar" ? "rtl" : "ltr";
-document.documentElement.dir = initialDir;
+document.documentElement.dir = "ltr";
 document.documentElement.lang = i18n.language;
 
 export default i18n;

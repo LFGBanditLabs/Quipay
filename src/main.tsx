@@ -9,6 +9,7 @@ import { ThemeProvider } from "./providers/ThemeProvider.tsx";
 import { NetworkStatusProvider } from "./providers/NetworkStatusProvider.tsx";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import ErrorBoundary from "./components/ErrorBoundary.tsx";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,7 +27,9 @@ createRoot(document.getElementById("root") as HTMLElement).render(
         <NetworkStatusProvider>
           <QueryClientProvider client={queryClient}>
             <BrowserRouter>
-              <App />
+              <ErrorBoundary>
+                <App />
+              </ErrorBoundary>
             </BrowserRouter>
           </QueryClientProvider>
         </NetworkStatusProvider>

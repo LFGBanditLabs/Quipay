@@ -22,6 +22,7 @@ import {
   executeProposal as executeProposalService,
 } from "../services/governanceService";
 import { shortenAddress } from "../util/address";
+import { usePreflightChecks } from "../hooks/usePreflightChecks";
 
 const tw = {
   loadingContainer: "flex flex-col items-center justify-center gap-4 p-[60px]",
@@ -175,6 +176,7 @@ const getTypeColor = (type: MultisigProposal["type"]): string => {
 const GovernanceOverview: React.FC = () => {
   const navigate = useNavigate();
   const { address, signTransaction } = useWallet();
+  const runPreflightChecks = usePreflightChecks();
   const [isLoading, setIsLoading] = useState(true);
   const [config, setConfig] = useState<MultisigConfig | null>(null);
   const [proposals, setProposals] = useState<MultisigProposal[]>([]);
@@ -223,6 +225,10 @@ const GovernanceOverview: React.FC = () => {
 
   const handleApprove = async (proposalId: string) => {
     if (!address || !signTransaction) return;
+    const ok = runPreflightChecks({
+      actionLabel: "approving proposal",
+    });
+    if (!ok) return;
 
     setIsProcessing(true);
     try {
@@ -244,6 +250,10 @@ const GovernanceOverview: React.FC = () => {
 
   const handleExecute = async (proposalId: string) => {
     if (!address || !signTransaction) return;
+    const ok = runPreflightChecks({
+      actionLabel: "executing proposal",
+    });
+    if (!ok) return;
 
     setIsProcessing(true);
     try {

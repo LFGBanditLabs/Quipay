@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { translateError } from "../util/errors";
 import { ErrorMessage } from "./ErrorMessage";
+import { usePreflightChecks } from "../hooks/usePreflightChecks";
 import TransactionSimulationModal from "./TransactionSimulationModal";
 import type { TransactionPreview } from "./TransactionSimulationModal";
 import type { SimulationResult } from "../util/simulationUtils";
@@ -154,6 +155,7 @@ export default function WithdrawButton({
   onSuccess,
   withdrawSimulation,
 }: WithdrawButtonProps) {
+  const runPreflightChecks = usePreflightChecks();
   const [rawAmount, setRawAmount] = useState<bigint>(0n);
   const [status, setStatus] = useState<TxStatus>("fetching");
   const [txHash, setTxHash] = useState<string | null>(null);
@@ -209,6 +211,10 @@ export default function WithdrawButton({
 
   const handleWithdraw = async () => {
     if (rawAmount === 0n) return;
+    const ok = runPreflightChecks({
+      actionLabel: "withdrawing funds",
+    });
+    if (!ok) return;
 
     if (withdrawSimulation) {
       setSimModalOpen(true);

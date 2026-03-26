@@ -33,6 +33,7 @@ import { TransactionBuilder } from "@stellar/stellar-sdk";
 import { Button } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
 import { useNotification } from "../hooks/useNotification";
+import { usePreflightChecks } from "../hooks/usePreflightChecks";
 import { translateError } from "../util/errors";
 import { ErrorMessage } from "./ErrorMessage";
 import TransactionSimulationModal, {
@@ -296,6 +297,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
 }: StreamCreatorProps) => {
   const { address, signTransaction, networkPassphrase } = useWallet();
   const { addNotification } = useNotification();
+  const runPreflightChecks = usePreflightChecks();
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
@@ -643,20 +645,24 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
       return;
     }
 
-    if (!address) {
-      addNotification("Please connect your wallet first.", "warning");
-      return;
-    }
-
     if (!PAYROLL_STREAM_CONTRACT_ID) {
       addNotification("PayrollStream contract ID not configured.", "error");
       return;
     }
 
-    if (solvency.kind === "insufficient") {
-      addNotification("Treasury lacks funds for this stream total.", "warning");
-    }
-    openSimulation(values);
+    (() => {
+      const ok = runPreflightChecks({
+        actionLabel: "creating stream",
+      });
+      if (!ok) return;
+      if (solvency.kind === "insufficient") {
+        addNotification(
+          "Treasury lacks funds for this stream total.",
+          "warning",
+        );
+      }
+      openSimulation(values);
+    })();
   };
 
   const isBusy =

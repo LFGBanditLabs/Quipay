@@ -4,10 +4,12 @@ import { useNotification } from "../hooks/useNotification.ts";
 import { useWallet } from "../hooks/useWallet.ts";
 import { Button, Tooltip } from "@stellar/design-system";
 import { getFriendbotUrl } from "../util/friendbot";
+import { usePreflightChecks } from "../hooks/usePreflightChecks";
 
 const FundAccountButton: React.FC = () => {
   const { t } = useTranslation();
   const { addNotification } = useNotification();
+  const runPreflightChecks = usePreflightChecks();
   const [isPending, startTransition] = useTransition();
   const [isTooltipVisible, setIsTooltipVisible] = useState(false);
   const { address } = useWallet();
@@ -16,6 +18,10 @@ const FundAccountButton: React.FC = () => {
 
   const handleFundAccount = () => {
     const fund = async () => {
+      const ok = runPreflightChecks({
+        actionLabel: "funding account",
+      });
+      if (!ok) return;
       try {
         const response = await fetch(getFriendbotUrl(address));
 

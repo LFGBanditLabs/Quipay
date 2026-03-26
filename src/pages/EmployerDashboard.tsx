@@ -14,6 +14,11 @@ import { useNotification } from "../hooks/useNotification";
 import { SkeletonCard, SkeletonRow } from "../components/Loading";
 import type { SimulationResult } from "../util/simulationUtils";
 import { Stream } from "../hooks/usePayroll";
+import { usePreflightChecks } from "../hooks/usePreflightChecks";
+import NetworkHealthMonitor from "../components/NetworkHealthMonitor";
+import NotificationCenter, {
+  type ProtocolAlert,
+} from "../components/NotificationCenter";
 
 const EmployerDashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -41,11 +46,14 @@ const EmployerDashboard: React.FC = () => {
   } = usePayroll();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const runPreflightChecks = usePreflightChecks();
   const { address } = useWallet();
 
   const [streamToCancel, setStreamToCancel] = React.useState<Stream | null>(
     null,
   );
+  const [alerts, setAlerts] = React.useState<ProtocolAlert[]>([]);
+  const lowTreasuryAlertShown = React.useRef(false);
   const [startedAtMs, setStartedAtMs] = React.useState<number | null>(null);
   const [secondsElapsed, setSecondsElapsed] = React.useState<number>(0);
 
@@ -96,6 +104,41 @@ const EmployerDashboard: React.FC = () => {
       : runwayDays >= 30
         ? "warning"
         : "critical";
+
+  React.useEffect(() => {
+    const nextAlerts: ProtocolAlert[] = [];
+    if (initialTreasuryBalance > 0 && remainingTreasuryBalance > 0) {
+      const ratio = remainingTreasuryBalance / initialTreasuryBalance;
+      if (ratio <= 0.1) {
+        nextAlerts.push({
+          id: "treasury-10",
+          level: "critical",
+          title: "Treasury reaching 10% balance",
+          message:
+            "Top up treasury to prevent stream interruptions and transaction failures.",
+          actionLabel: "Top up now",
+          onAction: () => {
+            void navigate("/treasury-management");
+          },
+        });
+        if (!lowTreasuryAlertShown.current) {
+          addNotification(
+            "Critical: treasury balance is below 10%. Top up recommended.",
+            "warning",
+          );
+          lowTreasuryAlertShown.current = true;
+        }
+      } else {
+        lowTreasuryAlertShown.current = false;
+      }
+    }
+    setAlerts(nextAlerts);
+  }, [
+    addNotification,
+    initialTreasuryBalance,
+    navigate,
+    remainingTreasuryBalance,
+  ]);
   const runwayStatusStyle =
     runwayStatus === "healthy"
       ? {
@@ -117,6 +160,10 @@ const EmployerDashboard: React.FC = () => {
 
   const handleConfirmCancel = async () => {
     if (!streamToCancel || !address) return;
+    const ok = runPreflightChecks({
+      actionLabel: "canceling stream",
+    });
+    if (!ok) return;
     try {
       // 1) Build XDR
       const streamIdBigInt = BigInt(streamToCancel.id);
@@ -264,6 +311,10 @@ const EmployerDashboard: React.FC = () => {
         <Text as="h1" size="xl" weight="medium">
           {t("dashboard.title")}
         </Text>
+        <div style={{ marginTop: "16px", marginBottom: "20px" }}>
+          <NetworkHealthMonitor />
+        </div>
+        <NotificationCenter alerts={alerts} />
 
         {/* Topology Visualizer */}
         <div style={{ marginTop: "24px", marginBottom: "32px" }}>

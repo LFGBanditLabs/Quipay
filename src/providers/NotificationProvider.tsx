@@ -4,6 +4,7 @@ import React, {
   ReactNode,
   useMemo,
   useCallback,
+  useEffect,
 } from "react";
 import "./NotificationProvider.css"; // Import CSS for sliding effect
 
@@ -78,6 +79,30 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
   );
 
   const contextValue = useMemo(() => ({ addNotification }), [addNotification]);
+
+  useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason =
+        event.reason instanceof Error
+          ? event.reason.message
+          : String(event.reason);
+      addNotification(`Unhandled promise rejection: ${reason}`, "error");
+    };
+
+    const handleGlobalError = (event: ErrorEvent) => {
+      addNotification(`Runtime error: ${event.message}`, "error");
+    };
+
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+    window.addEventListener("error", handleGlobalError);
+    return () => {
+      window.removeEventListener(
+        "unhandledrejection",
+        handleUnhandledRejection,
+      );
+      window.removeEventListener("error", handleGlobalError);
+    };
+  }, [addNotification]);
 
   return (
     <NotificationContext.Provider value={contextValue}>

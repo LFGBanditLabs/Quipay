@@ -1,0 +1,18 @@
+config:
+  target: "http://localhost:3001"
+  phases:
+    - name: query-balances-100-concurrent
+      duration: 60
+      arrivalRate: 100
+      maxVusers: 100
+  plugins:
+    ensure: {}
+    metrics-by-endpoint: {}
+  ensure:
+    thresholds:
+      - http.response_time.p99: 500
+scenarios:
+  - name: query-balance
+    flow:
+      - get:
+          url: "/health"

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { getNetworkStatus, NetworkStatus } from "../util/networkStatus";
+import { useNotification } from "../hooks/useNotification";
 
 interface NetworkStatusContextType extends NetworkStatus {
   refresh: () => Promise<void>;
@@ -16,11 +17,15 @@ export const NetworkStatusProvider = ({
 }: {
   children: React.ReactNode;
 }) => {
+  const { addNotification } = useNotification();
   const [status, setStatus] = useState<NetworkStatus>({
     status: "online",
     latency: 0,
     congestion: "low",
     minFee: 100,
+    horizon: { status: "online", latency: 0 },
+    sorobanRpc: { status: "online", latency: 0 },
+    issues: [],
   });
 
   const refresh = async () => {
@@ -34,6 +39,16 @@ export const NetworkStatusProvider = ({
     async function updateStatus() {
       const newStatus = await getNetworkStatus();
       if (active) {
+        if (
+          status.status !== "offline" &&
+          newStatus.status === "offline" &&
+          newStatus.issues.length > 0
+        ) {
+          addNotification(
+            `Network degraded: ${newStatus.issues[0]}. Retry once endpoints recover.`,
+            "error",
+          );
+        }
         setStatus(newStatus);
       }
     }
@@ -48,7 +63,7 @@ export const NetworkStatusProvider = ({
       active = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [addNotification, status.status]);
 
   return (
     <NetworkStatusContext.Provider value={{ ...status, refresh }}>
@@ -57,6 +72,7 @@ export const NetworkStatusProvider = ({
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useNetworkStatus = () => {
   const context = useContext(NetworkStatusContext);
   if (!context) {
