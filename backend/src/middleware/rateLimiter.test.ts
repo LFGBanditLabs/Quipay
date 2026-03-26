@@ -1,8 +1,8 @@
 import { NextFunction, Request, Response } from "express";
 import {
-  createWalletSlidingWindowRateLimiter,
   extractWalletAddress,
   resetWalletRateLimiterStore,
+  standardRateLimiter,
 } from "./rateLimiter";
 
 function makeWallet(fill: string): string {
@@ -17,6 +17,8 @@ function createRequest(overrides: Partial<Request> = {}): Request {
     query: {},
     originalUrl: "/wallet-limited",
     path: "/wallet-limited",
+    method: "GET",
+    ip: "127.0.0.1",
     ...overrides,
   } as Request;
 }
@@ -36,6 +38,23 @@ function createResponse(): Response {
 }
 
 describe("extractWalletAddress", () => {
+  it("extracts a Stellar wallet from JWT claims", () => {
+    const wallet = makeWallet("J");
+    const payload = Buffer.from(
+      JSON.stringify({
+        sub: "user-1",
+        role: "user",
+        stellarAddress: wallet,
+      }),
+    ).toString("base64url");
+
+    const req = createRequest({
+      headers: { authorization: `Bearer header.${payload}.signature` },
+    });
+
+    expect(extractWalletAddress(req)).toBe(wallet);
+  });
+
   it("extracts a Stellar wallet from the Authorization header", () => {
     const wallet = makeWallet("A");
     const req = createRequest({
@@ -55,50 +74,67 @@ describe("extractWalletAddress", () => {
   });
 });
 
-describe("createWalletSlidingWindowRateLimiter", () => {
-  const middleware = createWalletSlidingWindowRateLimiter(2, 60_000, "test");
-
+describe("standardRateLimiter", () => {
   beforeEach(() => {
     resetWalletRateLimiterStore();
     jest.restoreAllMocks();
   });
 
-  it("tracks requests independently per wallet and sets X-RateLimit-Remaining", () => {
+  it("tracks authenticated requests per Stellar address from JWT claims", () => {
     const wallet = makeWallet("C");
+    const payload = Buffer.from(
+      JSON.stringify({
+        sub: "user-1",
+        role: "user",
+        stellar_address: wallet,
+      }),
+    ).toString("base64url");
     const req = createRequest({
-      headers: { "x-wallet-address": wallet },
+      headers: { authorization: `Bearer header.${payload}.signature` },
     });
     const res = createResponse();
     const next = jest.fn() as NextFunction;
 
-    middleware(req, res, next);
-    expect(res.setHeader).toHaveBeenCalledWith("X-RateLimit-Remaining", "1");
+    standardRateLimiter(req, res, next);
+    expect(res.setHeader).toHaveBeenCalledWith("X-RateLimit-Limit", "30");
+    expect(res.setHeader).toHaveBeenCalledWith("X-RateLimit-Remaining", "29");
     expect(next).toHaveBeenCalledTimes(1);
-
-    middleware(req, res, next);
-    expect(res.setHeader).toHaveBeenCalledWith("X-RateLimit-Remaining", "0");
-    expect(next).toHaveBeenCalledTimes(2);
   });
 
-  it("returns 429 once the wallet exceeds the sliding window limit", () => {
+  it("uses a stricter write quota for mutating requests", () => {
     const wallet = makeWallet("D");
     const req = createRequest({
+      method: "POST",
       headers: { "x-wallet-address": wallet },
     });
     const res = createResponse();
     const next = jest.fn() as NextFunction;
 
-    middleware(req, res, next);
-    middleware(req, res, next);
-    middleware(req, res, next);
+    for (let count = 0; count < 5; count += 1) {
+      standardRateLimiter(req, res, next);
+    }
 
     expect(res.setHeader).toHaveBeenCalledWith("X-RateLimit-Remaining", "0");
-    expect(res.setHeader).toHaveBeenCalledWith("Retry-After", "60");
+    expect(next).toHaveBeenCalledTimes(5);
+
+    standardRateLimiter(req, res, next);
     expect(res.status).toHaveBeenCalledWith(429);
-    expect(next).toHaveBeenCalledTimes(2);
+    expect(res.setHeader).toHaveBeenCalledWith("Retry-After", "60");
   });
 
-  it("does not share counters across different wallets", () => {
+  it("falls back to IP-based limiting for unauthenticated requests", () => {
+    const req = createRequest({ ip: "203.0.113.10" });
+    const res = createResponse();
+    const next = jest.fn() as NextFunction;
+
+    standardRateLimiter(req, res, next);
+
+    expect(res.setHeader).toHaveBeenCalledWith("X-RateLimit-Limit", "30");
+    expect(res.setHeader).toHaveBeenCalledWith("X-RateLimit-Remaining", "29");
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not share counters across different identities", () => {
     const firstWallet = makeWallet("E");
     const secondWallet = makeWallet("F");
     const firstReq = createRequest({
@@ -110,8 +146,8 @@ describe("createWalletSlidingWindowRateLimiter", () => {
     const res = createResponse();
     const next = jest.fn() as NextFunction;
 
-    middleware(firstReq, res, next);
-    middleware(secondReq, res, next);
+    standardRateLimiter(firstReq, res, next);
+    standardRateLimiter(secondReq, res, next);
 
     expect(next).toHaveBeenCalledTimes(2);
     expect(res.status).not.toHaveBeenCalled();
