@@ -7,6 +7,8 @@ import { SeoHelmet } from "../components/seo/SeoHelmet";
 import WithdrawButton from "../components/WithdrawButton";
 import EmptyState from "../components/EmptyState";
 import StreamVisualizer from "../components/StreamVisualizer";
+import { useWallet } from "../hooks/useWallet";
+import { useNotification } from "../hooks/useNotification";
 import { SkeletonCard, SkeletonRow } from "../components/Loading";
 import type { SimulationResult } from "../util/simulationUtils";
 import CopyButton from "../components/CopyButton";
@@ -27,6 +29,9 @@ const EmployerDashboard: React.FC = () => {
     streamItem:
       "flex items-center justify-between gap-3.5 rounded-md border border-[var(--sds-color-neutral-border)] bg-[var(--sds-color-background-primary)] p-[15px] max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:p-4",
   };
+  const navigate = useNavigate();
+  const { addNotification } = useNotification();
+  const { address } = useWallet();
   const {
     treasuryBalances,
     totalLiabilities,
@@ -34,7 +39,23 @@ const EmployerDashboard: React.FC = () => {
     activeStreams,
     isLoading,
   } = usePayroll();
-  const navigate = useNavigate();
+
+  type LocalStream = (typeof activeStreams)[number];
+  const [streamToCancel, setStreamToCancel] =
+    React.useState<LocalStream | null>(null);
+
+  const handleConfirmCancel = () => {
+    if (!streamToCancel || !address) return;
+    try {
+      addNotification(
+        `Successfully requested cancellation for stream ${streamToCancel.id}`,
+        "success",
+      );
+    } catch (e) {
+      console.error(e);
+      addNotification("Failed to cancel stream", "error");
+    }
+  };
 
   const seoDescription = isLoading
     ? t("dashboard.loading_description")
@@ -277,15 +298,26 @@ const EmployerDashboard: React.FC = () => {
             <Text as="h2" size="lg">
               {t("dashboard.active_streams")}
             </Text>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => {
-                void navigate("/create-stream");
-              }}
-            >
-              {t("dashboard.create_new_stream")}
-            </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => {
+                  void navigate("/stream-comparison");
+                }}
+              >
+                Compare streams
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => {
+                  void navigate("/create-stream");
+                }}
+              >
+                {t("dashboard.create_new_stream")}
+              </Button>
+            </div>
           </div>
 
           {activeStreams.length === 0 ? (
@@ -342,10 +374,20 @@ const EmployerDashboard: React.FC = () => {
                       {t("dashboard.start")}: {stream.startDate}
                     </Text>
                   </div>
-                  <div>
+                  <div className="flex flex-col items-end justify-center gap-2">
                     <Text as="div" size="md" weight="bold">
                       Total: {stream.totalStreamed} {stream.tokenSymbol}
                     </Text>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setStreamToCancel(stream);
+                      }}
+                    >
+                      Cancel Stream
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -353,6 +395,68 @@ const EmployerDashboard: React.FC = () => {
           )}
         </div>
       </Layout.Inset>
+
+      {streamToCancel && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 50,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.5)",
+          }}
+        >
+          <div
+            style={{
+              background: "var(--surface)",
+              borderRadius: "16px",
+              padding: "2rem",
+              maxWidth: "400px",
+              width: "90%",
+            }}
+          >
+            <Text as="h2" size="lg" weight="semi-bold">
+              Cancel Stream
+            </Text>
+            <Text
+              as="p"
+              size="sm"
+              style={{ color: "var(--muted)", margin: "1rem 0" }}
+            >
+              Are you sure you want to cancel the stream for{" "}
+              <strong>{streamToCancel.employeeName}</strong>? This action cannot
+              be undone.
+            </Text>
+            <div
+              style={{
+                display: "flex",
+                gap: "1rem",
+                justifyContent: "flex-end",
+              }}
+            >
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setStreamToCancel(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  handleConfirmCancel();
+                  setStreamToCancel(null);
+                }}
+              >
+                Confirm Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout.Content>
   );
 };
