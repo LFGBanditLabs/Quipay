@@ -19,6 +19,10 @@ export async function fillStreamForm(
   },
 ) {
   // Step 1: Recipient
+  await page.waitForURL("**/create-stream", { timeout: 15000 });
+  await page.waitForSelector('input[placeholder="e.g. John Doe"]', {
+    timeout: 15000,
+  });
   await page.fill('input[placeholder="e.g. John Doe"]', data.workerName);
   await page.fill('input[placeholder="G..."]', data.workerAddress);
   await page.click('button:has-text("Next")');

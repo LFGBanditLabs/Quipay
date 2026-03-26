@@ -240,12 +240,28 @@ export const metricSnapshots = pgTable(
       .defaultNow(),
     metricsText: text("metrics_text").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
+export const workerNotificationSettings = pgTable(
+  "worker_notification_settings",
+  {
+    worker: text("worker").primaryKey(),
+    emailEnabled: boolean("email_enabled").notNull().default(true),
+    inAppEnabled: boolean("in_app_enabled").notNull().default(true),
+    cliffUnlockAlerts: boolean("cliff_unlock_alerts").notNull().default(true),
+    streamEndingAlerts: boolean("stream_ending_alerts").notNull().default(true),
+    lowRunwayAlerts: boolean("low_runway_alerts").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
     index("idx_metric_snapshots_captured_at").on(table.capturedAt.desc()),
     index("idx_metric_snapshots_created_at").on(table.createdAt.desc()),
+    index("idx_worker_notification_settings_updated").on(
+      table.updatedAt.desc(),
+    ),
   ],
 );
 

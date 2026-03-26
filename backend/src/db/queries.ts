@@ -534,6 +534,17 @@ export interface MonitorLogEntry {
   created_at: Date;
 }
 
+export interface WorkerNotificationSettingsRecord {
+  worker: string;
+  email_enabled: boolean;
+  in_app_enabled: boolean;
+  cliff_unlock_alerts: boolean;
+  stream_ending_alerts: boolean;
+  low_runway_alerts: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export const getTreasuryBalances = async (): Promise<TreasuryBalance[]> => {
   if (!getPool()) return [];
   const res = await query<TreasuryBalance>(
@@ -612,6 +623,49 @@ export const getMonitorLogs = async (
     [limit],
   );
   return res.rows;
+};
+
+export const getWorkerNotificationSettings = async (
+  worker: string,
+): Promise<WorkerNotificationSettingsRecord | null> => {
+  if (!getPool()) return null;
+  const res = await query<WorkerNotificationSettingsRecord>(
+    `SELECT * FROM worker_notification_settings WHERE worker = $1`,
+    [worker],
+  );
+  return res.rows[0] ?? null;
+};
+
+export const upsertWorkerNotificationSettings = async (params: {
+  worker: string;
+  emailEnabled: boolean;
+  inAppEnabled: boolean;
+  cliffUnlockAlerts: boolean;
+  streamEndingAlerts: boolean;
+  lowRunwayAlerts: boolean;
+}): Promise<void> => {
+  if (!getPool()) return;
+  await query(
+    `INSERT INTO worker_notification_settings
+      (worker, email_enabled, in_app_enabled, cliff_unlock_alerts, stream_ending_alerts, low_runway_alerts, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, NOW())
+     ON CONFLICT (worker)
+     DO UPDATE SET
+       email_enabled = EXCLUDED.email_enabled,
+       in_app_enabled = EXCLUDED.in_app_enabled,
+       cliff_unlock_alerts = EXCLUDED.cliff_unlock_alerts,
+       stream_ending_alerts = EXCLUDED.stream_ending_alerts,
+       low_runway_alerts = EXCLUDED.low_runway_alerts,
+       updated_at = NOW()`,
+    [
+      params.worker,
+      params.emailEnabled,
+      params.inAppEnabled,
+      params.cliffUnlockAlerts,
+      params.streamEndingAlerts,
+      params.lowRunwayAlerts,
+    ],
+  );
 };
 
 // ─── Webhook outbound delivery logs ──────────────────────────────────────────

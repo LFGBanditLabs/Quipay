@@ -198,3 +198,112 @@ const sendEmailAlert = async (payload: TreasuryAlertPayload): Promise<void> => {
     `[Notifier] Email alert would be sent for employer ${payload.employer}`,
   );
 };
+
+// ==================== Worker Notification Types ====================
+
+export interface WorkerNotificationPayload {
+  event: "cliff_unlock" | "stream_ending" | "low_runway";
+  worker: string;
+  stream_id: number;
+  employer: string;
+  token: string;
+  amount?: number;
+  cliff_date?: string;
+  stream_end_date?: string;
+  runway_days?: number;
+  threshold_days?: number;
+  timestamp: string;
+}
+
+export const sendWorkerNotification = async (params: {
+  event: "cliff_unlock" | "stream_ending" | "low_runway";
+  worker: string;
+  streamId: number;
+  employer: string;
+  token: string;
+  amount?: number;
+  cliffDate?: string;
+  streamEndDate?: string;
+  runwayDays?: number;
+  thresholdDays?: number;
+}): Promise<void> => {
+  const payload: WorkerNotificationPayload = {
+    event: params.event,
+    worker: params.worker,
+    stream_id: params.streamId,
+    employer: params.employer,
+    token: params.token,
+    amount: params.amount,
+    cliff_date: params.cliffDate,
+    stream_end_date: params.streamEndDate,
+    runway_days: params.runwayDays,
+    threshold_days: params.thresholdDays,
+    timestamp: new Date().toISOString(),
+  };
+
+  console.log(
+    `[Notifier] 📬 Worker notification sent to ${params.worker} - ` +
+      `event: ${params.event}, stream: ${params.streamId}`,
+  );
+
+  await sendWebhookNotification("worker_notification", payload).catch((err) => {
+    console.error(
+      `[Notifier] Worker notification webhook failed: ${err.message}`,
+    );
+  });
+};
+
+export const sendCliffUnlockNotification = async (params: {
+  worker: string;
+  streamId: number;
+  employer: string;
+  token: string;
+  cliffDate: string;
+}): Promise<void> => {
+  await sendWorkerNotification({
+    event: "cliff_unlock",
+    worker: params.worker,
+    streamId: params.streamId,
+    employer: params.employer,
+    token: params.token,
+    cliffDate: params.cliffDate,
+  });
+};
+
+export const sendStreamEndingNotification = async (params: {
+  worker: string;
+  streamId: number;
+  employer: string;
+  token: string;
+  streamEndDate: string;
+  amount: number;
+}): Promise<void> => {
+  await sendWorkerNotification({
+    event: "stream_ending",
+    worker: params.worker,
+    streamId: params.streamId,
+    employer: params.employer,
+    token: params.token,
+    amount: params.amount,
+    streamEndDate: params.streamEndDate,
+  });
+};
+
+export const sendWorkerLowRunwayNotification = async (params: {
+  worker: string;
+  streamId: number;
+  employer: string;
+  token: string;
+  runwayDays: number;
+  thresholdDays: number;
+}): Promise<void> => {
+  await sendWorkerNotification({
+    event: "low_runway",
+    worker: params.worker,
+    streamId: params.streamId,
+    employer: params.employer,
+    token: params.token,
+    runwayDays: params.runwayDays,
+    thresholdDays: params.thresholdDays,
+  });
+};
