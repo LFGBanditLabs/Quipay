@@ -26,6 +26,7 @@ import { getPool } from "./db/pool";
 import Redis from "ioredis";
 import { rpc } from "@stellar/stellar-sdk";
 import { secretsBootstrap } from "./services/secretsBootstrap";
+import { getHealthResponse } from "./health";
 
 dotenv.config();
 
@@ -103,15 +104,9 @@ export const nonceManager = new NonceManager(
  * @api {get} /health Health check endpoint
  * @apiDescription Returns the status and heartbeat of the automation engine.
  */
-app.get("/health", (req, res) => {
-  const uptime = Math.floor((Date.now() - startTime) / 1000);
-  res.json({
-    status: "ok",
-    uptime: `${uptime}s`,
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || "0.0.1",
-    service: "quipay-automation-engine",
-  });
+app.get("/health", async (req, res) => {
+  const { httpStatus, body } = await getHealthResponse(startTime);
+  res.status(httpStatus).json(body);
 });
 
 /**

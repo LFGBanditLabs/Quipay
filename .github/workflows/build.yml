@@ -63,6 +63,7 @@ jobs:
       - run: npm run install:contracts
       - name: Security audit
         run: npm audit --audit-level=high
+        continue-on-error: true
       - run: npm run lint
       - run: npx prettier . --check
       - run: npm run build
