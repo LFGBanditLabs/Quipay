@@ -27,6 +27,7 @@ export interface WorkerStream {
 
 export interface WithdrawalRecord {
   id: string;
+  streamId: string;
   amount: string;
   tokenSymbol: string;
   date: string;
@@ -129,6 +130,7 @@ export const useStreams = (workerAddress: string | undefined) => {
             const tokenSymbol = await getTokenSymbol(workerAddress, ev.token);
             return {
               id: ev.txHash,
+              streamId: ev.streamId.toString(),
               amount: (Number(ev.amount) / STROOPS_PER_UNIT).toFixed(7),
               tokenSymbol,
               date: new Date(ev.ledgerClosedAt).toLocaleString(),
