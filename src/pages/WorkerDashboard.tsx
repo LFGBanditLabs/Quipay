@@ -5,6 +5,7 @@ import { useWallet } from "../hooks/useWallet";
 import { useStreams, WorkerStream } from "../hooks/useStreams";
 import { useNotification } from "../hooks/useNotification";
 import { EarningsDisplay } from "../components/EarningsDisplay";
+import CopyButton from "../components/CopyButton";
 
 const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
   const { addNotification } = useNotification();
@@ -66,8 +67,12 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
           <div className="text-lg font-semibold text-[var(--text)]">
             {stream.employerName}
           </div>
-          <div className="font-mono text-xs text-[var(--muted)]">
-            {stream.employerAddress}
+          <div className="flex items-center gap-1 font-mono text-xs text-[var(--muted)]">
+            <span>{stream.employerAddress}</span>
+            <CopyButton
+              value={stream.employerAddress}
+              label="Copy employer address"
+            />
           </div>
         </div>
         <div className="rounded-md bg-emerald-500/10 px-2 py-1 text-sm text-emerald-500">
@@ -157,6 +162,7 @@ const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
       </div>
 
       <button
+        type="button"
         className="w-full rounded-xl border-0 bg-[var(--accent)] px-3 py-3 font-semibold text-white transition-opacity hover:opacity-90"
         onClick={() => addNotification("Withdrawal triggered!", "success")}
       >
@@ -178,8 +184,12 @@ const CompletedStreamCard: React.FC<{ stream: WorkerStream }> = ({
           <div className="text-lg font-semibold text-[var(--text)]">
             {stream.employerName}
           </div>
-          <div className="font-mono text-xs text-[var(--muted)]">
-            {stream.employerAddress}
+          <div className="flex items-center gap-1 font-mono text-xs text-[var(--muted)]">
+            <span>{stream.employerAddress}</span>
+            <CopyButton
+              value={stream.employerAddress}
+              label="Copy employer address"
+            />
           </div>
         </div>
         <div className="rounded-md bg-blue-500/10 px-2 py-1 text-sm text-blue-400">
@@ -270,6 +280,7 @@ const WorkerDashboard: React.FC = () => {
         </Text>
         <p className="mt-4 font-mono text-sm text-[var(--muted)]">{error}</p>
         <button
+          type="button"
           className="mt-6 rounded-xl border-0 bg-[var(--accent)] px-6 py-3 font-semibold text-white transition-opacity hover:opacity-90"
           onClick={refetch}
         >
@@ -363,12 +374,18 @@ const WorkerDashboard: React.FC = () => {
                     </td>
                     <td className="p-4 text-sm">{record.tokenSymbol}</td>
                     <td className="p-4 text-sm">
-                      <a
-                        href={`#${record.txHash}`}
-                        className="font-mono text-[var(--accent)] no-underline"
-                      >
-                        {record.txHash}
-                      </a>
+                      <span className="flex items-center gap-1">
+                        <a
+                          href={`#${record.txHash}`}
+                          className="font-mono text-[var(--accent)] no-underline"
+                        >
+                          {record.txHash}
+                        </a>
+                        <CopyButton
+                          value={record.txHash}
+                          label="Copy transaction hash"
+                        />
+                      </span>
                     </td>
                   </tr>
                 ))}

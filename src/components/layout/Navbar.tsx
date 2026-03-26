@@ -96,6 +96,7 @@ const Navbar: React.FC = () => {
               <div className="flex md:hidden items-center gap-2">
                 <ConnectAccount />
                 <button
+                  type="button"
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                   className="min-h-11 min-w-11 rounded-lg p-2 text-[var(--muted)] transition-all duration-200 hover:bg-[var(--surface-subtle)] hover:text-[var(--text)]"
                   aria-label={

@@ -9,6 +9,7 @@ import EmptyState from "../components/EmptyState";
 import StreamVisualizer from "../components/StreamVisualizer";
 import { SkeletonCard, SkeletonRow } from "../components/Loading";
 import type { SimulationResult } from "../util/simulationUtils";
+import CopyButton from "../components/CopyButton";
 
 const EmployerDashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -312,9 +313,25 @@ const EmployerDashboard: React.FC = () => {
                     <Text as="div" size="md" weight="bold">
                       {stream.employeeName}
                     </Text>
-                    <Text as="div" size="sm" style={{ color: "var(--muted)" }}>
-                      {stream.employeeAddress}
-                    </Text>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                    >
+                      <Text
+                        as="span"
+                        size="sm"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        {stream.employeeAddress}
+                      </Text>
+                      <CopyButton
+                        value={stream.employeeAddress}
+                        label="Copy employee address"
+                      />
+                    </div>
                   </div>
                   <div>
                     <Text as="div" size="sm">
