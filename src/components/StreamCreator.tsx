@@ -91,7 +91,7 @@ const SUPPORTED_TOKENS: { label: string; value: string; decimal: number }[] = [
 
 /** PayrollVault contract ID for solvency checks */
 const PAYROLL_VAULT_CONTRACT_ID: string =
-  (import.meta.env.VITE_PAYROLL_VAULT_CONTRACT_ID as string | undefined) ?? "";
+  import.meta.env.VITE_PAYROLL_VAULT_CONTRACT_ID ?? "";
 
 // ─── Form state ───────────────────────────────────────────────────────────────
 

@@ -46,6 +46,10 @@ test.describe("Stream Creation - Advanced Scenarios", () => {
     await mockWallet.setup();
 
     await page.goto("/create-stream");
+    await page.waitForURL("**/create-stream", { timeout: 15000 });
+    await page.waitForSelector('input[placeholder="e.g. John Doe"]', {
+      timeout: 15000,
+    });
 
     // Try invalid address
     await page.fill('input[placeholder="e.g. John Doe"]', "John Doe");

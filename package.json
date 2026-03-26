@@ -67,6 +67,7 @@
     "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/postcss": "^4.2.0",
     "@tailwindcss/vite": "^4.2.0",
+    "@types/bun": "^1.3.11",
     "@types/jspdf": "^2.0.0",
     "@types/lodash": "^4.17.21",
     "@types/node": "^25.5.0",
