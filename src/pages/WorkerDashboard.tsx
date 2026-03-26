@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Layout, Text, Loader } from "@stellar/design-system";
+import { Layout, Text } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
 import {
   useStreams,
@@ -10,6 +10,9 @@ import {
 import { useNotification } from "../hooks/useNotification";
 import { EarningsDisplay } from "../components/EarningsDisplay";
 import { StreamTimeline } from "../components/StreamTimeline";
+import { StreamCardSkeleton } from "../components/dashboard/StreamCardSkeleton";
+import { EarningsSkeleton } from "../components/dashboard/EarningsSkeleton";
+import { Skeleton } from "../components/Loading/Skeleton";
 
 const StreamCard: React.FC<{
   stream: WorkerStream;
@@ -280,9 +283,33 @@ const WorkerDashboard: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-24">
-        <Loader />
-      </div>
+      <Layout.Content>
+        <Layout.Inset>
+          <div className="mx-auto max-w-[1200px] px-8 py-8">
+            <header className="mb-8">
+              <Skeleton
+                variant="rect"
+                width="300px"
+                height="3rem"
+                className="rounded-lg"
+              />
+            </header>
+
+            <section className="mb-12">
+              <EarningsSkeleton />
+            </section>
+
+            <h2 className="mb-6">
+              <Skeleton variant="rect" width="200px" height="2rem" />
+            </h2>
+            <div className="mb-12 grid grid-cols-[repeat(auto-fill,minmax(350px,1fr))] gap-6 max-[768px]:grid-cols-1">
+              {[1, 2, 3].map((i) => (
+                <StreamCardSkeleton key={i} />
+              ))}
+            </div>
+          </div>
+        </Layout.Inset>
+      </Layout.Content>
     );
   }
 

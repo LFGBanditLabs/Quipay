@@ -1,5 +1,6 @@
 import { Text, Icon, Button } from "@stellar/design-system";
 import { TokenVaultData } from "../../contracts/payroll_vault";
+import { VaultBalanceSkeleton } from "./VaultBalanceSkeleton";
 
 interface SolvencyCardProps {
   vaultData: TokenVaultData[];
@@ -56,13 +57,10 @@ export default function SolvencyCard({
 
   if (isLoading) {
     return (
-      <div className="flex h-full min-h-[200px] items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--primary)] border-t-transparent" />
-          <Text as="p" size="sm" style={{ color: "var(--muted)" }}>
-            Loading vault data...
-          </Text>
-        </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {[1, 2].map((i) => (
+          <VaultBalanceSkeleton key={i} />
+        ))}
       </div>
     );
   }
