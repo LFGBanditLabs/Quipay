@@ -1,7 +1,7 @@
 #![no_std]
 use core::convert::TryFrom;
 use quipay_common::{QuipayError, require};
-use soroban_sdk::{Address, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype};
+use soroban_sdk::{Address, BytesN, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype};
 
 const MAX_BATCH_CREATE_STREAMS: u32 = 20;
 const MAX_STREAM_DURATION: u64 = 365 * 24 * 60 * 60; // 365 days in seconds
@@ -65,6 +65,7 @@ pub struct Stream {
     pub closed_at: u64,
     pub paused_at: u64,
     pub total_paused_duration: u64,
+    pub metadata_hash: Option<BytesN<32>>,
 }
 
 #[contracttype]
@@ -77,6 +78,7 @@ pub struct StreamParams {
     pub cliff_ts: u64,
     pub start_ts: u64,
     pub end_ts: u64,
+    pub metadata_hash: Option<BytesN<32>>,
 }
 
 #[contracttype]
@@ -271,6 +273,7 @@ impl PayrollStream {
         cliff_ts: u64,
         start_ts: u64,
         end_ts: u64,
+        metadata_hash: Option<BytesN<32>>,
     ) -> Result<u64, QuipayError> {
         Self::require_not_paused(&env)?;
         employer.require_auth();
@@ -285,6 +288,7 @@ impl PayrollStream {
             cliff_ts,
             start_ts,
             end_ts,
+            metadata_hash,
         )?;
 
         env.events().publish(
@@ -340,6 +344,7 @@ impl PayrollStream {
                 param.cliff_ts,
                 param.start_ts,
                 param.end_ts,
+                param.metadata_hash.clone(),
             )?;
 
             env.events().publish(
@@ -690,6 +695,7 @@ impl PayrollStream {
         cliff_ts: u64,
         start_ts: u64,
         end_ts: u64,
+        metadata_hash: Option<BytesN<32>>,
     ) -> Result<u64, QuipayError> {
         Self::require_not_paused(&env)?;
 
@@ -703,7 +709,7 @@ impl PayrollStream {
 
         // Call the internal create stream logic
         Self::create_stream_internal(
-            env, employer, worker, token, rate, cliff_ts, start_ts, end_ts,
+            env, employer, worker, token, rate, cliff_ts, start_ts, end_ts, metadata_hash,
         )
     }
 
@@ -802,6 +808,7 @@ impl PayrollStream {
         cliff_ts: u64,
         start_ts: u64,
         end_ts: u64,
+        metadata_hash: Option<BytesN<32>>,
     ) -> Result<u64, QuipayError> {
         if rate <= 0 {
             return Err(QuipayError::InvalidAmount);
@@ -886,6 +893,7 @@ impl PayrollStream {
             closed_at: 0,
             paused_at: 0,
             total_paused_duration: 0,
+            metadata_hash,
         };
 
         env.storage()
@@ -930,6 +938,17 @@ impl PayrollStream {
         env.storage()
             .persistent()
             .get(&StreamKey::Stream(stream_id))
+    }
+
+    /// Returns the optional metadata hash for a stream.
+    /// The hash references an off-chain record (e.g. IPFS CID or database key)
+    /// containing human-readable context such as description, department, and payment type.
+    pub fn get_stream_metadata(env: Env, stream_id: u64) -> Option<BytesN<32>> {
+        let stream: Stream = env
+            .storage()
+            .persistent()
+            .get(&StreamKey::Stream(stream_id))?;
+        stream.metadata_hash
     }
 
     pub fn get_withdrawable(env: Env, stream_id: u64) -> Option<i128> {
