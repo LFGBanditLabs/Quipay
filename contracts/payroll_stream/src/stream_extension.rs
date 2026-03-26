@@ -1,5 +1,6 @@
 use super::*;
 
+#[soroban_sdk::contractimpl]
 impl PayrollStream {
     pub fn extend_stream(
         env: Env,
@@ -79,9 +80,15 @@ impl PayrollStream {
         stream.end_ts = new_end_time;
 
         // Recalculate rate based on the total amount and the entire duration
-        let duration = stream.end_ts.checked_sub(stream.start_ts).ok_or(QuipayError::Overflow)?;
+        let duration = stream
+            .end_ts
+            .checked_sub(stream.start_ts)
+            .ok_or(QuipayError::Overflow)?;
         if duration > 0 {
-            stream.rate = stream.total_amount.checked_div(duration as i128).ok_or(QuipayError::Overflow)?;
+            stream.rate = stream
+                .total_amount
+                .checked_div(duration as i128)
+                .ok_or(QuipayError::Overflow)?;
         }
 
         // Save updated stream
