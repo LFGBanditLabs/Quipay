@@ -111,7 +111,7 @@
     "monthly_volume_desc": "Paie cumulée par mois",
     "total_in_period": "total sur la période"
   },
-"workforce": {
+  "workforce": {
     "title": "Registre des Effectifs",
     "subtitle": "Gérez vos travailleurs enregistrés et leurs flux de paiement",
     "add_worker": "Ajouter un Travailleur",

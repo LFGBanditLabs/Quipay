@@ -111,7 +111,7 @@
     "monthly_volume_desc": "كشوف الرواتب المجمعة شهرياً",
     "total_in_period": "الإجمالي في الفترة"
   },
-"workforce": {
+  "workforce": {
     "title": "سجل القوى العاملة",
     "subtitle": "إدارة العمال المسجلين وتدفقات مدفوعاتهم",
     "add_worker": "إضافة عامل",

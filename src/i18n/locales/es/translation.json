@@ -111,7 +111,7 @@
     "monthly_volume_desc": "Nómina agregada por mes",
     "total_in_period": "total en el período"
   },
-"workforce": {
+  "workforce": {
     "title": "Registro de Plantilla",
     "subtitle": "Gestione sus trabajadores registrados y sus flujos de pago",
     "add_worker": "Añadir Trabajador",
