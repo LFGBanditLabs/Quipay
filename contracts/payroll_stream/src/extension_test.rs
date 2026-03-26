@@ -92,7 +92,8 @@ fn test_extend_stream_rounds_rate_down_with_integer_division() {
         li.timestamp = 0;
     });
 
-    let stream_id = client.create_stream(&employer, &worker, &token, &334, &0u64, &0u64, &3u64, &None);
+    let stream_id =
+        client.create_stream(&employer, &worker, &token, &334, &0u64, &0u64, &3u64, &None);
     let stream = client.get_stream(&stream_id).unwrap();
 
     // 334 * 3 = 1002 total amount. Extending to 4s recomputes the rate as

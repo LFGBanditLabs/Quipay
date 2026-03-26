@@ -53,6 +53,7 @@ proptest! {
 
         client.init(&admin);
         client.set_vault(&vault_id);
+        client.set_cancellation_grace_period(&0u64); // disable grace period for prop tests
 
         let initial_time = 1_000_000_000u64;
         env.ledger().set_timestamp(initial_time);
@@ -340,6 +341,7 @@ fn construct_stream(
         paused_at: 0,
         total_paused_duration: 0,
         metadata_hash: None,
+        cancel_effective_at: 0,
     }
 }
 

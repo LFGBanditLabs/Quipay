@@ -123,10 +123,10 @@ fn test_cliff_ts_equals_start_ts() {
     let (client, employer, worker, token, _admin) = setup(&env);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
-    
+
     // Create stream with cliff_ts == start_ts
     let stream_id = client.create_stream(&employer, &worker, &token, &1, &10, &10, &100, &None);
-    
+
     let stream = client.get_stream(&stream_id).unwrap();
     // Should be normalized to effective_cliff = start_ts = 10
     assert_eq!(stream.cliff_ts, 10);

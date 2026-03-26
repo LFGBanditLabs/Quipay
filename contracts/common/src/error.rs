@@ -45,6 +45,7 @@ pub enum QuipayError {
     InsufficientSignatures = 1035,
     NoSigners = 1036,
     WithdrawalCooldown = 1037,
+    GracePeriodActive = 1038,
     Custom = 1999,
 }
 

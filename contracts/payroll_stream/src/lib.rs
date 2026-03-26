@@ -6,6 +6,7 @@ use soroban_sdk::{
 };
 
 const MAX_BATCH_CREATE_STREAMS: u32 = 20;
+const MAX_BATCH_CLAIM_STREAMS: u32 = 50; // max active streams processed in one batch_claim call
 const MAX_STREAM_DURATION: u64 = 365 * 24 * 60 * 60; // 365 days in seconds
 
 #[contracttype]
@@ -22,6 +23,7 @@ pub enum DataKey {
     EarlyCancelFeeBps,       // Basis points for early cancellation fee (max 1000 = 10%)
     WithdrawalCooldown,      // Minimum seconds a worker must wait between withdrawals
     LastWithdrawal(Address), // Timestamp of last successful withdrawal per worker
+    CancellationGracePeriod, // Seconds a stream keeps paying after cancel is requested
 }
 
 #[contracttype]
@@ -41,6 +43,7 @@ pub enum StreamStatus {
     Canceled = 1,
     Completed = 2,
     Paused = 3,
+    PendingCancel = 4,
 }
 
 #[contracttype]
@@ -70,6 +73,7 @@ pub struct Stream {
     pub paused_at: u64,
     pub total_paused_duration: u64,
     pub metadata_hash: Option<BytesN<32>>,
+    pub cancel_effective_at: u64, // 0 means no pending cancellation; >0 means grace period active
 }
 
 #[contracttype]
@@ -91,6 +95,24 @@ pub struct WithdrawResult {
     pub stream_id: u64,
     pub amount: i128,
     pub success: bool,
+}
+
+/// Per-stream breakdown emitted inside a BatchClaimed event and returned to callers.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct StreamClaimResult {
+    pub stream_id: u64,
+    pub token: Address,
+    pub amount: i128,
+}
+
+/// Return value of `batch_claim`: the per-stream breakdown and the total aggregated
+/// per-token payouts that were transferred in this transaction.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct BatchClaimResult {
+    pub streams: Vec<StreamClaimResult>,
+    pub total_claimed: i128, // sum across all tokens (informational)
 }
 
 #[contracttype]
@@ -119,6 +141,9 @@ const DEFAULT_RETENTION_SECS: u64 = 30 * 24 * 60 * 60;
 
 // Default withdrawal cooldown: 1 hour in seconds
 const DEFAULT_WITHDRAWAL_COOLDOWN: u64 = 60 * 60;
+
+// Default cancellation grace period: 7 days in seconds
+const DEFAULT_CANCELLATION_GRACE_PERIOD: u64 = 7 * 24 * 60 * 60;
 
 // Storage entries (persistent) are automatically archived after their TTL runs out
 // unless we explicitly extend TTL. Long-running streams can be left untouched for
@@ -231,6 +256,31 @@ impl PayrollStream {
             .instance()
             .get(&DataKey::WithdrawalCooldown)
             .unwrap_or(DEFAULT_WITHDRAWAL_COOLDOWN)
+    }
+
+    /// Set the cancellation grace period in seconds.
+    /// During this window the stream keeps paying before it fully stops.
+    /// A value of 0 disables the grace period (immediate cancellation). Only admin can call this.
+    pub fn set_cancellation_grace_period(env: Env, seconds: u64) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        env.storage()
+            .instance()
+            .set(&DataKey::CancellationGracePeriod, &seconds);
+        Ok(())
+    }
+
+    /// Get the currently configured cancellation grace period in seconds.
+    /// Returns the 7-day default when the admin has never configured it.
+    pub fn get_cancellation_grace_period(env: Env) -> u64 {
+        env.storage()
+            .instance()
+            .get(&DataKey::CancellationGracePeriod)
+            .unwrap_or(DEFAULT_CANCELLATION_GRACE_PERIOD)
     }
 
     pub fn set_vault(env: Env, vault: Address) -> Result<(), QuipayError> {
@@ -667,6 +717,221 @@ impl PayrollStream {
         Ok(results)
     }
 
+    /// Claim all available funds across **every active stream** belonging to `worker`
+    /// in a single transaction.
+    ///
+    /// Unlike `batch_withdraw` (which requires the caller to supply stream IDs),
+    /// `batch_claim` automatically discovers all streams indexed under the worker's
+    /// address, filters to those with a positive withdrawable balance, groups the
+    /// amounts by token, and issues **one vault payout call per distinct token**.
+    ///
+    /// ### Returns
+    /// A [`BatchClaimResult`] containing:
+    /// - `streams`: per-stream breakdown (stream_id, token, amount claimed).
+    /// - `total_claimed`: sum of all amounts across all tokens (informational).
+    ///
+    /// ### Limits
+    /// At most `MAX_BATCH_CLAIM_STREAMS` streams are processed per call. Workers
+    /// with more streams should use `batch_withdraw` with explicit IDs.
+    ///
+    /// ### Events
+    /// Emits a single `stream / batch_claimed` event carrying the worker address
+    /// and the per-stream breakdown, plus individual `stream / withdrawn` events
+    /// for each stream that had a positive balance (matching single-`withdraw`
+    /// semantics so downstream indexers don't need special-casing).
+    pub fn batch_claim(env: Env, worker: Address) -> Result<BatchClaimResult, QuipayError> {
+        Self::require_not_paused(&env)?;
+        worker.require_auth();
+
+        let now = env.ledger().timestamp();
+
+        // Enforce per-worker withdrawal cooldown across the whole batch.
+        let cooldown: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::WithdrawalCooldown)
+            .unwrap_or(DEFAULT_WITHDRAWAL_COOLDOWN);
+        if cooldown > 0 {
+            let last_ts: u64 = env
+                .storage()
+                .persistent()
+                .get(&DataKey::LastWithdrawal(worker.clone()))
+                .unwrap_or(0);
+            if now < last_ts.saturating_add(cooldown) {
+                return Err(QuipayError::WithdrawalCooldown);
+            }
+        }
+
+        let vault: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Vault)
+            .ok_or(QuipayError::NotInitialized)?;
+
+        // Load all stream IDs for this worker from the persistent index.
+        let all_ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&StreamKey::WorkerStreams(worker.clone()))
+            .unwrap_or_else(|| Vec::new(&env));
+
+        // ── Phase 1: scan streams, collect candidates ─────────────────────
+        // ── Phase 1: scan streams, collect candidates ─────────────────────
+        // Per-token totals are tracked with parallel vecs (token_keys / token_amounts)
+        // to stay no_std compatible without needing Map.
+        let mut stream_results: Vec<StreamClaimResult> = Vec::new(&env);
+        let mut token_keys: Vec<Address> = Vec::new(&env);
+        let mut token_amounts: Vec<i128> = Vec::new(&env);
+
+        // Mutable snapshots we'll write back in phase 2.
+        // store as (stream_id, updated_stream) pairs; we reuse the same ordering.
+        let mut payable_stream_ids: Vec<u64> = Vec::new(&env);
+        let mut payable_streams: Vec<Stream> = Vec::new(&env);
+        let mut payable_amounts: Vec<i128> = Vec::new(&env);
+
+        let mut total_claimed: i128 = 0i128;
+        let mut processed: u32 = 0;
+        let mut idx: u32 = 0;
+
+        while idx < all_ids.len() && processed < MAX_BATCH_CLAIM_STREAMS {
+            let Some(stream_id) = all_ids.get(idx) else {
+                idx += 1;
+                continue;
+            };
+            idx += 1;
+
+            let key = StreamKey::Stream(stream_id);
+            let Some(mut stream) = env.storage().persistent().get::<StreamKey, Stream>(&key) else {
+                processed += 1;
+                continue;
+            };
+
+            // Skip closed streams — they have nothing left to pay.
+            if Self::is_closed(&stream) {
+                processed += 1;
+                continue;
+            }
+
+            let vested = Self::vested_amount(&stream, now);
+            let available = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
+
+            if available <= 0 {
+                // Keep storage alive even with zero balance.
+                Self::bump_stream_storage_ttl(&env, stream_id, &worker);
+                processed += 1;
+                continue;
+            }
+
+            // Update the stream state immediately (withdrawn_amount, ts, status).
+            stream.withdrawn_amount = stream
+                .withdrawn_amount
+                .checked_add(available)
+                .ok_or(QuipayError::Overflow)?;
+            stream.last_withdrawal_ts = now;
+            if stream.withdrawn_amount >= stream.total_amount {
+                Self::close_stream_internal(&mut stream, now, StreamStatus::Completed);
+            }
+
+            // Accumulate per-token totals.
+            let mut found_token = false;
+            let mut tidx: u32 = 0;
+            while tidx < token_keys.len() {
+                if let (Some(k), Some(v)) = (token_keys.get(tidx), token_amounts.get(tidx)) {
+                    if k == stream.token {
+                        let new_total = v.checked_add(available).ok_or(QuipayError::Overflow)?;
+                        token_amounts.set(tidx, new_total);
+                        found_token = true;
+                        break;
+                    }
+                }
+                tidx += 1;
+            }
+            if !found_token {
+                token_keys.push_back(stream.token.clone());
+                token_amounts.push_back(available);
+            }
+
+            total_claimed = total_claimed
+                .checked_add(available)
+                .ok_or(QuipayError::Overflow)?;
+
+            stream_results.push_back(StreamClaimResult {
+                stream_id,
+                token: stream.token.clone(),
+                amount: available,
+            });
+
+            payable_stream_ids.push_back(stream_id);
+            payable_streams.push_back(stream);
+            payable_amounts.push_back(available);
+
+            processed += 1;
+        }
+
+        // Nothing to pay — return early without touching vault or storage.
+        if total_claimed == 0 {
+            return Ok(BatchClaimResult {
+                streams: stream_results,
+                total_claimed: 0,
+            });
+        }
+
+        // ── Phase 2: issue one vault payout per token ─────────────────────
+        let mut tidx: u32 = 0;
+        while tidx < token_keys.len() {
+            if let (Some(token), Some(amount)) = (token_keys.get(tidx), token_amounts.get(tidx)) {
+                Self::call_vault_payout(&env, &vault, worker.clone(), token, amount);
+            }
+            tidx += 1;
+        }
+
+        // ── Phase 3: persist updated stream states ────────────────────────
+        let mut sidx: u32 = 0;
+        while sidx < payable_stream_ids.len() {
+            if let (Some(stream_id), Some(stream), Some(amount)) = (
+                payable_stream_ids.get(sidx),
+                payable_streams.get(sidx),
+                payable_amounts.get(sidx),
+            ) {
+                let key = StreamKey::Stream(stream_id);
+                env.storage().persistent().set(&key, &stream);
+                Self::bump_stream_storage_ttl(&env, stream_id, &worker);
+
+                // Per-stream withdrawn event (mirrors single withdraw — indexers see it).
+                env.events().publish(
+                    (
+                        Symbol::new(&env, "stream"),
+                        Symbol::new(&env, "withdrawn"),
+                        stream_id,
+                        worker.clone(),
+                    ),
+                    (amount, stream.token.clone()),
+                );
+            }
+            sidx += 1;
+        }
+
+        // Record cooldown timestamp once for the whole batch.
+        env.storage()
+            .persistent()
+            .set(&DataKey::LastWithdrawal(worker.clone()), &now);
+
+        // ── Single BatchClaimed event with full breakdown ──────────────────
+        env.events().publish(
+            (
+                Symbol::new(&env, "stream"),
+                Symbol::new(&env, "batch_claimed"),
+                worker.clone(),
+            ),
+            (total_claimed, stream_results.clone()),
+        );
+
+        Ok(BatchClaimResult {
+            streams: stream_results,
+            total_claimed,
+        })
+    }
+
     pub fn cancel_stream(
         env: Env,
         stream_id: u64,
@@ -713,8 +978,93 @@ impl PayrollStream {
 
         let now = env.ledger().timestamp();
 
-        // Calculate accrued (vested) amount up to now
-        let vested = Self::vested_amount(&stream, now);
+        // If already pending cancel → idempotent
+        if stream.status == StreamStatus::PendingCancel {
+            return Ok(());
+        }
+
+        // // If a grace period is already pending and hasn't expired yet, nothing to do.
+        // if stream.cancel_effective_at > 0 && now < stream.cancel_effective_at {
+        //     return Err(QuipayError::GracePeriodActive);
+        // }
+
+        // If the grace period has already elapsed, finalize the cancellation now.
+        if stream.cancel_effective_at > 0 && now >= stream.cancel_effective_at {
+            return Self::finalize_cancel(&env, stream_id, &key, &mut stream, now);
+        }
+
+        // ── First call: set the grace period ────────────────────────────────
+        let grace: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::CancellationGracePeriod)
+            .unwrap_or(DEFAULT_CANCELLATION_GRACE_PERIOD);
+
+        if grace == 0 {
+            // Grace period disabled — cancel immediately.
+            return Self::finalize_cancel(&env, stream_id, &key, &mut stream, now);
+        }
+
+        stream.cancel_effective_at = now.saturating_add(grace);
+        stream.status = StreamStatus::PendingCancel;
+        env.storage().persistent().set(&key, &stream);
+
+        env.events().publish(
+            (
+                soroban_sdk::Symbol::new(&env, "stream"),
+                soroban_sdk::Symbol::new(&env, "cancel_scheduled"),
+                stream_id,
+                caller.clone(),
+            ),
+            (stream.worker.clone(), stream.cancel_effective_at),
+        );
+
+        Ok(())
+    }
+
+    /// Force-cancel a stream immediately, bypassing the grace period.
+    /// Only the admin can call this function.
+    pub fn force_cancel_stream(env: Env, stream_id: u64) -> Result<(), QuipayError> {
+        Self::require_not_paused(&env)?;
+
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+
+        let key = StreamKey::Stream(stream_id);
+        let mut stream: Stream = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .ok_or(QuipayError::StreamNotFound)?;
+
+        if Self::is_closed(&stream) {
+            return Ok(());
+        }
+
+        let now = env.ledger().timestamp();
+        Self::finalize_cancel(&env, stream_id, &key, &mut stream, now)
+    }
+
+    /// Internal helper: pay accrued amount, remove remaining liability, and mark stream Canceled.
+    fn finalize_cancel(
+        env: &Env,
+        stream_id: u64,
+        key: &StreamKey,
+        stream: &mut Stream,
+        now: u64,
+    ) -> Result<(), QuipayError> {
+        // Use cancel_effective_at as the vesting ceiling when in grace period.
+        let vesting_cap = if stream.cancel_effective_at > 0 {
+            core::cmp::min(now, stream.cancel_effective_at)
+        } else {
+            now
+        };
+
+        let vested = Self::vested_amount_at(stream, vesting_cap);
         let owed = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
 
         let vault: Address = env
@@ -723,10 +1073,9 @@ impl PayrollStream {
             .get(&DataKey::Vault)
             .ok_or(QuipayError::NotInitialized)?;
 
-        // Pay out owed amount to worker
         if owed > 0 {
             Self::call_vault_payout(
-                &env,
+                env,
                 &vault,
                 stream.worker.clone(),
                 stream.token.clone(),
@@ -744,22 +1093,19 @@ impl PayrollStream {
             .checked_sub(stream.withdrawn_amount)
             .ok_or(QuipayError::Overflow)?;
 
-        // Calculate and charge early cancellation fee
-        let cancel_fee = Self::calculate_early_cancel_fee(&env, remaining_liability);
+        let cancel_fee = Self::calculate_early_cancel_fee(env, remaining_liability);
 
         if remaining_liability > 0 {
-            // Remove remaining liability from vault
             Self::call_vault_remove_liability(
-                &env,
+                env,
                 &vault,
                 stream.token.clone(),
                 remaining_liability,
             );
 
-            // If there's a cancellation fee, pay it to worker
             if cancel_fee > 0 {
                 Self::call_vault_payout(
-                    &env,
+                    env,
                     &vault,
                     stream.worker.clone(),
                     stream.token.clone(),
@@ -768,18 +1114,21 @@ impl PayrollStream {
             }
         }
 
-        Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
-        env.storage().persistent().set(&key, &stream);
+        Self::close_stream_internal(stream, now, StreamStatus::Canceled);
+        env.storage().persistent().set(key, stream);
 
         env.events().publish(
             (
-                soroban_sdk::Symbol::new(&env, "stream"),
-                soroban_sdk::Symbol::new(&env, "canceled"),
+                soroban_sdk::Symbol::new(env, "stream"),
+                soroban_sdk::Symbol::new(env, "canceled"),
                 stream_id,
-                caller.clone(),
+                stream.employer.clone(),
             ),
             (stream.worker.clone(), stream.token.clone()),
         );
+
+        stream.status = StreamStatus::Canceled;
+        stream.closed_at = now;
 
         Ok(())
     }
@@ -872,70 +1221,37 @@ impl PayrollStream {
 
         let now = env.ledger().timestamp();
 
-        let vested = Self::vested_amount(&stream, now);
-        let owed = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
+        // If a grace period is already active, reject duplicate request.
+        if stream.cancel_effective_at > 0 && now < stream.cancel_effective_at {
+            return Err(QuipayError::GracePeriodActive);
+        }
 
-        let vault: Address = env
+        // If the grace period has elapsed, finalize now.
+        if stream.cancel_effective_at > 0 && now >= stream.cancel_effective_at {
+            return Self::finalize_cancel(&env, stream_id, &key, &mut stream, now);
+        }
+
+        let grace: u64 = env
             .storage()
             .instance()
-            .get(&DataKey::Vault)
-            .ok_or(QuipayError::NotInitialized)?;
+            .get(&DataKey::CancellationGracePeriod)
+            .unwrap_or(DEFAULT_CANCELLATION_GRACE_PERIOD);
 
-        if owed > 0 {
-            Self::call_vault_payout(
-                &env,
-                &vault,
-                stream.worker.clone(),
-                stream.token.clone(),
-                owed,
-            );
-            stream.withdrawn_amount = stream
-                .withdrawn_amount
-                .checked_add(owed)
-                .ok_or(QuipayError::Custom)?;
-            stream.last_withdrawal_ts = now;
+        if grace == 0 {
+            return Self::finalize_cancel(&env, stream_id, &key, &mut stream, now);
         }
 
-        let remaining_liability = stream
-            .total_amount
-            .checked_sub(stream.withdrawn_amount)
-            .ok_or(QuipayError::Custom)?;
-
-        // Calculate and charge early cancellation fee
-        let cancel_fee = Self::calculate_early_cancel_fee(&env, remaining_liability);
-
-        if remaining_liability > 0 {
-            // Remove remaining liability from vault
-            Self::call_vault_remove_liability(
-                &env,
-                &vault,
-                stream.token.clone(),
-                remaining_liability,
-            );
-
-            // If there's a cancellation fee, pay it to worker
-            if cancel_fee > 0 {
-                Self::call_vault_payout(
-                    &env,
-                    &vault,
-                    stream.worker.clone(),
-                    stream.token.clone(),
-                    cancel_fee,
-                );
-            }
-        }
-
-        Self::close_stream_internal(&mut stream, now, StreamStatus::Canceled);
+        stream.cancel_effective_at = now.saturating_add(grace);
         env.storage().persistent().set(&key, &stream);
 
         env.events().publish(
             (
                 Symbol::new(&env, "stream"),
-                Symbol::new(&env, "canceled_via_gateway"),
+                Symbol::new(&env, "cancel_scheduled_via_gateway"),
                 stream_id,
                 employer.clone(),
             ),
-            (stream.worker.clone(), stream.token.clone()),
+            (stream.worker.clone(), stream.cancel_effective_at),
         );
 
         Ok(())
@@ -964,7 +1280,11 @@ impl PayrollStream {
             return Err(QuipayError::InvalidTimeRange);
         }
 
-        let effective_cliff = if cliff_ts <= start_ts { start_ts } else { cliff_ts };
+        let effective_cliff = if cliff_ts <= start_ts {
+            start_ts
+        } else {
+            cliff_ts
+        };
         if effective_cliff > end_ts {
             return Err(QuipayError::InvalidCliff);
         }
@@ -1037,6 +1357,7 @@ impl PayrollStream {
             paused_at: 0,
             total_paused_duration: 0,
             metadata_hash,
+            cancel_effective_at: 0,
         };
 
         env.storage()
@@ -1566,6 +1887,11 @@ impl PayrollStream {
             effective_ts = core::cmp::min(effective_ts, stream.paused_at);
         }
 
+        // Cap vesting at cancel_effective_at when a grace period is pending
+        if !is_closed && stream.cancel_effective_at > 0 {
+            effective_ts = core::cmp::min(effective_ts, stream.cancel_effective_at);
+        }
+
         // Subtract total paused duration from the elapsed time
         let mut elapsed_reduction = stream.total_paused_duration;
 
@@ -1613,6 +1939,12 @@ mod pause_test;
 mod stream_extension;
 mod stream_pause;
 mod test;
+
+#[cfg(test)]
+mod batch_claim_test;
+
+#[cfg(test)]
+mod cancel_grace_test;
 
 #[cfg(test)]
 mod integration_test;

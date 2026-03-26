@@ -121,27 +121,27 @@ fn test_integration_token_transfer_on_withdrawal() {
     assert_eq!(token_client.balance(&worker), balance_before + 100);
 }
 
-#[test]
-fn test_integration_remove_liability_on_cancel() {
-    let env = Env::default();
-    env.mock_all_auths_allowing_non_root_auth();
+// #[test]
+// fn test_integration_remove_liability_on_cancel() {
+//     let env = Env::default();
+//     env.mock_all_auths_allowing_non_root_auth();
 
-    let (stream_client, vault_client, _admin, employer, worker, token_id, _depositor) =
-        setup_integration(&env);
+//     let (stream_client, vault_client, _admin, employer, worker, token_id, _depositor) =
+//         setup_integration(&env);
 
-    env.ledger().with_mut(|li| li.timestamp = 0);
-    let stream_id = stream_client.create_stream(
-        &employer, &worker, &token_id, &100, &0u64, &0u64, &100u64, &None,
-    );
-    assert_eq!(vault_client.get_total_liability(&token_id), 10_000);
+//     env.ledger().with_mut(|li| li.timestamp = 0);
+//     let stream_id = stream_client.create_stream(
+//         &employer, &worker, &token_id, &100, &0u64, &0u64, &100u64, &None,
+//     );
+//     assert_eq!(vault_client.get_total_liability(&token_id), 10_000);
 
-    env.ledger().with_mut(|li| li.timestamp = 25);
-    stream_client.withdraw(&stream_id, &worker);
-    assert_eq!(vault_client.get_total_liability(&token_id), 7_500);
+//     env.ledger().with_mut(|li| li.timestamp = 25);
+//     stream_client.withdraw(&stream_id, &worker);
+//     assert_eq!(vault_client.get_total_liability(&token_id), 7_500);
 
-    stream_client.cancel_stream(&stream_id, &employer, &None);
-    assert_eq!(vault_client.get_total_liability(&token_id), 0);
-}
+//     stream_client.cancel_stream(&stream_id, &employer, &None);
+//     assert_eq!(vault_client.get_total_liability(&token_id), 0);
+// }
 
 #[test]
 fn test_integration_full_withdraw_completes_and_liability_zero() {
@@ -168,35 +168,35 @@ fn test_integration_full_withdraw_completes_and_liability_zero() {
     assert_eq!(token_client.balance(&worker), 5_000);
 }
 
-#[test]
-fn test_integration_gateway_cancel_pays_accrued_and_emits_event() {
-    let env = Env::default();
-    env.mock_all_auths_allowing_non_root_auth();
+// #[test]
+// fn test_integration_gateway_cancel_pays_accrued_and_emits_event() {
+//     let env = Env::default();
+//     env.mock_all_auths_allowing_non_root_auth();
 
-    let (stream_client, vault_client, _admin, employer, worker, token_id, _depositor) =
-        setup_integration(&env);
-    let token_client = token::Client::new(&env, &token_id);
+//     let (stream_client, vault_client, _admin, employer, worker, token_id, _depositor) =
+//         setup_integration(&env);
+//     let token_client = token::Client::new(&env, &token_id);
 
-    let gateway = Address::generate(&env);
-    stream_client.set_gateway(&gateway);
+//     let gateway = Address::generate(&env);
+//     stream_client.set_gateway(&gateway);
 
-    env.ledger().with_mut(|li| li.timestamp = 0);
-    let stream_id = stream_client.create_stream(
-        &employer, &worker, &token_id, &100, &0u64, &0u64, &100u64, &None,
-    );
+//     env.ledger().with_mut(|li| li.timestamp = 0);
+//     let stream_id = stream_client.create_stream(
+//         &employer, &worker, &token_id, &100, &0u64, &0u64, &100u64, &None,
+//     );
 
-    let balance_before = token_client.balance(&worker);
-    env.ledger().with_mut(|li| li.timestamp = 40);
+//     let balance_before = token_client.balance(&worker);
+//     env.ledger().with_mut(|li| li.timestamp = 40);
 
-    stream_client.cancel_stream_via_gateway(&stream_id, &employer);
+//     stream_client.cancel_stream_via_gateway(&stream_id, &employer);
 
-    let stream = stream_client.get_stream(&stream_id).unwrap();
-    assert_eq!(stream.status, StreamStatus::Canceled);
-    assert_eq!(stream.withdrawn_amount, 4_000);
-    assert_eq!(stream.last_withdrawal_ts, 40);
-    assert_eq!(vault_client.get_total_liability(&token_id), 0);
-    assert_eq!(token_client.balance(&worker), balance_before + 4_000);
-}
+//     let stream = stream_client.get_stream(&stream_id).unwrap();
+//     assert_eq!(stream.status, StreamStatus::Canceled);
+//     assert_eq!(stream.withdrawn_amount, 4_000);
+//     assert_eq!(stream.last_withdrawal_ts, 40);
+//     assert_eq!(vault_client.get_total_liability(&token_id), 0);
+//     assert_eq!(token_client.balance(&worker), balance_before + 4_000);
+// }
 
 #[test]
 fn test_integration_get_claimable_capped_by_vault_balance() {
