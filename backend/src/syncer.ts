@@ -9,6 +9,7 @@ import {
   getStreamById,
 } from "./db/queries";
 import { enqueueJob } from "./queue/asyncQueue";
+import { serviceLogger } from "./audit/serviceLogger";
 import { generateAndStoreProof } from "./services/proofService";
 
 const SOROBAN_RPC_URL =
@@ -146,8 +147,11 @@ const ingestEvents = async (events: rpc.Api.EventResponse[]): Promise<void> => {
         }
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[Syncer] Failed to ingest event ${event.id}: ${msg}`);
+      await serviceLogger.error("Syncer", "Failed to ingest event", err, {
+        event_type: parsed.kind,
+        ledger_number: event.ledger,
+        event_id: event.id,
+      });
     }
   }
 };
@@ -211,9 +215,15 @@ const runSync = async (): Promise<number> => {
         } catch (err: unknown) {
           // If enqueueJob fails after all retries (and goes to DLQ), we still advance the cursor
           // so the syncer isn't permanently stuck on a bad ledger batch.
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error(
-            `[Syncer] Persistent error fetching events at ledger ${cursor}. Batch sent to DLQ. Skipping ahead. ${msg}`,
+          await serviceLogger.error(
+            "Syncer",
+            "Persistent error fetching events. Batch sent to DLQ and cursor advanced",
+            err,
+            {
+              event_type: "ledger_sync_batch",
+              ledger_number: cursor,
+              batch_size: BATCH_SIZE,
+            },
           );
           cursor += BATCH_SIZE; // Skip this batch to prevent halting the entire pipeline
         }
@@ -222,9 +232,16 @@ const runSync = async (): Promise<number> => {
       await updateSyncCursor(CONTRACT_ID || "default", latestLedger);
 
       if (totalIngested > 0) {
-        console.log(
-          `[Syncer] ✅ Ingested ${totalIngested} events up to ledger ${latestLedger}`,
-        );
+        await serviceLogger.info("Syncer", "Ingested events batch", {
+          event_type: "sync_cycle_summary",
+          ledger_number: latestLedger,
+          total_ingested: totalIngested,
+        });
+      } else {
+        await serviceLogger.info("Syncer", "No new events to ingest", {
+          event_type: "sync_cycle_summary",
+          ledger_number: latestLedger,
+        });
       }
     },
     "event-syncer",
@@ -237,18 +254,35 @@ const runSync = async (): Promise<number> => {
 
 export const startSyncer = async (): Promise<void> => {
   if (!getPool()) {
-    console.warn("[Syncer] ⚠️  Database not configured — syncer disabled.");
+    await serviceLogger.warn(
+      "Syncer",
+      "Database not configured — syncer disabled",
+      {
+        event_type: "syncer_startup",
+        ledger_number: null,
+      },
+    );
     return;
   }
 
-  console.log("[Syncer] 🔄 Starting historical backfill…");
+  await serviceLogger.info("Syncer", "Starting historical backfill", {
+    event_type: "syncer_startup",
+    ledger_number: null,
+  });
 
   const poll = async () => {
     try {
       await runSync();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[Syncer] Unhandled error in sync cycle: ${msg}`);
+      await serviceLogger.error(
+        "Syncer",
+        "Unhandled error in sync cycle",
+        err,
+        {
+          event_type: "sync_cycle_error",
+          ledger_number: null,
+        },
+      );
     }
     setTimeout(poll, POLL_INTERVAL_MS);
   };

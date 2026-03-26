@@ -120,6 +120,17 @@ CREATE TABLE IF NOT EXISTS treasury_monitor_log (
 CREATE INDEX IF NOT EXISTS idx_monitor_log_employer ON treasury_monitor_log (employer);
 CREATE INDEX IF NOT EXISTS idx_monitor_log_created  ON treasury_monitor_log (created_at DESC);
 
+-- Raw Prometheus metric snapshots (short-lived operational forensics data)
+CREATE TABLE IF NOT EXISTS metric_snapshots (
+    id              BIGSERIAL   PRIMARY KEY,
+    captured_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    metrics_text    TEXT        NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_metric_snapshots_captured_at ON metric_snapshots (captured_at DESC);
+CREATE INDEX IF NOT EXISTS idx_metric_snapshots_created_at  ON metric_snapshots (created_at DESC);
+
 -- Audit logs for comprehensive action tracking
 CREATE TABLE IF NOT EXISTS audit_logs (
     id              BIGSERIAL   PRIMARY KEY,
@@ -223,3 +234,18 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_action_created ON audit_logs (action_t
 
 -- Hash index for exact status matches (faster than B-Tree for equality)
 CREATE INDEX IF NOT EXISTS idx_vault_address_hash ON vault_events USING HASH (address);
+
+-- Worker notification delivery preferences
+CREATE TABLE IF NOT EXISTS worker_notification_settings (
+    worker              TEXT        PRIMARY KEY,
+    email_enabled       BOOLEAN     NOT NULL DEFAULT true,
+    in_app_enabled      BOOLEAN     NOT NULL DEFAULT true,
+    cliff_unlock_alerts BOOLEAN     NOT NULL DEFAULT true,
+    stream_ending_alerts BOOLEAN    NOT NULL DEFAULT true,
+    low_runway_alerts   BOOLEAN     NOT NULL DEFAULT true,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_worker_notification_settings_updated
+    ON worker_notification_settings (updated_at DESC);

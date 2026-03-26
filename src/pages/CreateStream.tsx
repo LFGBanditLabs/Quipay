@@ -5,6 +5,7 @@ import Wizard from "../components/Wizard";
 import { useNotification } from "../hooks/useNotification";
 import Tooltip from "../components/Tooltip";
 import CollapsibleSection from "../components/CollapsibleSection";
+import { useStreamTemplates } from "../hooks/useStreamTemplates";
 
 const CreateStream: React.FC = () => {
   const tw = {
@@ -23,6 +24,10 @@ const CreateStream: React.FC = () => {
 
   const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const { templates, addTemplate } = useStreamTemplates();
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
   const [formData, setFormData] = useState({
     workerAddress: "",
     workerName: "",
@@ -41,11 +46,96 @@ const CreateStream: React.FC = () => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const loadTemplate = (templateId: string) => {
+    const template = templates.find((t) => t.id === templateId);
+    if (template) {
+      const startDate = new Date().toISOString().split("T")[0];
+      const endDate = new Date(
+        Date.now() + template.duration * 24 * 60 * 60 * 1000,
+      )
+        .toISOString()
+        .split("T")[0];
+      const cliffDate =
+        template.enableCliff && template.cliffDuration
+          ? new Date(Date.now() + template.cliffDuration * 24 * 60 * 60 * 1000)
+              .toISOString()
+              .split("T")[0]
+          : "";
+      setFormData({
+        ...formData,
+        amount: template.amount,
+        token: template.token,
+        frequency: template.frequency,
+        startDate,
+        endDate,
+        advancedOptions: {
+          enableCliff: template.enableCliff,
+          cliffDate,
+        },
+      });
+      setSelectedTemplateId(templateId);
+      addNotification(`Loaded template: ${template.name}`, "success");
+    }
+  };
+
+  const handleSaveAsTemplate = () => {
+    if (!templateName.trim()) {
+      addNotification("Please enter a template name", "error");
+      return;
+    }
+    const startDate = new Date(formData.startDate || Date.now());
+    const endDate = new Date(formData.endDate || Date.now());
+    const duration = Math.ceil(
+      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    const cliffStartDate = formData.advancedOptions.cliffDate
+      ? new Date(formData.advancedOptions.cliffDate)
+      : null;
+    const cliffDuration = cliffStartDate
+      ? Math.ceil(
+          (cliffStartDate.getTime() - startDate.getTime()) /
+            (1000 * 60 * 60 * 24),
+        )
+      : undefined;
+    addTemplate({
+      name: templateName.trim(),
+      token: formData.token,
+      amount: formData.amount,
+      frequency: formData.frequency,
+      duration: duration > 0 ? duration : 30,
+      enableCliff: formData.advancedOptions.enableCliff,
+      cliffDuration,
+    });
+    setTemplateName("");
+    setShowSaveAsTemplate(false);
+    addNotification("Template saved successfully!", "success");
+  };
+
   const steps = [
     {
       title: "Recipient",
       component: (
         <div>
+          {templates.length > 0 && (
+            <div className={tw.formGroup}>
+              <label className={tw.label}>
+                Load Template
+                <Tooltip content="Pre-fill form with a saved payroll template" />
+              </label>
+              <select
+                className={tw.select}
+                value={selectedTemplateId}
+                onChange={(e) => loadTemplate(e.target.value)}
+              >
+                <option value="">Select a template...</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.token}, {t.frequency})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className={tw.formGroup}>
             <label className={tw.label}>
               Worker Name
@@ -217,6 +307,35 @@ const CreateStream: React.FC = () => {
               </span>
             </div>
           )}
+          <div className={tw.reviewItem}>
+            <span className={tw.reviewLabel}>Save as Template?</span>
+            <span className={tw.reviewValue}>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={showSaveAsTemplate}
+                  onChange={(e) => setShowSaveAsTemplate(e.target.checked)}
+                />
+                <span className="text-sm">
+                  Save these settings as a reusable template
+                </span>
+              </label>
+            </span>
+          </div>
+          {showSaveAsTemplate && (
+            <div className={tw.reviewItem}>
+              <span className={tw.reviewLabel}>Template Name</span>
+              <span className={tw.reviewValue}>
+                <input
+                  type="text"
+                  className={tw.input}
+                  placeholder="e.g. Monthly USDC Payroll"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                />
+              </span>
+            </div>
+          )}
         </div>
       ),
     },
@@ -225,6 +344,9 @@ const CreateStream: React.FC = () => {
   const handleComplete = () => {
     // In a real app, this would call the smart contract
     console.log("Creating stream with data:", formData);
+    if (showSaveAsTemplate && templateName.trim()) {
+      handleSaveAsTemplate();
+    }
     addNotification("Payment stream created successfully!", "success");
     void navigate("/dashboard");
   };

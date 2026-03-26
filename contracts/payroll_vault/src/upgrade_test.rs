@@ -2,14 +2,14 @@
 
 use super::*;
 use quipay_common::QuipayError;
-use soroban_sdk::{Address, Env, testutils::Address as _};
+use soroban_sdk::{testutils::Address as _, Address, Env};
 
 // Version 2 contract for testing upgrades
 // This simulates a new contract version with additional functionality
 pub mod v2_contract {
-    use quipay_common::{QuipayError, require_positive_amount};
+    use quipay_common::{require_positive_amount, QuipayError};
     use soroban_sdk::{
-        Address, BytesN, Env, Symbol, contract, contractimpl, contracttype, symbol_short, token,
+        contract, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env, Symbol,
     };
 
     #[contracttype]
