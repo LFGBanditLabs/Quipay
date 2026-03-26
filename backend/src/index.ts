@@ -33,6 +33,7 @@ import { getPool } from "./db/pool";
 import Redis from "ioredis";
 import { rpc } from "@stellar/stellar-sdk";
 import { secretsBootstrap } from "./services/secretsBootstrap";
+import { requestIdMiddleware } from "./middleware/requestId";
 import { requireMonitorStatusAdminToken } from "./middleware/monitorStatusAuth";
 import { getHealthResponse } from "./health";
 
@@ -59,6 +60,9 @@ app.use(
     },
   }),
 ); // For Slack form data
+
+// Add X-Request-ID generation/forwarding via AsyncLocalStorage
+app.use(requestIdMiddleware);
 
 // Initialize database and audit logger
 async function initializeServices() {
