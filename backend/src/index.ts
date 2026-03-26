@@ -16,6 +16,10 @@ import { startStellarListener } from "./stellarListener";
 import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
 import { startMonitor, runMonitorCycle } from "./monitor/monitor";
 import { startPayrollReportScheduler } from "./scheduler/reportScheduler";
+import {
+  initWebSocketServer,
+  shutdownWebSocketServer,
+} from "./websocket/server";
 import { NonceManager } from "./services/nonceManager";
 import { initAuditLogger, getAuditLogger } from "./audit/init";
 import {
@@ -29,6 +33,7 @@ import { getPool } from "./db/pool";
 import Redis from "ioredis";
 import { rpc } from "@stellar/stellar-sdk";
 import { secretsBootstrap } from "./services/secretsBootstrap";
+import { requestIdMiddleware } from "./middleware/requestId";
 import { requireMonitorStatusAdminToken } from "./middleware/monitorStatusAuth";
 import { getHealthResponse } from "./health";
 
@@ -55,6 +60,9 @@ app.use(
     },
   }),
 ); // For Slack form data
+
+// Add X-Request-ID generation/forwarding via AsyncLocalStorage
+app.use(requestIdMiddleware);
 
 // Initialize database and audit logger
 async function initializeServices() {
@@ -277,6 +285,9 @@ async function main() {
       );
     });
 
+    // Initialize WebSocket server
+    initWebSocketServer(server);
+
     // Start background services after server is listening
     startStellarListener();
     startScheduler();
@@ -324,14 +335,17 @@ async function main() {
       console.log("[Backend] SIGTERM received. Shutting down gracefully...");
       server.close(() => {
         console.log("[Backend] HTTP server closed");
-        if (auditLogger) {
-          auditLogger.shutdown().then(() => {
-            console.log("[Backend] Audit logger closed");
+        shutdownWebSocketServer().then(() => {
+          console.log("[Backend] WebSocket server closed");
+          if (auditLogger) {
+            auditLogger.shutdown().then(() => {
+              console.log("[Backend] Audit logger closed");
+              process.exit(0);
+            });
+          } else {
             process.exit(0);
-          });
-        } else {
-          process.exit(0);
-        }
+          }
+        });
       });
     });
   } catch (err) {
