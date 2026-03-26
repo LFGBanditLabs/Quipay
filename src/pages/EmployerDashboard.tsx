@@ -46,6 +46,74 @@ const EmployerDashboard: React.FC = () => {
   const [streamToCancel, setStreamToCancel] = React.useState<Stream | null>(
     null,
   );
+  const [startedAtMs, setStartedAtMs] = React.useState<number | null>(null);
+  const [secondsElapsed, setSecondsElapsed] = React.useState<number>(0);
+
+  React.useEffect(() => {
+    setStartedAtMs(Date.now());
+    const interval = window.setInterval(() => {
+      setSecondsElapsed((prev) => prev + 1);
+    }, 1000);
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  const initialTreasuryBalance = React.useMemo(
+    () =>
+      treasuryBalances.reduce((sum, balance) => {
+        const value = Number(balance.balance);
+        return Number.isFinite(value) ? sum + value : sum;
+      }, 0),
+    [treasuryBalances],
+  );
+
+  const burnPerSecond = React.useMemo(
+    () =>
+      activeStreams.reduce((sum, stream) => {
+        const flowRate = Number(stream.flowRate);
+        return Number.isFinite(flowRate) ? sum + flowRate : sum;
+      }, 0),
+    [activeStreams],
+  );
+
+  const dailyBurnRate = burnPerSecond * 86400;
+  const remainingTreasuryBalance = Math.max(
+    0,
+    initialTreasuryBalance - burnPerSecond * secondsElapsed,
+  );
+  const runwayDays =
+    dailyBurnRate > 0 ? remainingTreasuryBalance / dailyBurnRate : Infinity;
+  const currentTimeMs =
+    startedAtMs !== null ? startedAtMs + secondsElapsed * 1000 : null;
+  const depletionDate =
+    currentTimeMs !== null && Number.isFinite(runwayDays) && runwayDays > 0
+      ? new Date(currentTimeMs + runwayDays * 24 * 60 * 60 * 1000)
+      : null;
+  const runwayStatus =
+    !Number.isFinite(runwayDays) || runwayDays > 90
+      ? "healthy"
+      : runwayDays >= 30
+        ? "warning"
+        : "critical";
+  const runwayStatusStyle =
+    runwayStatus === "healthy"
+      ? {
+          border: "1px solid rgba(34, 197, 94, 0.35)",
+          background: "rgba(34, 197, 94, 0.1)",
+          color: "rgb(21, 128, 61)",
+        }
+      : runwayStatus === "warning"
+        ? {
+            border: "1px solid rgba(245, 158, 11, 0.35)",
+            background: "rgba(245, 158, 11, 0.12)",
+            color: "rgb(180, 83, 9)",
+          }
+        : {
+            border: "1px solid rgba(239, 68, 68, 0.35)",
+            background: "rgba(239, 68, 68, 0.12)",
+            color: "rgb(185, 28, 28)",
+          };
 
   const handleConfirmCancel = async () => {
     if (!streamToCancel || !address) return;
@@ -93,6 +161,7 @@ const EmployerDashboard: React.FC = () => {
               <SkeletonCard lines={3} />
               <SkeletonCard lines={2} />
               <SkeletonCard lines={2} />
+              <SkeletonCard lines={3} />
             </div>
             <div className={tw.streamsSection}>
               <div className={tw.streamsHeader}>
@@ -303,6 +372,63 @@ const EmployerDashboard: React.FC = () => {
             <Text as="div" size="lg" className={tw.metricValue}>
               {activeStreamsCount}
             </Text>
+          </div>
+
+          {/* Runway Calculator */}
+          <div className={tw.card}>
+            <Text
+              as="span"
+              size="md"
+              weight="semi-bold"
+              className={tw.cardHeader}
+            >
+              {t("dashboard.runway_calculator")}
+            </Text>
+            <div
+              style={{
+                ...runwayStatusStyle,
+                borderRadius: "10px",
+                padding: "10px 12px",
+                marginBottom: "12px",
+              }}
+            >
+              <Text as="p" size="xs">
+                {t(`dashboard.runway_status_${runwayStatus}`)}
+              </Text>
+              <Text as="p" size="lg" weight="semi-bold">
+                {Number.isFinite(runwayDays)
+                  ? t("dashboard.days_remaining", {
+                      days: Math.max(0, Math.floor(runwayDays)),
+                    })
+                  : t("dashboard.runway_unlimited")}
+              </Text>
+            </div>
+            <Text as="p" size="sm" style={{ color: "var(--muted)" }}>
+              {t("dashboard.daily_burn_rate")}: {dailyBurnRate.toFixed(4)}
+            </Text>
+            <Text as="p" size="sm" style={{ color: "var(--muted)" }}>
+              {t("dashboard.treasury_remaining")}:{" "}
+              {remainingTreasuryBalance.toFixed(4)}
+            </Text>
+            <Text as="p" size="sm" style={{ color: "var(--muted)" }}>
+              {t("dashboard.projected_depletion_date")}:{" "}
+              {depletionDate
+                ? depletionDate.toLocaleDateString()
+                : t("dashboard.not_applicable")}
+            </Text>
+            {runwayStatus === "critical" ? (
+              <div style={{ marginTop: "10px" }}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    void navigate("/treasury-management");
+                  }}
+                >
+                  {t("dashboard.top_up_treasury")}
+                </Button>
+              </div>
+            ) : null}
           </div>
         </div>
 

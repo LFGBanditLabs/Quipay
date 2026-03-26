@@ -69,7 +69,18 @@
     "no_streams_title": "No hay flujos activos",
     "no_streams_description": "Aún no ha creado ningún flujo de pago. Comience agregando a su primer trabajador.",
     "flow_rate": "Tasa de Flujo",
-    "start": "Inicio"
+    "start": "Inicio",
+    "runway_calculator": "Calculadora de runway",
+    "runway_status_healthy": "Runway saludable",
+    "runway_status_warning": "Advertencia de runway",
+    "runway_status_critical": "Runway bajo",
+    "days_remaining": "{{days}} días restantes",
+    "runway_unlimited": "Runway ilimitado",
+    "daily_burn_rate": "Tasa de consumo diaria",
+    "treasury_remaining": "Tesorería restante",
+    "projected_depletion_date": "Fecha proyectada de agotamiento",
+    "top_up_treasury": "Recargar tesorería",
+    "not_applicable": "N/D"
   },
   "worker": {
     "status_completed": "Completado",

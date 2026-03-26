@@ -69,7 +69,18 @@
     "no_streams_title": "No active streams",
     "no_streams_description": "You haven't created any payment streams yet. Start by adding your first worker.",
     "flow_rate": "Flow Rate",
-    "start": "Start"
+    "start": "Start",
+    "runway_calculator": "Runway Calculator",
+    "runway_status_healthy": "Healthy runway",
+    "runway_status_warning": "Runway warning",
+    "runway_status_critical": "Low runway",
+    "days_remaining": "{{days}} days remaining",
+    "runway_unlimited": "Unlimited runway",
+    "daily_burn_rate": "Daily burn rate",
+    "treasury_remaining": "Treasury remaining",
+    "projected_depletion_date": "Projected depletion date",
+    "top_up_treasury": "Top Up Treasury",
+    "not_applicable": "N/A"
   },
   "worker": {
     "status_completed": "Completed",

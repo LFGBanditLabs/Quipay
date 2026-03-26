@@ -69,7 +69,18 @@
     "no_streams_title": "لا يوجد بث نشط",
     "no_streams_description": "لم تقم بإنشاء أي بث دفع بعد. ابدأ بإضافة عاملك الأول.",
     "flow_rate": "معدل التدفق",
-    "start": "البداية"
+    "start": "البداية",
+    "runway_calculator": "حاسبة مدة الاستمرارية",
+    "runway_status_healthy": "مدة الاستمرارية جيدة",
+    "runway_status_warning": "تحذير مدة الاستمرارية",
+    "runway_status_critical": "مدة الاستمرارية منخفضة",
+    "days_remaining": "متبقٍ {{days}} يوماً",
+    "runway_unlimited": "مدة غير محدودة",
+    "daily_burn_rate": "معدل الحرق اليومي",
+    "treasury_remaining": "المتبقي في الخزينة",
+    "projected_depletion_date": "تاريخ النفاد المتوقع",
+    "top_up_treasury": "تعبئة الخزينة",
+    "not_applicable": "غير متاح"
   },
   "worker": {
     "status_completed": "مكتمل",

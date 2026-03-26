@@ -69,7 +69,18 @@
     "no_streams_title": "Aucun flux actif",
     "no_streams_description": "Vous n'avez pas encore créé de flux de paiement. Commencez par ajouter votre premier travailleur.",
     "flow_rate": "Débit",
-    "start": "Début"
+    "start": "Début",
+    "runway_calculator": "Calculateur de runway",
+    "runway_status_healthy": "Runway saine",
+    "runway_status_warning": "Alerte runway",
+    "runway_status_critical": "Runway faible",
+    "days_remaining": "{{days}} jours restants",
+    "runway_unlimited": "Runway illimitée",
+    "daily_burn_rate": "Taux de consommation quotidien",
+    "treasury_remaining": "Trésorerie restante",
+    "projected_depletion_date": "Date d'epuisement projetee",
+    "top_up_treasury": "Recharger la tresorerie",
+    "not_applicable": "N/A"
   },
   "worker": {
     "status_completed": "Terminé",
