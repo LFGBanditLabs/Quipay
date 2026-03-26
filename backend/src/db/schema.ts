@@ -240,6 +240,16 @@ export const metricSnapshots = pgTable(
       .defaultNow(),
     metricsText: text("metrics_text").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_metric_snapshots_captured_at").on(table.capturedAt.desc()),
+    index("idx_metric_snapshots_created_at").on(table.createdAt.desc()),
+  ],
+);
+
+// Worker notification delivery preferences
 export const workerNotificationSettings = pgTable(
   "worker_notification_settings",
   {
@@ -257,8 +267,6 @@ export const workerNotificationSettings = pgTable(
       .defaultNow(),
   },
   (table) => [
-    index("idx_metric_snapshots_captured_at").on(table.capturedAt.desc()),
-    index("idx_metric_snapshots_created_at").on(table.createdAt.desc()),
     index("idx_worker_notification_settings_updated").on(
       table.updatedAt.desc(),
     ),
