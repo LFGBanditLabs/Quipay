@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Layout, Text } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
+import { useStreamSubscription } from "../hooks/useStreamSubscription";
 import {
   useStreams,
   WorkerStream,
@@ -25,6 +26,14 @@ const StreamCard: React.FC<{
   const [timeUntilCliff, setTimeUntilCliff] = useState<string>("");
   const [isBeforeCliff, setIsBeforeCliff] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
+  const [lastEventAmount, setLastEventAmount] = useState<number | null>(null);
+
+  useStreamSubscription((update) => {
+    // Make sure the withdrawal event matches this specific stream card
+    if (update.streamId === String(stream.id)) {
+      setLastEventAmount(update.amount);
+    }
+  });
 
   useEffect(() => {
     const calculate = () => {
@@ -67,6 +76,7 @@ const StreamCard: React.FC<{
 
   const percentage =
     stream.totalAmount > 0 ? (currentEarnings / stream.totalAmount) * 100 : 0;
+  const remaining = Math.max(0, stream.totalAmount - currentEarnings);
   const availableToWithdraw = Math.max(
     0,
     currentEarnings - stream.claimedAmount,
@@ -149,15 +159,58 @@ const StreamCard: React.FC<{
         </div>
       </div>
 
-      <div className="my-4 h-2 overflow-hidden rounded bg-[var(--surface)]">
+      {/* Animated Progress Bar */}
+      <div className="stream-progress-bar">
         <div
-          className="h-full bg-gradient-to-r from-indigo-600 to-sky-500 transition-[width] duration-500"
+          className="stream-progress-fill"
           style={{ width: `${Math.min(100, percentage)}%` }}
-        ></div>
+        />
       </div>
+
+      {/* Streamed / Remaining Stats */}
+      <div className="stream-stats">
+        <div className="stream-stat">
+          <span className="stream-stat-label">Streamed so far</span>
+          <span className="stream-stat-value">
+            {currentEarnings.toFixed(7)} {stream.tokenSymbol}
+          </span>
+        </div>
+        <div className="stream-stat" style={{ textAlign: "right" }}>
+          <span className="stream-stat-label">Remaining</span>
+          <span className="stream-stat-value">
+            {remaining.toFixed(7)} {stream.tokenSymbol}
+          </span>
+        </div>
+      </div>
+
+      {/* Withdrawal Countdown */}
+      <div
+        className={`stream-countdown ${
+          isBeforeCliff
+            ? "stream-countdown--locked"
+            : "stream-countdown--available"
+        }`}
+      >
+        <span className="stream-countdown-dot" />
+        <span className="stream-countdown-label">
+          {isBeforeCliff ? "Next withdrawal in" : "Withdrawal available"}
+        </span>
+        {isBeforeCliff && (
+          <span className="stream-countdown-time">{timeUntilCliff}</span>
+        )}
+      </div>
+
+      {/* Last event indicator */}
+      {lastEventAmount !== null && (
+        <div className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/8 px-3 py-2 text-xs text-sky-400">
+          ⚡ Last withdrawal detected: {lastEventAmount.toFixed(7)}{" "}
+          {stream.tokenSymbol}
+        </div>
+      )}
 
       <div
         style={{
+          marginTop: "1rem",
           marginBottom: "1rem",
           display: "flex",
           justifyContent: "space-between",
