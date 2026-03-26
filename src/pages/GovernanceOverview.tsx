@@ -14,6 +14,13 @@ import {
 } from "@stellar/design-system";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "../hooks/useWallet";
+import {
+  getMultisigConfig,
+  getPendingProposals,
+  getExecutionHistory,
+  approveProposal as approveProposalService,
+  executeProposal as executeProposalService,
+} from "../services/governanceService";
 
 const tw = {
   loadingContainer: "flex flex-col items-center justify-center gap-4 p-[60px]",
@@ -125,148 +132,6 @@ export interface MultisigConfig {
   isCurrentUserSigner: boolean;
 }
 
-// Mock service for multisig operations
-const mockMultisigService = {
-  getMultisigConfig: async (
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _vaultAddress: string,
-  ): Promise<MultisigConfig> => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    return {
-      threshold: 2,
-      totalSigners: 3,
-      signers: ["GCFX...ABC1", "GDYQ...DEF2", "GAHU...GHI3"],
-      isCurrentUserSigner: true,
-    };
-  },
-
-  getPendingProposals: async (
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _vaultAddress: string,
-  ): Promise<MultisigProposal[]> => {
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    return [
-      {
-        id: "prop-001",
-        title: "Withdraw 10,000 USDC to Operations Wallet",
-        description: "Monthly operational expense withdrawal for team salaries",
-        type: "transfer",
-        proposer: "GCFX...ABC1",
-        createdAt: new Date(Date.now() - 86400000),
-        expiresAt: new Date(Date.now() + 172800000),
-        requiredApprovals: 2,
-        currentApprovals: 1,
-        hasApproved: false,
-        isExecuted: false,
-        targetAddress: "GAHU...XYZ9",
-        amount: "10000",
-        tokenSymbol: "USDC",
-        signers: [
-          {
-            address: "GCFX...ABC1",
-            hasSigned: true,
-            signedAt: new Date(Date.now() - 43200000),
-            isCurrentUser: false,
-          },
-          { address: "GDYQ...DEF2", hasSigned: false, isCurrentUser: true },
-          { address: "GAHU...GHI3", hasSigned: false, isCurrentUser: false },
-        ],
-      },
-      {
-        id: "prop-002",
-        title: "Upgrade Treasury Contract to v2.1",
-        description: "Security patch update for the treasury vault contract",
-        type: "upgrade",
-        proposer: "GDYQ...DEF2",
-        createdAt: new Date(Date.now() - 172800000),
-        expiresAt: new Date(Date.now() + 86400000),
-        requiredApprovals: 2,
-        currentApprovals: 1,
-        hasApproved: true,
-        isExecuted: false,
-        signers: [
-          { address: "GCFX...ABC1", hasSigned: false, isCurrentUser: false },
-          {
-            address: "GDYQ...DEF2",
-            hasSigned: true,
-            signedAt: new Date(Date.now() - 86400000),
-            isCurrentUser: true,
-          },
-          { address: "GAHU...GHI3", hasSigned: false, isCurrentUser: false },
-        ],
-      },
-      {
-        id: "prop-003",
-        title: "Add New Signer: GCXZ...NEW4",
-        description:
-          "Add additional signer for improved security and availability",
-        type: "admin_change",
-        proposer: "GAHU...GHI3",
-        createdAt: new Date(Date.now() - 43200000),
-        expiresAt: new Date(Date.now() + 259200000),
-        requiredApprovals: 2,
-        currentApprovals: 0,
-        hasApproved: false,
-        isExecuted: false,
-        signers: [
-          { address: "GCFX...ABC1", hasSigned: false, isCurrentUser: false },
-          { address: "GDYQ...DEF2", hasSigned: false, isCurrentUser: true },
-          { address: "GAHU...GHI3", hasSigned: false, isCurrentUser: false },
-        ],
-      },
-    ];
-  },
-
-  getExecutionHistory: async (
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _vaultAddress: string,
-  ): Promise<ExecutionHistoryEntry[]> => {
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    return [
-      {
-        id: "exec-001",
-        proposalId: "prop-000",
-        title: "Withdraw 5,000 XLM for Marketing",
-        type: "transfer",
-        executedAt: new Date(Date.now() - 604800000),
-        executedBy: "GDYQ...DEF2",
-        requiredApprovals: 2,
-        totalSigners: 3,
-      },
-      {
-        id: "exec-002",
-        proposalId: "prop-099",
-        title: "Change Threshold to 2-of-3",
-        type: "threshold_change",
-        executedAt: new Date(Date.now() - 1209600000),
-        executedBy: "GCFX...ABC1",
-        requiredApprovals: 2,
-        totalSigners: 2,
-      },
-      {
-        id: "exec-003",
-        proposalId: "prop-098",
-        title: "Add Initial Signers",
-        type: "admin_change",
-        executedAt: new Date(Date.now() - 2592000000),
-        executedBy: "GCFX...ABC1",
-        requiredApprovals: 1,
-        totalSigners: 1,
-      },
-    ];
-  },
-
-  approveProposal: async (proposalId: string): Promise<void> => {
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    console.log(`Approved proposal ${proposalId}`);
-  },
-
-  executeProposal: async (proposalId: string): Promise<void> => {
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    console.log(`Executed proposal ${proposalId}`);
-  },
-};
-
 const shortenAddress = (address: string): string => {
   if (address.length <= 12) return address;
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -313,7 +178,7 @@ const getTypeColor = (type: MultisigProposal["type"]): string => {
 
 const GovernanceOverview: React.FC = () => {
   const navigate = useNavigate();
-  const { address } = useWallet();
+  const { address, signTransaction } = useWallet();
   const [isLoading, setIsLoading] = useState(true);
   const [config, setConfig] = useState<MultisigConfig | null>(null);
   const [proposals, setProposals] = useState<MultisigProposal[]>([]);
@@ -327,15 +192,20 @@ const GovernanceOverview: React.FC = () => {
     type: "success" | "error";
   } | null>(null);
 
-  const vaultAddress = address ?? "demo-vault";
+  const vaultAddress = address ?? "";
 
   const loadData = useCallback(async () => {
+    if (!vaultAddress) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const [configData, proposalsData, historyData] = await Promise.all([
-        mockMultisigService.getMultisigConfig(vaultAddress),
-        mockMultisigService.getPendingProposals(vaultAddress),
-        mockMultisigService.getExecutionHistory(vaultAddress),
+        getMultisigConfig(vaultAddress, address),
+        getPendingProposals(vaultAddress, address),
+        getExecutionHistory(vaultAddress),
       ]);
       setConfig(configData);
       setProposals(proposalsData);
@@ -349,16 +219,18 @@ const GovernanceOverview: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [vaultAddress]);
+  }, [vaultAddress, address]);
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
 
   const handleApprove = async (proposalId: string) => {
+    if (!address || !signTransaction) return;
+
     setIsProcessing(true);
     try {
-      await mockMultisigService.approveProposal(proposalId);
+      await approveProposalService(proposalId, address, signTransaction);
       setNotification({
         message: "Proposal approved successfully",
         type: "success",
@@ -375,9 +247,11 @@ const GovernanceOverview: React.FC = () => {
   };
 
   const handleExecute = async (proposalId: string) => {
+    if (!address || !signTransaction) return;
+
     setIsProcessing(true);
     try {
-      await mockMultisigService.executeProposal(proposalId);
+      await executeProposalService(proposalId, address, signTransaction);
       setNotification({
         message: "Proposal executed successfully",
         type: "success",

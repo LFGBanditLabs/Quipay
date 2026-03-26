@@ -1,4 +1,5 @@
 import { VaultClient } from "./vaultClient";
+import { logServiceError, logServiceInfo } from "../audit/serviceLogger";
 
 export interface RotationConfig {
   rotationPeriodDays: number;
@@ -55,10 +56,14 @@ export class KeyRotationService {
         this.mountPoint,
       );
 
-      console.log(`[KeyRotation] Successfully rotated key: ${keyName}`);
+      await logServiceInfo("KeyRotation", "Successfully rotated key", {
+        key_name: keyName,
+      });
       return true;
     } catch (error) {
-      console.error(`[KeyRotation] Failed to rotate key ${keyName}:`, error);
+      await logServiceError("KeyRotation", "Failed to rotate key", error, {
+        key_name: keyName,
+      });
       return false;
     }
   }

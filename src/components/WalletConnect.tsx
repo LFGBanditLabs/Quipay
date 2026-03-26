@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useWallet } from "../hooks/useWallet";
 import { connectWallet, disconnectWallet } from "../util/wallet";
 import { Spinner } from "./Loading";
@@ -10,6 +11,7 @@ import { Spinner } from "./Loading";
  * provides disconnect functionality, and surfaces connection errors.
  */
 export const WalletConnect = () => {
+  const { t } = useTranslation();
   const { address, isPending, connectionError, clearError } = useWallet();
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
@@ -48,7 +50,7 @@ export const WalletConnect = () => {
           <button
             onClick={clearError}
             className="wallet-connect__error-dismiss"
-            aria-label="Dismiss error"
+            aria-label={t("wallet.dismiss_error")}
           >
             ✕
           </button>
@@ -60,7 +62,7 @@ export const WalletConnect = () => {
           <span
             className="wallet-connect__address"
             title={address}
-            aria-label={`Connected wallet: ${address}`}
+            aria-label={t("wallet.connected_address", { address })}
           >
             {shortenAddress(address)}
           </span>
@@ -72,10 +74,10 @@ export const WalletConnect = () => {
           >
             {isDisconnecting ? (
               <>
-                <Spinner size="sm" /> Disconnecting…
+                <Spinner size="sm" /> {t("wallet.disconnecting")}
               </>
             ) : (
-              "Disconnect"
+              t("wallet.disconnect")
             )}
           </button>
         </div>
@@ -88,10 +90,10 @@ export const WalletConnect = () => {
         >
           {isConnecting || isPending ? (
             <>
-              <Spinner size="sm" /> Connecting…
+              <Spinner size="sm" /> {t("wallet.connecting")}
             </>
           ) : (
-            "Connect Wallet"
+            t("wallet.connect")
           )}
         </button>
       )}

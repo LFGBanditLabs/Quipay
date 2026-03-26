@@ -1,5 +1,8 @@
 #![cfg(test)]
+extern crate std;
+
 use super::*;
+use quipay_common::QuipayError;
 use soroban_sdk::{Address, Env, IntoVal, testutils::Address as _, testutils::Ledger as _};
 
 mod dummy_vault {
@@ -14,6 +17,12 @@ mod dummy_vault {
         pub fn add_liability(_env: Env, _token: Address, _amount: i128) {}
         pub fn remove_liability(_env: Env, _token: Address, _amount: i128) {}
         pub fn payout_liability(_env: Env, _to: Address, _token: Address, _amount: i128) {}
+        pub fn get_balance(_env: Env, _token: Address) -> i128 {
+            1_000_000
+        }
+        pub fn get_liability(_env: Env, _token: Address) -> i128 {
+            0
+        }
     }
 }
 
@@ -28,6 +37,25 @@ mod rejecting_vault {
         }
         pub fn add_liability(_env: Env, _token: Address, _amount: i128) {
             panic!("vault rejected liability");
+        }
+    }
+}
+
+mod selective_rejecting_payout_vault {
+    use soroban_sdk::{Address, Env, contract, contractimpl};
+    #[contract]
+    pub struct SelectiveRejectingPayoutVault;
+    #[contractimpl]
+    impl SelectiveRejectingPayoutVault {
+        pub fn check_solvency(_env: Env, _token: Address, _additional_liability: i128) -> bool {
+            true
+        }
+        pub fn add_liability(_env: Env, _token: Address, _amount: i128) {}
+        pub fn remove_liability(_env: Env, _token: Address, _amount: i128) {}
+        pub fn payout_liability(_env: Env, _to: Address, _token: Address, amount: i128) {
+            if amount >= 1000 {
+                panic!("vault rejected payout");
+            }
         }
     }
 }
@@ -59,6 +87,25 @@ fn setup(env: &Env) -> (PayrollStreamClient, Address, Address, Address, Address)
     client.init(&admin);
     client.set_vault(&vault_id);
     (client, employer, worker, token, admin)
+}
+
+fn make_stream_params(
+    employer: &Address,
+    worker: &Address,
+    token: &Address,
+    rate: i128,
+    start_ts: u64,
+    end_ts: u64,
+) -> StreamParams {
+    StreamParams {
+        employer: employer.clone(),
+        worker: worker.clone(),
+        token: token.clone(),
+        rate,
+        cliff_ts: 0,
+        start_ts,
+        end_ts,
+    }
 }
 
 #[test]
@@ -476,6 +523,93 @@ fn test_batch_withdraw_completes_stream() {
 
     let stream = client.get_stream(&stream_id).unwrap();
     assert_eq!(stream.status, StreamStatus::Completed);
+}
+
+#[test]
+fn test_batch_withdraw_atomic_full_success_updates_all_streams() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let vault_id = env.register_contract(None, dummy_vault::DummyVault);
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    client.init(&admin);
+    client.set_vault(&vault_id);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    let stream1 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
+    let stream2 = client.create_stream(&employer, &worker, &token, &50, &0u64, &0u64, &20u64);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 10;
+    });
+
+    let stream_ids = soroban_sdk::vec![&env, stream1, stream2];
+    let results = client.batch_withdraw(&stream_ids, &worker);
+
+    assert_eq!(results.len(), 2);
+    assert_eq!(results.get(0).unwrap().amount, 1000);
+    assert_eq!(results.get(1).unwrap().amount, 500);
+
+    let updated_stream1 = client.get_stream(&stream1).unwrap();
+    let updated_stream2 = client.get_stream(&stream2).unwrap();
+    assert_eq!(updated_stream1.withdrawn_amount, 1000);
+    assert_eq!(updated_stream2.withdrawn_amount, 500);
+}
+
+#[test]
+fn test_batch_withdraw_atomic_reverts_all_when_any_payout_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let vault_id = env.register_contract(
+        None,
+        selective_rejecting_payout_vault::SelectiveRejectingPayoutVault,
+    );
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    client.init(&admin);
+    client.set_vault(&vault_id);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    let stream1 = client.create_stream(&employer, &worker, &token, &50, &0u64, &0u64, &10u64);
+    let stream2 = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &10u64);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 10;
+    });
+
+    let stream_ids = soroban_sdk::vec![&env, stream1, stream2];
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.batch_withdraw(&stream_ids, &worker);
+    }));
+
+    assert!(result.is_err());
+
+    let unchanged_stream1 = client.get_stream(&stream1).unwrap();
+    let unchanged_stream2 = client.get_stream(&stream2).unwrap();
+    assert_eq!(unchanged_stream1.withdrawn_amount, 0);
+    assert_eq!(unchanged_stream2.withdrawn_amount, 0);
+    assert_eq!(unchanged_stream1.status, StreamStatus::Active);
+    assert_eq!(unchanged_stream2.status, StreamStatus::Active);
 }
 
 #[test]
@@ -1435,15 +1569,45 @@ fn test_get_withdrawable() {
     env.ledger().with_mut(|li| {
         li.timestamp = 25;
     });
-    assert_eq!(client.get_withdrawable(&stream_id), 2500);
+    assert_eq!(client.get_withdrawable(&stream_id), Some(2500));
 
     client.withdraw(&stream_id, &worker);
-    assert_eq!(client.get_withdrawable(&stream_id), 0);
+    assert_eq!(client.get_withdrawable(&stream_id), Some(0));
 
     env.ledger().with_mut(|li| {
         li.timestamp = 50;
     });
-    assert_eq!(client.get_withdrawable(&stream_id), 2500);
+    assert_eq!(client.get_withdrawable(&stream_id), Some(2500));
+
+    // Test non-existent stream
+    assert_eq!(client.get_withdrawable(&999u64), None);
+}
+
+#[test]
+fn test_get_claimable() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 25;
+    });
+    assert_eq!(client.get_claimable(&stream_id), Some(2500));
+
+    client.withdraw(&stream_id, &worker);
+    assert_eq!(client.get_claimable(&stream_id), Some(0));
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 50;
+    });
+    assert_eq!(client.get_claimable(&stream_id), Some(2500));
+
+    assert_eq!(client.get_claimable(&999u64), None);
 }
 
 #[test]
@@ -1473,4 +1637,338 @@ fn test_pagination() {
 
     let empty = client.get_streams_by_employer(&employer, &Some(5), &Some(1));
     assert_eq!(empty.len(), 0);
+}
+
+#[test]
+fn test_batch_create_streams_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    let params = soroban_sdk::vec![
+        &env,
+        make_stream_params(&employer, &worker, &token, 100, 0, 100),
+        make_stream_params(&employer, &worker, &token, 200, 0, 200),
+        make_stream_params(&employer, &worker, &token, 50, 0, 50),
+    ];
+
+    let stream_ids = client.batch_create_streams(&params);
+
+    assert_eq!(stream_ids.len(), 3);
+    assert_eq!(stream_ids.get(0).unwrap(), 1u32);
+    assert_eq!(stream_ids.get(1).unwrap(), 2u32);
+    assert_eq!(stream_ids.get(2).unwrap(), 3u32);
+
+    let first = client.get_stream(&1u64).unwrap();
+    assert_eq!(first.total_amount, 10000);
+    assert_eq!(first.worker, worker);
+}
+
+#[test]
+fn test_batch_create_streams_rejects_more_than_twenty() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    let mut params = soroban_sdk::Vec::new(&env);
+    for i in 0..21u32 {
+        params.push_back(make_stream_params(
+            &employer,
+            &worker,
+            &token,
+            1,
+            0,
+            100 + u64::from(i),
+        ));
+    }
+
+    let result = client.try_batch_create_streams(&params);
+    let contract_err = result.unwrap_err().unwrap();
+    assert_eq!(contract_err, QuipayError::BatchTooLarge);
+}
+
+#[test]
+fn test_error_variants() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    // 1. InvalidTimeRange: end_ts <= start_ts
+    let res = client.try_create_stream(&employer, &worker, &token, &1, &0u64, &100u64, &100u64);
+    let contract_err = res.unwrap_err().unwrap();
+    assert_eq!(contract_err, QuipayError::InvalidTimeRange);
+
+    // 2. InvalidCliff: effective_cliff > end_ts
+    let res = client.try_create_stream(&employer, &worker, &token, &1, &150u64, &0u64, &100u64);
+    let contract_err = res.unwrap_err().unwrap();
+    assert_eq!(contract_err, QuipayError::InvalidCliff);
+
+    // 3. StartTimeInPast: start_ts < now
+    env.ledger().with_mut(|li| li.timestamp = 100);
+    let res = client.try_create_stream(&employer, &worker, &token, &1, &0u64, &50u64, &150u64);
+    let contract_err = res.unwrap_err().unwrap();
+    assert_eq!(contract_err, QuipayError::StartTimeInPast);
+}
+
+#[test]
+fn test_batch_create_with_mixed_cliff_times() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    let params = soroban_sdk::vec![
+        &env,
+        StreamParams {
+            employer: employer.clone(),
+            worker: worker.clone(),
+            token: token.clone(),
+            rate: 100,
+            cliff_ts: 0,
+            start_ts: 0,
+            end_ts: 100,
+        },
+        StreamParams {
+            employer: employer.clone(),
+            worker: worker.clone(),
+            token: token.clone(),
+            rate: 200,
+            cliff_ts: 50,
+            start_ts: 0,
+            end_ts: 100,
+        },
+        StreamParams {
+            employer: employer.clone(),
+            worker: worker.clone(),
+            token: token.clone(),
+            rate: 150,
+            cliff_ts: 100,
+            start_ts: 0,
+            end_ts: 100,
+        },
+    ];
+
+    let stream_ids = client.batch_create_streams(&params);
+    assert_eq!(stream_ids.len(), 3);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 25;
+    });
+
+    let stream1_id = stream_ids.get(0).unwrap() as u64;
+    let stream2_id = stream_ids.get(1).unwrap() as u64;
+    let stream3_id = stream_ids.get(2).unwrap() as u64;
+
+    let amount1 = client.withdraw(&stream1_id, &worker);
+    assert!(amount1 > 0);
+
+    let amount2 = client.withdraw(&stream2_id, &worker);
+    assert_eq!(amount2, 0);
+
+    let amount3 = client.withdraw(&stream3_id, &worker);
+    assert_eq!(amount3, 0);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 100;
+    });
+
+    let amount2_after = client.withdraw(&stream2_id, &worker);
+    assert!(amount2_after > 0);
+
+    let amount3_after = client.withdraw(&stream3_id, &worker);
+    assert!(amount3_after > 0);
+}
+
+#[test]
+fn test_cancel_stream_with_partial_withdrawal_then_cleanup() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+    client.set_retention_secs(&10u64);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    let stream_id = client.create_stream(&employer, &worker, &token, &100, &0u64, &0u64, &100u64);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 30;
+    });
+
+    let withdrawn = client.withdraw(&stream_id, &worker);
+    assert_eq!(withdrawn, 3000);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 50;
+    });
+
+    client.cancel_stream(&stream_id, &employer, &None);
+
+    let stream = client.get_stream(&stream_id).unwrap();
+    assert_eq!(stream.status, StreamStatus::Canceled);
+    assert_eq!(stream.withdrawn_amount, 5000);
+    assert_eq!(stream.closed_at, 50);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 60;
+    });
+
+    client.cleanup_stream(&stream_id);
+    assert!(client.get_stream(&stream_id).is_none());
+}
+
+#[test]
+fn test_multiple_workers_same_employer_independent_streams() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker1, token, _) = setup(&env);
+    let worker2 = Address::generate(&env);
+    let worker3 = Address::generate(&env);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    let stream1 = client.create_stream(&employer, &worker1, &token, &100, &0u64, &0u64, &100u64);
+    let stream2 = client.create_stream(&employer, &worker2, &token, &200, &0u64, &0u64, &100u64);
+    let stream3 = client.create_stream(&employer, &worker3, &token, &50, &0u64, &0u64, &100u64);
+
+    let employer_streams = client.get_streams_by_employer(&employer, &None, &None);
+    assert_eq!(employer_streams.len(), 3);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 50;
+    });
+
+    let w1_amount = client.withdraw(&stream1, &worker1);
+    let w2_amount = client.withdraw(&stream2, &worker2);
+    let w3_amount = client.withdraw(&stream3, &worker3);
+
+    assert_eq!(w1_amount, 5000);
+    assert_eq!(w2_amount, 10000);
+    assert_eq!(w3_amount, 2500);
+
+    client.cancel_stream(&stream2, &employer, &None);
+
+    let s1 = client.get_stream(&stream1).unwrap();
+    let s2 = client.get_stream(&stream2).unwrap();
+    let s3 = client.get_stream(&stream3).unwrap();
+
+    assert_eq!(s1.status, StreamStatus::Active);
+    assert_eq!(s2.status, StreamStatus::Canceled);
+    assert_eq!(s3.status, StreamStatus::Active);
+
+    let worker1_streams = client.get_streams_by_worker(&worker1, &None, &None);
+    let worker2_streams = client.get_streams_by_worker(&worker2, &None, &None);
+    let worker3_streams = client.get_streams_by_worker(&worker3, &None, &None);
+
+    assert_eq!(worker1_streams.len(), 1);
+    assert_eq!(worker2_streams.len(), 1);
+    assert_eq!(worker3_streams.len(), 1);
+}
+
+// ============================================================================
+// Two-Step Admin Transfer Tests
+// ============================================================================
+
+#[test]
+fn test_two_step_admin_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollStream, ());
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize
+    client.init(&admin);
+    assert_eq!(client.get_admin(), admin);
+
+    // Step 1: Propose new admin
+    client.propose_admin(&new_admin);
+    assert_eq!(client.get_pending_admin(), Some(new_admin.clone()));
+    assert_eq!(client.get_admin(), admin); // Admin hasn't changed yet
+
+    // Step 2: Accept admin role
+    client.accept_admin();
+    assert_eq!(client.get_admin(), new_admin);
+    assert_eq!(client.get_pending_admin(), None); // Pending cleared
+}
+
+#[test]
+fn test_accept_admin_requires_pending() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollStream, ());
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    client.init(&admin);
+
+    // Try to accept without pending admin - should fail with NoPendingAdmin
+    let result = client.try_accept_admin();
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().unwrap(), QuipayError::NoPendingAdmin);
+}
+
+#[test]
+fn test_transfer_admin_backward_compatible() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollStream, ());
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize
+    client.init(&admin);
+    assert_eq!(client.get_admin(), admin);
+
+    // Use transfer_admin function (backward compatible)
+    client.transfer_admin(&new_admin);
+    
+    // Should transfer atomically
+    assert_eq!(client.get_admin(), new_admin);
+    assert_eq!(client.get_pending_admin(), None); // No pending admin left
+}
+
+#[test]
+fn test_propose_admin_overwrites_previous_pending() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollStream, ());
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin1 = Address::generate(&env);
+    let new_admin2 = Address::generate(&env);
+
+    client.init(&admin);
+
+    // Propose first admin
+    client.propose_admin(&new_admin1);
+    assert_eq!(client.get_pending_admin(), Some(new_admin1.clone()));
+
+    // Propose second admin (should overwrite)
+    client.propose_admin(&new_admin2);
+    assert_eq!(client.get_pending_admin(), Some(new_admin2.clone()));
+
+    // Accept should use the latest proposal
+    client.accept_admin();
+    assert_eq!(client.get_admin(), new_admin2);
 }

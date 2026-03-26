@@ -5,11 +5,18 @@
  *
  * Exports
  * ───────
- * • PAYROLL_STREAM_CONTRACT_ID  – contract address from env
- * • CreateStreamParams          – parameter type for create_stream
- * • buildCreateStreamTx         – simulate + build a create_stream XDR
- * • checkTreasurySolvency       – reads PayrollVault.check_solvency
- * • submitAndAwaitTx            – submit a signed XDR and wait for confirmation
+ * • PAYROLL_STREAM_CONTRACT_ID   – contract address from env
+ * • ContractStream               – shape of the on-chain Stream struct
+ * • ContractWithdrawalEvent      – shape of a decoded stream.withdrawn event
+ * • CreateStreamParams           – parameter type for create_stream
+ * • buildCreateStreamTx          – simulate + build a create_stream XDR
+ * • checkTreasurySolvency        – reads PayrollVault.check_solvency
+ * • getWithdrawable              – reads the withdrawable amount for a stream
+ * • getStreamsByWorker           – list stream IDs for a worker address
+ * • getStreamById                – fetch a single stream by ID
+ * • getTokenSymbol               – resolve a token contract address to its symbol
+ * • getWorkerWithdrawalEvents    – query withdrawal events for a worker
+ * • submitAndAwaitTx             – submit a signed XDR and wait for confirmation
  */
 
 import {
@@ -172,6 +179,54 @@ export async function checkTreasurySolvency(
   return scValToNative(result) as boolean;
 }
 
+// ─── getWithdrawable ─────────────────────────────────────────────────────────
+
+/**
+ * Calls `get_withdrawable` on the PayrollStream contract to get the
+ * amount currently available for the worker to withdraw.
+ *
+ * Returns the amount as a bigint, or null if the stream is not found.
+ */
+export async function getWithdrawable(
+  streamId: bigint,
+): Promise<bigint | null> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) return null;
+
+  const server = getRpcServer();
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+
+  // Use the contract ID itself as a dummy source for simulation
+  const dummySource = await server
+    .getAccount(PAYROLL_STREAM_CONTRACT_ID)
+    .catch(() => null);
+  if (!dummySource) return null;
+
+  const tx = new TransactionBuilder(dummySource, {
+    fee: "100",
+    networkPassphrase,
+  })
+    .addOperation(
+      contract.call(
+        "get_withdrawable",
+        nativeToScVal(streamId, { type: "u64" }),
+      ),
+    )
+    .setTimeout(10)
+    .build();
+
+  const response = await server.simulateTransaction(tx);
+
+  if (SorobanRpc.Api.isSimulationError(response)) {
+    return null;
+  }
+
+  const result = (response as SorobanRpc.Api.SimulateTransactionSuccessResponse)
+    .result?.retval;
+  if (!result) return null;
+
+  return scValToNative(result) as bigint | null;
+}
+
 // ─── submitAndAwaitTx ─────────────────────────────────────────────────────────
 
 /**
@@ -220,4 +275,232 @@ export async function submitAndAwaitTx(signedTxXdr: string): Promise<string> {
   throw new Error(
     `Transaction confirmation timed out after ${maxAttempts}s. Hash: ${hash}`,
   );
+}
+
+// ─── ContractStream types ─────────────────────────────────────────────────────
+
+/**
+ * Shape of the Stream struct as returned by the PayrollStream contract,
+ * decoded from ScVal → native JS values.
+ */
+export interface ContractStream {
+  employer: string;
+  worker: string;
+  /** Soroban contract address of the token (SAC or custom). */
+  token: string;
+  /** Flow rate in stroops (smallest token unit) per second. */
+  rate: bigint;
+  cliff_ts: bigint;
+  start_ts: bigint;
+  end_ts: bigint;
+  total_amount: bigint;
+  withdrawn_amount: bigint;
+  last_withdrawal_ts: bigint;
+  /** 0 = Active, 1 = Canceled, 2 = Completed */
+  status: number;
+  created_at: bigint;
+  closed_at: bigint;
+}
+
+export interface ContractWithdrawalEvent {
+  streamId: bigint;
+  amount: bigint;
+  token: string;
+  ledgerClosedAt: string;
+  txHash: string;
+}
+
+// ─── simulateContractRead ─────────────────────────────────────────────────────
+
+async function simulateContractRead<T>(
+  sourceAddress: string,
+  operation: xdr.Operation,
+): Promise<T | null> {
+  const server = getRpcServer();
+
+  let source = await server.getAccount(sourceAddress).catch(() => null);
+  if (!source && PAYROLL_STREAM_CONTRACT_ID) {
+    source = await server
+      .getAccount(PAYROLL_STREAM_CONTRACT_ID)
+      .catch(() => null);
+  }
+  if (!source) return null;
+
+  const tx = new TransactionBuilder(source, { fee: "100", networkPassphrase })
+    .addOperation(operation)
+    .setTimeout(10)
+    .build();
+
+  const response = await server.simulateTransaction(tx);
+  if (SorobanRpc.Api.isSimulationError(response)) return null;
+
+  const retval = (response as SorobanRpc.Api.SimulateTransactionSuccessResponse)
+    .result?.retval;
+  if (!retval) return null;
+
+  const native = scValToNative(retval) as T | undefined;
+  return native ?? null;
+}
+
+// ─── getStreamsByWorker ───────────────────────────────────────────────────────
+
+/**
+ * Calls `get_streams_by_worker` on the PayrollStream contract and returns the
+ * list of stream IDs owned by `workerAddress`.
+ */
+export async function getStreamsByWorker(
+  workerAddress: string,
+  offset?: number,
+  limit?: number,
+): Promise<bigint[]> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) return [];
+
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+  const ids = await simulateContractRead<bigint[]>(
+    workerAddress,
+    contract.call(
+      "get_streams_by_worker",
+      new Address(workerAddress).toScVal(),
+      nativeToScVal(offset !== undefined ? offset : null),
+      nativeToScVal(limit !== undefined ? limit : null),
+    ),
+  );
+
+  return ids ?? [];
+}
+
+// ─── getStreamById ────────────────────────────────────────────────────────────
+
+/**
+ * Calls `get_stream` on the PayrollStream contract and returns the decoded
+ * `ContractStream`, or `null` if the stream does not exist.
+ */
+export async function getStreamById(
+  sourceAddress: string,
+  streamId: bigint,
+): Promise<ContractStream | null> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) return null;
+
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+  return simulateContractRead<ContractStream>(
+    sourceAddress,
+    contract.call("get_stream", nativeToScVal(streamId, { type: "u64" })),
+  );
+}
+
+// ─── getTokenSymbol ───────────────────────────────────────────────────────────
+
+const _tokenSymbolCache = new Map<string, string>();
+
+/**
+ * Calls `symbol()` on any SEP-41-compatible token contract (SAC or custom).
+ * Results are cached in-memory.  Falls back to a truncated address on error.
+ */
+export async function getTokenSymbol(
+  sourceAddress: string,
+  tokenAddress: string,
+): Promise<string> {
+  const cached = _tokenSymbolCache.get(tokenAddress);
+  if (cached) return cached;
+
+  try {
+    const server = getRpcServer();
+    let source = await server.getAccount(sourceAddress).catch(() => null);
+    if (!source && PAYROLL_STREAM_CONTRACT_ID) {
+      source = await server
+        .getAccount(PAYROLL_STREAM_CONTRACT_ID)
+        .catch(() => null);
+    }
+    if (!source) return tokenAddress.slice(0, 6);
+
+    const tokenContract = new Contract(tokenAddress);
+    const tx = new TransactionBuilder(source, { fee: "100", networkPassphrase })
+      .addOperation(tokenContract.call("symbol"))
+      .setTimeout(10)
+      .build();
+
+    const response = await server.simulateTransaction(tx);
+    if (SorobanRpc.Api.isSimulationError(response)) {
+      return tokenAddress.slice(0, 6);
+    }
+
+    const retval = (
+      response as SorobanRpc.Api.SimulateTransactionSuccessResponse
+    ).result?.retval;
+    if (!retval) return tokenAddress.slice(0, 6);
+
+    const sym = (scValToNative(retval) as string) || tokenAddress.slice(0, 6);
+    _tokenSymbolCache.set(tokenAddress, sym);
+    return sym;
+  } catch {
+    return tokenAddress.slice(0, 6);
+  }
+}
+
+// ─── getWorkerWithdrawalEvents ────────────────────────────────────────────────
+
+/**
+ * Queries the Soroban RPC for `stream.withdrawn` events emitted for the given
+ * worker address over the last ~24 hours (17 280 ledgers at 5 s/ledger).
+ *
+ * Events where the decoded worker topic does not match `workerAddress` are
+ * silently discarded, so the returned list is always scoped to that worker.
+ */
+export async function getWorkerWithdrawalEvents(
+  workerAddress: string,
+): Promise<ContractWithdrawalEvent[]> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) return [];
+
+  const server = getRpcServer();
+  try {
+    const { sequence: latestLedger } = await server.getLatestLedger();
+    const startLedger = Math.max(1, latestLedger - 17280);
+
+    const symStream = nativeToScVal("stream", { type: "symbol" }).toXDR(
+      "base64",
+    );
+    const symWithdrawn = nativeToScVal("withdrawn", { type: "symbol" }).toXDR(
+      "base64",
+    );
+
+    const response = await server.getEvents({
+      startLedger,
+      filters: [
+        {
+          type: "contract",
+          contractIds: [PAYROLL_STREAM_CONTRACT_ID],
+          topics: [[symStream, symWithdrawn, "*", "*"]],
+        },
+      ],
+      limit: 200,
+    });
+
+    const results: ContractWithdrawalEvent[] = [];
+
+    for (const ev of response.events) {
+      try {
+        if (ev.topic.length < 4) continue;
+
+        const workerFromEvent = scValToNative(ev.topic[3]) as string;
+        if (workerFromEvent !== workerAddress) continue;
+
+        const streamId = scValToNative(ev.topic[2]) as bigint;
+        const [amount, token] = scValToNative(ev.value) as [bigint, string];
+
+        results.push({
+          streamId,
+          amount,
+          token,
+          ledgerClosedAt: ev.ledgerClosedAt,
+          txHash: ev.txHash,
+        });
+      } catch {
+        continue;
+      }
+    }
+
+    return results;
+  } catch {
+    return [];
+  }
 }

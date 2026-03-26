@@ -98,6 +98,16 @@ export interface WebhookOutboundEventRecord {
   updated_at: Date;
 }
 
+export interface PayrollProofRecord {
+  id: number;
+  stream_id: number;
+  cid: string;
+  ipfs_url: string;
+  gateway_url: string;
+  proof_json: unknown;
+  created_at: Date;
+}
+
 // ─── Cursor helpers (for sync worker) ───────────────────────────────────────
 
 export const getLastSyncedLedger = async (
@@ -739,4 +749,52 @@ export const listWebhookOutboundEventsByOwner = async (params: {
     [params.ownerId, params.limit, params.offset],
   );
   return res.rows;
+};
+
+// ─── Stream read by ID ────────────────────────────────────────────────────────
+
+export const getStreamById = async (
+  streamId: number,
+): Promise<StreamRecord | null> => {
+  if (!getPool()) return null;
+  const res = await query<StreamRecord>(
+    `SELECT * FROM payroll_streams WHERE stream_id = $1`,
+    [streamId],
+  );
+  return res.rows[0] ?? null;
+};
+
+// ─── Payroll proof queries ────────────────────────────────────────────────────
+
+export const insertPayrollProof = async (params: {
+  streamId: number;
+  cid: string;
+  ipfsUrl: string;
+  gatewayUrl: string;
+  proofJson: unknown;
+}): Promise<void> => {
+  if (!getPool()) return;
+  await query(
+    `INSERT INTO payroll_proofs (stream_id, cid, ipfs_url, gateway_url, proof_json)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (stream_id) DO NOTHING`,
+    [
+      params.streamId,
+      params.cid,
+      params.ipfsUrl,
+      params.gatewayUrl,
+      JSON.stringify(params.proofJson),
+    ],
+  );
+};
+
+export const getProofByStreamId = async (
+  streamId: number,
+): Promise<PayrollProofRecord | null> => {
+  if (!getPool()) return null;
+  const res = await query<PayrollProofRecord>(
+    `SELECT * FROM payroll_proofs WHERE stream_id = $1`,
+    [streamId],
+  );
+  return res.rows[0] ?? null;
 };

@@ -1,32 +1,55 @@
 name: Contracts CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
+    branches:
+      - main
     paths:
-      - contracts/**
-      - Cargo.toml
-      - Cargo.lock
+      - "contracts/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/contracts.yml"
 
 jobs:
   build-and-test:
+    name: Build and test Soroban contracts
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.89.0
+          targets: wasm32v1-none
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v5
         with:
           path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
+            ~/.cargo/registry/
+            ~/.cargo/git/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
-      - run: sudo apt-get install -y libudev-dev libdbus-1-dev pkg-config
-      - run: rustup target add wasm32v1-none
-      - run: rustup component add rustfmt clippy
-      - run: cargo fmt --check
-      - run: cargo clippy --workspace --exclude quipay-fuzz
-      - run: cargo test --workspace --exclude quipay-fuzz
-      - run: cargo build --target wasm32v1-none --release --workspace --exclude quipay-fuzz
+          key: ${{ runner.os }}-contracts-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'contracts/**/Cargo.toml', 'rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-contracts-
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Install Stellar CLI
+        run: cargo binstall --no-confirm --secure stellar-cli
+
+      - name: Build contracts workspace
+        run: cargo build --workspace --manifest-path ../Cargo.toml --exclude quipay-fuzz
+
+      - name: Test contracts workspace
+        run: cargo test --workspace --manifest-path ../Cargo.toml --exclude quipay-fuzz

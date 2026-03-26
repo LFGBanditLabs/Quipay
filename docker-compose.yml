@@ -1,0 +1,77 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: quipay-postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=quipay
+      - POSTGRES_PASSWORD=quipay_password
+      - POSTGRES_DB=quipay_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quipay -d quipay_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:alpine
+    container_name: quipay-redis
+    restart: always
+    ports:
+      - "6379:6379"
+
+  stellar-local:
+    image: stellar/quickstart:latest
+    container_name: quipay-stellar
+    command: --standalone --enable-soroban-rpc
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    environment:
+      - NETWORK=standalone
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: quipay-backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      - PORT=3001
+      - NODE_ENV=development
+      - DATABASE_URL=postgres://quipay:quipay_password@postgres:5432/quipay_dev
+      - REDIS_URL=redis://redis:6379
+      - STELLAR_RPC_URL=http://stellar-local:8000/rpc
+      - STELLAR_NETWORK=STANDALONE
+    ports:
+      - "3001:3001"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quipay-frontend
+    restart: always
+    depends_on:
+      - backend
+      - stellar-local
+    environment:
+      - VITE_API_URL=http://localhost:3001
+      - VITE_API_BASE_URL=http://backend:3001
+      - VITE_STELLAR_RPC_URL=http://localhost:8000/rpc
+    ports:
+      - "5173:80"
+
+volumes:
+  postgres_data:

@@ -9,7 +9,7 @@ const languages = [
 ];
 
 const LanguageSwitcher: React.FC = () => {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const changeLanguage = (lng: string) => {
     void i18n.changeLanguage(lng);
@@ -21,7 +21,7 @@ const LanguageSwitcher: React.FC = () => {
         value={i18n.language}
         onChange={(e) => changeLanguage(e.target.value)}
         className="bg-[var(--surface-subtle)] border border-[var(--border)] text-[var(--text)] text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2 transition-all duration-200 hover:bg-[var(--surface)]"
-        aria-label="Select Language"
+        aria-label={t("nav.select_language")}
       >
         {languages.map((lang) => (
           <option key={lang.code} value={lang.code}>

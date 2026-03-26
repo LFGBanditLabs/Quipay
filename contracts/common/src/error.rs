@@ -28,6 +28,17 @@ pub enum QuipayError {
     StreamClosed = 1018,
     NotEmployer = 1019,
     StreamNotClosed = 1020,
+    InvalidTimeRange = 1021,
+    InvalidCliff = 1022,
+    StartTimeInPast = 1023,
+    Overflow = 1024,
+    RetentionNotMet = 1025,
+    FeeTooHigh = 1026,
+    AddressBlacklisted = 1027,
+    WorkerNotFound = 1028,
+    BatchTooLarge = 1029,
+    NoPendingAdmin = 1030,
+    NotPendingAdmin = 1031,
     Custom = 1999,
 }
 

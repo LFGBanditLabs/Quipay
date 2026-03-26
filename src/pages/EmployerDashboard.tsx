@@ -6,7 +6,9 @@ import { useNavigate } from "react-router-dom";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import WithdrawButton from "../components/WithdrawButton";
 import EmptyState from "../components/EmptyState";
+import StreamVisualizer from "../components/StreamVisualizer";
 import { SkeletonCard, SkeletonRow } from "../components/Loading";
+import type { SimulationResult } from "../util/simulationUtils";
 
 const EmployerDashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -75,7 +77,7 @@ const EmployerDashboard: React.FC = () => {
   }
 
   const demoContract = {
-    withdrawableAmount: () => {
+    withdrawableAmount: (): Promise<bigint | null> => {
       return Promise.resolve(BigInt("5000000")); // 5.00 USDC (6 decimals)
     },
     withdraw: async () => {
@@ -87,6 +89,71 @@ const EmployerDashboard: React.FC = () => {
     },
   };
 
+  const demoWithdrawSimulation = {
+    getPreview: ({
+      formattedAmount,
+      tokenSymbol,
+    }: {
+      formattedAmount: string;
+      tokenSymbol: string;
+      walletAddress: string;
+    }) => ({
+      description: `Withdraw ${formattedAmount} ${tokenSymbol}`,
+      contractFunction: "withdraw",
+      contractAddress: "PayrollStream (demo)",
+      currentBalances: [
+        { token: "USDC", symbol: "USDC", amount: 1250 },
+        { token: "XLM", symbol: "XLM", amount: 10.5 },
+      ],
+      expectedTransfers: [
+        {
+          label: "Worker receives",
+          symbol: tokenSymbol,
+          amount: Number(formattedAmount),
+        },
+      ],
+      stateChanges: [
+        "Reduce the stream's remaining balance",
+        "Increase the worker's claim history",
+        "Emit a withdraw event for the stream",
+      ],
+    }),
+    nativeXlmBalance: 10.5,
+    onSimulate: async (): Promise<SimulationResult> => {
+      await new Promise((res) => setTimeout(res, 900));
+      const feeXLM = 0.0074821;
+      return {
+        status: "success",
+        estimatedFeeStroops: 74821,
+        estimatedFeeXLM: feeXLM,
+        balanceChanges: [
+          {
+            token: "USDC",
+            symbol: "USDC",
+            before: 1250,
+            after: 1250,
+            delta: 0,
+          },
+          {
+            token: "XLM",
+            symbol: "XLM",
+            before: 10.5,
+            after: Math.round((10.5 - feeXLM) * 1e7) / 1e7,
+            delta: -feeXLM,
+          },
+        ],
+        restoreRequired: false,
+        resources: {
+          instructions: 2_847_326,
+          readBytes: 18_432,
+          writeBytes: 4_096,
+          readEntries: 4,
+          writeEntries: 2,
+        },
+      };
+    },
+  };
+
   return (
     <Layout.Content>
       <Layout.Inset>
@@ -94,12 +161,35 @@ const EmployerDashboard: React.FC = () => {
           {t("dashboard.title")}
         </Text>
 
+        {/* Topology Visualizer */}
+        <div style={{ marginTop: "24px", marginBottom: "32px" }}>
+          <Text
+            as="h2"
+            size="lg"
+            weight="medium"
+            style={{ marginBottom: "16px" }}
+          >
+            Network Topology
+          </Text>
+          <StreamVisualizer
+            streams={activeStreams}
+            treasuryBalance={
+              treasuryBalances.length > 0
+                ? treasuryBalances
+                    .map((t) => `${t.balance} ${t.tokenSymbol}`)
+                    .join(", ")
+                : "0"
+            }
+          />
+        </div>
+
         <div className={tw.dashboardGrid}>
           <WithdrawButton
             walletAddress="0xYourWalletAddress"
             contract={demoContract}
             tokenSymbol="USDC"
             tokenDecimals={6}
+            withdrawSimulation={demoWithdrawSimulation}
           />
 
           {/* Treasury Balance */}

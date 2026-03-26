@@ -3,10 +3,10 @@ extern crate std;
 
 use crate::{PayrollStream, PayrollStreamClient, Stream, StreamStatus};
 use proptest::prelude::*;
-use soroban_sdk::{Address, Env, testutils::Address as _, testutils::Ledger};
+use soroban_sdk::{testutils::Address as _, testutils::Ledger, Address, Env};
 
 mod dummy_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct DummyVault;
     #[contractimpl]
@@ -337,5 +337,77 @@ fn construct_stream(
         status,
         created_at: start_ts.saturating_sub(100),
         closed_at,
+    }
+}
+
+#[test]
+#[ignore = "fuzz-style coverage for streamed amount edge cases"]
+fn fuzz_compute_streamed_edge_cases() {
+    let env = Env::default();
+    let start_ts = 1_700_000_000u64;
+    let mut seed = 0xDEADBEEFCAFEBABEu64;
+
+    for _ in 0..10_000 {
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+        let total_amount = ((seed >> 1) % 1_000_000_000u64) as i128;
+
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+        let duration = seed % 10_000u64;
+
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+        let query_offset = seed % (duration.saturating_add(5_001));
+
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+        let mut t1_offset = seed % (duration.saturating_add(1));
+
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+        let mut t2_offset = seed % (duration.saturating_add(1));
+
+        if t1_offset > t2_offset {
+            core::mem::swap(&mut t1_offset, &mut t2_offset);
+        }
+
+        let end_ts = start_ts.saturating_add(duration);
+        let stream = construct_stream(
+            &env,
+            start_ts,
+            end_ts,
+            0,
+            total_amount,
+            StreamStatus::Active,
+            0,
+        );
+
+        let streamed_at_query =
+            PayrollStream::vested_amount_at(&stream, start_ts.saturating_add(query_offset));
+        let streamed_at_end = PayrollStream::vested_amount_at(&stream, end_ts);
+        let streamed_t1 =
+            PayrollStream::vested_amount_at(&stream, start_ts.saturating_add(t1_offset));
+        let streamed_t2 =
+            PayrollStream::vested_amount_at(&stream, start_ts.saturating_add(t2_offset));
+
+        assert!(
+            streamed_at_query <= total_amount,
+            "streamed amount exceeded total: streamed={}, total={}, duration={}, query_offset={}",
+            streamed_at_query,
+            total_amount,
+            duration,
+            query_offset
+        );
+        assert_eq!(
+            streamed_at_end, total_amount,
+            "streamed amount at end should equal total: total={}, duration={}",
+            total_amount, duration
+        );
+        assert!(
+            streamed_t1 <= streamed_t2,
+            "streamed amount must be monotonic: t1={}, t2={}, streamed_t1={}, streamed_t2={}, duration={}, total={}",
+            t1_offset,
+            t2_offset,
+            streamed_t1,
+            streamed_t2,
+            duration,
+            total_amount
+        );
     }
 }

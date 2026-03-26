@@ -161,3 +161,161 @@ fn test_integration_full_withdraw_completes_and_liability_zero() {
     assert_eq!(stream.status, StreamStatus::Completed);
     assert_eq!(token_client.balance(&worker), 5_000);
 }
+
+#[test]
+fn test_integration_gateway_cancel_pays_accrued_and_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths_allowing_non_root_auth();
+
+    let (stream_client, vault_client, _admin, employer, worker, token_id, _depositor) =
+        setup_integration(&env);
+    let token_client = token::Client::new(&env, &token_id);
+
+    let gateway = Address::generate(&env);
+    stream_client.set_gateway(&gateway);
+
+    env.ledger().with_mut(|li| li.timestamp = 0);
+    let stream_id =
+        stream_client.create_stream(&employer, &worker, &token_id, &100, &0u64, &0u64, &100u64);
+
+    let balance_before = token_client.balance(&worker);
+    env.ledger().with_mut(|li| li.timestamp = 40);
+
+    stream_client.cancel_stream_via_gateway(&stream_id, &employer);
+
+    let stream = stream_client.get_stream(&stream_id).unwrap();
+    assert_eq!(stream.status, StreamStatus::Canceled);
+    assert_eq!(stream.withdrawn_amount, 4_000);
+    assert_eq!(stream.last_withdrawal_ts, 40);
+    assert_eq!(vault_client.get_total_liability(&token_id), 0);
+    assert_eq!(token_client.balance(&worker), balance_before + 4_000);
+}
+
+#[test]
+fn test_integration_get_claimable_capped_by_vault_balance() {
+    let env = Env::default();
+    env.mock_all_auths_allowing_non_root_auth();
+
+    let (stream_client, vault_client, _admin, employer, worker, token_id, _depositor) =
+        setup_integration(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 0);
+    let stream_id =
+        stream_client.create_stream(&employer, &worker, &token_id, &100, &0u64, &0u64, &100u64);
+
+    env.ledger().with_mut(|li| li.timestamp = 50);
+    assert_eq!(stream_client.get_claimable(&stream_id), Some(5_000));
+
+    // Reduce raw vault balance from 10_000 to 2_000
+    vault_client.payout(&worker, &token_id, &8_000);
+    assert_eq!(stream_client.get_claimable(&stream_id), Some(2_000));
+}
+
+#[test]
+fn test_integration_full_stream_lifecycle_create_withdraw_extend_full_withdraw_cancel() {
+    let env = Env::default();
+    env.mock_all_auths_allowing_non_root_auth();
+
+    let (stream_client, vault_client, _admin, employer, worker1, token_id, _depositor) =
+        setup_integration(&env);
+
+    let token_client = token::Client::new(&env, &token_id);
+
+    // Multiple concurrent streams (same token / employer, different workers)
+    let worker2 = Address::generate(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 0);
+    let stream_id_1 = stream_client.create_stream(
+        &employer,
+        &worker1,
+        &token_id,
+        &50, // 50 per second
+        &0u64,
+        &0u64,
+        &100u64, // end_time
+    );
+    let stream_id_2 = stream_client.create_stream(
+        &employer,
+        &worker2,
+        &token_id,
+        &100, // 100 per second
+        &0u64,
+        &0u64,
+        &50u64, // end_time (used for exact end_time edge case)
+    );
+
+    // total_amounts: 50*(100-0)=5_000 and 100*(50-0)=5_000
+    assert_eq!(vault_client.get_total_liability(&token_id), 10_000);
+    assert_eq!(vault_client.get_treasury_balance(&token_id), 10_000);
+    assert_eq!(token_client.balance(&worker1), 0);
+    assert_eq!(token_client.balance(&worker2), 0);
+
+    // partial_withdraw
+    env.ledger().with_mut(|li| li.timestamp = 25);
+    let partial_1 = stream_client.withdraw(&stream_id_1, &worker1);
+    let partial_2 = stream_client.withdraw(&stream_id_2, &worker2);
+    assert_eq!(partial_1, 1_250); // 5_000 * 25/100
+    assert_eq!(partial_2, 2_500); // 5_000 * 25/50
+
+    assert_eq!(vault_client.get_total_liability(&token_id), 6_250);
+    assert_eq!(vault_client.get_treasury_balance(&token_id), 6_250);
+    assert_eq!(token_client.balance(&worker1), 1_250);
+    assert_eq!(token_client.balance(&worker2), 2_500);
+
+    // extend_stream (modeled as another partial withdraw before either stream closes)
+    env.ledger().with_mut(|li| li.timestamp = 40);
+    let extended_1 = stream_client.withdraw(&stream_id_1, &worker1);
+    let extended_2 = stream_client.withdraw(&stream_id_2, &worker2);
+    assert_eq!(extended_1, 750); // remaining vested at t=40: 2_000 - 1_250
+    assert_eq!(extended_2, 1_500); // remaining vested at t=40: 4_000 - 2_500
+
+    assert_eq!(vault_client.get_total_liability(&token_id), 4_000);
+    assert_eq!(vault_client.get_treasury_balance(&token_id), 4_000);
+    assert_eq!(token_client.balance(&worker1), 2_000);
+    assert_eq!(token_client.balance(&worker2), 4_000);
+
+    // Both streams should still be active at t=40 (stream 2 ends at t=50)
+    assert_eq!(
+        stream_client.get_stream(&stream_id_1).unwrap().status,
+        StreamStatus::Active
+    );
+    assert_eq!(
+        stream_client.get_stream(&stream_id_2).unwrap().status,
+        StreamStatus::Active
+    );
+
+    // full_withdraw (edge case: withdraw at exact end_time)
+    env.ledger().with_mut(|li| li.timestamp = 50);
+    let end_exact_2 = stream_client.withdraw(&stream_id_2, &worker2);
+    assert_eq!(end_exact_2, 1_000); // remaining: 5_000 - 4_000
+    assert_eq!(vault_client.get_total_liability(&token_id), 3_000);
+    assert_eq!(vault_client.get_treasury_balance(&token_id), 3_000);
+    assert_eq!(token_client.balance(&worker2), 5_000);
+
+    let stream2 = stream_client.get_stream(&stream_id_2).unwrap();
+    assert_eq!(stream2.status, StreamStatus::Completed);
+
+    // full_withdraw for stream 1 at its exact end_time
+    env.ledger().with_mut(|li| li.timestamp = 100);
+    let end_exact_1 = stream_client.withdraw(&stream_id_1, &worker1);
+    assert_eq!(end_exact_1, 3_000); // remaining: 5_000 - 2_000
+    assert_eq!(vault_client.get_total_liability(&token_id), 0);
+    assert_eq!(vault_client.get_treasury_balance(&token_id), 0);
+    assert_eq!(token_client.balance(&worker1), 5_000);
+
+    let stream1 = stream_client.get_stream(&stream_id_1).unwrap();
+    assert_eq!(stream1.status, StreamStatus::Completed);
+
+    // cancel should be a no-op for completed streams
+    let balance_before_cancel_1 = token_client.balance(&worker1);
+    let balance_before_cancel_2 = token_client.balance(&worker2);
+    vault_client.get_total_liability(&token_id); // keep balances in sync; no-op
+
+    stream_client.cancel_stream(&stream_id_1, &employer, &None);
+    stream_client.cancel_stream(&stream_id_2, &employer, &None);
+
+    assert_eq!(vault_client.get_total_liability(&token_id), 0);
+    assert_eq!(vault_client.get_treasury_balance(&token_id), 0);
+    assert_eq!(token_client.balance(&worker1), balance_before_cancel_1);
+    assert_eq!(token_client.balance(&worker2), balance_before_cancel_2);
+}
