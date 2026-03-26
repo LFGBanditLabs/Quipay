@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useWallet } from "../hooks/useWallet";
 import { connectWallet, disconnectWallet } from "../util/wallet";
+import { shortenAddress } from "../util/address";
 import { Spinner } from "./Loading";
 
 /**
@@ -38,9 +39,6 @@ export const WalletConnect = () => {
       setIsDisconnecting(false);
     }
   };
-
-  const shortenAddress = (addr: string) =>
-    `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
   return (
     <div className="wallet-connect">

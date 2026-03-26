@@ -122,6 +122,45 @@ export async function buildCreateStreamTx(
   return { preparedXdr: prepared.toXDR() };
 }
 
+// ─── buildCancelStreamTx ─────────────────────────────────────────────────────
+
+/**
+ * Simulates and builds a `cancel_stream` transaction, returning the
+ * base64-encoded prepared XDR ready for signing.
+ */
+export async function buildCancelStreamTx(
+  streamId: bigint,
+  employer: string,
+): Promise<{ preparedXdr: string }> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) {
+    throw new Error(
+      "VITE_PAYROLL_STREAM_CONTRACT_ID is not set in environment variables.",
+    );
+  }
+
+  const server = getRpcServer();
+  const account = await server.getAccount(employer);
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+
+  const tx = new TransactionBuilder(account, {
+    fee: "1000000",
+    networkPassphrase,
+  })
+    .addOperation(
+      contract.call(
+        "cancel_stream",
+        nativeToScVal(streamId, { type: "u64" }),
+        new Address(employer).toScVal(),
+        nativeToScVal(null), // For the 'to' option in Soroban which is an Option<Address> or something? Wait...
+      ),
+    )
+    .setTimeout(30)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  return { preparedXdr: prepared.toXDR() };
+}
+
 // ─── checkTreasurySolvency ────────────────────────────────────────────────────
 
 /**

@@ -6,6 +6,9 @@ import { useNotification } from "../hooks/useNotification";
 import Tooltip from "../components/Tooltip";
 import CollapsibleSection from "../components/CollapsibleSection";
 import SolvencyCard from "../components/dashboard/SolvencyCard";
+import { DepositModal } from "../components/DepositModal";
+import { buildDepositTx } from "../contracts/payroll_vault";
+import { useWallet } from "../hooks/useWallet";
 
 const TreasuryManagement: React.FC = () => {
   const tw = {
@@ -25,9 +28,40 @@ const TreasuryManagement: React.FC = () => {
 
   const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const { address } = useWallet();
   const { vaultData, totalLiabilities, isVaultLoading, refreshVaultData } =
     usePayroll();
   const [retentionSecs, setRetentionSecs] = useState("2592000"); // 30 days
+  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+
+  const handleDeposit = async (tokenAddress: string, amount: string) => {
+    if (!address) {
+      addNotification("Please connect your wallet first", "error");
+      return;
+    }
+
+    // Scale amount by decimals (USDC=6, XLM=7)
+    const tokenSymbol =
+      vaultData.find((t) => t.token === tokenAddress)?.tokenSymbol || "XLM";
+    const decimals = tokenSymbol === "USDC" ? 6 : 7;
+    const amountBigInt = BigInt(
+      Math.floor(Number(amount) * Math.pow(10, decimals)),
+    );
+
+    try {
+      await buildDepositTx(address, tokenAddress, amountBigInt);
+      // Here usually we would sign and submit the transaction.
+      // For this scaffold, we're just simulating success.
+      addNotification(
+        `Successfully deposited ${amount} ${tokenSymbol}`,
+        "success",
+      );
+      await refreshVaultData();
+    } catch (e) {
+      console.error(e);
+      addNotification("Deposit failed", "error");
+    }
+  };
 
   return (
     <Layout.Content>
@@ -98,7 +132,11 @@ const TreasuryManagement: React.FC = () => {
               <span className={tw.balanceValue}>Loading...</span>
             )}
             <div className={tw.actions}>
-              <Button variant="primary" size="md">
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => setIsDepositModalOpen(true)}
+              >
                 Deposit Funds
               </Button>
               <Button variant="secondary" size="md">
@@ -226,6 +264,13 @@ const TreasuryManagement: React.FC = () => {
           </CollapsibleSection>
         </div>
       </Layout.Inset>
+
+      <DepositModal
+        isOpen={isDepositModalOpen}
+        onClose={() => setIsDepositModalOpen(false)}
+        vaultData={vaultData}
+        onDeposit={handleDeposit}
+      />
     </Layout.Content>
   );
 };
