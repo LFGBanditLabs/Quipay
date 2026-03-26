@@ -26,7 +26,10 @@ export interface HealthResponseBody {
 const SERVICE_NAME = "quipay-automation-engine";
 const CHECK_TIMEOUT_MS = 5000;
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timeout = setTimeout(() => {
       reject(new Error(`timed out after ${timeoutMs}ms`));
@@ -100,7 +103,10 @@ async function checkStellarRpc(): Promise<DependencyHealth> {
 
   try {
     const server = new rpc.Server(rpcUrl);
-    const latestLedger = await withTimeout(server.getLatestLedger(), CHECK_TIMEOUT_MS);
+    const latestLedger = await withTimeout(
+      server.getLatestLedger(),
+      CHECK_TIMEOUT_MS,
+    );
 
     if (!latestLedger?.sequence) {
       return {

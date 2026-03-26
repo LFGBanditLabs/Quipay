@@ -147,16 +147,11 @@ const ingestEvents = async (events: rpc.Api.EventResponse[]): Promise<void> => {
         }
       }
     } catch (err: unknown) {
-      await serviceLogger.error(
-        "Syncer",
-        "Failed to ingest event",
-        err,
-        {
-          event_type: parsed.kind,
-          ledger_number: event.ledger,
-          event_id: event.id,
-        },
-      );
+      await serviceLogger.error("Syncer", "Failed to ingest event", err, {
+        event_type: parsed.kind,
+        ledger_number: event.ledger,
+        event_id: event.id,
+      });
     }
   }
 };
@@ -259,10 +254,14 @@ const runSync = async (): Promise<number> => {
 
 export const startSyncer = async (): Promise<void> => {
   if (!getPool()) {
-    await serviceLogger.warn("Syncer", "Database not configured — syncer disabled", {
-      event_type: "syncer_startup",
-      ledger_number: null,
-    });
+    await serviceLogger.warn(
+      "Syncer",
+      "Database not configured — syncer disabled",
+      {
+        event_type: "syncer_startup",
+        ledger_number: null,
+      },
+    );
     return;
   }
 
@@ -275,10 +274,15 @@ export const startSyncer = async (): Promise<void> => {
     try {
       await runSync();
     } catch (err: unknown) {
-      await serviceLogger.error("Syncer", "Unhandled error in sync cycle", err, {
-        event_type: "sync_cycle_error",
-        ledger_number: null,
-      });
+      await serviceLogger.error(
+        "Syncer",
+        "Unhandled error in sync cycle",
+        err,
+        {
+          event_type: "sync_cycle_error",
+          ledger_number: null,
+        },
+      );
     }
     setTimeout(poll, POLL_INTERVAL_MS);
   };

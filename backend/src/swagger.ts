@@ -341,7 +341,8 @@ const swaggerDefinition = {
             },
           },
           503: {
-            description: "Service is degraded because one or more dependencies are unhealthy.",
+            description:
+              "Service is degraded because one or more dependencies are unhealthy.",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/HealthResponse" },
