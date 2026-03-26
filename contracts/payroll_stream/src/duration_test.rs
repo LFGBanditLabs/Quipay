@@ -23,6 +23,7 @@ fn test_create_stream_max_duration_enforced() {
         &0u64,
         &0u64,
         &valid_duration,
+        &None,
     );
     assert!(res.is_ok());
 
@@ -36,6 +37,7 @@ fn test_create_stream_max_duration_enforced() {
         &0u64,
         &0u64,
         &invalid_duration,
+        &None,
     );
 
     let err = res.unwrap_err().unwrap();
