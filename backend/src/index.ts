@@ -57,7 +57,6 @@ app.use(
 // Add X-Request-ID generation/forwarding via AsyncLocalStorage
 app.use(requestIdMiddleware);
 
-
 // Initialize database and audit logger
 async function initializeServices() {
   await secretsBootstrap.initialize();

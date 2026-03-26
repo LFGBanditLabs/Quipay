@@ -81,7 +81,11 @@ export async function logServiceError(
   try {
     const enrichedContext = enrichContext(context);
     if (!isAuditLoggerInitialized()) {
-      console.error(formatFallbackMessage(service, message), normalizedError, enrichedContext);
+      console.error(
+        formatFallbackMessage(service, message),
+        normalizedError,
+        enrichedContext,
+      );
       return;
     }
 
