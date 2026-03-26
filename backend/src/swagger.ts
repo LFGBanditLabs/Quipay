@@ -394,7 +394,7 @@ const swaggerDefinition = {
         tags: ["Monitor"],
         summary: "Treasury monitor status",
         description:
-          "Runs a treasury health check cycle and returns the result for all tracked employer addresses.",
+          "Runs a treasury health check cycle and returns the result for all tracked employer addresses. This endpoint is strict-rate-limited. If MONITOR_STATUS_ADMIN_TOKEN is configured, include it as `Authorization: Bearer <token>`.",
         operationId: "getMonitorStatus",
         responses: {
           200: {
@@ -402,6 +402,24 @@ const swaggerDefinition = {
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/MonitorStatusResponse" },
+              },
+            },
+          },
+          401: {
+            description:
+              "Unauthorized. Returned when MONITOR_STATUS_ADMIN_TOKEN is configured and the bearer token is missing or invalid.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          429: {
+            description:
+              "Too many requests. Strict rate limiter has been exceeded.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
               },
             },
           },

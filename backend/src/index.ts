@@ -21,11 +21,12 @@ import {
 } from "./audit/middleware";
 import { initDb } from "./db/pool";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
-import { standardRateLimiter } from "./middleware/rateLimiter";
+import { strictRateLimiter } from "./middleware/rateLimiter";
 import { getPool } from "./db/pool";
 import Redis from "ioredis";
 import { rpc } from "@stellar/stellar-sdk";
 import { secretsBootstrap } from "./services/secretsBootstrap";
+import { requireMonitorStatusAdminToken } from "./middleware/monitorStatusAuth";
 import { getHealthResponse } from "./health";
 
 dotenv.config();
@@ -180,20 +181,25 @@ app.get("/scheduler/status", (req, res) => {
 
 /**
  * @api {get} /monitor/status Treasury monitor status endpoint
- * @apiDescription Returns the current treasury health status for all employers.
+ * @apiDescription Runs one monitor cycle. Protected by strict rate limiting and optional bearer token auth.
  */
-app.get("/monitor/status", async (req, res) => {
-  try {
-    const statuses = await runMonitorCycle();
-    res.json({
-      status: "ok",
-      employers: statuses,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (ex: any) {
-    res.status(500).json({ error: ex.message });
-  }
-});
+app.get(
+  "/monitor/status",
+  strictRateLimiter,
+  requireMonitorStatusAdminToken,
+  async (req, res) => {
+    try {
+      const statuses = await runMonitorCycle();
+      res.json({
+        status: "ok",
+        employers: statuses,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (ex: any) {
+      res.status(500).json({ error: ex.message });
+    }
+  },
+);
 
 /**
  * @api {post} /test/concurrent-tx Simulated high-throughput endpoint
