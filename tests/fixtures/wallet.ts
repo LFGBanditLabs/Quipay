@@ -38,6 +38,7 @@ export class MockWallet {
           isConnected,
           shouldFailTransaction,
 
+          // eslint-disable-next-line @typescript-eslint/require-await
           connect: async () => {
             if (!isConnected) {
               throw new Error("User rejected connection");
@@ -45,11 +46,13 @@ export class MockWallet {
             return { publicKey };
           },
 
+          // eslint-disable-next-line @typescript-eslint/require-await
           disconnect: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (window as any).mockWallet.isConnected = false;
           },
 
+          // eslint-disable-next-line @typescript-eslint/require-await
           signTransaction: async (xdr: string) => {
             if (shouldFailTransaction) {
               throw new Error("User rejected transaction");
@@ -57,6 +60,7 @@ export class MockWallet {
             return xdr; // Return the same XDR (mocked)
           },
 
+          // eslint-disable-next-line @typescript-eslint/require-await
           signAuthEntry: async () => {
             return "mocked-auth-entry";
           },
@@ -65,19 +69,19 @@ export class MockWallet {
         // Mock the wallet kit
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (window as any).StellarWalletsKit = class {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/require-await
           async openModal(): Promise<any> {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             return (window as any).mockWallet.connect();
           }
 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/require-await
           async disconnect(): Promise<any> {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             return (window as any).mockWallet.disconnect();
           }
 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/require-await
           async sign(xdr: string): Promise<any> {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             return (window as any).mockWallet.signTransaction(xdr);
