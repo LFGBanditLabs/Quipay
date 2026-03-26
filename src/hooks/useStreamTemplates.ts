@@ -3,6 +3,8 @@ import { useState, useCallback } from "react";
 export interface StreamTemplate {
   id: string;
   name: string;
+  workerName: string;
+  workerAddress: string;
   token: string;
   amount: string;
   frequency: string;
@@ -82,11 +84,43 @@ export function useStreamTemplates() {
     [templates],
   );
 
+  const exportTemplates = useCallback(() => {
+    const dataStr = JSON.stringify(templates, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `quipay-templates-${new Date().toISOString().split("T")[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [templates]);
+
+  const importTemplates = useCallback((imported: StreamTemplate[]) => {
+    setTemplates((prev) => {
+      // Merge by ID, keeping newer or just appending if new ID
+      const merged = [...prev];
+      for (const t of imported) {
+        const existingIdx = merged.findIndex((m) => m.id === t.id);
+        if (existingIdx >= 0) {
+          merged[existingIdx] = { ...merged[existingIdx], ...t };
+        } else {
+          merged.push(t);
+        }
+      }
+      saveTemplates(merged);
+      return merged;
+    });
+  }, []);
+
   return {
     templates,
     addTemplate,
     updateTemplate,
     deleteTemplate,
     getTemplate,
+    exportTemplates,
+    importTemplates,
   };
 }

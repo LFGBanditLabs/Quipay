@@ -23,6 +23,7 @@ const WorkforceRegistry = lazy(() => import("./pages/WorkforceRegistry"));
 const DashboardCustomization = lazy(
   () => import("./pages/DashboardCustomization"),
 );
+const StreamTemplates = lazy(() => import("./pages/StreamTemplates"));
 const StreamComparison = lazy(() => import("./pages/StreamComparison"));
 const UIPrimitivesPreview = lazy(
   () => import("./pages/UIPrimitivesPreview.tsx"),
@@ -141,6 +142,14 @@ function App() {
             element={
               <WalletGuard>
                 <DashboardCustomization />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/templates"
+            element={
+              <WalletGuard>
+                <StreamTemplates />
               </WalletGuard>
             }
           />

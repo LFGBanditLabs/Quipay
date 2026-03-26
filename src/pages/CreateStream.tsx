@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Layout, Text } from "@stellar/design-system";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Wizard from "../components/Wizard";
 import { useNotification } from "../hooks/useNotification";
 import Tooltip from "../components/Tooltip";
@@ -25,7 +25,9 @@ const CreateStream: React.FC = () => {
   const navigate = useNavigate();
   const { addNotification } = useNotification();
   const { templates, addTemplate } = useStreamTemplates();
+  const location = useLocation();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [hasLoadedFromLocation, setHasLoadedFromLocation] = useState(false);
   const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [formData, setFormData] = useState({
@@ -46,37 +48,55 @@ const CreateStream: React.FC = () => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const loadTemplate = (templateId: string) => {
-    const template = templates.find((t) => t.id === templateId);
-    if (template) {
-      const startDate = new Date().toISOString().split("T")[0];
-      const endDate = new Date(
-        Date.now() + template.duration * 24 * 60 * 60 * 1000,
-      )
-        .toISOString()
-        .split("T")[0];
-      const cliffDate =
-        template.enableCliff && template.cliffDuration
-          ? new Date(Date.now() + template.cliffDuration * 24 * 60 * 60 * 1000)
-              .toISOString()
-              .split("T")[0]
-          : "";
-      setFormData({
-        ...formData,
-        amount: template.amount,
-        token: template.token,
-        frequency: template.frequency,
-        startDate,
-        endDate,
-        advancedOptions: {
-          enableCliff: template.enableCliff,
-          cliffDate,
-        },
-      });
-      setSelectedTemplateId(templateId);
-      addNotification(`Loaded template: ${template.name}`, "success");
+  const loadTemplate = React.useCallback(
+    (templateId: string) => {
+      const template = templates.find((t) => t.id === templateId);
+      if (template) {
+        const startDate = new Date().toISOString().split("T")[0];
+        const endDate = new Date(
+          Date.now() + template.duration * 24 * 60 * 60 * 1000,
+        )
+          .toISOString()
+          .split("T")[0];
+        const cliffDate =
+          template.enableCliff && template.cliffDuration
+            ? new Date(
+                Date.now() + template.cliffDuration * 24 * 60 * 60 * 1000,
+              )
+                .toISOString()
+                .split("T")[0]
+            : "";
+        setFormData({
+          ...formData,
+          workerName: template.workerName || "",
+          workerAddress: template.workerAddress || "",
+          amount: template.amount,
+          token: template.token,
+          frequency: template.frequency,
+          startDate,
+          endDate,
+          advancedOptions: {
+            enableCliff: template.enableCliff,
+            cliffDate,
+          },
+        });
+        setSelectedTemplateId(templateId);
+        addNotification(`Loaded template: ${template.name}`, "success");
+      }
+    },
+    [templates, formData, addNotification],
+  );
+
+  React.useEffect(() => {
+    if (
+      !hasLoadedFromLocation &&
+      location.state?.templateId &&
+      templates.length > 0
+    ) {
+      loadTemplate(location.state.templateId);
+      setHasLoadedFromLocation(true);
     }
-  };
+  }, [location.state, templates, hasLoadedFromLocation, loadTemplate]);
 
   const handleSaveAsTemplate = () => {
     if (!templateName.trim()) {
@@ -99,6 +119,8 @@ const CreateStream: React.FC = () => {
       : undefined;
     addTemplate({
       name: templateName.trim(),
+      workerName: formData.workerName,
+      workerAddress: formData.workerAddress,
       token: formData.token,
       amount: formData.amount,
       frequency: formData.frequency,
