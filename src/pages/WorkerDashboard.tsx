@@ -10,8 +10,6 @@ import {
 import { useNotification } from "../hooks/useNotification";
 import { EarningsDisplay } from "../components/EarningsDisplay";
 import { formatTokenAmount } from "../util/tokenDecimals";
-
-const StreamCard: React.FC<{ stream: WorkerStream }> = ({ stream }) => {
 import { StreamTimeline } from "../components/StreamTimeline";
 import { StreamCardSkeleton } from "../components/dashboard/StreamCardSkeleton";
 import { EarningsSkeleton } from "../components/dashboard/EarningsSkeleton";
