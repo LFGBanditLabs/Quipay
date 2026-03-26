@@ -1,7 +1,6 @@
 import { Pool, QueryResult, QueryResultRow } from "pg";
 import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "./schema";
-import { runMigrations } from "./migrate";
 
 let pool: Pool | null = null;
 let db: NodePgDatabase<typeof schema> | null = null;
@@ -38,10 +37,7 @@ export const initDb = async (): Promise<void> => {
     console.error("[DB] Unexpected pool error:", err.message);
   });
 
-  // Run migrations
-  await runMigrations();
-
-  console.log("[DB] ✅ Database initialized and migrations applied.");
+  console.log("[DB] ✅ Database pool initialized.");
 };
 
 /**

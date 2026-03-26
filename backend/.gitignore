@@ -2,3 +2,6 @@ node_modules/
 dist/
 .env
 build_errors.txt
+
+# Test migration directories
+src/__tests__/integration/test_migrations/
