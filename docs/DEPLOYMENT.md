@@ -238,12 +238,12 @@ Also update any runtime `.env` values used by backend/frontend (for example `QUI
 
 Current staging/testnet addresses:
 
-| Contract | Contract ID | Notes |
-| --- | --- | --- |
-| PayrollVault | `CCVIZ7256UFV2TKVTQ6ANU6S75IFFSXMLJOXOXW5QZOUXBTWDIRXGEUJ` | Liability and treasury control |
-| PayrollStream | `CAQ5IXSFW74FXUZ6M7OURK36JFEGTJ5NC5GITPRSZBSY2FWOTRVAGVPV` | Stream creation/withdraw/cancel |
+| Contract          | Contract ID                                                | Notes                                    |
+| ----------------- | ---------------------------------------------------------- | ---------------------------------------- |
+| PayrollVault      | `CCVIZ7256UFV2TKVTQ6ANU6S75IFFSXMLJOXOXW5QZOUXBTWDIRXGEUJ` | Liability and treasury control           |
+| PayrollStream     | `CAQ5IXSFW74FXUZ6M7OURK36JFEGTJ5NC5GITPRSZBSY2FWOTRVAGVPV` | Stream creation/withdraw/cancel          |
 | AutomationGateway | `CDYO5HXZ7K5XP2U52DW5PCYRTG6NVXDG525ZFYVRGOKD6BRERM44AVRO` | Agent authorization + automation routing |
-| WorkforceRegistry | `CBUSAUR4GSZVJMSUEPD6WSB6PKDAAATSPUUMCZU7HFU4P6ID45H7F547` | Worker registry |
+| WorkforceRegistry | `CBUSAUR4GSZVJMSUEPD6WSB6PKDAAATSPUUMCZU7HFU4P6ID45H7F547` | Worker registry                          |
 
 ---
 
@@ -256,9 +256,9 @@ Before running with `NETWORK=mainnet`:
 3. Run dry-run checks on testnet with the exact same wasm artifacts.
 4. Double-check admin address and ownership model.
 5. Execute dependency wiring in this order:
-    - `set_vault` on stream
-    - `set_authorized_contract` on vault
-    - optional `set_gateway` on stream
+   - `set_vault` on stream
+   - `set_authorized_contract` on vault
+   - optional `set_gateway` on stream
 6. Store transaction hashes and final contract IDs in release notes.
 
 ---

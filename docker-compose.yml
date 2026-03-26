@@ -60,7 +60,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget -qO- http://localhost:3001/health | grep -q '\"status\":\"ok\"'",
+          'wget -qO- http://localhost:3001/health | grep -q ''"status":"ok"''',
         ]
       interval: 15s
       timeout: 5s
