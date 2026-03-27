@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments, deprecated)]
 use quipay_common::{QuipayError, require};
 use soroban_sdk::{Address, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype};
 
@@ -238,13 +239,7 @@ impl PayrollStream {
 
             let result = match env.storage().persistent().get::<StreamKey, Stream>(&key) {
                 Some(mut stream) => {
-                    if stream.worker != caller {
-                        WithdrawResult {
-                            stream_id,
-                            amount: 0,
-                            success: false,
-                        }
-                    } else if Self::is_closed(&stream) {
+                    if stream.worker != caller || Self::is_closed(&stream) {
                         WithdrawResult {
                             stream_id,
                             amount: 0,
@@ -789,7 +784,7 @@ impl PayrollStream {
             }
             i += 1;
         }
-        if new_ids.len() == 0 {
+        if new_ids.is_empty() {
             env.storage().persistent().remove(&key);
         } else {
             env.storage().persistent().set(&key, &new_ids);

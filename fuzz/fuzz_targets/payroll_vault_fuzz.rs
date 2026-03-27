@@ -1,4 +1,9 @@
 #![no_main]
+#![allow(
+    clippy::let_unit_value,
+    clippy::type_complexity,
+    clippy::too_many_arguments
+)]
 
 use arbitrary::Arbitrary;
 use libfuzzer_sys::fuzz_target;
