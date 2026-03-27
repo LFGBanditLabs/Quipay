@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "composite": true,
+    "lib": ["ESNext", "DOM"],
+    "types": ["node", "bun"]
+  },
+  "include": ["src"],
+  "exclude": []
+}

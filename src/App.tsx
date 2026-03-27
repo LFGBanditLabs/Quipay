@@ -4,6 +4,10 @@ import { useTranslation } from "react-i18next";
 import Navbar from "./components/layout/Navbar";
 import OnboardingTour from "./components/OnboardingTour";
 import Footer from "./components/layout/Footer";
+import WalletGuard from "./components/WalletGuard";
+import { TooltipProvider } from "./components/ui";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import KeyboardShortcutsModal from "./components/KeyboardShortcutsModal";
 
 const Home = lazy(() => import("./pages/Home"));
 const Debugger = lazy(() => import("./pages/Debugger"));
@@ -14,11 +18,19 @@ const CreateStream = lazy(() => import("./pages/CreateStream"));
 const HelpPage = lazy(() => import("./pages/HelpPage"));
 const PayrollDashboard = lazy(() => import("./pages/PayrollDashboard"));
 const TreasuryManager = lazy(() => import("./pages/TreasuryManager"));
-const WithdrawPage = lazy(() => import("./pages/withdrawPage"));
+const WithdrawPage = lazy(() => import("./pages/WithdrawPage"));
 const Reports = lazy(() => import("./pages/Reports"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const WorkerDashboard = lazy(() => import("./pages/WorkerDashboard"));
+const Analytics = lazy(() => import("./pages/Analytics"));
+const WorkforceRegistry = lazy(() => import("./pages/WorkforceRegistry"));
 const DashboardCustomization = lazy(
   () => import("./pages/DashboardCustomization"),
+);
+const StreamTemplates = lazy(() => import("./pages/StreamTemplates"));
+const StreamComparison = lazy(() => import("./pages/StreamComparison"));
+const UIPrimitivesPreview = lazy(
+  () => import("./pages/UIPrimitivesPreview.tsx"),
 );
 
 function AppLoadingFallback() {
@@ -37,20 +49,28 @@ function AppLoadingFallback() {
 
 function AppLayout() {
   const { t } = useTranslation();
+  const { isHelpModalOpen, toggleHelpModal } = useKeyboardShortcuts();
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <a href="#main-content" className="skip-link">
-        {t("common.skip_to_content")}
-      </a>
-      <Navbar />
-      <main id="main-content" tabIndex={-1} className="flex-1 outline-none">
-        <OnboardingTour />
-        <Suspense fallback={<AppLoadingFallback />}>
-          <Outlet />
-        </Suspense>
-      </main>
-      <Footer />
-    </div>
+    <TooltipProvider>
+      <div className="flex min-h-screen flex-col">
+        <a href="#main-content" className="skip-link">
+          {t("common.skip_to_content")}
+        </a>
+        <Navbar />
+        <main id="main-content" tabIndex={-1} className="flex-1 outline-none">
+          <OnboardingTour />
+          <Suspense fallback={<AppLoadingFallback />}>
+            <Outlet />
+          </Suspense>
+        </main>
+        <Footer />
+        <KeyboardShortcutsModal
+          isOpen={isHelpModalOpen}
+          onClose={toggleHelpModal}
+        />
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -63,21 +83,127 @@ function App() {
       <Routes>
         <Route element={<AppLayout />}>
           <Route path="/" element={<Home />} />
-          <Route path="/dashboard" element={<EmployerDashboard />} />
-          <Route path="/payroll" element={<PayrollDashboard />} />
-          <Route path="/withdraw" element={<WithdrawPage />} />
-          <Route path="/treasury-management" element={<TreasuryManager />} />
-          <Route path="/create-stream" element={<CreateStream />} />
-          <Route path="/governance" element={<GovernanceOverview />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/help" element={<HelpPage />} />
-          <Route path="/debug" element={<Debugger />} />
-          <Route path="/debug/:contractName" element={<Debugger />} />
-          <Route path="/settings" element={<Settings />} />
+
+          {/* Protected Routes */}
+          <Route
+            path="/dashboard"
+            element={
+              <WalletGuard>
+                <EmployerDashboard />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/payroll"
+            element={
+              <WalletGuard>
+                <PayrollDashboard />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/withdraw"
+            element={
+              <WalletGuard>
+                <WithdrawPage />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/treasury-management"
+            element={
+              <WalletGuard>
+                <TreasuryManager />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/create-stream"
+            element={
+              <WalletGuard>
+                <CreateStream />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/governance"
+            element={
+              <WalletGuard>
+                <GovernanceOverview />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <WalletGuard>
+                <Reports />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              <WalletGuard>
+                <Analytics />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <WalletGuard>
+                <Settings />
+              </WalletGuard>
+            }
+          />
           <Route
             path="/dashboard-customization"
-            element={<DashboardCustomization />}
+            element={
+              <WalletGuard>
+                <DashboardCustomization />
+              </WalletGuard>
+            }
           />
+          <Route
+            path="/templates"
+            element={
+              <WalletGuard>
+                <StreamTemplates />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/stream-comparison"
+            element={
+              <WalletGuard>
+                <StreamComparison />
+              </WalletGuard>
+            }
+          />
+
+          <Route
+            path="/worker"
+            element={
+              <WalletGuard>
+                <WorkerDashboard />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/workforce"
+            element={
+              <WalletGuard>
+                <WorkforceRegistry />
+              </WalletGuard>
+            }
+          />
+
+          {/* Public Routes */}
+          <Route path="/help" element={<HelpPage />} />
+          <Route path="/ui-primitives" element={<UIPrimitivesPreview />} />
+          <Route path="/debug" element={<Debugger />} />
+          <Route path="/debug/:contractName" element={<Debugger />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>

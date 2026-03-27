@@ -5,11 +5,22 @@ import { metricsManager } from "./metrics";
 import { webhookRouter } from "./webhooks";
 import { slackRouter } from "./slack";
 import { discordRouter } from "./discord";
-import { aiRouter } from "./ai"; // Added aiRouter import
+import { aiRouter } from "./ai";
 import { adminRouter } from "./adminRouter";
+import { analyticsRouter } from "./analytics";
+import { docsRouter } from "./swagger";
+import { proofsRouter } from "./routes/proofs";
+import { stellarRouter } from "./routes/stellar";
+import { reportsRouter } from "./routes/reports";
+import { employersRouter } from "./routes/employers";
 import { startStellarListener } from "./stellarListener";
 import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
 import { startMonitor, runMonitorCycle } from "./monitor/monitor";
+import { startPayrollReportScheduler } from "./scheduler/reportScheduler";
+import {
+  initWebSocketServer,
+  shutdownWebSocketServer,
+} from "./websocket/server";
 import { NonceManager } from "./services/nonceManager";
 import { initAuditLogger, getAuditLogger } from "./audit/init";
 import {
@@ -17,13 +28,15 @@ import {
   createErrorLoggingMiddleware,
 } from "./audit/middleware";
 import { initDb } from "./db/pool";
-import { globalErrorHandler } from "./errors";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
-import { standardRateLimiter } from "./middleware/rateLimiter";
+import { strictRateLimiter } from "./middleware/rateLimiter";
 import { getPool } from "./db/pool";
 import Redis from "ioredis";
 import { rpc } from "@stellar/stellar-sdk";
 import { secretsBootstrap } from "./services/secretsBootstrap";
+import { requestIdMiddleware } from "./middleware/requestId";
+import { requireMonitorStatusAdminToken } from "./middleware/monitorStatusAuth";
+import { getHealthResponse } from "./health";
 
 dotenv.config();
 
@@ -49,6 +62,9 @@ app.use(
   }),
 ); // For Slack form data
 
+// Add X-Request-ID generation/forwarding via AsyncLocalStorage
+app.use(requestIdMiddleware);
+
 // Initialize database and audit logger
 async function initializeServices() {
   await secretsBootstrap.initialize();
@@ -61,56 +77,39 @@ async function initializeServices() {
   return auditLogger;
 }
 
-// Initialize services before starting routes
-let auditLogger: ReturnType<typeof getAuditLogger>;
-initializeServices()
-  .then((logger) => {
-    auditLogger = logger;
-    console.log("[Backend] ✅ Services initialized");
-  })
-  .catch((err) => {
-    console.error("[Backend] Failed to initialize services:", err);
-  });
-
-// Apply rate limiting to all routes except health/metrics
-app.use(standardRateLimiter);
+// Interactive API documentation (Swagger UI)
+app.use("/api-docs", docsRouter);
+// Backwards-compatible alias
+app.use("/docs", docsRouter);
 
 app.use("/webhooks", webhookRouter);
 app.use("/slack", slackRouter);
 // Note: discordRouter utilizes native express payloads natively bypassing body buffers mapping local examples
 app.use("/discord", discordRouter);
-app.use("/ai", aiRouter); // Added aiRouter use
+app.use("/ai", aiRouter);
 app.use("/admin", adminRouter); // RBAC-protected admin endpoints
-
-// Error logging middleware (should be after routes)
-app.use(
-  (
-    err: Error,
-    req: express.Request,
-    res: express.Response,
-    next: express.NextFunction,
-  ) => {
-    if (auditLogger) {
-      createErrorLoggingMiddleware(auditLogger)(err, req, res, next);
-    } else {
-      next(err);
-    }
-  },
-);
-
-// Catch undefined routes - must come after all route registrations
-app.use(notFoundHandler);
-
-// Global centralized error handler - must be the very last middleware
-app.use(globalErrorHandler);
+app.use("/analytics", analyticsRouter);
+app.use("/api/analytics", analyticsRouter);
+app.use("/employers", employersRouter);
+app.use("/api/employers", employersRouter);
+app.use("/proofs", proofsRouter);
+app.use("/stellar", stellarRouter);
+app.use("/reports", reportsRouter);
 
 // Start time for uptime calculation
 const startTime = Date.now();
 
 // Default testing account (Note: in production, each employer/caller would have their own or share a global treasury sequence pool)
-const HOT_WALLET_ACCOUNT =
-  process.env.HOT_WALLET_ACCOUNT ||
-  "GAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+const HOT_WALLET_ACCOUNT = process.env.HOT_WALLET_ACCOUNT || "";
+if (
+  process.env.NODE_ENV !== "development" &&
+  (!HOT_WALLET_ACCOUNT || HOT_WALLET_ACCOUNT.startsWith("GAXXX"))
+) {
+  console.error(
+    "FATAL: HOT_WALLET_ACCOUNT is not set or is a placeholder. Set a valid Stellar account address.",
+  );
+  process.exit(1);
+}
 export const nonceManager = new NonceManager(
   HOT_WALLET_ACCOUNT,
   "https://horizon-testnet.stellar.org",
@@ -123,15 +122,9 @@ export const nonceManager = new NonceManager(
  * @api {get} /health Health check endpoint
  * @apiDescription Returns the status and heartbeat of the automation engine.
  */
-app.get("/health", (req, res) => {
-  const uptime = Math.floor((Date.now() - startTime) / 1000);
-  res.json({
-    status: "ok",
-    uptime: `${uptime}s`,
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || "0.0.1",
-    service: "quipay-automation-engine",
-  });
+app.get("/health", async (req, res) => {
+  const { httpStatus, body } = await getHealthResponse(startTime);
+  res.status(httpStatus).json(body);
 });
 
 /**
@@ -205,20 +198,25 @@ app.get("/scheduler/status", (req, res) => {
 
 /**
  * @api {get} /monitor/status Treasury monitor status endpoint
- * @apiDescription Returns the current treasury health status for all employers.
+ * @apiDescription Runs one monitor cycle. Protected by strict rate limiting and optional bearer token auth.
  */
-app.get("/monitor/status", async (req, res) => {
-  try {
-    const statuses = await runMonitorCycle();
-    res.json({
-      status: "ok",
-      employers: statuses,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (ex: any) {
-    res.status(500).json({ error: ex.message });
-  }
-});
+app.get(
+  "/monitor/status",
+  strictRateLimiter,
+  requireMonitorStatusAdminToken,
+  async (req, res) => {
+    try {
+      const statuses = await runMonitorCycle();
+      res.json({
+        status: "ok",
+        employers: statuses,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (ex: any) {
+      res.status(500).json({ error: ex.message });
+    }
+  },
+);
 
 /**
  * @api {post} /test/concurrent-tx Simulated high-throughput endpoint
@@ -256,11 +254,109 @@ app.use(notFoundHandler);
 // Global error handler - must be last
 app.use(errorHandler);
 
-app.listen(port, () => {
-  console.log(
-    `🚀 Quipay Automation Engine Status API listening at http://localhost:${port}`,
-  );
-  startStellarListener();
-  startScheduler();
-  startMonitor();
-});
+/**
+ * Main application startup function.
+ * Ensures all services are initialized before accepting requests.
+ */
+async function main() {
+  let auditLogger: ReturnType<typeof getAuditLogger>;
+
+  try {
+    // Initialize all services before starting the server
+    auditLogger = await initializeServices();
+    console.log("[Backend] ✅ Services initialized");
+
+    // Add error logging middleware after initialization
+    app.use(
+      (
+        err: Error,
+        req: express.Request,
+        res: express.Response,
+        next: express.NextFunction,
+      ) => {
+        if (auditLogger) {
+          createErrorLoggingMiddleware(auditLogger)(err, req, res, next);
+        } else {
+          next(err);
+        }
+      },
+    );
+
+    // Start the server and only start background services after it's listening
+    const server = app.listen(port, () => {
+      console.log(
+        `🚀 Quipay Automation Engine Status API listening at http://localhost:${port}`,
+      );
+    });
+
+    // Initialize WebSocket server
+    initWebSocketServer(server);
+
+    // Start background services after server is listening
+    startStellarListener();
+    startScheduler();
+    startMonitor();
+    startPayrollReportScheduler();
+
+    // Handle server errors
+    server.on("error", (err: any) => {
+      if (err.code === "EADDRINUSE") {
+        console.error(`[Backend] Port ${port} is already in use`);
+        process.exit(1);
+      }
+      console.error("[Backend] Server error:", err);
+      process.exit(1);
+    });
+
+    // Handle uncaught exceptions
+    process.on("uncaughtException", (err) => {
+      console.error("[Backend] Uncaught Exception:", err);
+      if (auditLogger) {
+        auditLogger.error("Uncaught exception", err, { action_type: "system" });
+      }
+      process.exit(1);
+    });
+
+    // Handle unhandled promise rejections
+    process.on("unhandledRejection", (reason, promise) => {
+      console.error(
+        "[Backend] Unhandled Rejection at:",
+        promise,
+        "reason:",
+        reason,
+      );
+      if (auditLogger) {
+        auditLogger.error(
+          "Unhandled rejection",
+          reason instanceof Error ? reason : new Error(String(reason)),
+          { action_type: "system" },
+        );
+      }
+    });
+
+    // Graceful shutdown
+    process.on("SIGTERM", () => {
+      console.log("[Backend] SIGTERM received. Shutting down gracefully...");
+      server.close(() => {
+        console.log("[Backend] HTTP server closed");
+        shutdownWebSocketServer().then(() => {
+          console.log("[Backend] WebSocket server closed");
+          if (auditLogger) {
+            auditLogger.shutdown().then(() => {
+              console.log("[Backend] Audit logger closed");
+              process.exit(0);
+            });
+          } else {
+            process.exit(0);
+          }
+        });
+      });
+    });
+  } catch (err) {
+    console.error("[Backend] Failed to initialize services:", err);
+    process.exit(1);
+  }
+}
+
+// Start the application
+main();

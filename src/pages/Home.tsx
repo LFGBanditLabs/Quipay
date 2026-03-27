@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import SocialProof from "../components/landing/SocialProof";
 import { useTranslation } from "react-i18next";
@@ -121,23 +121,24 @@ const Particle: React.FC<{
 );
 
 const StatusBadge: React.FC<{ status: Stream["status"] }> = ({ status }) => {
+  const { t } = useTranslation();
   const config = {
     streaming: {
       bg: "bg-emerald-500/10",
       text: "text-emerald-400",
-      label: "Streaming",
+      label: t("home.status_streaming"),
       dot: "bg-emerald-400",
     },
     paused: {
       bg: "bg-amber-500/10",
       text: "text-amber-400",
-      label: "Paused",
+      label: t("home.status_paused"),
       dot: "bg-amber-400",
     },
     completed: {
       bg: "bg-blue-500/10",
       text: "text-blue-400",
-      label: "Completed",
+      label: t("home.status_completed"),
       dot: "bg-blue-400",
     },
   };
@@ -284,34 +285,7 @@ interface StatMetric {
   suffix?: string;
 }
 
-const stats: StatMetric[] = [
-  {
-    id: "streams",
-    label: "Total Streams",
-    value: 12480,
-    format: "number",
-  },
-  {
-    id: "value-streamed",
-    label: "Total Value Streamed",
-    value: 3847500,
-    format: "currency",
-    suffix: " USDC",
-  },
-  {
-    id: "active-workers",
-    label: "Active Workers",
-    value: 1820,
-    format: "number",
-  },
-  {
-    id: "avg-duration",
-    label: "Avg. Stream Duration",
-    value: 6.4,
-    format: "duration",
-    suffix: " hrs",
-  },
-];
+// stats is derived inside Home using t() — see useMemo below
 
 const formatStatValue = (value: number, format: StatMetric["format"]) => {
   if (format === "currency") {
@@ -386,6 +360,37 @@ const AnimatedStat: React.FC<{
 
 const Home: React.FC = () => {
   const { t } = useTranslation();
+  const stats = useMemo<StatMetric[]>(
+    () => [
+      {
+        id: "streams",
+        label: t("home.stat_total_streams"),
+        value: 12480,
+        format: "number",
+      },
+      {
+        id: "value-streamed",
+        label: t("home.stat_total_value"),
+        value: 3847500,
+        format: "currency",
+        suffix: " USDC",
+      },
+      {
+        id: "active-workers",
+        label: t("home.stat_active_workers"),
+        value: 1820,
+        format: "number",
+      },
+      {
+        id: "avg-duration",
+        label: t("home.stat_avg_duration"),
+        value: 6.4,
+        format: "duration",
+        suffix: " hrs",
+      },
+    ],
+    [t],
+  );
   const [scrollY, setScrollY] = useState(0);
   const [featuresVisible, setFeaturesVisible] = useState(false);
   const [workflowVisible, setWorkflowVisible] = useState(false);

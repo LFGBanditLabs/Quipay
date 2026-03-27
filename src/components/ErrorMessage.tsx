@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import type { AppError } from "../util/errors";
 
 interface ErrorMessageProps {
@@ -18,6 +19,7 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({
   onRetry,
   className = "",
 }) => {
+  const { t } = useTranslation();
   if (!error) return null;
 
   const appError: Partial<AppError> =
@@ -94,7 +96,7 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({
               whiteSpace: "nowrap",
             }}
           >
-            Retry
+            {t("common.retry")}
           </button>
         )}
       </div>

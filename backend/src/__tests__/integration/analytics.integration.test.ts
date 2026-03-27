@@ -26,6 +26,8 @@ import {
   getStreamsByWorker,
   getAddressStats,
   getPayrollTrends,
+  getEmployerPayrollSummary,
+  getEmployerPayrollByWorker,
 } from "../../db/queries";
 import { Pool } from "pg";
 
@@ -259,6 +261,30 @@ describe("Analytics Integration Tests", () => {
       expect(stats.asWorker.active_streams).toBe(1);
       expect(stats.asWorker.total_volume).toBe("1000000000");
       expect(stats.asWorker.total_withdrawn).toBe("200000000");
+    });
+
+    it("should calculate employer dashboard summary", async () => {
+      const summary = await getEmployerPayrollSummary("GEMPLOYER1");
+
+      expect(summary.total_streams).toBe(2);
+      expect(summary.active_streams).toBe(2);
+      expect(summary.completed_streams).toBe(0);
+      expect(summary.cancelled_streams).toBe(0);
+      expect(summary.total_disbursed).toBe("700000000");
+    });
+
+    it("should aggregate payroll by worker for employer dashboards", async () => {
+      const rows = await getEmployerPayrollByWorker("GEMPLOYER1");
+
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toEqual(
+        expect.objectContaining({
+          worker: "GWORKER1",
+          stream_count: 1,
+          total_allocated: "1000000000",
+          total_disbursed: "200000000",
+        }),
+      );
     });
 
     it("should include recent withdrawals in address stats", async () => {

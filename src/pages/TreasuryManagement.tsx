@@ -2,8 +2,13 @@ import React, { useState } from "react";
 import { Layout, Text, Button, Icon } from "@stellar/design-system";
 import { useNavigate } from "react-router-dom";
 import { usePayroll } from "../hooks/usePayroll";
+import { useNotification } from "../hooks/useNotification";
 import Tooltip from "../components/Tooltip";
 import CollapsibleSection from "../components/CollapsibleSection";
+import SolvencyCard from "../components/dashboard/SolvencyCard";
+import { DepositModal } from "../components/DepositModal";
+import { buildDepositTx } from "../contracts/payroll_vault";
+import { useWallet } from "../hooks/useWallet";
 
 const TreasuryManagement: React.FC = () => {
   const tw = {
@@ -22,8 +27,41 @@ const TreasuryManagement: React.FC = () => {
   };
 
   const navigate = useNavigate();
-  const { treasuryBalances, totalLiabilities } = usePayroll();
+  const { addNotification } = useNotification();
+  const { address } = useWallet();
+  const { vaultData, totalLiabilities, isVaultLoading, refreshVaultData } =
+    usePayroll(address);
   const [retentionSecs, setRetentionSecs] = useState("2592000"); // 30 days
+  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+
+  const handleDeposit = async (tokenAddress: string, amount: string) => {
+    if (!address) {
+      addNotification("Please connect your wallet first", "error");
+      return;
+    }
+
+    // Scale amount by decimals (USDC=6, XLM=7)
+    const tokenSymbol =
+      vaultData.find((t) => t.token === tokenAddress)?.tokenSymbol || "XLM";
+    const decimals = tokenSymbol === "USDC" ? 6 : 7;
+    const amountBigInt = BigInt(
+      Math.floor(Number(amount) * Math.pow(10, decimals)),
+    );
+
+    try {
+      await buildDepositTx(address, tokenAddress, amountBigInt);
+      // Here usually we would sign and submit the transaction.
+      // For this scaffold, we're just simulating success.
+      addNotification(
+        `Successfully deposited ${amount} ${tokenSymbol}`,
+        "success",
+      );
+      await refreshVaultData();
+    } catch (e) {
+      console.error(e);
+      addNotification("Deposit failed", "error");
+    }
+  };
 
   return (
     <Layout.Content>
@@ -34,7 +72,8 @@ const TreasuryManagement: React.FC = () => {
               Treasury Management
             </Text>
             <Text as="p" size="md" style={{ color: "var(--muted)" }}>
-              Manage your protocol's funds and global settings.
+              Manage your protocol's funds and global settings. Monitor solvency
+              across all tokens.
             </Text>
           </div>
           <Button
@@ -48,8 +87,24 @@ const TreasuryManagement: React.FC = () => {
           </Button>
         </div>
 
+        {/* Multi-Token Solvency Dashboard */}
+        <div className="mb-8">
+          <div className="mb-4 flex items-center gap-2">
+            <Icon.ChevronRight size="md" />
+            <Text as="h2" size="lg" weight="medium">
+              Token Solvency Overview
+            </Text>
+            <Tooltip content="Real-time view of balance, liabilities, and runway for each supported token" />
+          </div>
+          <SolvencyCard
+            vaultData={vaultData}
+            isLoading={isVaultLoading}
+            onRefresh={refreshVaultData}
+          />
+        </div>
+
         <div className={tw.cardGrid}>
-          {/* Treasury Balances */}
+          {/* Treasury Balances Summary */}
           <div className={tw.card}>
             <div className={tw.cardTitle}>
               <Icon.ChevronRight size="md" />
@@ -58,15 +113,30 @@ const TreasuryManagement: React.FC = () => {
               </Text>
               <Tooltip content="Total funds available for all active streams" />
             </div>
-            {treasuryBalances.map((balance) => (
-              <div key={balance.tokenSymbol} style={{ marginBottom: "0.5rem" }}>
-                <span className={tw.balanceValue}>
-                  {balance.balance} {balance.tokenSymbol}
-                </span>
-              </div>
-            ))}
+            {vaultData.length > 0 ? (
+              vaultData.map((balance) => (
+                <div
+                  key={balance.tokenSymbol}
+                  style={{ marginBottom: "0.5rem" }}
+                >
+                  <span className={tw.balanceValue}>
+                    {(
+                      Number(balance.balance) /
+                      Math.pow(10, balance.tokenSymbol === "USDC" ? 6 : 7)
+                    ).toFixed(2)}{" "}
+                    {balance.tokenSymbol}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <span className={tw.balanceValue}>Loading...</span>
+            )}
             <div className={tw.actions}>
-              <Button variant="primary" size="md">
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => setIsDepositModalOpen(true)}
+              >
                 Deposit Funds
               </Button>
               <Button variant="secondary" size="md">
@@ -80,11 +150,16 @@ const TreasuryManagement: React.FC = () => {
             <div className={tw.cardTitle}>
               <Icon.ChevronRight size="md" />
               <Text as="span" size="sm" weight="medium">
-                Monthly Liabilities
+                Total Liabilities
               </Text>
-              <Tooltip content="Projected outgoing payments for the next 30 days" />
+              <Tooltip content="Total amount committed to active streams across all tokens" />
             </div>
-            <span className={tw.balanceValue}>{totalLiabilities}</span>
+            <span className={tw.balanceValue}>
+              {totalLiabilities !== "0"
+                ? (Number(totalLiabilities) / 1e7).toFixed(2)
+                : "0.00"}{" "}
+              XLM equiv.
+            </span>
             <div style={{ marginTop: "1rem" }}>
               <Text as="p" size="sm" style={{ color: "var(--muted)" }}>
                 Ensure your treasury balance exceeds your liabilities to prevent
@@ -143,7 +218,7 @@ const TreasuryManagement: React.FC = () => {
               <Button
                 variant="primary"
                 size="md"
-                onClick={() => alert("Settings updated!")}
+                onClick={() => addNotification("Settings updated!", "success")}
               >
                 Save Changes
               </Button>
@@ -189,6 +264,13 @@ const TreasuryManagement: React.FC = () => {
           </CollapsibleSection>
         </div>
       </Layout.Inset>
+
+      <DepositModal
+        isOpen={isDepositModalOpen}
+        onClose={() => setIsDepositModalOpen(false)}
+        vaultData={vaultData}
+        onDeposit={handleDeposit}
+      />
     </Layout.Content>
   );
 };

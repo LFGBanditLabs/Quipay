@@ -22,7 +22,16 @@ import {
   updatePayrollSchedule,
   logSchedulerAction,
   PayrollSchedule,
+  getWorkerNotificationSettings,
+  getTreasuryBalances,
+  getActiveLiabilities,
+  getStreamsByWorker,
 } from "../db/queries";
+import {
+  sendCliffUnlockNotification,
+  sendWorkerLowRunwayNotification,
+  sendStreamEndingNotification,
+} from "../notifier/notifier";
 
 const SCHEDULER_POLL_INTERVAL_MS = parseInt(
   process.env.SCHEDULER_POLL_MS || "60000",
@@ -41,6 +50,21 @@ const WEBHOOK_RETRY_BATCH_SIZE = parseInt(
   10,
 );
 
+const CLIFF_UNLOCK_CHECK_CRON =
+  process.env.CLIFF_UNLOCK_CHECK_CRON || "*/30 * * * *";
+const LOW_RUNWAY_CHECK_CRON =
+  process.env.LOW_RUNWAY_CHECK_CRON || "0 */2 * * *";
+const STREAM_ENDING_CHECK_CRON =
+  process.env.STREAM_ENDING_CHECK_CRON || "0 * * * *";
+const LOW_RUNWAY_DAYS_THRESHOLD = parseInt(
+  process.env.LOW_RUNWAY_DAYS_THRESHOLD || "7",
+  10,
+);
+
+const notifiedCliffUnlockKeys = new Set<string>();
+const notifiedLowRunwayKeys = new Set<string>();
+const notifiedStreamEndingKeys = new Set<string>();
+
 interface ScheduledJob {
   id: number;
   task: SchedulerScheduledTask;
@@ -48,6 +72,10 @@ interface ScheduledJob {
 }
 
 const activeJobs: Map<number, ScheduledJob> = new Map();
+let schedulerStarted = false;
+let refreshIntervalId: NodeJS.Timeout | null = null;
+let webhookRetryIntervalId: NodeJS.Timeout | null = null;
+let healthCheckIntervalId: NodeJS.Timeout | null = null;
 
 const log = (message: string, ...args: unknown[]) => {
   const timestamp = new Date().toISOString();
@@ -328,7 +356,7 @@ const refreshJobs = async (): Promise<void> => {
 };
 
 const startHealthCheck = (): void => {
-  setInterval(
+  healthCheckIntervalId = setInterval(
     () => {
       log(`Health check - Active jobs: ${activeJobs.size}`);
     },
@@ -340,7 +368,7 @@ const startWebhookRetryRunner = (): void => {
   const LOCK_ID = 424242;
   const taskName = "webhook-retry-runner";
 
-  setInterval(async () => {
+  webhookRetryIntervalId = setInterval(async () => {
     if (!getPool()) return;
     await withAdvisoryLock(
       LOCK_ID,
@@ -364,6 +392,149 @@ const startWebhookRetryRunner = (): void => {
   }, WEBHOOK_RETRY_POLL_INTERVAL_MS);
 };
 
+const runCliffUnlockChecker = async (): Promise<void> => {
+  if (!getPool()) return;
+
+  const now = Math.floor(Date.now() / 1000);
+  const lookbackSeconds = 4 * 24 * 60 * 60;
+  const workersChecked = new Set<string>();
+  const balances = await getTreasuryBalances();
+
+  for (const balance of balances) {
+    workersChecked.add(balance.employer);
+  }
+
+  for (const worker of workersChecked) {
+    const streams = await getStreamsByWorker(worker, "active", 100, 0);
+    const prefs = await getWorkerNotificationSettings(worker);
+    const shouldNotify = prefs?.cliff_unlock_alerts ?? true;
+    if (!shouldNotify) continue;
+
+    for (const stream of streams) {
+      if (stream.start_ts > now || stream.start_ts < now - lookbackSeconds)
+        continue;
+      const key = `${stream.stream_id}:${stream.start_ts}`;
+      if (notifiedCliffUnlockKeys.has(key)) continue;
+
+      await sendCliffUnlockNotification({
+        worker: stream.worker,
+        streamId: stream.stream_id,
+        employer: stream.employer,
+        token: "USDC",
+        cliffDate: new Date(stream.start_ts * 1000).toISOString(),
+      });
+      notifiedCliffUnlockKeys.add(key);
+    }
+  }
+};
+
+const runLowRunwayAlerter = async (): Promise<void> => {
+  if (!getPool()) return;
+
+  const balances = await getTreasuryBalances();
+  const liabilities = await getActiveLiabilities();
+  const liabilitiesMap = new Map<string, number>();
+
+  for (const l of liabilities) {
+    liabilitiesMap.set(l.employer, Number(l.liabilities));
+  }
+
+  for (const b of balances) {
+    const balance = Number(b.balance);
+    const liability = liabilitiesMap.get(b.employer) || 0;
+    if (liability <= 0) continue;
+
+    const runwayDays = balance / liability;
+    if (runwayDays >= LOW_RUNWAY_DAYS_THRESHOLD) continue;
+
+    const key = `${b.employer}:${Math.floor(runwayDays)}`;
+    if (notifiedLowRunwayKeys.has(key)) continue;
+
+    const streams = await getStreamsByWorker(b.employer, "active", 20, 0);
+    for (const stream of streams) {
+      const prefs = await getWorkerNotificationSettings(stream.worker);
+      const shouldNotify = prefs?.low_runway_alerts ?? true;
+      if (!shouldNotify) continue;
+
+      await sendWorkerLowRunwayNotification({
+        worker: stream.worker,
+        streamId: stream.stream_id,
+        employer: stream.employer,
+        token: b.token,
+        runwayDays,
+        thresholdDays: LOW_RUNWAY_DAYS_THRESHOLD,
+      });
+    }
+
+    notifiedLowRunwayKeys.add(key);
+  }
+};
+
+const runStreamEndingChecker = async (): Promise<void> => {
+  if (!getPool()) return;
+
+  const now = Math.floor(Date.now() / 1000);
+  const endingWindowSeconds = 3 * 24 * 60 * 60;
+  const workersChecked = new Set<string>();
+  const balances = await getTreasuryBalances();
+
+  for (const balance of balances) {
+    workersChecked.add(balance.employer);
+  }
+
+  for (const worker of workersChecked) {
+    const streams = await getStreamsByWorker(worker, "active", 100, 0);
+    const prefs = await getWorkerNotificationSettings(worker);
+    const shouldNotify = prefs?.stream_ending_alerts ?? true;
+    if (!shouldNotify) continue;
+
+    for (const stream of streams) {
+      const remainingSeconds = stream.end_ts - now;
+      if (remainingSeconds < 0 || remainingSeconds > endingWindowSeconds)
+        continue;
+
+      const key = `${stream.stream_id}:${stream.end_ts}`;
+      if (notifiedStreamEndingKeys.has(key)) continue;
+
+      await sendStreamEndingNotification({
+        worker: stream.worker,
+        streamId: stream.stream_id,
+        employer: stream.employer,
+        token: "USDC",
+        streamEndDate: new Date(stream.end_ts * 1000).toISOString(),
+        amount: Number(stream.total_amount),
+      });
+      notifiedStreamEndingKeys.add(key);
+    }
+  }
+};
+
+const startWorkerNotificationSchedulers = (): void => {
+  cron.schedule(CLIFF_UNLOCK_CHECK_CRON, async () => {
+    try {
+      await runCliffUnlockChecker();
+    } catch (error) {
+      logError("Cliff unlock checker failed", error);
+    }
+  });
+
+  cron.schedule(LOW_RUNWAY_CHECK_CRON, async () => {
+    try {
+      await runLowRunwayAlerter();
+    } catch (error) {
+      logError("Low runway alerter failed", error);
+    }
+  });
+
+  cron.schedule(STREAM_ENDING_CHECK_CRON, async () => {
+    try {
+      await runStreamEndingChecker();
+    } catch (error) {
+      logError("Stream ending checker failed", error);
+    }
+  });
+};
+
 export const startScheduler = async (): Promise<void> => {
   if (!getPool()) {
     console.warn(
@@ -372,13 +543,20 @@ export const startScheduler = async (): Promise<void> => {
     return;
   }
 
+  if (schedulerStarted) {
+    log("Scheduler already running, skipping duplicate start");
+    return;
+  }
+
+  schedulerStarted = true;
   log("🚀 Starting payroll scheduler...");
 
   await refreshJobs();
 
-  setInterval(refreshJobs, SCHEDULER_POLL_INTERVAL_MS);
+  refreshIntervalId = setInterval(refreshJobs, SCHEDULER_POLL_INTERVAL_MS);
 
   startWebhookRetryRunner();
+  startWorkerNotificationSchedulers();
 
   startHealthCheck();
 
@@ -389,6 +567,22 @@ export const startScheduler = async (): Promise<void> => {
 
 export const stopScheduler = (): void => {
   log("Stopping payroll scheduler...");
+  schedulerStarted = false;
+
+  if (refreshIntervalId) {
+    clearInterval(refreshIntervalId);
+    refreshIntervalId = null;
+  }
+
+  if (webhookRetryIntervalId) {
+    clearInterval(webhookRetryIntervalId);
+    webhookRetryIntervalId = null;
+  }
+
+  if (healthCheckIntervalId) {
+    clearInterval(healthCheckIntervalId);
+    healthCheckIntervalId = null;
+  }
 
   for (const [scheduleId] of activeJobs) {
     unscheduleJob(scheduleId);
