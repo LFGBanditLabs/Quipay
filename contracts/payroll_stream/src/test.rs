@@ -2374,3 +2374,53 @@ fn test_cooldown_uses_default_when_never_configured() {
     let second = client.withdraw(&stream_id, &worker);
     assert!(second > 0);
 }
+
+#[test]
+fn test_pause_and_cancel_interaction() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _admin) = setup(&env);
+
+    // Set early cancellation fee to 5% (500 bps)
+    client.set_early_cancel_fee(&500u32);
+    // Disable grace period for immediate cancellation
+    client.set_cancellation_grace_period(&0u64);
+
+    env.ledger().with_mut(|li| li.timestamp = 0);
+
+    // Create a 100s stream with rate 100 (total 10,000)
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &100, &0u64, &0u64, &100u64, &None,
+    );
+
+    // Fast forward to t=20 (Vested: 20 * 100 = 2000)
+    env.ledger().with_mut(|li| li.timestamp = 20);
+    assert_eq!(client.get_withdrawable(&stream_id), Some(2000));
+
+    // Pause at t=20
+    client.pause_stream(&stream_id, &employer);
+
+    // Fast forward to t=50 (paused)
+    env.ledger().with_mut(|li| li.timestamp = 50);
+    // Should still only have 2000 available
+    assert_eq!(client.get_withdrawable(&stream_id), Some(2000));
+
+    // Cancel at t=50 (while paused)
+    client.cancel_stream(&stream_id, &employer, &None);
+
+    // Verify state after cancellation
+    let stream = client.get_stream(&stream_id).unwrap();
+    assert_eq!(stream.status, StreamStatus::Canceled);
+
+    // Calculation:
+    // Vested at t=20: 2000
+    // Total: 10000
+    // Owed (worker gets paid this upon cancel): 2000
+    // Withdrawn amount should be 2000
+    assert_eq!(stream.withdrawn_amount, 2000);
+
+    // Remaining liability (refund to employer): 10000 - 2000 = 8000
+    // Fee: 8000 * 500 / 10000 = 400
+    // Note: In finalize_cancel, the vault payouts for 'owed' and 'cancel_fee' 
+    // and the removal of 'remaining_liability' are all executed.
+}
