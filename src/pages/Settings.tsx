@@ -16,6 +16,8 @@ import { SeoHelmet } from "../components/seo/SeoHelmet";
 import { Permission } from "../contracts/automation_gateway";
 import { useTheme } from "../providers/ThemeProvider";
 import { useStreamTemplates } from "../hooks/useStreamTemplates";
+import { useWallet } from "../hooks/useWallet";
+import { useWorkerNotificationSettings } from "../hooks/useWorkerNotificationSettings";
 
 // Types for local state
 interface TeamMember {
@@ -119,7 +121,16 @@ const ROLES: CustomRole[] = [
 
 const Settings: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
+  const { address } = useWallet();
   const { templates, deleteTemplate } = useStreamTemplates();
+  const {
+    settings: notificationSettings,
+    setSettings: setNotificationSettings,
+    isLoading: isNotificationSettingsLoading,
+    isSaving: isSavingNotificationSettings,
+    error: notificationSettingsError,
+    saveSettings: saveNotificationSettings,
+  } = useWorkerNotificationSettings(address);
   const [activeTab, setActiveTab] = useState<TabId>("team");
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
@@ -130,14 +141,6 @@ const Settings: React.FC = () => {
 
   const [auditSearch, setAuditSearch] = useState("");
   const [auditFilter, setAuditFilter] = useState("all");
-
-  const [notificationSettings, setNotificationSettings] = useState({
-    emailEnabled: true,
-    inAppEnabled: true,
-    cliffUnlockAlerts: true,
-    streamEndingAlerts: true,
-    lowRunwayAlerts: true,
-  });
 
   // Mock Data
   const [members] = useState<TeamMember[]>([
@@ -800,6 +803,24 @@ const Settings: React.FC = () => {
     </div>
   );
 
+  const handleSaveNotificationPreferences = async () => {
+    try {
+      await saveNotificationSettings();
+      setNotification({
+        message: "Notification preferences saved!",
+        type: "success",
+      });
+    } catch (error) {
+      setNotification({
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to save notification preferences",
+        type: "error",
+      });
+    }
+  };
+
   const renderNotifications = () => (
     <div className="flex flex-col gap-6 animate-fade-in-up">
       <div className="flex items-center justify-between">
@@ -808,13 +829,36 @@ const Settings: React.FC = () => {
             Notification Preferences
           </Text>
           <Text as="p" size="sm" variant="secondary">
-            Configure how you receive alerts about your streams.
+            Configure how the connected worker wallet receives payroll alerts.
           </Text>
         </div>
       </div>
 
       <Card className="p-6 rounded-2xl border border-(--border) bg-(--surface-subtle)">
         <div className="flex flex-col gap-6">
+          <div className="rounded-2xl border border-(--border) bg-(--surface) p-4">
+            <Text as="p" size="sm" weight="medium">
+              Worker wallet
+            </Text>
+            <Text as="p" size="xs" variant="secondary" className="mt-1 font-mono">
+              {address || "Connect a worker wallet to manage notification preferences."}
+            </Text>
+          </div>
+
+          {isNotificationSettingsLoading && (
+            <Text as="p" size="sm" variant="secondary">
+              Loading your notification preferences...
+            </Text>
+          )}
+
+          {notificationSettingsError && (
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4">
+              <Text as="p" size="sm" className="text-rose-300">
+                {notificationSettingsError}
+              </Text>
+            </div>
+          )}
+
           <div>
             <Text as="h3" size="md" weight="bold" className="mb-4">
               Delivery Channels
@@ -823,14 +867,15 @@ const Settings: React.FC = () => {
               <label className="flex items-center gap-3 p-3 rounded-xl border border-(--border) bg-(--surface) hover:border-indigo-500/30 cursor-pointer transition-all">
                 <input
                   type="checkbox"
-                  checked={notificationSettings.emailEnabled}
+                  checked={notificationSettings.emailNotifications}
                   onChange={(e) =>
                     setNotificationSettings({
                       ...notificationSettings,
-                      emailEnabled: e.target.checked,
+                      emailNotifications: e.target.checked,
                     })
                   }
                   className="w-5 h-5 rounded-lg border-2 border-(--border)"
+                  disabled={!address || isNotificationSettingsLoading}
                 />
                 <div>
                   <Text as="span" size="sm" weight="medium">
@@ -844,21 +889,22 @@ const Settings: React.FC = () => {
               <label className="flex items-center gap-3 p-3 rounded-xl border border-(--border) bg-(--surface) hover:border-indigo-500/30 cursor-pointer transition-all">
                 <input
                   type="checkbox"
-                  checked={notificationSettings.inAppEnabled}
+                  checked={notificationSettings.browserPush}
                   onChange={(e) =>
                     setNotificationSettings({
                       ...notificationSettings,
-                      inAppEnabled: e.target.checked,
+                      browserPush: e.target.checked,
                     })
                   }
                   className="w-5 h-5 rounded-lg border-2 border-(--border)"
+                  disabled={!address || isNotificationSettingsLoading}
                 />
                 <div>
                   <Text as="span" size="sm" weight="medium">
-                    In-App Notifications
+                    Browser Push
                   </Text>
                   <Text as="p" size="xs" variant="secondary">
-                    Show alerts in the dashboard
+                    Deliver real-time notifications in the browser
                   </Text>
                 </div>
               </label>
@@ -873,63 +919,44 @@ const Settings: React.FC = () => {
               <label className="flex items-center gap-3 p-3 rounded-xl border border-(--border) bg-(--surface) hover:border-indigo-500/30 cursor-pointer transition-all">
                 <input
                   type="checkbox"
-                  checked={notificationSettings.cliffUnlockAlerts}
+                  checked={notificationSettings.streamEvents}
                   onChange={(e) =>
                     setNotificationSettings({
                       ...notificationSettings,
-                      cliffUnlockAlerts: e.target.checked,
+                      streamEvents: e.target.checked,
                     })
                   }
                   className="w-5 h-5 rounded-lg border-2 border-(--border)"
+                  disabled={!address || isNotificationSettingsLoading}
                 />
                 <div>
                   <Text as="span" size="sm" weight="medium">
-                    Cliff Unlock Alerts
+                    Stream Events
                   </Text>
                   <Text as="p" size="xs" variant="secondary">
-                    Notify when cliff period ends and funds become available
+                    Get updates when streams change state or need attention
                   </Text>
                 </div>
               </label>
               <label className="flex items-center gap-3 p-3 rounded-xl border border-(--border) bg-(--surface) hover:border-indigo-500/30 cursor-pointer transition-all">
                 <input
                   type="checkbox"
-                  checked={notificationSettings.streamEndingAlerts}
+                  checked={notificationSettings.withdrawalReminders}
                   onChange={(e) =>
                     setNotificationSettings({
                       ...notificationSettings,
-                      streamEndingAlerts: e.target.checked,
+                      withdrawalReminders: e.target.checked,
                     })
                   }
                   className="w-5 h-5 rounded-lg border-2 border-(--border)"
+                  disabled={!address || isNotificationSettingsLoading}
                 />
                 <div>
                   <Text as="span" size="sm" weight="medium">
-                    Stream Ending Alerts
+                    Withdrawal Reminders
                   </Text>
                   <Text as="p" size="xs" variant="secondary">
-                    Notify when stream is about to end (within 3 days)
-                  </Text>
-                </div>
-              </label>
-              <label className="flex items-center gap-3 p-3 rounded-xl border border-(--border) bg-(--surface) hover:border-indigo-500/30 cursor-pointer transition-all">
-                <input
-                  type="checkbox"
-                  checked={notificationSettings.lowRunwayAlerts}
-                  onChange={(e) =>
-                    setNotificationSettings({
-                      ...notificationSettings,
-                      lowRunwayAlerts: e.target.checked,
-                    })
-                  }
-                  className="w-5 h-5 rounded-lg border-2 border-(--border)"
-                />
-                <div>
-                  <Text as="span" size="sm" weight="medium">
-                    Low Runway Alerts
-                  </Text>
-                  <Text as="p" size="xs" variant="secondary">
-                    Notify when employer treasury runway drops below 7 days
+                    Remind me when funds become available to withdraw
                   </Text>
                 </div>
               </label>
@@ -940,14 +967,10 @@ const Settings: React.FC = () => {
             <Button
               variant="primary"
               size="sm"
-              onClick={() => {
-                setNotification({
-                  message: "Notification preferences saved!",
-                  type: "success",
-                });
-              }}
+              onClick={() => void handleSaveNotificationPreferences()}
+              disabled={!address || isNotificationSettingsLoading || isSavingNotificationSettings}
             >
-              Save Preferences
+              {isSavingNotificationSettings ? "Saving..." : "Save Preferences"}
             </Button>
           </div>
         </div>

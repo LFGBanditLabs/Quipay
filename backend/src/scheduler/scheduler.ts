@@ -25,7 +25,7 @@ import {
   getWorkerNotificationSettings,
   getTreasuryBalances,
   getActiveLiabilities,
-  getStreamsByWorker,
+  getStreamsByEmployer,
 } from "../db/queries";
 import {
   sendCliffUnlockNotification,
@@ -397,20 +397,14 @@ const runCliffUnlockChecker = async (): Promise<void> => {
 
   const now = Math.floor(Date.now() / 1000);
   const lookbackSeconds = 4 * 24 * 60 * 60;
-  const workersChecked = new Set<string>();
   const balances = await getTreasuryBalances();
 
   for (const balance of balances) {
-    workersChecked.add(balance.employer);
-  }
-
-  for (const worker of workersChecked) {
-    const streams = await getStreamsByWorker(worker, "active", 100, 0);
-    const prefs = await getWorkerNotificationSettings(worker);
-    const shouldNotify = prefs?.cliff_unlock_alerts ?? true;
-    if (!shouldNotify) continue;
-
+    const streams = await getStreamsByEmployer(balance.employer, "active", 100, 0);
     for (const stream of streams) {
+      const prefs = await getWorkerNotificationSettings(stream.worker);
+      const shouldNotify = prefs?.cliff_unlock_alerts ?? true;
+      if (!shouldNotify) continue;
       if (stream.start_ts > now || stream.start_ts < now - lookbackSeconds)
         continue;
       const key = `${stream.stream_id}:${stream.start_ts}`;
@@ -450,7 +444,7 @@ const runLowRunwayAlerter = async (): Promise<void> => {
     const key = `${b.employer}:${Math.floor(runwayDays)}`;
     if (notifiedLowRunwayKeys.has(key)) continue;
 
-    const streams = await getStreamsByWorker(b.employer, "active", 20, 0);
+    const streams = await getStreamsByEmployer(b.employer, "active", 20, 0);
     for (const stream of streams) {
       const prefs = await getWorkerNotificationSettings(stream.worker);
       const shouldNotify = prefs?.low_runway_alerts ?? true;
@@ -475,20 +469,14 @@ const runStreamEndingChecker = async (): Promise<void> => {
 
   const now = Math.floor(Date.now() / 1000);
   const endingWindowSeconds = 3 * 24 * 60 * 60;
-  const workersChecked = new Set<string>();
   const balances = await getTreasuryBalances();
 
   for (const balance of balances) {
-    workersChecked.add(balance.employer);
-  }
-
-  for (const worker of workersChecked) {
-    const streams = await getStreamsByWorker(worker, "active", 100, 0);
-    const prefs = await getWorkerNotificationSettings(worker);
-    const shouldNotify = prefs?.stream_ending_alerts ?? true;
-    if (!shouldNotify) continue;
-
+    const streams = await getStreamsByEmployer(balance.employer, "active", 100, 0);
     for (const stream of streams) {
+      const prefs = await getWorkerNotificationSettings(stream.worker);
+      const shouldNotify = prefs?.stream_ending_alerts ?? true;
+      if (!shouldNotify) continue;
       const remainingSeconds = stream.end_ts - now;
       if (remainingSeconds < 0 || remainingSeconds > endingWindowSeconds)
         continue;

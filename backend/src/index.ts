@@ -13,6 +13,7 @@ import { proofsRouter } from "./routes/proofs";
 import { stellarRouter } from "./routes/stellar";
 import { reportsRouter } from "./routes/reports";
 import { employersRouter } from "./routes/employers";
+import { workerNotificationsRouter } from "./routes/workerNotifications";
 import { startStellarListener } from "./stellarListener";
 import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
 import { startMonitor, runMonitorCycle } from "./monitor/monitor";
@@ -124,6 +125,8 @@ app.use("/api/employers", employersRouter);
 app.use("/proofs", proofsRouter);
 app.use("/stellar", stellarRouter);
 app.use("/reports", reportsRouter);
+app.use("/worker-notifications", workerNotificationsRouter);
+app.use("/api/worker-notifications", workerNotificationsRouter);
 
 // Start time for uptime calculation
 const startTime = Date.now();
