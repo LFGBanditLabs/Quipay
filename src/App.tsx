@@ -22,6 +22,7 @@ const WithdrawPage = lazy(() => import("./pages/WithdrawPage"));
 const Reports = lazy(() => import("./pages/Reports"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const WorkerDashboard = lazy(() => import("./pages/WorkerDashboard"));
+const Analytics = lazy(() => import("./pages/Analytics"));
 const WorkforceRegistry = lazy(() => import("./pages/WorkforceRegistry"));
 const DashboardCustomization = lazy(
   () => import("./pages/DashboardCustomization"),
@@ -137,6 +138,14 @@ function App() {
             element={
               <WalletGuard>
                 <Reports />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              <WalletGuard>
+                <Analytics />
               </WalletGuard>
             }
           />
