@@ -305,7 +305,11 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
   const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
   const [step, setStep] = useState<number>(0);
   const { values, errors, txPhase, solvency } = state;
-  const isBusy = txPhase.kind !== "idle" || isPreviewOpen;
+  const isBusy =
+    txPhase.kind === "simulating" ||
+    txPhase.kind === "signing" ||
+    txPhase.kind === "submitting" ||
+    isPreviewOpen;
 
   const filteredContacts = useMemo(() => {
     const query = (values.workerAddress || "").toLowerCase();
