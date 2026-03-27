@@ -3,6 +3,7 @@ import { Layout, Text, Button } from "@stellar/design-system";
 import { useTranslation } from "react-i18next";
 import { usePayroll } from "../hooks/usePayroll";
 import { useNavigate } from "react-router-dom";
+import { useWallet } from "../hooks/useWallet";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import WithdrawButton from "../components/WithdrawButton";
 import EmptyState from "../components/EmptyState";
@@ -24,6 +25,7 @@ const EmployerDashboard: React.FC = () => {
     streamItem:
       "flex items-center justify-between gap-3.5 rounded-md border border-[var(--sds-color-neutral-border)] bg-[var(--sds-color-background-primary)] p-[15px] max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:p-4",
   };
+  const { address } = useWallet();
   const {
     treasuryBalances,
     totalLiabilities,
@@ -82,7 +84,7 @@ const EmployerDashboard: React.FC = () => {
       await new Promise((res) => setTimeout(res, 2000)); // simulate delay
       return {
         hash: "0xabc123def456abc123def456abc123def456abc123def456abc123def456abc1",
-        wait: async () => {},
+        wait: async () => { },
       };
     },
   };
@@ -95,12 +97,14 @@ const EmployerDashboard: React.FC = () => {
         </Text>
 
         <div className={tw.dashboardGrid}>
-          <WithdrawButton
-            walletAddress="0xYourWalletAddress"
-            contract={demoContract}
-            tokenSymbol="USDC"
-            tokenDecimals={6}
-          />
+          {address && (
+            <WithdrawButton
+              walletAddress={address}
+              contract={demoContract}
+              tokenSymbol="USDC"
+              tokenDecimals={6}
+            />
+          )}
 
           {/* Treasury Balance */}
           <div className={tw.card} id="tour-treasury-balance">

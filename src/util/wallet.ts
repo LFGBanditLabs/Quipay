@@ -8,10 +8,18 @@ import {
 import { Horizon } from "@stellar/stellar-sdk";
 import { networkPassphrase, stellarNetwork } from "../contracts/util";
 
-const kit: StellarWalletsKit = new StellarWalletsKit({
-  network: networkPassphrase as WalletNetwork,
-  modules: sep43Modules(),
-});
+const kit: StellarWalletsKit =
+  (typeof window !== "undefined" && (window as any).stk) ||
+  new StellarWalletsKit({
+    network: networkPassphrase as WalletNetwork,
+    modules: sep43Modules(),
+  });
+
+if (typeof window !== "undefined") {
+  (window as any).stk = kit;
+}
+
+export { kit };
 
 export const connectWallet = async () => {
   await kit.openModal({
