@@ -47,7 +47,13 @@
     "stat_total_streams": "إجمالي البثوث",
     "stat_total_value": "إجمالي القيمة المبثوثة",
     "stat_active_workers": "العمال النشطون",
-    "stat_avg_duration": "متوسط مدة البث"
+    "stat_avg_duration": "متوسط مدة البث",
+    "cta_title": "هل أنت مستعد لأتمتة كشوف رواتبك؟",
+    "cta_subtitle": "انضم إلى مئات الفرق ذات التفكير المستقبلي التي تستخدم Quipay لبث مدفوعات الوقت الفعلي على مستوى العالم.",
+    "cta_email_placeholder": "أدخل بريد عملك الإلكتروني",
+    "cta_subscribe": "احصل على وصول مبكر",
+    "cta_success": "شكراً للاشتراك!",
+    "cta_error_invalid_email": "يرجى إدخال عنوان بريد إلكتروني صحيح"
   },
   "social_proof": {
     "built_on": "مبني على",
@@ -78,7 +84,23 @@
     "total_paid": "إجمالي المدفوع",
     "download_proof": "تحميل إثبات الراتب",
     "proof_generating": "جارٍ إنشاء الإثبات…",
-    "proof_cid_label": "معرّف IPFS"
+    "proof_cid_label": "معرّف IPFS",
+    "dashboard_title": "لوحة قيادة العامل",
+    "connect_prompt": "يرجى ربط محفظتك لعرض لوحة القيادة",
+    "load_error": "فشل تحميل بيانات البث",
+    "current_earnings": "الأرباح الحالية",
+    "of_total": "من {{amount}} {{symbol}} إجمالاً",
+    "available": "متاح:",
+    "withdraw_funds": "سحب الأموال",
+    "batch_atomic_note": "عمليات السحب الجماعي ذرية. إذا فشل أي دفع في الدفعة، تُعكس المعاملة بأكملها ولا يتم سحب أي بث في تلك الدفعة.",
+    "active_streams_heading": "بثوثك النشطة",
+    "no_active_streams": "لم يتم العثور على بثوث نشطة لهذا العنوان.",
+    "withdrawal_history_heading": "سجل السحوبات",
+    "no_withdrawal_history": "لا يوجد سجل سحوبات بعد.",
+    "col_date": "التاريخ",
+    "col_amount": "المبلغ",
+    "col_token": "العملة",
+    "col_transaction": "المعاملة"
   },
   "payroll": {
     "analytics_title": "Quipay · تحليلات صاحب العمل",
@@ -207,24 +229,6 @@
     "cpu_instructions": "تعليمات المعالج",
     "memory_bytes": "الذاكرة (بايت)",
     "resulting_balances": "الأرصدة الناتجة"
-  },
-  "worker": {
-    "dashboard_title": "لوحة قيادة العامل",
-    "connect_prompt": "يرجى ربط محفظتك لعرض لوحة القيادة",
-    "load_error": "فشل تحميل بيانات البث",
-    "current_earnings": "الأرباح الحالية",
-    "of_total": "من {{amount}} {{symbol}} إجمالاً",
-    "available": "متاح:",
-    "withdraw_funds": "سحب الأموال",
-    "batch_atomic_note": "عمليات السحب الجماعي ذرية. إذا فشل أي دفع في الدفعة، تُعكس المعاملة بأكملها ولا يتم سحب أي بث في تلك الدفعة.",
-    "active_streams_heading": "بثوثك النشطة",
-    "no_active_streams": "لم يتم العثور على بثوث نشطة لهذا العنوان.",
-    "withdrawal_history_heading": "سجل السحوبات",
-    "no_withdrawal_history": "لا يوجد سجل سحوبات بعد.",
-    "col_date": "التاريخ",
-    "col_amount": "المبلغ",
-    "col_token": "العملة",
-    "col_transaction": "المعاملة"
   },
   "help": {
     "eyebrow": "مركز مساعدة Quipay",
