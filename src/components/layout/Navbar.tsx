@@ -17,6 +17,7 @@ const Navbar: React.FC = () => {
     { to: "/treasury-management", label: t("nav.treasury") },
     { to: "/worker", label: t("nav.worker") },
     { to: "/workforce", label: t("nav.workforce") },
+    { to: "/address-book", label: "Address Book" },
     { to: "/reports", label: t("nav.reports") },
     { to: "/analytics", label: t("nav.analytics") },
     { to: "/templates", label: "Templates" },
@@ -64,17 +65,17 @@ const Navbar: React.FC = () => {
       <header
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
           isScrolled
-            ? "bg-[var(--surface)]/80 backdrop-blur-xl border-b border-[var(--border)] shadow-lg"
+            ? "bg-(--surface)/80 backdrop-blur-xl border-b border-border shadow-lg"
             : "bg-transparent"
         }`}
       >
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-2">
-              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 text-white font-bold text-sm shadow-lg shadow-indigo-500/25">
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-linear-to-br from-indigo-500 to-purple-500 text-white font-bold text-sm shadow-lg shadow-indigo-500/25">
                 Q
               </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+              <span className="text-xl font-bold bg-linear-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
                 Quipay
               </span>
             </div>
@@ -89,8 +90,8 @@ const Navbar: React.FC = () => {
                       className={({ isActive }) =>
                         `relative inline-flex min-h-11 items-center rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 ${
                           isActive
-                            ? "text-[var(--text)] bg-[var(--surface-subtle)]"
-                            : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-subtle)]/50"
+                            ? "text-(--text) bg-(--surface-subtle)"
+                            : "text-muted hover:text-(--text) hover:bg-(--surface-subtle)/50"
                         }`
                       }
                     >
