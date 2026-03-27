@@ -183,6 +183,43 @@ export const treasuryBalances = pgTable("treasury_balances", {
     .defaultNow(),
 });
 
+// Employer onboarding + KYB verification state
+export const employers = pgTable(
+  "employers",
+  {
+    employerId: text("employer_id").primaryKey(),
+    businessName: text("business_name").notNull(),
+    registrationNumber: text("registration_number").notNull().unique(),
+    countryCode: text("country_code").notNull(),
+    contactName: text("contact_name"),
+    contactEmail: text("contact_email"),
+    verificationStatus: text("verification_status")
+      .notNull()
+      .default("pending"),
+    verificationReason: text("verification_reason"),
+    verificationMetadata: jsonb("verification_metadata").notNull().default({}),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_employers_status").on(table.verificationStatus),
+    index("idx_employers_country_status").on(
+      table.countryCode,
+      table.verificationStatus,
+    ),
+    index("idx_employers_updated_at").on(table.updatedAt.desc()),
+    check(
+      "employer_verification_status_check",
+      sql`verification_status IN ('pending', 'verified', 'rejected')`,
+    ),
+  ],
+);
+
 // Treasury monitor logs
 export const treasuryMonitorLog = pgTable(
   "treasury_monitor_log",
@@ -200,6 +237,76 @@ export const treasuryMonitorLog = pgTable(
   (table) => [
     index("idx_monitor_log_employer").on(table.employer),
     index("idx_monitor_log_created").on(table.createdAt.desc()),
+  ],
+);
+
+// IPFS payroll proof records — one per completed stream
+export const payrollProofs = pgTable(
+  "payroll_proofs",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    streamId: bigint("stream_id", { mode: "number" })
+      .notNull()
+      .unique()
+      .references(() => payrollStreams.streamId),
+    /** IPFS CID v1 (base32) of the pinned proof JSON */
+    cid: text("cid").notNull(),
+    /** ipfs:// URI */
+    ipfsUrl: text("ipfs_url").notNull(),
+    /** Public HTTPS gateway URL */
+    gatewayUrl: text("gateway_url").notNull(),
+    /** Full proof document as stored on IPFS */
+    proofJson: jsonb("proof_json").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_proofs_stream_id").on(table.streamId),
+    index("idx_proofs_cid").on(table.cid),
+  ],
+);
+
+// Raw Prometheus scrape snapshots retained for short-term forensics
+export const metricSnapshots = pgTable(
+  "metric_snapshots",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    capturedAt: timestamp("captured_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    metricsText: text("metrics_text").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_metric_snapshots_captured_at").on(table.capturedAt.desc()),
+    index("idx_metric_snapshots_created_at").on(table.createdAt.desc()),
+  ],
+);
+
+// Worker notification delivery preferences
+export const workerNotificationSettings = pgTable(
+  "worker_notification_settings",
+  {
+    worker: text("worker").primaryKey(),
+    emailEnabled: boolean("email_enabled").notNull().default(true),
+    inAppEnabled: boolean("in_app_enabled").notNull().default(true),
+    cliffUnlockAlerts: boolean("cliff_unlock_alerts").notNull().default(true),
+    streamEndingAlerts: boolean("stream_ending_alerts").notNull().default(true),
+    lowRunwayAlerts: boolean("low_runway_alerts").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_worker_notification_settings_updated").on(
+      table.updatedAt.desc(),
+    ),
   ],
 );
 
@@ -241,5 +348,56 @@ export const auditLogs = pgTable(
       table.createdAt.desc(),
     ),
     check("log_level_check", sql`log_level IN ('INFO', 'WARN', 'ERROR')`),
+  ],
+);
+
+// Admin audit trail for tracking administrative actions
+export const adminAuditLog = pgTable(
+  "admin_audit_log",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    adminAddress: text("admin_address").notNull(),
+    action: text("action").notNull(),
+    target: text("target"),
+    details: jsonb("details").notNull().default({}),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    timestamp: timestamp("timestamp", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_admin_audit_admin").on(table.adminAddress),
+    index("idx_admin_audit_action").on(table.action),
+    index("idx_admin_audit_timestamp").on(table.timestamp.desc()),
+    index("idx_admin_audit_admin_timestamp").on(
+      table.adminAddress,
+      table.timestamp.desc(),
+    ),
+  ],
+);
+
+// Payroll report schedules for automated email reports
+export const payrollReportSchedules = pgTable(
+  "payroll_report_schedules",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    employerId: text("employer_id").notNull(),
+    frequency: text("frequency").notNull(), // 'weekly' | 'monthly'
+    email: text("email").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
+    nextSendAt: timestamp("next_send_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_report_schedules_employer").on(table.employerId),
+    index("idx_report_schedules_enabled").on(table.enabled),
+    index("idx_report_schedules_next_send").on(table.nextSendAt),
   ],
 );

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import ConnectAccount from "../ConnectAccount";
 import ThemeToggle from "../ThemeToggle";
 import LanguageSwitcher from "../LanguageSwitcher";
+import { Tooltip, TooltipTrigger, TooltipContent } from "../ui";
 
 const Navbar: React.FC = () => {
   const { t } = useTranslation();
@@ -11,12 +12,30 @@ const Navbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
 
   const navLinks = [
-    { to: "/dashboard", label: t("nav.dashboard") },
+    { to: "/dashboard", label: t("nav.dashboard"), shortcut: "Ctrl+D" },
     { to: "/payroll", label: t("nav.payroll") },
     { to: "/treasury-management", label: t("nav.treasury") },
     { to: "/worker", label: t("nav.worker") },
+    { to: "/workforce", label: t("nav.workforce") },
     { to: "/reports", label: t("nav.reports") },
+    { to: "/analytics", label: t("nav.analytics") },
+    { to: "/templates", label: "Templates" },
     { to: "/governance", label: t("nav.governance") },
+    {
+      to: "/withdraw",
+      label: t("nav.withdraw") || "Withdraw",
+      shortcut: "Ctrl+W",
+    },
+    {
+      to: "/create-stream",
+      label: t("nav.create_stream") || "New Stream",
+      shortcut: "Ctrl+N",
+    },
+    {
+      to: "/settings",
+      label: t("nav.settings") || "Settings",
+      shortcut: "Ctrl+,",
+    },
   ];
 
   const closeMenu = () => setIsMenuOpen(false);
@@ -62,27 +81,38 @@ const Navbar: React.FC = () => {
 
             <div className="hidden md:flex items-center gap-1">
               {navLinks.map((link) => (
-                <NavLink
-                  key={link.to}
-                  to={link.to}
-                  onClick={closeMenu}
-                  className={({ isActive }) =>
-                    `relative inline-flex min-h-11 items-center rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 ${
-                      isActive
-                        ? "text-[var(--text)] bg-[var(--surface-subtle)]"
-                        : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-subtle)]/50"
-                    }`
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      {link.label}
-                      {isActive && (
-                        <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-gradient-to-r from-indigo-400 to-pink-400" />
+                <Tooltip key={link.to}>
+                  <TooltipTrigger>
+                    <NavLink
+                      to={link.to}
+                      onClick={closeMenu}
+                      className={({ isActive }) =>
+                        `relative inline-flex min-h-11 items-center rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 ${
+                          isActive
+                            ? "text-[var(--text)] bg-[var(--surface-subtle)]"
+                            : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-subtle)]/50"
+                        }`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          {link.label}
+                          {isActive && (
+                            <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-gradient-to-r from-indigo-400 to-pink-400" />
+                          )}
+                        </>
                       )}
-                    </>
+                    </NavLink>
+                  </TooltipTrigger>
+                  {link.shortcut && (
+                    <TooltipContent side="bottom" className="flex gap-2">
+                      {link.label}
+                      <kbd className="rounded bg-background/20 px-1.5 py-0.5 text-[10px] font-sans">
+                        {link.shortcut}
+                      </kbd>
+                    </TooltipContent>
                   )}
-                </NavLink>
+                </Tooltip>
               ))}
             </div>
 
@@ -96,9 +126,12 @@ const Navbar: React.FC = () => {
               <div className="flex md:hidden items-center gap-2">
                 <ConnectAccount />
                 <button
+                  type="button"
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                   className="min-h-11 min-w-11 rounded-lg p-2 text-[var(--muted)] transition-all duration-200 hover:bg-[var(--surface-subtle)] hover:text-[var(--text)]"
-                  aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+                  aria-label={
+                    isMenuOpen ? t("nav.close_menu") : t("nav.open_menu")
+                  }
                   aria-expanded={isMenuOpen}
                 >
                   {isMenuOpen ? (

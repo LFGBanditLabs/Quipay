@@ -1,0 +1,124 @@
+groups:
+  - name: quipay_backend
+    interval: 1m
+    rules:
+      # -----------------------------------------------------------------------
+      # High transaction error rate
+      # Fires when more than 5% of processed transactions fail over a 5-minute
+      # window.  Uses the quipay_processed_transactions_total counter which is
+      # incremented in delivery.ts with status="success" or status="failure".
+      # -----------------------------------------------------------------------
+      - alert: HighTransactionErrorRate
+        expr: |
+          (
+            rate(quipay_processed_transactions_total{status="failure"}[5m])
+            /
+            rate(quipay_processed_transactions_total[5m])
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High transaction error rate ({{ $value | humanizePercentage }})"
+          description: >
+            More than 5 % of transactions have failed in the last 5 minutes.
+            Current rate: {{ $value | humanizePercentage }}.
+            Check delivery.ts logs and the circuit-breaker state for
+            'webhook_delivery'.
+
+      # -----------------------------------------------------------------------
+      # Scheduler / webhook-delivery job failures
+      # Fires when any circuit breaker accumulates more than 3 failures in a
+      # rolling 1-hour window.  The scheduler and webhook-delivery services
+      # both wrap external calls in circuit breakers (circuitBreaker.ts), so
+      # a spike here indicates repeated job failures.
+      # -----------------------------------------------------------------------
+      - alert: SchedulerJobFailures
+        expr: increase(circuit_breaker_failures_total[1h]) > 3
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Scheduler/service circuit breaker failures ({{ $labels.name }})"
+          description: >
+            Circuit breaker '{{ $labels.name }}' recorded {{ $value }} failures
+            in the last hour, exceeding the threshold of 3.
+            This may indicate repeated scheduler job or webhook delivery failures.
+            Error: {{ $labels.error }}.
+
+      # -----------------------------------------------------------------------
+      # Circuit breaker open
+      # Fires immediately when any circuit breaker enters the OPEN state
+      # (value == 1).  An open breaker means the service is shedding load and
+      # all calls are failing fast.
+      # -----------------------------------------------------------------------
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuit breaker open: {{ $labels.name }}"
+          description: >
+            The circuit breaker '{{ $labels.name }}' has been in the OPEN state
+            for more than 1 minute.  All calls through this breaker are
+            currently being rejected.  Investigate the underlying service
+            immediately.
+
+      # -----------------------------------------------------------------------
+      # Treasury runway low  (requires a new Prometheus metric)
+      # The application-level notifier (notifier/notifier.ts) already fires a
+      # 'treasury_low_runway' alert via Slack / webhook when runway drops below
+      # TREASURY_RUNWAY_ALERT_DAYS.  To also alert through Prometheus / AM,
+      # expose a gauge from monitor/monitor.ts:
+      #
+      #   quipay_employer_runway_days{employer="<id>"}
+      #
+      # and uncomment the rule below.
+      # -----------------------------------------------------------------------
+      # - alert: TreasuryRunwayLow
+      #   expr: quipay_employer_runway_days < 7
+      #   for: 10m
+      #   labels:
+      #     severity: critical
+      #   annotations:
+      #     summary: "Treasury runway below 7 days ({{ $labels.employer }})"
+      #     description: >
+      #       Employer {{ $labels.employer }} has only {{ $value | humanizeDuration }}
+      #       of treasury runway remaining.  Add funds or pause streams before
+      #       exhaustion on {{ $labels.funds_exhaustion_date }}.
+
+      # -----------------------------------------------------------------------
+      # High transaction latency (P95 > 5 s)
+      # -----------------------------------------------------------------------
+      - alert: HighTransactionLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            rate(quipay_transaction_latency_seconds_bucket[5m])
+          ) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High transaction latency P95 > 5 s"
+          description: >
+            The 95th-percentile transaction latency is {{ $value | humanizeDuration }},
+            exceeding the 5-second threshold.  Check downstream Stellar RPC
+            latency and nonce-manager contention.
+
+      # -----------------------------------------------------------------------
+      # Low transaction success rate
+      # Falls back to the quipay_transaction_success_rate gauge when the rate()
+      # approach above doesn't have enough data (e.g. low-traffic periods).
+      # -----------------------------------------------------------------------
+      - alert: LowTransactionSuccessRate
+        expr: quipay_transaction_success_rate < 0.95
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Transaction success rate below 95 % ({{ $value | humanizePercentage }})"
+          description: >
+            The overall transaction success rate gauge has been below 0.95
+            for 5 minutes.  Current value: {{ $value | humanizePercentage }}.

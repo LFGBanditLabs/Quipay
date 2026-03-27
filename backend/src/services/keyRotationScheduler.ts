@@ -2,6 +2,7 @@ import { vaultService } from "./vaultService";
 import { KeyRotationService } from "./keyRotation";
 import { VaultClient } from "./vaultClient";
 import dotenv from "dotenv";
+import { logServiceError, logServiceInfo } from "../audit/serviceLogger";
 
 dotenv.config();
 
@@ -39,11 +40,14 @@ export class KeyRotationScheduler {
 
   async start(): Promise<void> {
     if (this.isRunning) {
-      console.log("[KeyRotationScheduler] Scheduler already running");
+      await logServiceInfo("KeyRotationScheduler", "Scheduler already running");
       return;
     }
 
-    console.log("[KeyRotationScheduler] Starting key rotation scheduler...");
+    await logServiceInfo(
+      "KeyRotationScheduler",
+      "Starting key rotation scheduler",
+    );
     this.isRunning = true;
 
     await this.checkAndRotate();
@@ -59,20 +63,24 @@ export class KeyRotationScheduler {
       this.intervalId = null;
     }
     this.isRunning = false;
-    console.log("[KeyRotationScheduler] Scheduler stopped");
+    await logServiceInfo("KeyRotationScheduler", "Scheduler stopped");
   }
 
   private async checkAndRotate(): Promise<void> {
     try {
-      console.log(
-        "[KeyRotationScheduler] Checking for keys needing rotation...",
+      await logServiceInfo(
+        "KeyRotationScheduler",
+        "Checking for keys needing rotation",
       );
 
       const keysNeedingRotation =
         await this.rotationService.getAllKeysNeedingRotation();
 
       if (keysNeedingRotation.length === 0) {
-        console.log("[KeyRotationScheduler] No keys require rotation");
+        await logServiceInfo(
+          "KeyRotationScheduler",
+          "No keys require rotation",
+        );
         return;
       }
 
@@ -82,42 +90,56 @@ export class KeyRotationScheduler {
       );
 
       for (const keyName of keysToRotate) {
-        console.log(`[KeyRotationScheduler] Key ${keyName} needs rotation`);
+        await logServiceInfo("KeyRotationScheduler", "Key needs rotation", {
+          key_name: keyName,
+        });
         await this.triggerRotation(keyName);
       }
     } catch (error) {
-      console.error(
-        "[KeyRotationScheduler] Error during rotation check:",
+      await logServiceError(
+        "KeyRotationScheduler",
+        "Error during rotation check",
         error,
       );
     }
   }
 
   async triggerRotation(keyName: string): Promise<boolean> {
-    console.log(
-      `[KeyRotationScheduler] Triggering rotation for key: ${keyName}`,
-    );
+    await logServiceInfo("KeyRotationScheduler", "Triggering key rotation", {
+      key_name: keyName,
+    });
 
     try {
       const newKey = this.generateNewKey();
       const success = await this.rotationService.rotateKey(keyName, newKey);
 
       if (success) {
-        console.log(
-          `[KeyRotationScheduler] Successfully rotated key: ${keyName}`,
+        await logServiceInfo(
+          "KeyRotationScheduler",
+          "Successfully rotated key",
+          { key_name: keyName },
         );
         await this.notifyRotation(keyName);
       } else {
-        console.error(
-          `[KeyRotationScheduler] Failed to rotate key: ${keyName}`,
+        await logServiceError(
+          "KeyRotationScheduler",
+          "Failed to rotate key",
+          new Error("Rotation service returned false"),
+          {
+            key_name: keyName,
+          },
         );
       }
 
       return success;
     } catch (error) {
-      console.error(
-        `[KeyRotationScheduler] Error rotating key ${keyName}:`,
+      await logServiceError(
+        "KeyRotationScheduler",
+        "Error rotating key",
         error,
+        {
+          key_name: keyName,
+        },
       );
       return false;
     }
@@ -135,9 +157,9 @@ export class KeyRotationScheduler {
   }
 
   private async notifyRotation(keyName: string): Promise<void> {
-    console.log(
-      `[KeyRotationScheduler] Notifying about key rotation: ${keyName}`,
-    );
+    await logServiceInfo("KeyRotationScheduler", "Notifying key rotation", {
+      key_name: keyName,
+    });
   }
 
   async getStatus(): Promise<{

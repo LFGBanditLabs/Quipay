@@ -29,7 +29,7 @@ export function validateRequest(schemas: {
       }
 
       next();
-    } catch (error) {
+    } catch (error: unknown) {
       if (error instanceof ZodError) {
         const validationErrors = error.issues.map((err: z.ZodIssue) => ({
           field: err.path.join("."),
@@ -68,8 +68,8 @@ export const commonSchemas = {
   // Non-empty string
   nonEmptyString: z
     .string()
-    .min(1, { message: "String cannot be empty" })
-    .trim(),
+    .trim()
+    .min(1, { message: "String cannot be empty" }),
 
   // Positive integer
   positiveInt: z.number().int().positive(),

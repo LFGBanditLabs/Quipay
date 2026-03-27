@@ -14,16 +14,12 @@ function normalizeCandidate(candidate: string | undefined): string | null {
 }
 
 export function getSiteUrl(): string {
-  const envUrl = normalizeCandidate(
-    import.meta.env.VITE_SITE_URL as string | undefined,
-  );
+  const envUrl = normalizeCandidate(import.meta.env.VITE_SITE_URL);
   if (envUrl) {
     return envUrl;
   }
 
-  const publicEnvUrl = normalizeCandidate(
-    import.meta.env.PUBLIC_SITE_URL as string | undefined,
-  );
+  const publicEnvUrl = normalizeCandidate(import.meta.env.PUBLIC_SITE_URL);
   if (publicEnvUrl) {
     return publicEnvUrl;
   }

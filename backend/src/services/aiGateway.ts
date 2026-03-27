@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 import dotenv from "dotenv";
+import { createCircuitBreaker } from "../utils/circuitBreaker";
+import { logServiceError } from "../audit/serviceLogger";
 
 dotenv.config();
 
@@ -15,6 +17,7 @@ export interface AICallResponse {
 
 export class AIGateway {
   private openai: OpenAI;
+  private parseCommandBreaker: any;
 
   constructor(client?: OpenAI) {
     this.openai =
@@ -22,6 +25,33 @@ export class AIGateway {
       new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
       });
+
+    this.parseCommandBreaker = createCircuitBreaker(
+      this.openai.chat.completions.create.bind(this.openai.chat.completions),
+      {
+        name: "openai_parse_command",
+        timeout: 15000,
+        errorThresholdPercentage: 50,
+        resetTimeout: 30000,
+      },
+    );
+
+    this.parseCommandBreaker.fallback(() => ({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              function: "unknown",
+              params: {},
+              confidence: 0,
+              reasoning:
+                "Circuit breaker triggered: OpenAI service unavailable",
+              needs_confirmation: false,
+            }),
+          },
+        },
+      ],
+    }));
   }
 
   /**
@@ -70,7 +100,7 @@ Output Requirements:
 `;
 
     try {
-      const response = await this.openai.chat.completions.create({
+      const response: any = await this.parseCommandBreaker.fire({
         model: "gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },
@@ -87,7 +117,11 @@ Output Requirements:
       const parsed: AICallResponse = JSON.parse(content);
       return parsed;
     } catch (error: any) {
-      console.error("Error parsing command with AI:", error);
+      await logServiceError(
+        "AIGateway",
+        "Error parsing command with AI",
+        error,
+      );
       return {
         function: "unknown",
         params: {},

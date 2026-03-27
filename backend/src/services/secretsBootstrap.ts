@@ -1,6 +1,11 @@
 import { vaultService } from "./vaultService";
 import { keyRotationScheduler } from "./keyRotationScheduler";
 import dotenv from "dotenv";
+import {
+  logServiceError,
+  logServiceInfo,
+  logServiceWarn,
+} from "../audit/serviceLogger";
 
 dotenv.config();
 
@@ -36,31 +41,31 @@ export class SecretsBootstrap {
   }
 
   async initialize(): Promise<void> {
-    console.log("[SecretsBootstrap] Starting secrets initialization...");
+    await logServiceInfo("SecretsBootstrap", "Starting secrets initialization");
 
     await this.checkVaultHealth();
-
     await this.fetchAllSecrets();
-
     this.validateRequiredSecrets();
 
     if (this.isVaultAvailable) {
       this.startKeyRotationScheduler();
     } else {
-      console.warn(
-        "[SecretsBootstrap] Vault not available, using .env fallback. Key rotation disabled.",
+      await logServiceWarn(
+        "SecretsBootstrap",
+        "Vault not available, using .env fallback. Key rotation disabled.",
       );
     }
 
-    console.log("[SecretsBootstrap] Secrets initialization complete");
+    await logServiceInfo("SecretsBootstrap", "Secrets initialization complete");
   }
 
   private async checkVaultHealth(): Promise<void> {
     try {
       const vaultUrl = process.env.VAULT_ADDR;
       if (!vaultUrl) {
-        console.warn(
-          "[SecretsBootstrap] VAULT_ADDR not configured, using .env fallback",
+        await logServiceWarn(
+          "SecretsBootstrap",
+          "VAULT_ADDR not configured, using .env fallback",
         );
         this.isVaultAvailable = false;
         return;
@@ -69,34 +74,41 @@ export class SecretsBootstrap {
       this.isVaultAvailable = await vaultService.isHealthy();
 
       if (this.isVaultAvailable) {
-        console.log("[SecretsBootstrap] ✅ Vault is healthy and available");
+        await logServiceInfo(
+          "SecretsBootstrap",
+          "Vault is healthy and available",
+        );
       } else {
-        console.warn(
-          "[SecretsBootstrap] ⚠️ Vault health check failed, using .env fallback",
+        await logServiceWarn(
+          "SecretsBootstrap",
+          "Vault health check failed, using .env fallback",
         );
       }
     } catch (error) {
-      console.warn(
-        "[SecretsBootstrap] ⚠️ Failed to connect to Vault:",
-        error instanceof Error ? error.message : "Unknown error",
-      );
+      await logServiceWarn("SecretsBootstrap", "Failed to connect to Vault", {
+        error_message: error instanceof Error ? error.message : "Unknown error",
+      });
       this.isVaultAvailable = false;
     }
   }
 
   private async fetchAllSecrets(): Promise<void> {
     if (!this.isVaultAvailable) {
-      console.log(
-        "[SecretsBootstrap] Using environment variables from .env file",
+      await logServiceInfo(
+        "SecretsBootstrap",
+        "Using environment variables from .env file",
       );
+
       for (const secretName of this.secretsConfig.required) {
         const value = process.env[secretName] || null;
         this.fetchedSecrets.set(secretName, value);
       }
+
       for (const secretName of this.secretsConfig.optional) {
         const value = process.env[secretName] || null;
         this.fetchedSecrets.set(secretName, value);
       }
+
       return;
     }
 
@@ -118,38 +130,55 @@ export class SecretsBootstrap {
 
       if (secret) {
         this.fetchedSecrets.set(secretName, secret);
-        console.log(`[SecretsBootstrap] ✅ Fetched secret: ${secretName}`);
-      } else if (required) {
-        const envValue = process.env[secretName];
-        if (envValue) {
-          this.fetchedSecrets.set(secretName, envValue);
-          console.log(
-            `[SecretsBootstrap] ✅ Using .env fallback for: ${secretName}`,
-          );
-        } else {
-          console.error(
-            `[SecretsBootstrap] ❌ Required secret not found in Vault or .env: ${secretName}`,
-          );
-        }
+        await logServiceInfo("SecretsBootstrap", "Fetched secret", {
+          secret_name: secretName,
+          required,
+        });
+        return;
+      }
+
+      const envValue = process.env[secretName];
+      if (envValue) {
+        this.fetchedSecrets.set(secretName, envValue);
+        await logServiceInfo(
+          "SecretsBootstrap",
+          required
+            ? "Using .env fallback"
+            : "Using .env fallback for optional secret",
+          {
+            secret_name: secretName,
+            required,
+          },
+        );
+        return;
+      }
+
+      if (required) {
+        await logServiceError(
+          "SecretsBootstrap",
+          "Required secret not found in Vault or .env",
+          new Error("Missing required secret"),
+          {
+            secret_name: secretName,
+          },
+        );
       } else {
-        const envValue = process.env[secretName];
-        if (envValue) {
-          this.fetchedSecrets.set(secretName, envValue);
-          console.log(
-            `[SecretsBootstrap] ✅ Using .env fallback for optional: ${secretName}`,
-          );
-        } else {
-          console.warn(
-            `[SecretsBootstrap] ⚠️ Optional secret not found: ${secretName}`,
-          );
-          this.fetchedSecrets.set(secretName, null);
-        }
+        await logServiceWarn("SecretsBootstrap", "Optional secret not found", {
+          secret_name: secretName,
+        });
+        this.fetchedSecrets.set(secretName, null);
       }
     } catch (error) {
-      console.error(
-        `[SecretsBootstrap] Error fetching secret ${secretName}:`,
-        error instanceof Error ? error.message : "Unknown error",
+      await logServiceError(
+        "SecretsBootstrap",
+        "Error fetching secret",
+        error,
+        {
+          secret_name: secretName,
+          required,
+        },
       );
+
       if (required) {
         const envValue = process.env[secretName];
         this.fetchedSecrets.set(secretName, envValue || null);
@@ -168,9 +197,13 @@ export class SecretsBootstrap {
     }
 
     if (missingSecrets.length > 0) {
-      console.error(
-        `[SecretsBootstrap] ❌ Missing required secrets:`,
-        missingSecrets.join(", "),
+      void logServiceError(
+        "SecretsBootstrap",
+        "Missing required secrets",
+        new Error(missingSecrets.join(", ")),
+        {
+          missing_secrets: missingSecrets,
+        },
       );
     }
   }
@@ -179,18 +212,24 @@ export class SecretsBootstrap {
     const rotationEnabled = process.env.KEY_ROTATION_ENABLED === "true";
 
     if (rotationEnabled) {
-      console.log("[SecretsBootstrap] Starting key rotation scheduler...");
+      void logServiceInfo(
+        "SecretsBootstrap",
+        "Starting key rotation scheduler",
+      );
       keyRotationScheduler.start().catch((error) => {
-        console.error(
-          "[SecretsBootstrap] Failed to start key rotation scheduler:",
-          error instanceof Error ? error.message : "Unknown error",
+        void logServiceError(
+          "SecretsBootstrap",
+          "Failed to start key rotation scheduler",
+          error,
         );
       });
-    } else {
-      console.log(
-        "[SecretsBootstrap] Key rotation scheduler disabled (KEY_ROTATION_ENABLED not set to true)",
-      );
+      return;
     }
+
+    void logServiceInfo(
+      "SecretsBootstrap",
+      "Key rotation scheduler disabled (KEY_ROTATION_ENABLED not set to true)",
+    );
   }
 
   getSecret(secretName: string): string | null {
@@ -207,8 +246,10 @@ export class SecretsBootstrap {
 
   async refreshSecret(secretName: string): Promise<string | null> {
     if (!this.isVaultAvailable) {
-      console.warn(
-        "[SecretsBootstrap] Cannot refresh secret - Vault not available",
+      await logServiceWarn(
+        "SecretsBootstrap",
+        "Cannot refresh secret - Vault not available",
+        { secret_name: secretName },
       );
       return null;
     }
@@ -218,9 +259,12 @@ export class SecretsBootstrap {
   }
 
   async refreshAllSecrets(): Promise<void> {
-    console.log("[SecretsBootstrap] Refreshing all secrets from Vault...");
+    await logServiceInfo(
+      "SecretsBootstrap",
+      "Refreshing all secrets from Vault",
+    );
     await this.fetchAllSecrets();
-    console.log("[SecretsBootstrap] Secrets refreshed");
+    await logServiceInfo("SecretsBootstrap", "Secrets refreshed");
   }
 }
 

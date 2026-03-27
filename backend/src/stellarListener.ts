@@ -1,16 +1,67 @@
 import { rpc } from "@stellar/stellar-sdk";
 import { sendWebhookNotification } from "./delivery";
+import { createCircuitBreaker } from "./utils/circuitBreaker";
 
 const SOROBAN_RPC_URL =
   process.env.PUBLIC_STELLAR_RPC_URL || "https://soroban-testnet.stellar.org";
-const QUIPAY_CONTRACT_ID = process.env.QUIPAY_CONTRACT_ID || "";
+const getQUIPAY_CONTRACT_ID = () => process.env.QUIPAY_CONTRACT_ID || "";
 
-const server = new rpc.Server(SOROBAN_RPC_URL);
+// Store interval IDs for cleanup
+let pollingIntervalId: NodeJS.Timeout | null = null;
+let simulationIntervalId: NodeJS.Timeout | null = null;
+
+// Circuit breakers - initialized lazily
+let getLatestLedgerBreaker: ReturnType<typeof createCircuitBreaker> | null =
+  null;
+let getEventsBreaker: ReturnType<typeof createCircuitBreaker> | null = null;
+
+/**
+ * Initializes the circuit breakers.
+ * Exported for testing purposes.
+ */
+export const initCircuitBreakers = () => {
+  const server = new rpc.Server(SOROBAN_RPC_URL);
+
+  getLatestLedgerBreaker = createCircuitBreaker(
+    server.getLatestLedger.bind(server),
+    {
+      name: "stellar_get_latest_ledger",
+      timeout: 5000,
+    },
+  );
+
+  getEventsBreaker = createCircuitBreaker(server.getEvents.bind(server), {
+    name: "stellar_get_events",
+    timeout: 10000,
+  });
+};
+
+/**
+ * Gets or creates the circuit breaker for getLatestLedger.
+ */
+const getGetLatestLedgerBreaker = () => {
+  if (!getLatestLedgerBreaker) {
+    initCircuitBreakers();
+  }
+  return getLatestLedgerBreaker!;
+};
+
+/**
+ * Gets or creates the circuit breaker for getEvents.
+ */
+const getGetEventsBreaker = () => {
+  if (!getEventsBreaker) {
+    initCircuitBreakers();
+  }
+  return getEventsBreaker!;
+};
 
 /**
  * Starts polling the Soroban RPC for Quipay contract events.
  */
 export const startStellarListener = async () => {
+  const QUIPAY_CONTRACT_ID = getQUIPAY_CONTRACT_ID();
+
   if (!QUIPAY_CONTRACT_ID) {
     console.warn(
       "[Stellar Listener] ⚠️ QUIPAY_CONTRACT_ID is not set. The listener will simulate events for testing.",
@@ -24,15 +75,15 @@ export const startStellarListener = async () => {
   );
 
   try {
-    let latestLedger = await getLatestLedger();
+    let latestLedger = await getLatestLedgerInternal();
 
     // Poll every 5 seconds
-    setInterval(async () => {
+    pollingIntervalId = setInterval(async () => {
       try {
-        const currentLedger = await getLatestLedger();
+        const currentLedger = await getLatestLedgerInternal();
         if (currentLedger <= latestLedger) return;
 
-        const eventsResponse = await server.getEvents({
+        const eventsResponse: any = await getGetEventsBreaker().fire({
           startLedger: latestLedger + 1,
           filters: [
             {
@@ -43,7 +94,9 @@ export const startStellarListener = async () => {
           limit: 100,
         });
 
-        eventsResponse.events.forEach((event) => {
+        if (!eventsResponse) return; // Fallback or issue
+
+        eventsResponse.events.forEach((event: any) => {
           parseAndDeliverEvent(event);
         });
 
@@ -59,9 +112,30 @@ export const startStellarListener = async () => {
   }
 };
 
-const getLatestLedger = async (): Promise<number> => {
-  const health = await server.getLatestLedger();
-  return health.sequence;
+/**
+ * Stops the Stellar listener polling.
+ * Used primarily for testing cleanup.
+ */
+export const stopStellarListener = () => {
+  if (pollingIntervalId) {
+    clearInterval(pollingIntervalId);
+    pollingIntervalId = null;
+  }
+  if (simulationIntervalId) {
+    clearInterval(simulationIntervalId);
+    simulationIntervalId = null;
+  }
+  console.log("[Stellar Listener] 🛑 Listener stopped");
+};
+
+const getLatestLedgerInternal = async (): Promise<number> => {
+  try {
+    const health: any = await getGetLatestLedgerBreaker().fire();
+    return health?.sequence || 0;
+  } catch (err) {
+    console.error("[Stellar Listener] Failed to get latest ledger", err);
+    return 0;
+  }
 };
 
 const parseAndDeliverEvent = (event: rpc.Api.EventResponse) => {
@@ -109,7 +183,7 @@ const parseAndDeliverEvent = (event: rpc.Api.EventResponse) => {
 
 // Simulation fallback for integration testing without a real contract
 const simulateEvents = () => {
-  setInterval(() => {
+  simulationIntervalId = setInterval(() => {
     const simulatedEventTypes = ["withdrawal", "new_stream"];
     const randomType =
       simulatedEventTypes[

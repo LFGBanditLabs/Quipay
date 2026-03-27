@@ -31,6 +31,7 @@ export interface AuthenticatedRequest
     id: string;
     role: Role;
     email?: string;
+    stellarAddress?: string;
   };
 }
 
@@ -45,9 +46,110 @@ export interface AuthenticatedRequest
  *
  * Replace this function body with your real JWT/session verification logic.
  */
+function normalizeJwtPayloadSegment(segment: string): string | null {
+  try {
+    const normalized = segment.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(
+      normalized.length + ((4 - (normalized.length % 4)) % 4),
+      "=",
+    );
+
+    return Buffer.from(padded, "base64").toString("utf8");
+  } catch {
+    return null;
+  }
+}
+
+export function decodeJwtPayload(
+  token: string,
+): Record<string, unknown> | null {
+  const [, payloadSegment] = token.split(".");
+  if (!payloadSegment) {
+    return null;
+  }
+
+  const decoded = normalizeJwtPayloadSegment(payloadSegment);
+  if (!decoded) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(decoded) as Record<string, unknown>;
+    return payload && typeof payload === "object" ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
+function getRoleFromJwtPayload(payload: Record<string, unknown>): Role | null {
+  const candidates = [
+    payload.role,
+    payload.user_role,
+    payload.userRole,
+    Array.isArray(payload.roles) ? payload.roles[0] : payload.roles,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") {
+      continue;
+    }
+
+    const role = ROLE_MAP[candidate.toLowerCase()];
+    if (role !== undefined) {
+      return role;
+    }
+  }
+
+  return null;
+}
+
+function getStringClaim(
+  payload: Record<string, unknown>,
+  ...keys: string[]
+): string | undefined {
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return undefined;
+}
+
 function extractUser(
   req: AuthenticatedRequest,
-): { id: string; role: Role } | null {
+): { id: string; role: Role; email?: string; stellarAddress?: string } | null {
+  const authHeader = req.headers.authorization;
+  const bearerMatch =
+    typeof authHeader === "string"
+      ? authHeader.match(/^Bearer\s+(.+)$/i)
+      : null;
+
+  if (bearerMatch) {
+    const payload = decodeJwtPayload(bearerMatch[1]);
+    if (payload) {
+      const role = getRoleFromJwtPayload(payload);
+      const userId = getStringClaim(payload, "sub", "user_id", "userId", "id");
+
+      if (role !== null && userId) {
+        return {
+          id: userId,
+          role,
+          email: getStringClaim(payload, "email"),
+          stellarAddress: getStringClaim(
+            payload,
+            "stellar_address",
+            "stellarAddress",
+            "wallet_address",
+            "walletAddress",
+            "address",
+          ),
+        };
+      }
+    }
+  }
+
   const roleHeader = req.headers["x-user-role"] as string | undefined;
   const userId = req.headers["x-user-id"] as string | undefined;
 

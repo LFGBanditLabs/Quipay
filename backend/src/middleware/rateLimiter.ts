@@ -1,11 +1,14 @@
 import rateLimit from "express-rate-limit";
 import RedisStore from "rate-limit-redis";
 import Redis from "ioredis";
-import { Request, Response } from "express";
+import { NextFunction, Request, RequestHandler, Response } from "express";
 import { createProblemDetails } from "./errorHandler";
+import { decodeJwtPayload } from "./rbac";
 
 // Initialize Redis client (optional, falls back to memory store if not configured)
 let redisClient: Redis | null = null;
+const STELLAR_WALLET_ADDRESS = /^G[A-Z2-7]{55}$/;
+const identitySlidingWindowStore = new Map<string, number[]>();
 
 if (process.env.REDIS_URL) {
   try {
@@ -44,66 +47,251 @@ const rateLimitHandler = (req: Request, res: Response) => {
   res.status(429).json(problem);
 };
 
-/**
- * Standard rate limiter for general API endpoints
- * 100 requests per 15 minutes per IP
- */
-export const standardRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: rateLimitHandler,
-  skip: (req: Request) => {
-    // Skip rate limiting for health checks
-    return req.path === "/health" || req.path === "/metrics";
-  },
-  ...(redisClient && {
-    store: new RedisStore({
-      sendCommand: (async (...args: any[]) =>
-        await redisClient!.call(...(args as [any, ...any[]]))) as any,
-      prefix: "rl:standard:",
-    }),
-  }),
-});
+function normalizeWalletCandidate(candidate: unknown): string | null {
+  if (Array.isArray(candidate)) {
+    for (const value of candidate) {
+      const normalized = normalizeWalletCandidate(value);
+      if (normalized) {
+        return normalized;
+      }
+    }
+    return null;
+  }
+
+  if (typeof candidate !== "string") {
+    return null;
+  }
+
+  const trimmed = candidate.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const bearerMatch = trimmed.match(/^Bearer\s+(.+)$/i);
+  const maybeWallet = bearerMatch ? bearerMatch[1].trim() : trimmed;
+
+  return STELLAR_WALLET_ADDRESS.test(maybeWallet) ? maybeWallet : null;
+}
+
+function extractWalletFromRecord(
+  record: Record<string, unknown> | undefined,
+): string | null {
+  if (!record) {
+    return null;
+  }
+
+  const candidates = [
+    record.wallet,
+    record.walletAddress,
+    record.wallet_address,
+    record.employer,
+    record.worker,
+    record.address,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeWalletCandidate(candidate);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return null;
+}
+
+function extractStellarAddressFromJwtClaims(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (typeof authHeader !== "string") {
+    return null;
+  }
+
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (!bearerMatch) {
+    return null;
+  }
+
+  const payload = decodeJwtPayload(bearerMatch[1]);
+  if (!payload) {
+    return null;
+  }
+
+  const candidates = [
+    payload.stellar_address,
+    payload.stellarAddress,
+    payload.wallet_address,
+    payload.walletAddress,
+    payload.address,
+    payload.sub,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeWalletCandidate(candidate);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return null;
+}
+
+export function extractWalletAddress(req: Request): string | null {
+  const jwtWallet = extractStellarAddressFromJwtClaims(req);
+  if (jwtWallet) {
+    return jwtWallet;
+  }
+
+  const headerCandidates = [
+    req.headers["x-wallet-address"],
+    req.headers["x-employer-address"],
+    req.headers["x-worker-address"],
+    req.headers["x-stellar-address"],
+    req.headers.authorization,
+  ];
+
+  for (const candidate of headerCandidates) {
+    const normalized = normalizeWalletCandidate(candidate);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  const bodyWallet = extractWalletFromRecord(
+    req.body && typeof req.body === "object"
+      ? (req.body as Record<string, unknown>)
+      : undefined,
+  );
+  if (bodyWallet) {
+    return bodyWallet;
+  }
+
+  const paramsWallet = extractWalletFromRecord(
+    req.params as Record<string, unknown>,
+  );
+  if (paramsWallet) {
+    return paramsWallet;
+  }
+
+  return extractWalletFromRecord(
+    req.query as Record<string, unknown> | undefined,
+  );
+}
+
+function isReadRequest(req: Request): boolean {
+  return ["GET", "HEAD", "OPTIONS"].includes(req.method.toUpperCase());
+}
+
+function consumeSlidingWindow(
+  key: string,
+  now: number,
+  windowMs: number,
+  maxRequests: number,
+): {
+  allowed: boolean;
+  remaining: number;
+  resetAtMs: number;
+  retryAfterSeconds?: number;
+} {
+  const windowStart = now - windowMs;
+  const activeTimestamps = (identitySlidingWindowStore.get(key) || []).filter(
+    (timestamp) => timestamp > windowStart,
+  );
+
+  if (activeTimestamps.length >= maxRequests) {
+    identitySlidingWindowStore.set(key, activeTimestamps);
+    const oldestTimestamp = activeTimestamps[0];
+    const resetAtMs = oldestTimestamp + windowMs;
+    return {
+      allowed: false,
+      remaining: 0,
+      resetAtMs,
+      retryAfterSeconds: Math.max(1, Math.ceil((resetAtMs - now) / 1000)),
+    };
+  }
+
+  activeTimestamps.push(now);
+  identitySlidingWindowStore.set(key, activeTimestamps);
+
+  const oldestTimestamp = activeTimestamps[0] ?? now;
+  return {
+    allowed: true,
+    remaining: Math.max(0, maxRequests - activeTimestamps.length),
+    resetAtMs: oldestTimestamp + windowMs,
+  };
+}
+
+function getIdentityKey(req: Request): {
+  key: string;
+  source: "stellar" | "ip";
+} {
+  const walletAddress = extractWalletAddress(req);
+  if (walletAddress) {
+    return { key: `stellar:${walletAddress}`, source: "stellar" };
+  }
+
+  return { key: `ip:${req.ip || "unknown"}`, source: "ip" };
+}
+
+function createIdentityAwareRateLimiter(): RequestHandler {
+  const READ_LIMIT = 30;
+  const WRITE_LIMIT = 5;
+  const WINDOW_MS = 60_000;
+
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (req.path === "/health" || req.path === "/metrics") {
+      return next();
+    }
+
+    const { key } = getIdentityKey(req);
+    const maxRequests = isReadRequest(req) ? READ_LIMIT : WRITE_LIMIT;
+    const result = consumeSlidingWindow(
+      key,
+      Date.now(),
+      WINDOW_MS,
+      maxRequests,
+    );
+
+    res.setHeader("X-RateLimit-Limit", String(maxRequests));
+    res.setHeader("X-RateLimit-Remaining", String(result.remaining));
+    res.setHeader(
+      "X-RateLimit-Reset",
+      String(Math.ceil(result.resetAtMs / 1000)),
+    );
+
+    if (!result.allowed) {
+      if (result.retryAfterSeconds) {
+        res.setHeader("Retry-After", String(result.retryAfterSeconds));
+      }
+      return rateLimitHandler(req, res);
+    }
+
+    return next();
+  };
+}
+
+export function resetWalletRateLimiterStore(): void {
+  identitySlidingWindowStore.clear();
+}
+
+const identityAwareRateLimiter = createIdentityAwareRateLimiter();
 
 /**
- * Strict rate limiter for expensive operations (AI, webhooks)
- * 20 requests per 15 minutes per IP
+ * Standard rate limiter for API endpoints.
+ * Authenticated users are limited per Stellar address.
+ * Unauthenticated users fall back to IP limiting.
  */
-export const strictRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: rateLimitHandler,
-  ...(redisClient && {
-    store: new RedisStore({
-      sendCommand: (async (...args: any[]) =>
-        await redisClient!.call(...(args as [any, ...any[]]))) as any,
-      prefix: "rl:strict:",
-    }),
-  }),
-});
+export const standardRateLimiter = identityAwareRateLimiter;
 
 /**
- * Very strict rate limiter for webhook registration
- * 5 requests per hour per IP
+ * Strict limiter retains the same identity-aware semantics but is applied on
+ * routes that are already sensitive or expensive.
  */
-export const webhookRegistrationLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: rateLimitHandler,
-  ...(redisClient && {
-    store: new RedisStore({
-      sendCommand: (async (...args: any[]) =>
-        await redisClient!.call(...(args as [any, ...any[]]))) as any,
-      prefix: "rl:webhook:",
-    }),
-  }),
-});
+export const strictRateLimiter = identityAwareRateLimiter;
+
+/**
+ * Webhook registration uses the same authenticated-vs-IP identity model while
+ * inheriting the write quota of 5 requests/minute.
+ */
+export const webhookRegistrationLimiter = identityAwareRateLimiter;
 
 /**
  * API key-based rate limiter (for future use with API keys)
