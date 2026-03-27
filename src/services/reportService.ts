@@ -9,6 +9,7 @@
 
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import QRCode from "qrcode";
 import type {
   PayrollTransaction,
   MonthlySummary,
@@ -302,7 +303,10 @@ export function exportTransactionsPDF(
 /*  PDF – Professional Paycheck Stub                                  */
 /* ------------------------------------------------------------------ */
 
-export function exportPaycheckPDF(tx: PayrollTransaction, filename?: string) {
+export async function exportPaycheckPDF(
+  tx: PayrollTransaction,
+  filename?: string,
+) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -399,6 +403,34 @@ export function exportPaycheckPDF(tx: PayrollTransaction, filename?: string) {
     finalY + 17,
     { align: "center" },
   );
+
+  // Attempt to generate a QR code linking to a Stellar explorer for quick verification.
+  try {
+    const explorerUrl = `https://stellar.expert/explorer/public/tx/${tx.txHash}`;
+    const dataUrl = await QRCode.toDataURL(explorerUrl);
+
+    // Add QR to the lower-right area of the document (before footer)
+    const qrSize = 34; // mm
+    const qrX = pageWidth - qrSize - 16; // right margin 16mm
+    const qrY = finalY + 8;
+    doc.addImage(dataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(...BRAND.muted);
+    doc.text(
+      "Scan to view on Stellar Explorer",
+      qrX + qrSize / 2,
+      qrY + qrSize + 6,
+      {
+        align: "center",
+      },
+    );
+  } catch (err) {
+    // QR generation failed; don't block PDF generation
+    // eslint-disable-next-line no-console
+    console.warn("Failed to generate QR for paycheck PDF:", err);
+  }
 
   addFooter(doc, 1, 1);
 
