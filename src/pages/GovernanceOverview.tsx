@@ -11,6 +11,7 @@ import {
   Icon,
   Modal,
   Notification,
+  Toggle,
 } from "@stellar/design-system";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "../hooks/useWallet";
@@ -21,6 +22,9 @@ import {
   approveProposal as approveProposalService,
   executeProposal as executeProposalService,
 } from "../services/governanceService";
+import { getActiveProposals, getDaoConfig, enableDaoMode, disableDaoMode } from "../util/daoService";
+import ProposalCreator from "../components/ProposalCreator";
+import VotingInterface from "../components/VotingInterface";
 import { shortenAddress } from "../util/address";
 
 const tw = {
@@ -188,6 +192,12 @@ const GovernanceOverview: React.FC = () => {
     type: "success" | "error";
   } | null>(null);
 
+  // DAO state
+  const [isDaoMode, setIsDaoMode] = useState(false);
+  const [daoProposals, setDaoProposals] = useState<any[]>([]);
+  const [showProposalCreator, setShowProposalCreator] = useState(false);
+  const [isTogglingDao, setIsTogglingDao] = useState(false);
+
   const vaultAddress = address ?? "";
 
   const loadData = useCallback(async () => {
@@ -198,14 +208,18 @@ const GovernanceOverview: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const [configData, proposalsData, historyData] = await Promise.all([
+      const [configData, proposalsData, historyData, daoConfigData, daoProposalsData] = await Promise.all([
         getMultisigConfig(vaultAddress, address),
         getPendingProposals(vaultAddress, address),
         getExecutionHistory(vaultAddress),
+        getDaoConfig(),
+        getActiveProposals(),
       ]);
       setConfig(configData);
       setProposals(proposalsData);
       setHistory(historyData);
+      setIsDaoMode(daoConfigData.is_dao_mode_enabled);
+      setDaoProposals(daoProposalsData);
     } catch (error) {
       console.error("Failed to load governance data:", error);
       setNotification({
@@ -261,6 +275,43 @@ const GovernanceOverview: React.FC = () => {
     } finally {
       setIsProcessing(false);
       setIsModalOpen(false);
+    }
+  };
+
+  const handleDaoModeToggle = async (enabled: boolean) => {
+    if (!address || !signTransaction) {
+      setNotification({
+        message: "Please connect your wallet",
+        type: "error",
+      });
+      return;
+    }
+
+    setIsTogglingDao(true);
+    try {
+      if (enabled) {
+        await enableDaoMode("GD...DAO_GOVERNANCE", signTransaction);
+        setNotification({
+          message: "DAO mode enabled successfully",
+          type: "success",
+        });
+      } else {
+        await disableDaoMode(signTransaction);
+        setNotification({
+          message: "DAO mode disabled successfully",
+          type: "success",
+        });
+      }
+      setIsDaoMode(enabled);
+      await loadData();
+    } catch (error) {
+      console.error("Failed to toggle DAO mode:", error);
+      setNotification({
+        message: "Failed to toggle DAO mode",
+        type: "error",
+      });
+    } finally {
+      setIsTogglingDao(false);
     }
   };
 
@@ -381,6 +432,37 @@ const GovernanceOverview: React.FC = () => {
             </div>
           </Card>
         )}
+
+        {/* DAO Mode Toggle */}
+        <Card className={tw.statusCard}>
+          <div className="flex items-center justify-between">
+            <div>
+              <Text as="h3" size="md" weight="medium">
+                DAO Governance Mode
+              </Text>
+              <Text as="p" size="sm" variant="secondary">
+                Enable DAO mode for community-governed stream creation
+              </Text>
+            </div>
+            <div className="flex items-center gap-4">
+              <Toggle
+                checked={isDaoMode}
+                onChange={handleDaoModeToggle}
+                disabled={isTogglingDao}
+                label={isDaoMode ? "DAO Mode Enabled" : "DAO Mode Disabled"}
+              />
+              {isDaoMode && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setShowProposalCreator(true)}
+                >
+                  <Icon.Plus size="sm" /> Create Proposal
+                </Button>
+              )}
+            </div>
+          </div>
+        </Card>
 
         {/* Pending Proposals Section */}
         <div className={tw.section}>
@@ -581,6 +663,38 @@ const GovernanceOverview: React.FC = () => {
             </div>
           )}
         </div>
+        )}
+
+        {/* DAO Proposals Section */}
+        {isDaoMode && (
+          <div className={tw.section}>
+            <Text as="h2" size="lg" weight="medium" className={tw.sectionTitle}>
+              DAO Governance Proposals
+            </Text>
+
+            {daoProposals.length === 0 ? (
+              <Card className={tw.emptyState}>
+                <Icon.CheckCircle size="lg" className={tw.emptyIcon} />
+                <Text as="p" size="md">
+                  No active DAO proposals
+                </Text>
+                <Text as="p" size="sm" variant="secondary">
+                  Create a proposal to get started
+                </Text>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {daoProposals.map((proposal) => (
+                  <VotingInterface
+                    key={proposal.id}
+                    proposal={proposal}
+                    onUpdate={loadData}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Execution History Section */}
         <div className={tw.section}>
@@ -641,6 +755,16 @@ const GovernanceOverview: React.FC = () => {
                   </div>
                 </Card>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* Proposal Creator Modal */}
+        <ProposalCreator
+          isOpen={showProposalCreator}
+          onClose={() => setShowProposalCreator(false)}
+          onSuccess={loadData}
+        />
             </div>
           )}
         </div>

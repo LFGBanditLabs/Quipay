@@ -24,6 +24,8 @@ pub enum DataKey {
     WithdrawalCooldown,      // Minimum seconds a worker must wait between withdrawals
     LastWithdrawal(Address), // Timestamp of last successful withdrawal per worker
     CancellationGracePeriod, // Seconds a stream keeps paying after cancel is requested
+    DaoMode,                 // Boolean flag to enable/disable DAO mode
+    DaoGovernance,           // Address of the DAO governance contract
 }
 
 #[contracttype]
@@ -363,6 +365,12 @@ impl PayrollStream {
         metadata_hash: Option<BytesN<32>>,
     ) -> Result<u64, QuipayError> {
         Self::require_not_paused(&env)?;
+        
+        // Check if DAO mode is enabled
+        if Self::is_dao_mode_enabled(&env) {
+            return Err(QuipayError::DaoModeEnabled);
+        }
+        
         employer.require_auth();
 
         // Call the internal create stream logic
@@ -1939,6 +1947,176 @@ mod pause_test;
 mod stream_extension;
 mod stream_pause;
 mod test;
+
+/// Enable DAO mode for governance-gated stream creation
+    pub fn enable_dao_mode(env: Env, dao_governance: Address) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        
+        env.storage().instance().set(&DataKey::DaoMode, &true);
+        env.storage().instance().set(&DataKey::DaoGovernance, &dao_governance);
+        
+        env.events().publish(
+            (Symbol::new(&env, "dao"), Symbol::new(&env, "mode_enabled")),
+            dao_governance,
+        );
+        
+        Ok(())
+    }
+
+    /// Disable DAO mode and return to admin-controlled stream creation
+    pub fn disable_dao_mode(env: Env) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        
+        env.storage().instance().set(&DataKey::DaoMode, &false);
+        env.storage().instance().remove(&DataKey::DaoGovernance);
+        
+        env.events().publish(
+            (Symbol::new(&env, "dao"), Symbol::new(&env, "mode_disabled")),
+            admin,
+        );
+        
+        Ok(())
+    }
+
+    /// Create a stream via governance proposal execution
+    pub fn create_stream_via_governance(
+        env: Env,
+        employer: Address,
+        worker: Address,
+        token: Address,
+        rate: i128,
+        cliff_ts: u64,
+        start_ts: u64,
+        end_ts: u64,
+        metadata_hash: Option<BytesN<32>>,
+    ) -> Result<u64, QuipayError> {
+        Self::require_not_paused(&env)?;
+        
+        // Verify this is called by the DAO governance contract
+        let dao_governance: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::DaoGovernance)
+            .ok_or(QuipayError::NotInitialized)?;
+        
+        // Check if caller is the DAO governance contract
+        dao_governance.require_auth();
+
+        // Call the internal create stream logic
+        let stream_id = Self::create_stream_internal(
+            env.clone(),
+            employer.clone(),
+            worker.clone(),
+            token.clone(),
+            rate,
+            cliff_ts,
+            start_ts,
+            end_ts,
+            metadata_hash,
+        )?;
+
+        env.events().publish(
+            (
+                Symbol::new(&env, "stream"),
+                Symbol::new(&env, "created_via_governance"),
+                worker,
+                employer,
+            ),
+            (stream_id, token, rate, start_ts, end_ts),
+        );
+
+        Ok(stream_id)
+    }
+
+    /// Cancel a stream via governance proposal execution
+    pub fn cancel_stream_via_governance(
+        env: Env,
+        stream_id: u64,
+    ) -> Result<(), QuipayError> {
+        Self::require_not_paused(&env)?;
+        
+        // Verify this is called by the DAO governance contract
+        let dao_governance: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::DaoGovernance)
+            .ok_or(QuipayError::NotInitialized)?;
+        
+        dao_governance.require_auth();
+
+        // Call the internal cancel stream logic
+        Self::cancel_stream_internal(env.clone(), stream_id)?;
+
+        env.events().publish(
+            (
+                Symbol::new(&env, "stream"),
+                Symbol::new(&env, "canceled_via_governance"),
+                stream_id,
+            ),
+            (),
+        );
+
+        Ok(())
+    }
+
+    /// Update a stream via governance proposal execution
+    pub fn update_stream_via_governance(
+        env: Env,
+        stream_id: u64,
+        new_rate: Option<i128>,
+        new_end_ts: Option<u64>,
+    ) -> Result<(), QuipayError> {
+        Self::require_not_paused(&env)?;
+        
+        // Verify this is called by the DAO governance contract
+        let dao_governance: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::DaoGovernance)
+            .ok_or(QuipayError::NotInitialized)?;
+        
+        dao_governance.require_auth();
+
+        // Call the internal update stream logic
+        Self::update_stream_internal(env.clone(), stream_id, new_rate, new_end_ts)?;
+
+        env.events().publish(
+            (
+                Symbol::new(&env, "stream"),
+                Symbol::new(&env, "updated_via_governance"),
+                stream_id,
+            ),
+            (new_rate, new_end_ts),
+        );
+
+        Ok(())
+    }
+
+    /// Check if DAO mode is enabled
+    pub fn is_dao_mode_enabled(env: &Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&DataKey::DaoMode)
+            .unwrap_or(false)
+    }
+
+    /// Get the DAO governance contract address
+    pub fn get_dao_governance(env: Env) -> Result<Address, QuipayError> {
+        env.storage()
+            .instance()
+            .get(&DataKey::DaoGovernance)
+            .ok_or(QuipayError::NotInitialized)
+    }
 
 #[cfg(test)]
 mod batch_claim_test;

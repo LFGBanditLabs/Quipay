@@ -46,6 +46,15 @@ pub enum QuipayError {
     NoSigners = 1036,
     WithdrawalCooldown = 1037,
     GracePeriodActive = 1038,
+    DaoModeEnabled = 1039,
+    NotDaoGovernance = 1040,
+    ProposalNotFound = 1041,
+    AlreadyVoted = 1042,
+    VotingExpired = 1043,
+    TooEarly = 1044,
+    InvalidState = 1045,
+    NotFound = 1046,
+    Expired = 1047,
     Custom = 1999,
 }
 
