@@ -332,6 +332,8 @@ impl PayrollStream {
             .unwrap_or(DEFAULT_MAX_STREAM_DURATION)
     }
 
+    /// Set the vault contract address for payroll operations
+    /// Only admin can call this function
     pub fn set_vault(env: Env, vault: Address) -> Result<(), QuipayError> {
         let admin: Address = env
             .storage()
