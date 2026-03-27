@@ -1,7 +1,7 @@
 #![cfg(test)]
 use super::*;
 use crate::test::setup;
-use soroban_sdk::{testutils::Address as _, testutils::Ledger as _};
+use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, testutils::Events, TryFromVal};
 
 #[test]
 fn test_pause_and_resume_stream_vesting() {
@@ -135,4 +135,65 @@ fn test_cliff_ts_equals_start_ts() {
     // Verify it vests immediately after t=10
     env.ledger().with_mut(|li| li.timestamp = 11);
     assert_eq!(client.get_withdrawable(&stream_id), Some(1));
+}
+
+#[test]
+fn test_resume_event_fields() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _admin) = setup(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 0);
+    let stream_id =
+        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None);
+
+    // Pause at t=10
+    env.ledger().with_mut(|li| li.timestamp = 10);
+    client.pause_stream(&stream_id, &employer);
+
+    // Resume at t=25 (Pause duration = 15)
+    env.ledger().with_mut(|li| li.timestamp = 25);
+    client.resume_stream(&stream_id, &employer);
+
+    let events = env.events().all();
+    let (_, _, value) = events.iter().find(|(_, topics, _)| {
+        Symbol::try_from_val(&env, &topics.get(0).unwrap()).unwrap() == Symbol::new(&env, "stream") &&
+        Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap() == Symbol::new(&env, "resumed")
+    }).expect("Resume event not found");
+
+    // The value should be (now, paused_duration, total_paused_duration)
+    // now = 25, paused_duration = 15, total_paused_duration = 15
+    let expected_val: (u64, u64, u64) = (25, 15, 15);
+    let val: (u64, u64, u64) = TryFromVal::try_from_val(&env, &value).unwrap();
+    assert_eq!(val, expected_val);
+}
+
+#[test]
+fn test_admin_resume_event_fields() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _admin) = setup(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 0);
+    let stream_id =
+        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None);
+
+    // Admin Pause at t=10
+    env.ledger().with_mut(|li| li.timestamp = 10);
+    client.admin_pause_stream(&stream_id);
+
+    // Admin Resume at t=35 (Pause duration = 25)
+    env.ledger().with_mut(|li| li.timestamp = 35);
+    client.admin_resume_stream(&stream_id);
+
+    let events = env.events().all();
+    let (_, _, value) = events.iter().find(|(_, topics, _)| {
+        Symbol::try_from_val(&env, &topics.get(0).unwrap()).unwrap() == Symbol::new(&env, "stream") &&
+        Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap() == Symbol::new(&env, "resumed")
+    }).expect("Resume event not found");
+
+    // now = 35, pause_duration = 25, total_paused_duration = 25
+    let expected_val: (u64, u64, u64) = (35, 25, 25);
+    let val: (u64, u64, u64) = TryFromVal::try_from_val(&env, &value).unwrap();
+    assert_eq!(val, expected_val);
 }

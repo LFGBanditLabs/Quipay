@@ -7,6 +7,7 @@ import NetworkPill from "./NetworkPill";
 const ConnectAccount: React.FC = () => {
   return (
     <div
+      id="tour-connect-wallet"
       aria-label="Account and Network Tools"
       style={{
         display: "flex",

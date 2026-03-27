@@ -49,8 +49,21 @@ export const connectWallet = async () => {
 };
 
 export const disconnectWallet = async () => {
-  await kit.disconnect();
+  try {
+    await kit.disconnect();
+  } catch (error) {
+    // Log error but continue with cleanup
+    console.warn("Wallet disconnect error:", error);
+  }
+
+  // Clear all wallet-related storage
   storage.removeItem("walletId");
+  storage.removeItem("walletAddress");
+  storage.removeItem("walletNetwork");
+  storage.removeItem("networkPassphrase");
+
+  // Reset wallet kit state
+  kit.setWallet("");
 };
 
 function getHorizonHost(mode: string) {

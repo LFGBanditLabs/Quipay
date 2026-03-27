@@ -988,7 +988,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
                   variant="primary"
                   size="md"
                   type="button"
-                  disabled={isBusy}
+                  disabled={isBusy || txPhase.kind === "success"}
                   onClick={() => openSimulation(values)}
                 >
                   {isBusy ? (

@@ -14,12 +14,12 @@ const Navbar: React.FC = () => {
   const navLinks = [
     { to: "/dashboard", label: t("nav.dashboard"), shortcut: "Ctrl+D" },
     { to: "/payroll", label: t("nav.payroll") },
-    { to: "/worker", label: t("nav.worker") },
     {
       to: "/treasury-management",
       label: t("nav.treasury"),
       tourId: "tour-treasury-nav",
     },
+    { to: "/worker", label: t("nav.worker") },
     {
       to: "/workforce",
       label: t("nav.workforce"),
@@ -94,6 +94,7 @@ const Navbar: React.FC = () => {
                 <Tooltip key={link.to}>
                   <TooltipTrigger>
                     <NavLink
+                      id={link.tourId}
                       to={link.to}
                       onClick={closeMenu}
                       className={({ isActive }) =>
