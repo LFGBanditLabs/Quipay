@@ -174,7 +174,7 @@ const Reports: React.FC = () => {
   };
 
   const handlePaycheckPDF = (tx: PayrollTransaction) => {
-    exportPaycheckPDF(tx);
+    void exportPaycheckPDF(tx);
     showToast(`Paycheck PDF generated for ${tx.employeeName}`);
   };
 

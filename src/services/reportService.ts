@@ -428,7 +428,6 @@ export async function exportPaycheckPDF(
     );
   } catch (err) {
     // QR generation failed; don't block PDF generation
-    // eslint-disable-next-line no-console
     console.warn("Failed to generate QR for paycheck PDF:", err);
   }
 
