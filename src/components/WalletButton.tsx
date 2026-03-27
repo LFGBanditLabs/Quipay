@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useWallet } from "../hooks/useWallet";
-import { connectWallet, disconnectWallet } from "../util/wallet";
+import { connectWallet } from "../util/wallet";
 
 const truncateAddress = (address: string) =>
   `${address.slice(0, 4)}...${address.slice(-4)}`;
@@ -18,11 +19,18 @@ const formatXlm = (rawBalance?: string) => {
 
 export const WalletButton = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const { address, isPending, balances, connectionError, clearError } =
-    useWallet();
+  const {
+    address,
+    isPending,
+    balances,
+    connectionError,
+    clearError,
+    disconnect,
+  } = useWallet();
 
   const xlmBalance = useMemo(
     () => formatXlm(balances?.xlm?.balance),
@@ -173,10 +181,18 @@ export const WalletButton = () => {
                 type="button"
                 onClick={() => {
                   setDisconnecting(true);
-                  void disconnectWallet().finally(() => {
-                    setDisconnecting(false);
-                    setShowDisconnectModal(false);
-                  });
+                  disconnect()
+                    .finally(() => {
+                      setDisconnecting(false);
+                      setShowDisconnectModal(false);
+                      // Redirect to home page after disconnect
+                      void navigate("/");
+                    })
+                    .catch((error) => {
+                      console.error("Disconnect error:", error);
+                      // Still redirect even on error
+                      void navigate("/");
+                    });
                 }}
                 disabled={disconnecting}
                 className="flex-1 rounded-xl border border-rose-300/35 bg-gradient-to-r from-rose-500 to-pink-500 px-3 py-2 text-sm font-semibold text-white transition hover:from-rose-400 hover:to-pink-400 disabled:cursor-not-allowed disabled:opacity-70"
