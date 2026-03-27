@@ -16,6 +16,7 @@ import { StreamTimeline } from "../components/StreamTimeline";
 import { StreamCardSkeleton } from "../components/dashboard/StreamCardSkeleton";
 import { EarningsSkeleton } from "../components/dashboard/EarningsSkeleton";
 import { Skeleton } from "../components/Loading/Skeleton";
+import DashboardTable from "../components/DashboardTable";
 
 const StreamCard: React.FC<{
   stream: WorkerStream;
@@ -83,6 +84,13 @@ const StreamCard: React.FC<{
     currentEarnings - stream.claimedAmount,
   );
 
+
+   return (
+    <div className="p-4">
+      <h1 className="text-xl font-bold mb-4">Worker Dashboard</h1>
+      <DashboardTable data={jobs} />
+    </div>
+  );
   return (
     <div className="relative overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface-subtle)] p-6">
       <div className="mb-4 flex items-start justify-between">
@@ -345,6 +353,10 @@ const CompletedStreamCard: React.FC<{
 };
 
 const WorkerDashboard: React.FC = () => {
+   const jobs = [
+    { job: "Plumbing", status: "Pending", action: "View" },
+    { job: "Electrical", status: "Completed", action: "Details" },
+  ];
   const { t } = useTranslation();
   const { address } = useWallet();
   const { streams, withdrawalHistory, isLoading, error, refetch } =
