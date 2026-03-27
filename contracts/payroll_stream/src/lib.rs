@@ -7,7 +7,7 @@ use soroban_sdk::{
 
 const MAX_BATCH_CREATE_STREAMS: u32 = 20;
 const MAX_BATCH_CLAIM_STREAMS: u32 = 50; // max active streams processed in one batch_claim call
-const MAX_STREAM_DURATION: u64 = 365 * 24 * 60 * 60; // 365 days in seconds
+const DEFAULT_MAX_STREAM_DURATION: u64 = 365 * 24 * 60 * 60; // 365 days in seconds
 
 #[contracttype]
 #[derive(Clone)]
@@ -24,6 +24,7 @@ pub enum DataKey {
     WithdrawalCooldown,      // Minimum seconds a worker must wait between withdrawals
     LastWithdrawal(Address), // Timestamp of last successful withdrawal per worker
     CancellationGracePeriod, // Seconds a stream keeps paying after cancel is requested
+    MaxStreamDuration,       // Configurable maximum stream duration in seconds
 }
 
 #[contracttype]
@@ -281,6 +282,33 @@ impl PayrollStream {
             .instance()
             .get(&DataKey::CancellationGracePeriod)
             .unwrap_or(DEFAULT_CANCELLATION_GRACE_PERIOD)
+    }
+
+    /// Set the maximum allowed stream duration in seconds.
+    /// Only admin can call this. The value must be at least 1 second.
+    pub fn set_max_stream_duration(env: Env, seconds: u64) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+
+        require!(seconds > 0, QuipayError::InvalidTimeRange);
+
+        env.storage()
+            .instance()
+            .set(&DataKey::MaxStreamDuration, &seconds);
+        Ok(())
+    }
+
+    /// Get the currently configured maximum stream duration in seconds.
+    /// Returns the 365-day default when the admin has never configured it.
+    pub fn get_max_stream_duration(env: Env) -> u64 {
+        env.storage()
+            .instance()
+            .get(&DataKey::MaxStreamDuration)
+            .unwrap_or(DEFAULT_MAX_STREAM_DURATION)
     }
 
     pub fn set_vault(env: Env, vault: Address) -> Result<(), QuipayError> {
@@ -1276,7 +1304,12 @@ impl PayrollStream {
             return Err(QuipayError::InvalidTimeRange);
         }
 
-        if end_ts.saturating_sub(start_ts) > MAX_STREAM_DURATION {
+        let max_duration: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::MaxStreamDuration)
+            .unwrap_or(DEFAULT_MAX_STREAM_DURATION);
+        if end_ts.saturating_sub(start_ts) > max_duration {
             return Err(QuipayError::InvalidTimeRange);
         }
 
@@ -1939,6 +1972,9 @@ mod pause_test;
 mod stream_extension;
 mod stream_pause;
 mod test;
+
+#[cfg(test)]
+mod duration_test;
 
 #[cfg(test)]
 mod batch_claim_test;
