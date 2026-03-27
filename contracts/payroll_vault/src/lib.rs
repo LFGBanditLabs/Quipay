@@ -1,5 +1,5 @@
 #![no_std]
-#![allow(unexpected_cfgs)]
+#![allow(unexpected_cfgs, deprecated, clippy::collapsible_if, clippy::needless_borrow)]
 use quipay_common::{QuipayError, require_positive_amount};
 use soroban_sdk::{
     Address, BytesN, Env, Symbol, Vec, contract, contractimpl, contracttype, symbol_short, token,
