@@ -101,6 +101,76 @@ export function exportTransactionsCSV(
   triggerDownload(blob, filename);
 }
 
+export function exportPayrollStreamsCSV(
+  streams: {
+    streamId: string;
+    worker: string;
+    total_amount: bigint;
+    withdrawn_amount: bigint;
+    start_ts: bigint;
+    end_ts: bigint;
+    status: number;
+  }[],
+  filename?: string,
+) {
+  const today = new Date().toISOString().split("T")[0];
+  const defaultFilename = `quipay-report-${today}.csv`;
+  const finalFilename = filename || defaultFilename;
+
+  const headers = [
+    "worker address",
+    "stream ID",
+    "amount",
+    "start date",
+    "end date",
+    "status",
+    "withdrawn",
+  ];
+
+  const escapeCSV = (val: string | number): string => {
+    const str = String(val);
+    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const formatStatus = (status: number): string => {
+    switch (status) {
+      case 0:
+        return "active";
+      case 1:
+        return "canceled";
+      case 2:
+        return "completed";
+      default:
+        return "unknown";
+    }
+  };
+
+  const formatDate = (timestamp: bigint): string => {
+    return new Date(Number(timestamp) * 1000).toISOString().split("T")[0];
+  };
+
+  const rows = streams.map((stream) =>
+    [
+      stream.worker,
+      stream.streamId,
+      (Number(stream.total_amount) / 1e7).toFixed(7),
+      formatDate(stream.start_ts),
+      formatDate(stream.end_ts),
+      formatStatus(stream.status),
+      (Number(stream.withdrawn_amount) / 1e7).toFixed(7),
+    ]
+      .map(escapeCSV)
+      .join(","),
+  );
+
+  const csv = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  triggerDownload(blob, finalFilename);
+}
+
 /* ------------------------------------------------------------------ */
 /*  PDF – Common styling helpers                                      */
 /* ------------------------------------------------------------------ */
