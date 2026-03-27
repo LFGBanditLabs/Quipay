@@ -45,7 +45,7 @@ import {
   PAYROLL_STREAM_CONTRACT_ID,
   type CreateStreamParams,
 } from "../contracts/payroll_stream";
-import { TransactionProgress } from "./Loading";
+// TransactionProgress removed; wizard uses inline status UI
 import {
   simulateTransaction,
   type CurrentBalance,
@@ -287,18 +287,17 @@ function shortenContractId(contractId: string): string {
 
 interface StreamCreatorProps {
   onSuccess?: (txHash: string) => void;
-  onCancel?: () => void;
 }
 
 const StreamCreator: React.FC<StreamCreatorProps> = ({
   onSuccess,
-  onCancel,
 }: StreamCreatorProps) => {
   const { address, signTransaction, networkPassphrase } = useWallet();
   const { addNotification } = useNotification();
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
+  const [step, setStep] = useState<number>(0);
   const { values, errors, txPhase, solvency } = state;
 
   const uid = useId();
@@ -563,6 +562,10 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
     void performStreamCreation(snapshot);
   }, [closeSimulation, pendingValues, performStreamCreation]);
 
+  // Step navigation helpers
+  const gotoNext = useCallback(() => setStep((s) => Math.min(2, s + 1)), []);
+  const gotoPrev = useCallback(() => setStep((s) => Math.max(0, s - 1)), []);
+
   // ── Solvency check ─────────────────────────────────────────────────────────
   const runSolvencyCheck = useCallback(
     async (totalAmount: number, tokenValue: string) => {
@@ -667,19 +670,6 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
 
   const isCurrentFormValid = Object.keys(validate(values)).length === 0;
 
-  if (!address) {
-    return (
-      <div className={tw.wrapper}>
-        <div className={tw.card}>
-          <div className={tw.walletNotice}>
-            <span className={tw.walletNoticeIcon}>💼</span>
-            <p>Connect your wallet to create a payroll stream.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className={tw.wrapper}>
       <div className={tw.card}>
@@ -688,212 +678,263 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
           <p className={tw.subtitle}>Continuous payment flow for workers.</p>
         </div>
 
-        <form
-          id={id("form")}
-          onSubmit={(e) => void handleSubmit(e)}
-          className={tw.form}
-        >
-          <div className={tw.fieldGroup}>
-            <label htmlFor={id("workerAddress")} className={tw.label}>
-              Worker Address <span className={tw.required}>*</span>
-            </label>
-            <input
-              id={id("workerAddress")}
-              name="workerAddress"
-              type="text"
-              className={`${tw.input} ${errors.workerAddress ? tw.inputError : ""}`}
-              placeholder="e.g. GABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-              value={values.workerAddress}
-              onChange={handleChange}
-              disabled={isBusy}
-              spellCheck={false}
-              required
-              aria-required="true"
-              aria-describedby={
-                errors.workerAddress ? id("workerAddress-error") : undefined
-              }
-              aria-invalid={!!errors.workerAddress}
-              pattern="^G[A-Z2-7]{55}$"
-            />
-            <div aria-live="assertive">
-              <ErrorMessage error={errors.workerAddress || null} />
+        {!address && (
+          <div className={tw.walletNotice}>
+            <span className={tw.walletNoticeIcon}>💼</span>
+            <div>
+              <div style={{ fontWeight: 600 }}>Wallet disconnected</div>
+              <div style={{ marginTop: 6 }}>
+                Please connect your wallet to create streams.
+              </div>
             </div>
           </div>
+        )}
 
-          {/* ... existing token field ... */}
+        <form id={id("form")} onSubmit={handleSubmit} className={tw.form}>
+          {step === 0 && (
+            <div className="flex flex-col gap-4">
+              <div className={tw.fieldGroup}>
+                <label htmlFor={id("workerAddress")} className={tw.label}>
+                  Worker Address <span className={tw.required}>*</span>
+                </label>
+                <input
+                  id={id("workerAddress")}
+                  name="workerAddress"
+                  type="text"
+                  className={`${tw.input} ${errors.workerAddress ? tw.inputError : ""}`}
+                  placeholder="e.g. GABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+                  value={values.workerAddress}
+                  onChange={handleChange}
+                  disabled={isBusy}
+                  spellCheck={false}
+                  required
+                  aria-required="true"
+                  aria-describedby={
+                    errors.workerAddress ? id("workerAddress-error") : undefined
+                  }
+                  aria-invalid={!!errors.workerAddress}
+                  pattern="^G[A-Z2-7]{55}$"
+                />
+                <div aria-live="assertive">
+                  <ErrorMessage error={errors.workerAddress || null} />
+                </div>
+              </div>
 
-          <div className={tw.fieldGroup}>
-            <label htmlFor={id("rate")} className={tw.label}>
-              Flow Rate ({tokenSymbol}/sec){" "}
-              <span className={tw.required}>*</span>
-            </label>
-            <input
-              id={id("rate")}
-              name="rate"
-              type="number"
-              step="any"
-              min="0"
-              className={`${tw.input} ${errors.rate ? tw.inputError : ""}`}
-              placeholder="e.g. 0.0001"
-              value={values.rate}
-              onChange={handleChange}
-              disabled={isBusy}
-              required
-              aria-required="true"
-              aria-describedby={errors.rate ? id("rate-error") : undefined}
-              aria-invalid={!!errors.rate}
-            />
-            <div aria-live="assertive">
-              <ErrorMessage error={errors.rate || null} />
+              <div className="text-sm text-[var(--muted)]">
+                Use your address book to pick a worker (coming soon).
+              </div>
+
+              <div className={tw.footer}>
+                <div />
+                <Button
+                  variant="primary"
+                  size="md"
+                  type="button"
+                  onClick={gotoNext}
+                  disabled={!values.workerAddress}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className={tw.fieldRow}>
-            <div className={tw.fieldGroup}>
-              <label htmlFor={id("startDate")} className={tw.label}>
-                Start Date
-              </label>
-              <input
-                id={id("startDate")}
-                name="startDate"
-                type="date"
-                min={todayStr()}
-                className={tw.input}
-                value={values.startDate}
-                onChange={handleChange}
-                disabled={isBusy}
-                required
-                aria-required="true"
-              />
-            </div>
-            <div className={tw.fieldGroup}>
-              <label htmlFor={id("endDate")} className={tw.label}>
-                End Date
-              </label>
-              <input
-                id={id("endDate")}
-                name="endDate"
-                type="date"
-                min={values.startDate || todayStr()}
-                className={tw.input}
-                value={values.endDate}
-                onChange={handleChange}
-                disabled={isBusy}
-                required
-                aria-required="true"
-              />
-            </div>
-          </div>
+          {step === 1 && (
+            <div className="flex flex-col gap-4">
+              <div className={tw.fieldGroup}>
+                <label htmlFor={id("token")} className={tw.label}>
+                  Token <span className={tw.required}>*</span>
+                </label>
+                <select
+                  id={id("token")}
+                  name="token"
+                  value={values.token}
+                  onChange={handleChange}
+                  className={tw.input}
+                >
+                  {SUPPORTED_TOKENS.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          {estimatedTotal > 0 && (
-            <div
-              style={{
-                padding: "12px",
-                background: "rgba(var(--text-rgb), 0.03)",
-                borderRadius: "8px",
-                border: "1px dashed var(--border)",
-              }}
-            >
+              <div className={tw.fieldGroup}>
+                <label htmlFor={id("rate")} className={tw.label}>
+                  Flow Rate ({tokenSymbol}/sec){" "}
+                  <span className={tw.required}>*</span>
+                </label>
+                <input
+                  id={id("rate")}
+                  name="rate"
+                  type="number"
+                  step="any"
+                  min="0"
+                  className={`${tw.input} ${errors.rate ? tw.inputError : ""}`}
+                  placeholder="e.g. 0.0001"
+                  value={values.rate}
+                  onChange={handleChange}
+                  disabled={isBusy}
+                  required
+                  aria-required="true"
+                  aria-describedby={errors.rate ? id("rate-error") : undefined}
+                  aria-invalid={!!errors.rate}
+                />
+                <div aria-live="assertive">
+                  <ErrorMessage error={errors.rate || null} />
+                </div>
+              </div>
+
+              <div className={tw.fieldRow}>
+                <div className={tw.fieldGroup}>
+                  <label htmlFor={id("startDate")} className={tw.label}>
+                    Start Date
+                  </label>
+                  <input
+                    id={id("startDate")}
+                    name="startDate"
+                    type="date"
+                    min={todayStr()}
+                    className={tw.input}
+                    value={values.startDate}
+                    onChange={handleChange}
+                    disabled={isBusy}
+                    required
+                    aria-required="true"
+                  />
+                </div>
+                <div className={tw.fieldGroup}>
+                  <label htmlFor={id("endDate")} className={tw.label}>
+                    End Date
+                  </label>
+                  <input
+                    id={id("endDate")}
+                    name="endDate"
+                    type="date"
+                    min={values.startDate || todayStr()}
+                    className={tw.input}
+                    value={values.endDate}
+                    onChange={handleChange}
+                    disabled={isBusy}
+                    required
+                    aria-required="true"
+                  />
+                </div>
+              </div>
+
+              <div className={tw.footer}>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  type="button"
+                  onClick={gotoPrev}
+                  disabled={isBusy}
+                >
+                  Back
+                </Button>
+                <Button
+                  variant="primary"
+                  size="md"
+                  type="button"
+                  onClick={gotoNext}
+                  disabled={!isCurrentFormValid}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="flex flex-col gap-4">
               <div
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "4px",
+                  padding: 12,
+                  borderRadius: 8,
+                  border: "1px dashed var(--border)",
                 }}
               >
-                <span
+                <div
                   style={{
-                    fontSize: "0.8125rem",
-                    color: "var(--muted)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: 4,
                   }}
                 >
-                  Estimated Total Commitment:
-                </span>
-                <span style={{ fontWeight: 600, color: "var(--text)" }}>
-                  {estimatedTotal.toLocaleString(undefined, {
-                    maximumFractionDigits: 4,
-                  })}{" "}
-                  {tokenSymbol}
-                </span>
+                  <span
+                    style={{ fontSize: "0.8125rem", color: "var(--muted)" }}
+                  >
+                    Estimated Total Commitment:
+                  </span>
+                  <span style={{ fontWeight: 600, color: "var(--text)" }}>
+                    {previewEstimatedTotal.toLocaleString(undefined, {
+                      maximumFractionDigits: 4,
+                    })}{" "}
+                    {previewTokenSymbol}
+                  </span>
+                </div>
+                <SolvencyBanner status={solvency} />
               </div>
-              <SolvencyBanner status={solvency} />
+
+              <div>
+                <h3 className="text-sm font-semibold">Review</h3>
+                <p className="text-sm">Worker: {values.workerAddress}</p>
+                <p className="text-sm">
+                  Rate: {values.rate} {tokenSymbol}/sec
+                </p>
+                <p className="text-sm">
+                  Period: {values.startDate} → {values.endDate}
+                </p>
+              </div>
+
+              <div className={tw.footer}>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  type="button"
+                  onClick={gotoPrev}
+                  disabled={isBusy}
+                >
+                  Back
+                </Button>
+                <Button
+                  variant="primary"
+                  size="md"
+                  type="button"
+                  disabled={isBusy || txPhase.kind === "success"}
+                  onClick={() => openSimulation(values)}
+                >
+                  {isBusy ? (
+                    <span className={tw.spinner} />
+                  ) : (
+                    "Simulate & Submit"
+                  )}
+                </Button>
+              </div>
             </div>
           )}
-
-          {txPhase.kind !== "idle" && (
-            <TransactionProgress
-              steps={["Simulating", "Signing", "Submitting"]}
-              currentStep={
-                txPhase.kind === "simulating"
-                  ? 0
-                  : txPhase.kind === "signing"
-                    ? 1
-                    : txPhase.kind === "submitting"
-                      ? 2
-                      : txPhase.kind === "success"
-                        ? 3
-                        : txPhase.kind === "error"
-                          ? 2
-                          : 0
-              }
-              status={
-                txPhase.kind === "success"
-                  ? "success"
-                  : txPhase.kind === "error"
-                    ? "error"
-                    : "loading"
-              }
-              errorMessage={
-                txPhase.kind === "error" ? txPhase.message : undefined
-              }
-              timeoutMs={30_000}
-            />
-          )}
-
-          <div className={tw.footer}>
-            {onCancel && (
-              <Button
-                variant="secondary"
-                size="md"
-                type="button"
-                disabled={isBusy}
-                onClick={onCancel}
-              >
-                Cancel
-              </Button>
-            )}
-            <Button
-              variant="primary"
-              size="md"
-              type="submit"
-              disabled={
-                isBusy || txPhase.kind === "success" || !isCurrentFormValid
-              }
-            >
-              {isBusy ? <span className={tw.spinner} /> : "Create Stream"}
-            </Button>
-          </div>
         </form>
-      </div>
 
-      <TransactionSimulationModal
-        open={isPreviewOpen}
-        preview={
-          simulationPreview ?? {
-            description: "Create payroll stream",
-            contractFunction: "create_stream",
-            contractAddress: shortenContractId(
-              PAYROLL_STREAM_CONTRACT_ID ?? "",
-            ),
-            currentBalances: [],
+        <TransactionSimulationModal
+          open={isPreviewOpen}
+          preview={
+            simulationPreview ?? {
+              description: "Create payroll stream",
+              contractFunction: "create_stream",
+              contractAddress: shortenContractId(
+                PAYROLL_STREAM_CONTRACT_ID ?? "",
+              ),
+              currentBalances: [],
+            }
           }
-        }
-        onSimulate={runCreateSimulation}
-        onConfirm={() => {
-          void confirmSimulation();
-        }}
-        onCancel={closeSimulation}
-      />
+          onSimulate={runCreateSimulation}
+          onConfirm={() => {
+            void confirmSimulation();
+          }}
+          onCancel={closeSimulation}
+        />
+      </div>
     </div>
   );
 };

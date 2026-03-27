@@ -7,7 +7,10 @@ use soroban_sdk::{
 
 const MAX_BATCH_CREATE_STREAMS: u32 = 20;
 const MAX_BATCH_CLAIM_STREAMS: u32 = 50; // max active streams processed in one batch_claim call
-const MAX_STREAM_DURATION: u64 = 365 * 24 * 60 * 60; // 365 days in seconds
+const DEFAULT_MAX_STREAM_DURATION: u64 = 365 * 24 * 60 * 60; // 365 days in seconds
+/// Maximum page size for pagination to prevent DoS attacks.
+/// Requests exceeding this limit will be capped to this value.
+const MAX_PAGE_SIZE: u32 = 1000;
 
 #[contracttype]
 #[derive(Clone)]
@@ -24,6 +27,7 @@ pub enum DataKey {
     WithdrawalCooldown,      // Minimum seconds a worker must wait between withdrawals
     LastWithdrawal(Address), // Timestamp of last successful withdrawal per worker
     CancellationGracePeriod, // Seconds a stream keeps paying after cancel is requested
+    MaxStreamDuration,       // Configurable maximum stream duration in seconds
 }
 
 #[contracttype]
@@ -70,7 +74,25 @@ pub struct Stream {
     pub status: StreamStatus,
     pub created_at: u64,
     pub closed_at: u64,
+    /// Timestamp when the stream was paused (0 if not currently paused)
     pub paused_at: u64,
+    /// Cumulative duration (in seconds) that this stream has been paused.
+    ///
+    /// This field is used to adjust the effective vesting timeline when calculating
+    /// how much has vested. When a stream is paused and resumed, vesting continues
+    /// from where it left off by shifting the timeline forward by this amount.
+    ///
+    /// ### How It Works
+    /// - Each time `resume_stream()` is called, the pause duration is added to this field
+    /// - The vesting calculation subtracts this from elapsed time: `adjusted_elapsed = elapsed - total_paused_duration`
+    /// - This ensures workers are only paid for active (non-paused) time
+    ///
+    /// ### Example
+    /// ```ignore
+    /// Stream: 1000 tokens from t=0 to t=100
+    /// - Paused at t=30, resumed at t=50: total_paused_duration = 20s
+    /// - At t=60: elapsed=60s, adjusted=60-20=40s, vested=400 tokens (correct: 30s + 10s active)
+    /// ```
     pub total_paused_duration: u64,
     pub metadata_hash: Option<BytesN<32>>,
     pub cancel_effective_at: u64, // 0 means no pending cancellation; >0 means grace period active
@@ -281,6 +303,33 @@ impl PayrollStream {
             .instance()
             .get(&DataKey::CancellationGracePeriod)
             .unwrap_or(DEFAULT_CANCELLATION_GRACE_PERIOD)
+    }
+
+    /// Set the maximum allowed stream duration in seconds.
+    /// Only admin can call this. The value must be at least 1 second.
+    pub fn set_max_stream_duration(env: Env, seconds: u64) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+
+        require!(seconds > 0, QuipayError::InvalidTimeRange);
+
+        env.storage()
+            .instance()
+            .set(&DataKey::MaxStreamDuration, &seconds);
+        Ok(())
+    }
+
+    /// Get the currently configured maximum stream duration in seconds.
+    /// Returns the 365-day default when the admin has never configured it.
+    pub fn get_max_stream_duration(env: Env) -> u64 {
+        env.storage()
+            .instance()
+            .get(&DataKey::MaxStreamDuration)
+            .unwrap_or(DEFAULT_MAX_STREAM_DURATION)
     }
 
     pub fn set_vault(env: Env, vault: Address) -> Result<(), QuipayError> {
@@ -1276,7 +1325,12 @@ impl PayrollStream {
             return Err(QuipayError::InvalidTimeRange);
         }
 
-        if end_ts.saturating_sub(start_ts) > MAX_STREAM_DURATION {
+        let max_duration: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::MaxStreamDuration)
+            .unwrap_or(DEFAULT_MAX_STREAM_DURATION);
+        if end_ts.saturating_sub(start_ts) > max_duration {
             return Err(QuipayError::InvalidTimeRange);
         }
 
@@ -1595,10 +1649,25 @@ impl PayrollStream {
         Self::paginate(&env, ids, offset, limit)
     }
 
+    /// Paginate a list of stream IDs with bounds checking.
+    ///
+    /// ### DoS Protection
+    /// The `limit` parameter is capped at `MAX_PAGE_SIZE` (1000) to prevent
+    /// performance issues from excessively large page requests.
+    ///
+    /// ### Parameters
+    /// - `ids`: Full list of stream IDs to paginate
+    /// - `offset`: Starting index (default: 0)
+    /// - `limit`: Maximum items to return (default: all, capped at MAX_PAGE_SIZE)
+    ///
+    /// ### Returns
+    /// A subset of `ids` from `offset` to `offset + min(limit, MAX_PAGE_SIZE)`
     fn paginate(env: &Env, ids: Vec<u64>, offset: Option<u32>, limit: Option<u32>) -> Vec<u64> {
         let offset = offset.unwrap_or(0);
         let ids_len = ids.len();
-        let limit = limit.unwrap_or(ids_len);
+        // Cap limit at MAX_PAGE_SIZE to prevent DoS
+        let requested_limit = limit.unwrap_or(ids_len);
+        let limit = requested_limit.min(MAX_PAGE_SIZE).min(ids_len);
 
         let mut result = Vec::new(env);
         if offset >= ids_len {
@@ -1874,6 +1943,44 @@ impl PayrollStream {
         );
     }
 
+    /// Calculate the vested amount at a specific timestamp, accounting for pauses.
+    ///
+    /// This function implements the core vesting logic with support for pause/resume cycles.
+    /// When a stream is paused and resumed, the `total_paused_duration` field shifts the
+    /// effective vesting timeline forward, ensuring workers are only paid for active time.
+    ///
+    /// ### Vesting Formula
+    /// ```ignore
+    /// effective_start = start_ts + total_paused_duration
+    /// effective_end = end_ts + total_paused_duration
+    /// elapsed = timestamp - effective_start
+    /// vested = total_amount * elapsed / (end_ts - start_ts)
+    /// ```
+    ///
+    /// ### Pause Handling
+    /// The `total_paused_duration` accumulates all pause periods:
+    /// - When paused: vesting stops at `paused_at`
+    /// - When resumed: `total_paused_duration += (resume_time - paused_at)`
+    /// - The timeline shifts forward by `total_paused_duration`
+    ///
+    /// ### Example
+    /// ```ignore
+    /// Stream: 1000 tokens, start=0, end=100 (10 tokens/sec)
+    /// Paused at t=30 (300 vested), resumed at t=70 (pause_duration=40s)
+    ///
+    /// At t=80:
+    /// - effective_start = 0 + 40 = 40
+    /// - elapsed = 80 - 40 = 40s
+    /// - vested = 1000 * 40 / 100 = 400 tokens
+    /// - Correct: 30s before pause + 10s after resume = 40s active
+    /// ```
+    ///
+    /// ### Parameters
+    /// - `stream`: The stream to calculate vesting for
+    /// - `timestamp`: The time to calculate vesting at
+    ///
+    /// ### Returns
+    /// The amount vested at the given timestamp (capped at `total_amount`)
     fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
         let is_closed = Self::is_closed(stream);
         let mut effective_ts = if is_closed {
@@ -1939,6 +2046,9 @@ mod pause_test;
 mod stream_extension;
 mod stream_pause;
 mod test;
+
+#[cfg(test)]
+mod duration_test;
 
 #[cfg(test)]
 mod batch_claim_test;

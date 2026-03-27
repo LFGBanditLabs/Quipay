@@ -14,6 +14,9 @@ mod upgrade_test;
 #[cfg(test)]
 mod fuzz_test;
 
+#[cfg(test)]
+mod multisig_dedup_test;
+
 #[cfg(kani)]
 mod kani_test;
 
@@ -958,6 +961,17 @@ impl PayrollVault {
 }
 
 impl PayrollVault {
+    /// Verify that the required number of signers have authorized the transaction.
+    ///
+    /// ### Deduplication
+    /// This function ensures each signer is unique by checking for duplicates in the
+    /// signer list. This prevents a single key from satisfying the threshold multiple
+    /// times by appearing in the list more than once.
+    ///
+    /// ### Requirements
+    /// - At least `threshold` unique signers must authorize
+    /// - Duplicate signers in the list are rejected
+    /// - Threshold must be valid (> 0 and <= number of signers)
     fn require_multisig_auth(e: &Env) -> Result<(), QuipayError> {
         let signers: Vec<Address> = e
             .storage()
@@ -975,6 +989,22 @@ impl PayrollVault {
             return Err(QuipayError::InvalidThreshold);
         }
 
+        // Check for duplicate signers to prevent a single key from satisfying threshold multiple times
+        let mut i = 0;
+        while i < signers.len() {
+            let signer_i = signers.get(i).ok_or(QuipayError::SignerNotFound)?;
+            let mut j = i + 1;
+            while j < signers.len() {
+                let signer_j = signers.get(j).ok_or(QuipayError::SignerNotFound)?;
+                if signer_i == signer_j {
+                    return Err(QuipayError::DuplicateSigner);
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+
+        // Require auth from the first `threshold` signers
         let mut i = 0;
         while i < threshold {
             let signer = signers.get(i).ok_or(QuipayError::SignerNotFound)?;

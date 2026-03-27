@@ -1,113 +1,108 @@
 import React, { useState } from "react";
-import Joyride, { Step, CallBackProps } from "react-joyride";
+import Joyride, { Step, CallBackProps, STATUS } from "react-joyride";
+
+const ONBOARDING_KEY = "hasSeenOnboardingTour";
+
+const stepContent = [
+  {
+    icon: "👋",
+    heading: "Welcome to Quipay!",
+    body: "This quick tour will walk you through the four steps to get started as an employer: connect your wallet, fund your treasury, register a worker, and create your first payment stream.",
+  },
+  {
+    icon: "🔗",
+    heading: "Step 1 — Connect Your Wallet",
+    body: "Click the button in the top-right corner to connect your Stellar wallet. This is your identity on the protocol and required for all on-chain actions.",
+  },
+  {
+    icon: "💰",
+    heading: "Step 2 — Deposit to Treasury",
+    body: "Before streaming any payments, deposit tokens into your treasury. The treasury acts as your payment pool — workers draw from it in real-time.",
+  },
+  {
+    icon: "👷",
+    heading: "Step 3 — Register a Worker",
+    body: "Add workers to your workforce registry. Each worker needs to be registered with their Stellar wallet address before you can create a stream for them.",
+  },
+  {
+    icon: "⚡",
+    heading: "Step 4 — Create a Stream",
+    body: "Set up a continuous payment stream for a registered worker. Define a flow rate (tokens/second) and the stream starts immediately. You're all set!",
+  },
+];
+
+function StepContent({ index }: { index: number }) {
+  const { icon, heading, body } = stepContent[index];
+  return (
+    <div style={{ maxWidth: 280 }}>
+      <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>{icon}</div>
+      <h3
+        style={{
+          margin: "0 0 0.5rem",
+          fontSize: "1rem",
+          fontWeight: 700,
+          lineHeight: 1.3,
+        }}
+      >
+        {heading}
+      </h3>
+      <p
+        style={{
+          margin: 0,
+          fontSize: "0.875rem",
+          lineHeight: 1.6,
+          opacity: 0.85,
+        }}
+      >
+        {body}
+      </p>
+    </div>
+  );
+}
+
+const steps: Step[] = [
+  {
+    target: "body",
+    placement: "center",
+    content: <StepContent index={0} />,
+    disableBeacon: true,
+  },
+  {
+    target: "#tour-connect-wallet",
+    content: <StepContent index={1} />,
+    disableBeacon: true,
+    placement: "bottom",
+  },
+  {
+    target: "#tour-treasury-nav",
+    content: <StepContent index={2} />,
+    disableBeacon: true,
+    placement: "bottom",
+  },
+  {
+    target: "#tour-workforce-nav",
+    content: <StepContent index={3} />,
+    disableBeacon: true,
+    placement: "bottom",
+  },
+  {
+    target: "#tour-create-stream-nav",
+    content: <StepContent index={4} />,
+    disableBeacon: true,
+    placement: "bottom",
+  },
+];
 
 const OnboardingTour: React.FC = () => {
-  const [run, setRun] = useState(() => {
-    return !localStorage.getItem("hasSeenOnboardingTour");
-  });
+  const [run, setRun] = useState(() => !localStorage.getItem(ONBOARDING_KEY));
 
-  const handleJoyrideCallback = (data: CallBackProps) => {
+  const handleCallback = (data: CallBackProps) => {
     const { status } = data;
-    const finishedStatuses: string[] = ["finished", "skipped"];
-
-    if (finishedStatuses.includes(status)) {
+    if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
       setRun(false);
-      localStorage.setItem("hasSeenOnboardingTour", "true");
+      localStorage.setItem(ONBOARDING_KEY, "true");
     }
   };
-
-  const steps: Step[] = [
-    {
-      target: "#tour-treasury-balance",
-      content: (
-        <div>
-          <h3>Treasury Balance</h3>
-          <p>
-            This shows the total assets available in your protocol's treasury.
-            It's the pool of funds used to pay your workers.
-          </p>
-        </div>
-      ),
-      disableBeacon: true,
-    },
-    {
-      target: "#tour-manage-treasury",
-      content: (
-        <div>
-          <h3>Manage Treasury</h3>
-          <p>
-            Click here to deposit more tokens into your treasury or withdraw
-            excess funds back to your wallet.
-          </p>
-        </div>
-      ),
-    },
-    {
-      target: "#tour-liabilities",
-      content: (
-        <div>
-          <h3>
-            Total Liabilities{" "}
-            <span style={{ fontSize: "0.8em", opacity: 0.8 }}>
-              ("What is this?")
-            </span>
-          </h3>
-          <p>
-            <strong>Liabilities</strong> represent your projected outgoing
-            payments based on all currently active streams over a 30-day period.
-            Keeping an eye on this ensures you don't run out of funds!
-          </p>
-        </div>
-      ),
-    },
-    {
-      target: "#tour-active-streams",
-      content: (
-        <div>
-          <h3>Active Streams Count</h3>
-          <p>
-            This is the total number of workers or contracts you are currently
-            streaming funds to in real-time.
-          </p>
-        </div>
-      ),
-    },
-    {
-      target: "#tour-create-stream",
-      content: (
-        <div>
-          <h3>Create New Stream</h3>
-          <p>
-            Ready to pay someone? Click here to set up a new continuous payment
-            stream for a worker. You'll need their wallet address and the
-            desired Flow Rate.
-          </p>
-        </div>
-      ),
-    },
-    {
-      target: "#tour-streams-list",
-      content: (
-        <div>
-          <h3>
-            Your Streams{" "}
-            <span style={{ fontSize: "0.8em", opacity: 0.8 }}>
-              ("What is this?")
-            </span>
-          </h3>
-          <p>
-            Here you can monitor all ongoing streams. <br />
-            <br />
-            <strong>Flow Rate:</strong> The amount of tokens transferred per
-            second.
-            <br />
-            <strong>Total Streamed:</strong> The exact amount that has
-            successfully reached the worker so far.
-          </p>
-        </div>
-      ),
-    },
-  ];
 
   return (
     <Joyride
@@ -117,11 +112,40 @@ const OnboardingTour: React.FC = () => {
       scrollToFirstStep
       showProgress
       showSkipButton
-      callback={handleJoyrideCallback}
+      callback={handleCallback}
+      locale={{
+        back: "← Back",
+        close: "Close",
+        last: "Done ✓",
+        next: "Next →",
+        skip: "Skip tour",
+      }}
       styles={{
         options: {
-          primaryColor: "var(--accent)",
-          zIndex: 1000,
+          primaryColor: "#6366f1",
+          zIndex: 10000,
+        },
+        tooltip: {
+          borderRadius: "12px",
+          padding: "20px 24px",
+        },
+        tooltipTitle: {
+          display: "none",
+        },
+        buttonNext: {
+          borderRadius: "8px",
+          padding: "8px 16px",
+          fontSize: "0.875rem",
+          fontWeight: 600,
+        },
+        buttonBack: {
+          borderRadius: "8px",
+          padding: "8px 16px",
+          fontSize: "0.875rem",
+        },
+        buttonSkip: {
+          fontSize: "0.8rem",
+          opacity: 0.7,
         },
       }}
     />
