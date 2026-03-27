@@ -38,6 +38,7 @@ pub enum StateKey {
     TotalLiability(Address),  // Amount owed to recipients (Token -> Amount)
     // Timelock storage
     PendingUpgrade, // (wasm_hash, execute_after_timestamp)
+    PendingDrain,   // Emergency drain proposal with 24-hour timelock
     // Multi-sig storage
     Signers,             // Vec<Address> - list of authorized signers
     Threshold,           // u32 - M of N required
@@ -70,6 +71,15 @@ pub struct TreasuryTokenSummary {
     pub liability: i128,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PendingDrain {
+    pub recipient: Address,
+    pub execute_after: u64,
+    pub proposed_at: u64,
+    pub proposed_by: Address,
+}
+
 #[contract]
 pub struct PayrollVault;
 
@@ -81,9 +91,15 @@ const UPGRADE_CANCELED: Symbol = symbol_short!("up_cancel");
 const SIGNER_ADDED: Symbol = symbol_short!("sig_add");
 const SIGNER_REMOVED: Symbol = symbol_short!("sig_rm");
 const THRESHOLD_SET: Symbol = symbol_short!("thr_set");
+const DRAIN_PROPOSED: Symbol = symbol_short!("dr_prop");
+const DRAIN_EXECUTED: Symbol = symbol_short!("dr_exec");
+const DRAIN_CANCELED: Symbol = symbol_short!("dr_cncl");
 
 // 48 hours in seconds
 const TIMELOCK_DURATION: u64 = 48 * 60 * 60;
+
+// 24 hours in seconds (emergency drain timelock)
+const DRAIN_TIMELOCK_DURATION: u64 = 24 * 60 * 60;
 
 // Default withdrawal threshold for multisig requirement (100,000 units)
 const DEFAULT_WITHDRAWAL_THRESHOLD: i128 = 100_000;
@@ -952,6 +968,139 @@ impl PayrollVault {
         }
 
         summary
+    }
+
+    // ==================== Emergency Drain (Timelock) ====================
+
+    /// Propose an emergency drain of all vault funds to `recipient`.
+    ///
+    /// Starts a 24-hour timelock. Only the admin can call this function.
+    /// Off-chain monitors should observe the `DRAIN_PROPOSED` event and alert
+    /// token holders so they can exit before the drain executes.
+    ///
+    /// Emits: `(DRAIN_PROPOSED, admin)` → `(recipient, execute_after)`
+    pub fn propose_emergency_drain(e: Env, recipient: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        // Disallow stacking proposals – cancel first, then re-propose.
+        if e.storage().persistent().has(&StateKey::PendingDrain) {
+            return Err(QuipayError::Custom);
+        }
+
+        let now = e.ledger().timestamp();
+        let execute_after = now.saturating_add(DRAIN_TIMELOCK_DURATION);
+
+        let pending = PendingDrain {
+            recipient: recipient.clone(),
+            execute_after,
+            proposed_at: now,
+            proposed_by: admin.clone(),
+        };
+
+        e.storage()
+            .persistent()
+            .set(&StateKey::PendingDrain, &pending);
+
+        #[allow(deprecated)]
+        e.events()
+            .publish((DRAIN_PROPOSED, admin), (recipient, execute_after));
+
+        Ok(())
+    }
+
+    /// Execute a pending emergency drain after the 24-hour timelock has expired.
+    ///
+    /// Permissionless after the timelock: anyone can call this once the window
+    /// opens, ensuring liveness even if the admin key is unavailable.
+    /// Drains every tracked token's full on-chain balance to the `recipient`
+    /// recorded in the proposal.
+    ///
+    /// Emits: `(DRAIN_EXECUTED, recipient)` → `(token, amount)` per token,
+    ///         then `(DRAIN_EXECUTED, recipient)` → `"done"` as a final marker.
+    pub fn execute_emergency_drain(e: Env) -> Result<(), QuipayError> {
+        let pending: PendingDrain = e
+            .storage()
+            .persistent()
+            .get(&StateKey::PendingDrain)
+            .ok_or(QuipayError::NoDrainPending)?;
+
+        let now = e.ledger().timestamp();
+        if now < pending.execute_after {
+            return Err(QuipayError::DrainTimelockActive);
+        }
+
+        let recipient = pending.recipient.clone();
+
+        // Drain every tracked token.
+        let tokens: Vec<Address> = e
+            .storage()
+            .persistent()
+            .get(&StateKey::TokenList)
+            .unwrap_or_else(|| Vec::new(&e));
+
+        let mut i = 0;
+        while i < tokens.len() {
+            let token = tokens.get(i).unwrap();
+            let token_client = token::Client::new(&e, &token);
+            let on_chain_balance = token_client.balance(&e.current_contract_address());
+
+            if on_chain_balance > 0 {
+                // Wipe internal accounting for this token.
+                e.storage()
+                    .persistent()
+                    .set(&StateKey::TreasuryBalance(token.clone()), &0i128);
+                e.storage()
+                    .persistent()
+                    .set(&StateKey::TotalLiability(token.clone()), &0i128);
+
+                token_client.transfer(&e.current_contract_address(), &recipient, &on_chain_balance);
+
+                #[allow(deprecated)]
+                e.events().publish(
+                    (DRAIN_EXECUTED, recipient.clone()),
+                    (token, on_chain_balance),
+                );
+            }
+
+            i += 1;
+        }
+
+        // Remove the pending proposal.
+        e.storage().persistent().remove(&StateKey::PendingDrain);
+
+        Ok(())
+    }
+
+    /// Cancel a pending emergency drain proposal.
+    ///
+    /// Only the admin can call this function.
+    ///
+    /// Emits: `(DRAIN_CANCELED, admin)` → `(recipient, execute_after)`
+    pub fn cancel_emergency_drain(e: Env) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        let pending: PendingDrain = e
+            .storage()
+            .persistent()
+            .get(&StateKey::PendingDrain)
+            .ok_or(QuipayError::NoDrainPending)?;
+
+        e.storage().persistent().remove(&StateKey::PendingDrain);
+
+        #[allow(deprecated)]
+        e.events().publish(
+            (DRAIN_CANCELED, admin),
+            (pending.recipient, pending.execute_after),
+        );
+
+        Ok(())
+    }
+
+    /// Return the currently pending emergency drain proposal, if any.
+    pub fn get_pending_drain(e: Env) -> Option<PendingDrain> {
+        e.storage().persistent().get(&StateKey::PendingDrain)
     }
 
     /// Get the current contract address
