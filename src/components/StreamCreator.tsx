@@ -75,7 +75,7 @@ const tw = {
   spinner:
     "inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/50 border-t-white align-middle",
   walletNotice:
-    "flex items-start gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-sm text-[var(--muted)]",
+    "flex items-start gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-sm text-muted",
   walletNoticeIcon: "text-base leading-6",
 };
 
@@ -305,7 +305,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
   const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
   const [step, setStep] = useState<number>(0);
   const { values, errors, txPhase, solvency } = state;
-  const isBusy = txPhase !== "idle";
+  const isBusy = txPhase.kind !== "idle" || isPreviewOpen;
 
   const filteredContacts = useMemo(() => {
     const query = (values.workerAddress || "").toLowerCase();
@@ -695,12 +695,6 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
     openSimulation(values);
   };
 
-  const isBusy =
-    txPhase.kind === "simulating" ||
-    txPhase.kind === "signing" ||
-    txPhase.kind === "submitting" ||
-    isPreviewOpen;
-
   const isCurrentFormValid = Object.keys(validate(values)).length === 0;
 
   return (
@@ -788,7 +782,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
                                   />
                                 )}
                               </div>
-                              <div className="truncate text-[10px] font-mono text-[var(--muted)]">
+                              <div className="truncate text-[10px] font-mono text-muted">
                                 {contact.address}
                               </div>
                             </div>
@@ -804,7 +798,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
               </div>
 
               <div className="flex items-center justify-between px-1">
-                <Text as="span" size="xs" className="text-[var(--muted)]">
+                <Text as="span" size="xs" className="text-muted">
                   Pick from your saved contacts or enter a new address.
                 </Text>
                 <button
@@ -994,7 +988,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
                   variant="primary"
                   size="md"
                   type="button"
-                  disabled={isBusy || txPhase.kind === "success"}
+                  disabled={isBusy}
                   onClick={() => openSimulation(values)}
                 >
                   {isBusy ? (

@@ -81,7 +81,7 @@ export const ContactModal: React.FC<ContactModalProps> = ({
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)] flex items-center gap-2">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted flex items-center gap-2">
                 <Hash size={14} /> Stellar Address
               </label>
               <input
@@ -95,7 +95,7 @@ export const ContactModal: React.FC<ContactModalProps> = ({
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)] flex items-center gap-2">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted flex items-center gap-2">
                 <FileText size={14} /> Internal Notes (Optional)
               </label>
               <textarea
@@ -153,7 +153,7 @@ export const ContactModal: React.FC<ContactModalProps> = ({
                 variant="primary"
                 size="md"
                 type="submit"
-                className="rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20"
+                className="rounded-xl bg-linear-to-r from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20"
               >
                 {initialData ? "Save Changes" : "Save Contact"}
               </Button>

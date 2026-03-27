@@ -93,6 +93,7 @@ const AddressBook: React.FC = () => {
         title="Address Book | Quipay"
         description="Manage your worker contacts and favorites for quick stream creation."
         path="/address-book"
+        imagePath="/og-image.png"
       />
 
       <div className="max-w-6xl mx-auto space-y-10">
@@ -176,7 +177,7 @@ const AddressBook: React.FC = () => {
             className="w-full bg-white/5 border border-white/10 rounded-3xl py-5 pl-14 pr-6 text-lg focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/30 transition-all backdrop-blur-xl shadow-inner shadow-white/5"
           />
           <div className="absolute inset-y-0 right-4 flex items-center gap-2">
-            <div className="h-8 w-[1px] bg-white/10 mx-2" />
+            <div className="h-8 w-px bg-white/10 mx-2" />
             <button className="p-2 text-white/30 hover:text-white transition-colors">
               <Filter size={20} />
             </button>
@@ -292,7 +293,7 @@ const AddressBook: React.FC = () => {
                 filteredContacts.map((contact) => (
                   <div
                     key={contact.id}
-                    className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-6 hover:bg-white/[0.03] transition-colors"
+                    className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-6 hover:bg-white/3 transition-colors"
                   >
                     <div className="flex items-center gap-4">
                       <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 border border-white/5 group-hover:border-indigo-500/20 group-hover:bg-indigo-500/5 transition-all text-white/30 group-hover:text-indigo-400 font-bold">
