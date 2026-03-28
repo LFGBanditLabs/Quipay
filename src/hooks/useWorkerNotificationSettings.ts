@@ -57,7 +57,9 @@ export const useWorkerNotificationSettings = (
       setSettings(json.data);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to load notification preferences",
+        err instanceof Error
+          ? err.message
+          : "Failed to load notification preferences",
       );
       setSettings(DEFAULT_SETTINGS);
     } finally {
@@ -92,13 +94,17 @@ export const useWorkerNotificationSettings = (
       };
 
       if (!res.ok || !json.ok || !json.data) {
-        throw new Error(json.error || "Failed to save notification preferences");
+        throw new Error(
+          json.error || "Failed to save notification preferences",
+        );
       }
 
       setSettings(json.data);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to save notification preferences";
+        err instanceof Error
+          ? err.message
+          : "Failed to save notification preferences";
       setError(message);
       throw new Error(message);
     } finally {

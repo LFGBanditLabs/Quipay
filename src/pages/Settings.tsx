@@ -840,8 +840,14 @@ const Settings: React.FC = () => {
             <Text as="p" size="sm" weight="medium">
               Worker wallet
             </Text>
-            <Text as="p" size="xs" variant="secondary" className="mt-1 font-mono">
-              {address || "Connect a worker wallet to manage notification preferences."}
+            <Text
+              as="p"
+              size="xs"
+              variant="secondary"
+              className="mt-1 font-mono"
+            >
+              {address ||
+                "Connect a worker wallet to manage notification preferences."}
             </Text>
           </div>
 
@@ -968,7 +974,11 @@ const Settings: React.FC = () => {
               variant="primary"
               size="sm"
               onClick={() => void handleSaveNotificationPreferences()}
-              disabled={!address || isNotificationSettingsLoading || isSavingNotificationSettings}
+              disabled={
+                !address ||
+                isNotificationSettingsLoading ||
+                isSavingNotificationSettings
+              }
             >
               {isSavingNotificationSettings ? "Saving..." : "Save Preferences"}
             </Button>

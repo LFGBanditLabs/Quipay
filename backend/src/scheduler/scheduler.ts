@@ -400,7 +400,12 @@ const runCliffUnlockChecker = async (): Promise<void> => {
   const balances = await getTreasuryBalances();
 
   for (const balance of balances) {
-    const streams = await getStreamsByEmployer(balance.employer, "active", 100, 0);
+    const streams = await getStreamsByEmployer(
+      balance.employer,
+      "active",
+      100,
+      0,
+    );
     for (const stream of streams) {
       const prefs = await getWorkerNotificationSettings(stream.worker);
       const shouldNotify = prefs?.cliff_unlock_alerts ?? true;
@@ -472,7 +477,12 @@ const runStreamEndingChecker = async (): Promise<void> => {
   const balances = await getTreasuryBalances();
 
   for (const balance of balances) {
-    const streams = await getStreamsByEmployer(balance.employer, "active", 100, 0);
+    const streams = await getStreamsByEmployer(
+      balance.employer,
+      "active",
+      100,
+      0,
+    );
     for (const stream of streams) {
       const prefs = await getWorkerNotificationSettings(stream.worker);
       const shouldNotify = prefs?.stream_ending_alerts ?? true;

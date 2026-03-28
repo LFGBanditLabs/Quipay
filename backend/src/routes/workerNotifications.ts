@@ -28,7 +28,8 @@ const toResponse = async (
 
   return {
     worker,
-    emailNotifications: record?.email_enabled ?? DEFAULT_SETTINGS.emailNotifications,
+    emailNotifications:
+      record?.email_enabled ?? DEFAULT_SETTINGS.emailNotifications,
     browserPush: record?.in_app_enabled ?? DEFAULT_SETTINGS.browserPush,
     streamEvents:
       (record?.stream_ending_alerts ?? DEFAULT_SETTINGS.streamEvents) ||
