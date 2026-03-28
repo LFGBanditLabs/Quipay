@@ -95,88 +95,91 @@ export const usePayroll = (
     setFetchTick((t) => t + 1);
   }, []);
 
-  const fetchStreams = useCallback(async (address: string) => {
-    try {
-      const streamIds = await getStreamsByEmployer(
-        address,
-        options?.offset,
-        options?.limit,
-      );
+  const fetchStreams = useCallback(
+    async (address: string) => {
+      try {
+        const streamIds = await getStreamsByEmployer(
+          address,
+          options?.offset,
+          options?.limit,
+        );
 
-      const streamResults = await Promise.all(
-        streamIds.map((id) => getStreamById(address, id)),
-      );
+        const streamResults = await Promise.all(
+          streamIds.map((id) => getStreamById(address, id)),
+        );
 
-      const employerStreams: Stream[] = await Promise.all(
-        streamIds
-          .map((id, i) => ({
-            id,
-            stream: streamResults[i],
-          }))
-          .filter(
-            (x): x is { id: bigint; stream: ContractStream } =>
-              x.stream !== null,
-          )
-          .map(async ({ id, stream: s }) => {
-            const streamId = id.toString();
-            const tokenSymbol = await getTokenSymbol(address, s.token);
+        const employerStreams: Stream[] = await Promise.all(
+          streamIds
+            .map((id, i) => ({
+              id,
+              stream: streamResults[i],
+            }))
+            .filter(
+              (x): x is { id: bigint; stream: ContractStream } =>
+                x.stream !== null,
+            )
+            .map(async ({ id, stream: s }) => {
+              const streamId = id.toString();
+              const tokenSymbol = await getTokenSymbol(address, s.token);
 
-            // Convert bigint values to strings for display
-            const flowRate = (Number(s.rate) / STROOPS_PER_UNIT).toFixed(7);
-            const totalAmount = (
-              Number(s.total_amount) / STROOPS_PER_UNIT
-            ).toFixed(2);
-            const totalStreamed = (
-              Number(s.withdrawn_amount) / STROOPS_PER_UNIT
-            ).toFixed(2);
+              // Convert bigint values to strings for display
+              const flowRate = (Number(s.rate) / STROOPS_PER_UNIT).toFixed(7);
+              const totalAmount = (
+                Number(s.total_amount) / STROOPS_PER_UNIT
+              ).toFixed(2);
+              const totalStreamed = (
+                Number(s.withdrawn_amount) / STROOPS_PER_UNIT
+              ).toFixed(2);
 
-            // Convert timestamps to date strings
-            const startDate = new Date(Number(s.start_ts) * 1000)
-              .toISOString()
-              .split("T")[0];
-            const endDate = new Date(Number(s.end_ts) * 1000)
-              .toISOString()
-              .split("T")[0];
+              // Convert timestamps to date strings
+              const startDate = new Date(Number(s.start_ts) * 1000)
+                .toISOString()
+                .split("T")[0];
+              const endDate = new Date(Number(s.end_ts) * 1000)
+                .toISOString()
+                .split("T")[0];
 
-            // Map status numbers to strings
-            let status: "active" | "completed" | "cancelled";
-            switch (s.status) {
-              case 0:
-                status = "active";
-                break;
-              case 1:
-                status = "cancelled";
-                break;
-              case 2:
-                status = "completed";
-                break;
-              default:
-                status = "active";
-            }
+              // Map status numbers to strings
+              let status: "active" | "completed" | "cancelled";
+              switch (s.status) {
+                case 0:
+                  status = "active";
+                  break;
+                case 1:
+                  status = "cancelled";
+                  break;
+                case 2:
+                  status = "completed";
+                  break;
+                default:
+                  status = "active";
+              }
 
-            return {
-              id: streamId,
-              employeeName: `Worker ${streamId.slice(0, 8)}`, // Placeholder name
-              employeeAddress: s.worker,
-              flowRate,
-              tokenSymbol,
-              startDate,
-              endDate,
-              totalAmount,
-              totalStreamed,
-              status,
-            };
-          }),
-      );
+              return {
+                id: streamId,
+                employeeName: `Worker ${streamId.slice(0, 8)}`, // Placeholder name
+                employeeAddress: s.worker,
+                flowRate,
+                tokenSymbol,
+                startDate,
+                endDate,
+                totalAmount,
+                totalStreamed,
+                status,
+              };
+            }),
+        );
 
-      setStreams(employerStreams);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to load stream data";
-      setError(message);
-      setStreams([]);
-    }
-  }, []);
+        setStreams(employerStreams);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to load stream data";
+        setError(message);
+        setStreams([]);
+      }
+    },
+    [options],
+  );
 
   const refreshData = useCallback(async () => {
     await fetchVaultData();

@@ -43,7 +43,36 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3001;
 
-app.use(cors());
+// CORS configuration with origin whitelist
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
+  : ["http://localhost:5173"];
+
+// In production, ALLOWED_ORIGINS must be explicitly set
+if (process.env.NODE_ENV === "production" && !process.env.ALLOWED_ORIGINS) {
+  console.error(
+    "FATAL: ALLOWED_ORIGINS environment variable must be set in production",
+  );
+  process.exit(1);
+}
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, Postman)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (ALLOWED_ORIGINS.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  }),
+);
 app.use(
   express.json({
     limit: "1mb",

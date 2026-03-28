@@ -9,6 +9,7 @@
 
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import QRCode from "qrcode";
 import type {
   PayrollTransaction,
   MonthlySummary,
@@ -99,6 +100,76 @@ export function exportTransactionsCSV(
   const csv = [headers.join(","), ...rows].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   triggerDownload(blob, filename);
+}
+
+export function exportPayrollStreamsCSV(
+  streams: {
+    streamId: string;
+    worker: string;
+    total_amount: bigint;
+    withdrawn_amount: bigint;
+    start_ts: bigint;
+    end_ts: bigint;
+    status: number;
+  }[],
+  filename?: string,
+) {
+  const today = new Date().toISOString().split("T")[0];
+  const defaultFilename = `quipay-report-${today}.csv`;
+  const finalFilename = filename || defaultFilename;
+
+  const headers = [
+    "worker address",
+    "stream ID",
+    "amount",
+    "start date",
+    "end date",
+    "status",
+    "withdrawn",
+  ];
+
+  const escapeCSV = (val: string | number): string => {
+    const str = String(val);
+    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const formatStatus = (status: number): string => {
+    switch (status) {
+      case 0:
+        return "active";
+      case 1:
+        return "canceled";
+      case 2:
+        return "completed";
+      default:
+        return "unknown";
+    }
+  };
+
+  const formatDate = (timestamp: bigint): string => {
+    return new Date(Number(timestamp) * 1000).toISOString().split("T")[0];
+  };
+
+  const rows = streams.map((stream) =>
+    [
+      stream.worker,
+      stream.streamId,
+      (Number(stream.total_amount) / 1e7).toFixed(7),
+      formatDate(stream.start_ts),
+      formatDate(stream.end_ts),
+      formatStatus(stream.status),
+      (Number(stream.withdrawn_amount) / 1e7).toFixed(7),
+    ]
+      .map(escapeCSV)
+      .join(","),
+  );
+
+  const csv = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  triggerDownload(blob, finalFilename);
 }
 
 /* ------------------------------------------------------------------ */
@@ -302,7 +373,10 @@ export function exportTransactionsPDF(
 /*  PDF – Professional Paycheck Stub                                  */
 /* ------------------------------------------------------------------ */
 
-export function exportPaycheckPDF(tx: PayrollTransaction, filename?: string) {
+export async function exportPaycheckPDF(
+  tx: PayrollTransaction,
+  filename?: string,
+) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -399,6 +473,33 @@ export function exportPaycheckPDF(tx: PayrollTransaction, filename?: string) {
     finalY + 17,
     { align: "center" },
   );
+
+  // Attempt to generate a QR code linking to a Stellar explorer for quick verification.
+  try {
+    const explorerUrl = `https://stellar.expert/explorer/public/tx/${tx.txHash}`;
+    const dataUrl = await QRCode.toDataURL(explorerUrl);
+
+    // Add QR to the lower-right area of the document (before footer)
+    const qrSize = 34; // mm
+    const qrX = pageWidth - qrSize - 16; // right margin 16mm
+    const qrY = finalY + 8;
+    doc.addImage(dataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(...BRAND.muted);
+    doc.text(
+      "Scan to view on Stellar Explorer",
+      qrX + qrSize / 2,
+      qrY + qrSize + 6,
+      {
+        align: "center",
+      },
+    );
+  } catch (err) {
+    // QR generation failed; don't block PDF generation
+    console.warn("Failed to generate QR for paycheck PDF:", err);
+  }
 
   addFooter(doc, 1, 1);
 
