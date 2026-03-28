@@ -25,15 +25,19 @@ interface TeamMember {
   name: string;
   address: string;
   role: string;
+  department: string;
   status: "active" | "pending";
   permissions?: Permission[];
 }
 
-interface CustomRole {
+interface ManagedAccount {
   id: string;
   name: string;
-  description: string;
-  permissions: Permission[];
+  address: string;
+  department: string;
+  balance: string;
+  currency: string;
+  authorizedRoles: string[];
 }
 
 interface AuditLog {
@@ -42,12 +46,14 @@ interface AuditLog {
   wallet: string;
   action: string;
   details: string;
+  department?: string;
   status: "success" | "failure" | "pending";
 }
 
 type TabId =
   | "team"
   | "roles"
+  | "managed"
   | "audit"
   | "approvals"
   | "templates"
@@ -962,6 +968,7 @@ const Settings: React.FC = () => {
   const tabs: { id: TabId; label: string; icon: string }[] = [
     { id: "team", label: t("settings.tab_team"), icon: "user" },
     { id: "roles", label: t("settings.tab_roles"), icon: "settings" },
+    { id: "managed", label: "Managed Accounts", icon: "briefcase" },
     { id: "templates", label: t("settings.tab_templates"), icon: "fileText" },
     {
       id: "notifications",
@@ -972,6 +979,51 @@ const Settings: React.FC = () => {
     { id: "approvals", label: t("settings.tab_approvals"), icon: "check" },
     { id: "audit", label: t("settings.tab_audit"), icon: "fileText" },
   ];
+
+  const [managedAccounts] = useState<ManagedAccount[]>([
+    { id: '1', name: 'Treasury - Engineering', address: 'GCFX...ENG1', department: 'Engineering', balance: '250,000', currency: 'USDC', authorizedRoles: ['Admin', 'Manager'] },
+    { id: '2', name: 'Treasury - Marketing', address: 'GDYQ...MKT2', department: 'Marketing', balance: '120,500', currency: 'USDC', authorizedRoles: ['Admin'] },
+    { id: '3', name: 'Petty Cash - HR', address: 'GAHU...HR03', department: 'HR', balance: '5,000', currency: 'USDC', authorizedRoles: ['Admin', 'Viewer'] },
+  ]);
+
+  const renderManagedAccounts = () => (
+    <div className="flex flex-col gap-6 animate-fade-in-up">
+      <div className="flex items-center justify-between">
+        <div>
+          <Text as="h2" size="lg" weight="medium">
+            Enterprise Managed Accounts
+          </Text>
+          <Text as="p" size="sm" variant="secondary">
+            Authorized multi-sig vaults associated with specific departments.
+          </Text>
+        </div>
+        <Button variant="primary" size="sm">
+          <Icon name="add" size="sm" /> Provision Account
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {managedAccounts.map(acc => (
+          <Card key={acc.id} className="p-6 rounded-2xl border border-(--border) bg-(--surface-subtle) hover:shadow-lg transition-all">
+            <div className="flex justify-between items-start mb-4">
+              <Badge variant="secondary" size="sm">{acc.department}</Badge>
+              <Text size="xs" variant="secondary" className="font-mono">{acc.address}</Text>
+            </div>
+            <Text as="h3" size="md" weight="bold" className="mb-1">{acc.name}</Text>
+            <div className="flex items-baseline gap-1 mb-6">
+              <Text size="xl" weight="bold" className="text-indigo-400">{acc.balance}</Text>
+              <Text size="sm" variant="secondary">{acc.currency}</Text>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {acc.authorizedRoles.map(role => (
+                <Badge key={role} size="xs">{role}</Badge>
+              ))}
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <Layout.Content>
@@ -1070,9 +1122,10 @@ const Settings: React.FC = () => {
         </nav>
 
         <div className="min-h-125">
-          {activeTab === "team" && renderTeamPortal()}
-          {activeTab === "roles" && renderRolesUI()}
-          {activeTab === "templates" && renderTemplates()}
+1121:           {activeTab === "team" && renderTeamPortal()}
+1122:           {activeTab === "roles" && renderRolesUI()}
+1123:           {activeTab === "managed" && renderManagedAccounts()}
+1124:           {activeTab === "templates" && renderTemplates()}
           {activeTab === "notifications" && renderNotifications()}
           {activeTab === "network" && (
             <div style={{ maxWidth: 640 }}>

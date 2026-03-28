@@ -1397,16 +1397,16 @@ const swaggerDefinition = {
   ],
 };
 
-// Build the final OpenAPI spec (swagger-jsdoc used for future inline JSDoc expansion)
+// Build the final OpenAPI spec (swagger-jsdoc scans routes for inline JSDoc expansion)
 const options: swaggerJsdoc.Options = {
   definition: swaggerDefinition,
-  // Routes are fully described above in the definition; no file-scanning needed.
-  apis: [],
+  // Scan all TS files in src/routes and src/index.ts for @swagger annotations
+  apis: ["./src/routes/*.ts", "./src/index.ts", "./src/*.ts"],
 };
 
 export const swaggerSpec = swaggerJsdoc(options);
 
-// Build Express router that serves the Swagger UI at /docs
+// Build Express router that serves the Swagger UI at /api-docs
 const docsRouter: Router = express.Router();
 
 docsRouter.use("/", swaggerUi.serve);

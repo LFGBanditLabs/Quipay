@@ -94,6 +94,7 @@ export class MetricsManager {
   public processedTransactions: Counter;
   public successRate: Gauge;
   public transactionLatency: Histogram;
+  public rateLimitHits: Counter;
 
   constructor() {
     this.register = new Registry();
@@ -129,6 +130,17 @@ export class MetricsManager {
     this.register.registerMetric(dbPoolWaitingClients);
     this.register.registerMetric(dbPoolMaxConnections);
     this.register.registerMetric(dbPoolMinConnections);
+
+    this.rateLimitHits = new Counter({
+      name: "quipay_rate_limit_hits_total",
+      help: "Total number of rate limit hits",
+      labelNames: ["endpoint", "wallet_source"],
+      registers: [this.register],
+    });
+  }
+
+  public trackRateLimitHit(endpoint: string, walletSource: string) {
+    this.rateLimitHits.inc({ endpoint, wallet_source: walletSource });
   }
 
   public trackTransaction(

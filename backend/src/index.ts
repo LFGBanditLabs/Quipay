@@ -111,6 +111,11 @@ async function initializeServices() {
   return auditLogger;
 }
 
+// Apply global rate limiting to all API routes
+// Authenticated users are limited per wallet, others per IP
+import { standardRateLimiter } from "./middleware/rateLimiter";
+app.use(standardRateLimiter);
+
 // Interactive API documentation (Swagger UI)
 app.use("/api-docs", docsRouter);
 // Backwards-compatible alias

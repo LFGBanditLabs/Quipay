@@ -232,16 +232,16 @@ function getIdentityKey(req: Request): {
 }
 
 function createIdentityAwareRateLimiter(): RequestHandler {
-  const READ_LIMIT = 30;
-  const WRITE_LIMIT = 5;
-  const WINDOW_MS = 60_000;
+  const READ_LIMIT = parseInt(process.env.RATE_LIMIT_READS || "500", 10);
+  const WRITE_LIMIT = parseInt(process.env.RATE_LIMIT_WRITES || "100", 10);
+  const WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000", 10);
 
   return (req: Request, res: Response, next: NextFunction) => {
     if (req.path === "/health" || req.path === "/metrics") {
       return next();
     }
 
-    const { key } = getIdentityKey(req);
+    const { key, source } = getIdentityKey(req);
     const maxRequests = isReadRequest(req) ? READ_LIMIT : WRITE_LIMIT;
     const result = consumeSlidingWindow(
       key,
@@ -261,6 +261,11 @@ function createIdentityAwareRateLimiter(): RequestHandler {
       if (result.retryAfterSeconds) {
         res.setHeader("Retry-After", String(result.retryAfterSeconds));
       }
+
+      // Track rate limit hit in Prometheus
+      const { metricsManager } = require("../metrics");
+      metricsManager.trackRateLimitHit(req.originalUrl || req.path, source);
+
       return rateLimitHandler(req, res);
     }
 

@@ -9,6 +9,18 @@ Backend automation engine for the Quipay payroll streaming platform.
 - Scheduler for recurring payments
 - Comprehensive audit logging
 
+## API Documentation
+
+The Quipay Automation Engine provides interactive API documentation via Swagger UI.
+
+- **URL**: [http://localhost:3001/api-docs](http://localhost:3001/api-docs)
+- **Alternate**: [http://localhost:3001/docs](http://localhost:3001/docs)
+
+The documentation is auto-generated from the code using OpenAPI 3.0 specifications. It allows developers to:
+- Browse all available endpoints
+- View request and response schemas (with examples)
+- Test endpoints directly from the browser (using Bearer authentication for protected routes)
+
 ## Audit Logging System
 
 The backend includes a professional audit logging system that provides detailed trails for every automated action.
