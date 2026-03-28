@@ -16,7 +16,6 @@ import { StreamTimeline } from "../components/StreamTimeline";
 import { StreamCardSkeleton } from "../components/dashboard/StreamCardSkeleton";
 import { EarningsSkeleton } from "../components/dashboard/EarningsSkeleton";
 import { Skeleton } from "../components/Loading/Skeleton";
-import DashboardTable from "../components/DashboardTable";
 
 const StreamCard: React.FC<{
   stream: WorkerStream;
@@ -84,12 +83,6 @@ const StreamCard: React.FC<{
     currentEarnings - stream.claimedAmount,
   );
 
-  return (
-    <div className="p-4">
-      <h1 className="text-xl font-bold mb-4">Worker Dashboard</h1>
-      <DashboardTable data={jobs} />
-    </div>
-  );
   return (
     <div className="relative overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface-subtle)] p-6">
       <div className="mb-4 flex items-start justify-between">
@@ -213,12 +206,15 @@ const StreamCard: React.FC<{
       </div>
 
       {/* Last event indicator */}
-      {lastEventAmount !== null && (
-        <div className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/8 px-3 py-2 text-xs text-sky-400">
-          ⚡ Last withdrawal detected: {lastEventAmount.toFixed(7)}{" "}
-          {stream.tokenSymbol}
-        </div>
-      )}
+      {lastEventAmount !== null &&
+        (() => {
+          const amt = lastEventAmount;
+          return (
+            <div className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/8 px-3 py-2 text-xs text-sky-400">
+              ⚡ Last withdrawal detected: {amt.toFixed(7)} {stream.tokenSymbol}
+            </div>
+          );
+        })()}
 
       <div
         style={{

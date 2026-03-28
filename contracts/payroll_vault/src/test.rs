@@ -1023,7 +1023,7 @@ fn test_high_value_withdraw_requires_multisig_signers() {
 // ============================================================================
 
 #[test]
-fn test_get_withdrawal_threshold_default_is_zero() {
+fn test_get_withdrawal_threshold_default_after_init() {
     let env = Env::default();
     env.mock_all_auths();
     let contract_id = env.register(PayrollVault, ());
@@ -1031,7 +1031,8 @@ fn test_get_withdrawal_threshold_default_is_zero() {
     let admin = Address::generate(&env);
     client.initialize(&admin);
 
-    assert_eq!(client.get_withdrawal_threshold(), 0);
+    // initialize() sets the threshold to DEFAULT_WITHDRAWAL_THRESHOLD (100_000)
+    assert_eq!(client.get_withdrawal_threshold(), 100_000);
 }
 
 #[test]
