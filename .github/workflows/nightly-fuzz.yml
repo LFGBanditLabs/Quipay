@@ -1,4 +1,4 @@
-name: Nightly Fuzz
+name: Nightly Security
 
 on:
   schedule:
@@ -6,6 +6,32 @@ on:
   workflow_dispatch:
 
 jobs:
+  manual-fuzz-harness:
+    name: Manual fuzz harness (payroll_vault)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run manual fuzz test
+        run: |
+          cd contracts/payroll_vault
+          cargo test test_manual_fuzz -- --nocapture
+
+  kani-proofs:
+    name: Symbolic execution (Kani)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Kani
+        run: |
+          cargo install --locked kani-verifier
+          cargo kani setup
+      - name: Run Kani proofs
+        run: |
+          cd contracts/payroll_vault
+          cargo kani --features testutils
+
   fuzz-payroll-stream:
     name: Fuzz payroll_stream for 30m
     runs-on: ubuntu-latest
