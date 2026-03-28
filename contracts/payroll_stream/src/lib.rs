@@ -7,6 +7,7 @@ use soroban_sdk::{
 
 const MAX_BATCH_CREATE_STREAMS: u32 = 20;
 const MAX_BATCH_CLAIM_STREAMS: u32 = 50; // max active streams processed in one batch_claim call
+const MAX_BATCH_CANCEL_STREAMS: u32 = 20;
 const DEFAULT_MAX_STREAM_DURATION: u64 = 365 * 24 * 60 * 60; // 365 days in seconds
 /// Maximum page size for pagination to prevent DoS attacks.
 /// Requests exceeding this limit will be capped to this value.
@@ -135,6 +136,14 @@ pub struct StreamClaimResult {
 pub struct BatchClaimResult {
     pub streams: Vec<StreamClaimResult>,
     pub total_claimed: i128, // sum across all tokens (informational)
+}
+
+/// Per-stream result returned by `batch_cancel_streams`.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct StreamCancelResult {
+    pub stream_id: u64,
+    pub success: bool,
 }
 
 #[contracttype]
@@ -1071,6 +1080,96 @@ impl PayrollStream {
         );
 
         Ok(())
+    }
+
+    /// Cancel multiple streams in a single call.
+    ///
+    /// Requires employer auth once. Each stream is cancelled individually; a
+    /// failure on one stream (not found, wrong employer, already closed) is
+    /// recorded in the result and does not abort the rest of the batch.
+    /// Respects the configured cancellation grace period exactly as the single
+    /// `cancel_stream` does, emitting `cancel_scheduled` or `canceled` events
+    /// per stream accordingly.
+    pub fn batch_cancel_streams(
+        env: Env,
+        stream_ids: Vec<u64>,
+        employer: Address,
+    ) -> Result<Vec<StreamCancelResult>, QuipayError> {
+        Self::require_not_paused(&env)?;
+        employer.require_auth();
+
+        if stream_ids.len() > MAX_BATCH_CANCEL_STREAMS {
+            return Err(QuipayError::BatchTooLarge);
+        }
+
+        let now = env.ledger().timestamp();
+        let grace: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::CancellationGracePeriod)
+            .unwrap_or(DEFAULT_CANCELLATION_GRACE_PERIOD);
+
+        let mut results: Vec<StreamCancelResult> = Vec::new(&env);
+        let mut idx = 0u32;
+
+        while idx < stream_ids.len() {
+            let Some(stream_id) = stream_ids.get(idx) else {
+                results.push_back(StreamCancelResult {
+                    stream_id: 0,
+                    success: false,
+                });
+                idx += 1;
+                continue;
+            };
+
+            let key = StreamKey::Stream(stream_id);
+            let stream_opt: Option<Stream> = env.storage().persistent().get(&key);
+
+            let success = match stream_opt {
+                None => false,
+                Some(mut stream) => {
+                    if stream.employer != employer {
+                        false
+                    } else if Self::is_closed(&stream) {
+                        // Already cancelled or completed — idempotent success.
+                        true
+                    } else if stream.status == StreamStatus::PendingCancel {
+                        // Grace period already running — finalize if elapsed, else idempotent.
+                        if stream.cancel_effective_at > 0 && now >= stream.cancel_effective_at {
+                            Self::finalize_cancel(&env, stream_id, &key, &mut stream, now)
+                                .is_ok()
+                        } else {
+                            true
+                        }
+                    } else if grace == 0 {
+                        // Grace period disabled — cancel immediately.
+                        Self::finalize_cancel(&env, stream_id, &key, &mut stream, now).is_ok()
+                    } else {
+                        // Schedule cancellation with grace period.
+                        stream.cancel_effective_at = now.saturating_add(grace);
+                        stream.status = StreamStatus::PendingCancel;
+                        env.storage().persistent().set(&key, &stream);
+                        Self::bump_stream_storage_ttl(&env, stream_id, &stream.worker);
+
+                        env.events().publish(
+                            (
+                                Symbol::new(&env, "stream"),
+                                Symbol::new(&env, "cancel_scheduled"),
+                                stream_id,
+                                employer.clone(),
+                            ),
+                            (stream.worker.clone(), stream.cancel_effective_at),
+                        );
+                        true
+                    }
+                }
+            };
+
+            results.push_back(StreamCancelResult { stream_id, success });
+            idx += 1;
+        }
+
+        Ok(results)
     }
 
     /// Force-cancel a stream immediately, bypassing the grace period.
@@ -2051,6 +2150,9 @@ mod test;
 
 #[cfg(test)]
 mod duration_test;
+
+#[cfg(test)]
+mod batch_cancel_test;
 
 #[cfg(test)]
 mod batch_claim_test;
