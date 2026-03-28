@@ -16,6 +16,20 @@ import type { SimulationResult } from "../util/simulationUtils";
 import CopyButton from "../components/CopyButton";
 
 const EmployerDashboard: React.FC = () => {
+   const jobs = [
+    { job: "House Painting", status: "In Progress", action: "Track" },
+    { job: "Car Repair", status: "Completed", action: "Invoice" },
+  ];
+
+
+   return (
+    <div className="p-4">
+      <h1 className="text-xl font-bold mb-4">Employer Dashboard</h1>
+      <DashboardTable data={jobs} />
+    </div>
+  );
+
+  
   const { t } = useTranslation();
   const tw = {
     dashboardGrid:
