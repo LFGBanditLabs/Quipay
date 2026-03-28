@@ -9,14 +9,15 @@ import { Horizon } from "@stellar/stellar-sdk";
 import { networkPassphrase, stellarNetwork } from "../contracts/util";
 
 const kit: StellarWalletsKit =
-  (typeof window !== "undefined" && (window as any).stk) ||
+  ((typeof window !== "undefined" &&
+    (window as unknown as Record<string, unknown>).stk) as StellarWalletsKit) ||
   new StellarWalletsKit({
     network: networkPassphrase as WalletNetwork,
     modules: sep43Modules(),
   });
 
 if (typeof window !== "undefined") {
-  (window as any).stk = kit;
+  (window as unknown as Record<string, unknown>).stk = kit;
 }
 
 export { kit };
