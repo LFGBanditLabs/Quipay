@@ -1,6 +1,10 @@
 import React from "react";
 import "./StreamProgress.css";
-import { StreamTickSnapshot, formatEarned, flowRateToHourly } from "../hooks/useStreamTicker";
+import {
+  StreamTickSnapshot,
+  formatEarned,
+  flowRateToHourly,
+} from "../hooks/useStreamTicker";
 
 interface StreamProgressCardProps {
   snapshot: StreamTickSnapshot;
@@ -13,7 +17,9 @@ interface StreamProgressCardProps {
  * that ticks up on every render, and a per-hour rate label. The bar stops
  * animating when the stream is complete.
  */
-const StreamProgressCard: React.FC<StreamProgressCardProps> = ({ snapshot }) => {
+const StreamProgressCard: React.FC<StreamProgressCardProps> = ({
+  snapshot,
+}) => {
   const {
     employerName,
     tokenSymbol,
@@ -72,9 +78,7 @@ const StreamProgressCard: React.FC<StreamProgressCardProps> = ({ snapshot }) => 
           style={{
             width: `${pct}%`,
             animation: isComplete ? "none" : undefined,
-            background: isComplete
-              ? "#10b981"
-              : undefined,
+            background: isComplete ? "#10b981" : undefined,
           }}
         />
       </div>

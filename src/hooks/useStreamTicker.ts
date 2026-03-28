@@ -79,8 +79,7 @@ export const useStreamTicker = (
       const elapsed = Math.max(0, nowSec - stream.startTime);
       const earned = Math.min(elapsed * flowRateUnits, totalAmountUnits);
       const isComplete = earned >= totalAmountUnits;
-      const progress =
-        totalAmountUnits > 0 ? earned / totalAmountUnits : 0;
+      const progress = totalAmountUnits > 0 ? earned / totalAmountUnits : 0;
 
       totalEarned += earned;
 
@@ -111,16 +110,9 @@ export const useStreamTicker = (
   }, [streams]);
 
   useEffect(() => {
-    if (streams.length === 0) {
-      setResult({
-        snapshots: [],
-        totalEarned: 0,
-        totalFlowRate: 0,
-        activeCount: 0,
-        paused: false,
-      });
-      return;
-    }
+    compute();
+
+    if (streams.length === 0) return;
 
     const handleVisibilityChange = () => {
       pausedRef.current = document.hidden;
@@ -130,8 +122,6 @@ export const useStreamTicker = (
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    compute();
 
     const id = setInterval(() => {
       if (!pausedRef.current) {
