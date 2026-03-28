@@ -16,6 +16,7 @@ import { SeoHelmet } from "../components/seo/SeoHelmet";
 import { Permission } from "../contracts/automation_gateway";
 import { useTheme } from "../providers/ThemeProvider";
 import { useStreamTemplates } from "../hooks/useStreamTemplates";
+import NetworkHealthMonitor from "../components/NetworkHealthMonitor";
 
 // Types for local state
 interface TeamMember {
@@ -49,7 +50,8 @@ type TabId =
   | "audit"
   | "approvals"
   | "templates"
-  | "notifications";
+  | "notifications"
+  | "network";
 
 const AVAILABLE_PERMISSIONS = [
   {
@@ -960,6 +962,7 @@ const Settings: React.FC = () => {
     { id: "roles", label: "Roles", icon: "settings" },
     { id: "templates", label: "Templates", icon: "fileText" },
     { id: "notifications", label: "Notifications", icon: "bell" },
+    { id: "network", label: "Network", icon: "activity" },
     { id: "approvals", label: "Approvals", icon: "check" },
     { id: "audit", label: "Audit Log", icon: "fileText" },
   ];
@@ -1064,6 +1067,18 @@ const Settings: React.FC = () => {
           {activeTab === "roles" && renderRolesUI()}
           {activeTab === "templates" && renderTemplates()}
           {activeTab === "notifications" && renderNotifications()}
+          {activeTab === "network" && (
+            <div style={{ maxWidth: 640 }}>
+              <Text as="h2" size="md" weight="bold" className="mb-2">
+                Network Health
+              </Text>
+              <p className="mb-4 text-sm text-(--muted)">
+                Monitor the status of Stellar Horizon and Soroban RPC nodes,
+                latency trends, and network congestion in real time.
+              </p>
+              <NetworkHealthMonitor />
+            </div>
+          )}
           {activeTab === "audit" && renderAuditLog()}
           {activeTab === "approvals" && renderApprovals()}
         </div>
