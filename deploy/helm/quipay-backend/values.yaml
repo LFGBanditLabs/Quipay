@@ -1,0 +1,60 @@
+# Default values for quipay-backend.
+# Override these in environment-specific values files.
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/lfgbanditlabs/quipay-backend
+  pullPolicy: IfNotPresent
+  # Overridden by CI/CD with the actual image tag
+  tag: "latest"
+
+imagePullSecrets: []
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+# Non-sensitive environment variables — stored in ConfigMap
+env:
+  NODE_ENV: production
+  PORT: "3000"
+  LOG_LEVEL: info
+  STELLAR_NETWORK: mainnet
+  STELLAR_RPC_URL: "https://mainnet.stellar.validationcloud.io/v1"
+
+# Sensitive environment variables — stored in Kubernetes Secret
+# Provide values via --set or a sealed-secrets / external-secrets operator
+secrets:
+  DATABASE_URL: ""
+  JWT_SECRET: ""
+  STELLAR_SECRET_KEY: ""
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 15
+  periodSeconds: 20
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 5
+  periodSeconds: 10
