@@ -7,8 +7,7 @@ function Avatar({
   className,
   size = "default",
   ...props
-}: // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
-React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root> & {
+}: React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root> & {
   size?: "default" | "sm" | "lg";
 }) {
   return (

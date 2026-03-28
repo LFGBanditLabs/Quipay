@@ -41,8 +41,7 @@ function Badge({
   variant = "default",
   render,
   ...props
-}: // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
-useRender.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
+}: useRender.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
   return useRender({
     defaultTagName: "span",
     props: mergeProps<"span">(
