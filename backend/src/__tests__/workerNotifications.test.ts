@@ -21,10 +21,8 @@ const mockUpsertWorkerNotificationSettings =
   >();
 
 jest.mock("../db/queries", () => ({
-  getWorkerNotificationSettings: (...args: unknown[]) =>
-    mockGetWorkerNotificationSettings(...args),
-  upsertWorkerNotificationSettings: (...args: unknown[]) =>
-    mockUpsertWorkerNotificationSettings(...args),
+  getWorkerNotificationSettings: mockGetWorkerNotificationSettings,
+  upsertWorkerNotificationSettings: mockUpsertWorkerNotificationSettings,
 }));
 
 describe("workerNotificationsRouter", () => {
