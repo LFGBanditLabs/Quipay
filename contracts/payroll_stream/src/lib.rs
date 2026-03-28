@@ -983,6 +983,69 @@ impl PayrollStream {
         })
     }
 
+    pub fn transfer_stream(
+        env: Env,
+        stream_id: u64,
+        new_recipient: Address,
+        employer: Address,
+    ) -> Result<(), QuipayError> {
+        Self::require_not_paused(&env)?;
+        employer.require_auth();
+
+        let key = StreamKey::Stream(stream_id);
+        let mut stream: Stream = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .ok_or(QuipayError::StreamNotFound)?;
+
+        if stream.status == StreamStatus::Canceled
+            || stream.status == StreamStatus::Completed
+            || stream.status == StreamStatus::PendingCancel
+        {
+            return Err(QuipayError::StreamClosed);
+        }
+
+        if stream.employer != employer {
+            return Err(QuipayError::Unauthorized);
+        }
+
+        let old_recipient = stream.worker.clone();
+        if old_recipient == new_recipient {
+            return Ok(());
+        }
+
+        // Update worker indices: remove from old, add to new
+        Self::remove_from_index(&env, StreamKey::WorkerStreams(old_recipient.clone()), stream_id);
+
+        let wrk_key = StreamKey::WorkerStreams(new_recipient.clone());
+        let mut wrk_ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&wrk_key)
+            .unwrap_or_else(|| Vec::new(&env));
+        wrk_ids.push_back(stream_id);
+        env.storage().persistent().set(&wrk_key, &wrk_ids);
+
+        // Update the stream recipient
+        stream.worker = new_recipient.clone();
+        env.storage().persistent().set(&key, &stream);
+
+        // Ensure the new worker's index and the stream state have their TTL extended
+        Self::bump_stream_storage_ttl(&env, stream_id, &new_recipient);
+
+        env.events().publish(
+            (
+                Symbol::new(&env, "stream"),
+                Symbol::new(&env, "transferred"),
+                stream_id,
+            ),
+            (old_recipient, new_recipient),
+        );
+
+        Ok(())
+    }
+
     pub fn cancel_stream(
         env: Env,
         stream_id: u64,

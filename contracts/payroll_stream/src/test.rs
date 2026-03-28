@@ -2424,3 +2424,93 @@ fn test_pause_and_cancel_interaction() {
     // Note: In finalize_cancel, the vault payouts for 'owed' and 'cancel_fee'
     // and the removal of 'remaining_liability' are all executed.
 }
+#[test]
+fn test_transfer_stream_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, employer, worker1, token, _admin) = setup(&env);
+    let worker2 = Address::generate(&env);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    let stream_id = client.create_stream(
+        &employer, &worker1, &token, &100, &0u64, &0u64, &100u64, &None,
+    );
+
+    // Accrue some balance for worker1 (total duration 100s, rate 100 -> total_amount 10000)
+    env.ledger().with_mut(|li| {
+        li.timestamp = 10;
+    });
+
+    // Transfer to worker2
+    client.transfer_stream(&stream_id, &worker2, &employer);
+
+    // Verify worker1 can no longer withdraw
+    let res = client.try_withdraw(&stream_id, &worker1);
+    assert!(res.is_err());
+
+    // Verify worker2 can withdraw the accrued balance (10/100 * 10000 = 1000)
+    let withdrawn = client.withdraw(&stream_id, &worker2);
+    assert_eq!(withdrawn, 1000);
+
+    // Verify indices
+    let w1_streams = client.get_streams_by_worker(&worker1, &None, &None);
+    assert!(w1_streams.is_empty());
+
+    let w2_streams = client.get_streams_by_worker(&worker2, &None, &None);
+    assert_eq!(w2_streams.len(), 1);
+    assert_eq!(w2_streams.get(0).unwrap(), stream_id);
+
+    // Verify stream data
+    let stream = client.get_stream(&stream_id).unwrap();
+    assert_eq!(stream.worker, worker2);
+}
+
+#[test]
+fn test_transfer_stream_unauthorized() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, employer, worker1, token, _admin) = setup(&env);
+    let worker2 = Address::generate(&env);
+    let intruder = Address::generate(&env);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    let stream_id = client.create_stream(
+        &employer, &worker1, &token, &100, &0u64, &0u64, &100u64, &None,
+    );
+
+    // Intruder attempts to transfer
+    let res = client.try_transfer_stream(&stream_id, &worker2, &intruder);
+    assert!(res.is_err());
+}
+
+#[test]
+fn test_transfer_stream_closed_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, employer, worker1, token, _admin) = setup(&env);
+    let worker2 = Address::generate(&env);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    let stream_id = client.create_stream(
+        &employer, &worker1, &token, &100, &0u64, &0u64, &100u64, &None,
+    );
+
+    // Cancel the stream
+    client.cancel_stream(&stream_id, &employer, &None);
+
+    // Try to transfer
+    let res = client.try_transfer_stream(&stream_id, &worker2, &employer);
+    assert!(res.is_err());
+}
