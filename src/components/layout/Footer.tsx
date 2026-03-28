@@ -1,26 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-
-const footerLinks = {
-  product: [
-    { label: "Dashboard", to: "/dashboard" },
-    { label: "Payroll", to: "/payroll" },
-    { label: "Treasury", to: "/treasury-management" },
-    { label: "Governance", to: "/governance" },
-  ],
-  resources: [
-    { label: "Documentation", to: "/help" },
-    { label: "Debugger", to: "/debug" },
-    { label: "API Reference", href: "https://developers.stellar.org" },
-    { label: "Soroban Docs", href: "https://soroban.stellar.org" },
-  ],
-  company: [
-    { label: "About", href: "#" },
-    { label: "Blog", href: "#" },
-    { label: "Careers", href: "#" },
-    { label: "Contact", href: "#" },
-  ],
-};
+import { useTranslation } from "react-i18next";
 
 const socialLinks = [
   {
@@ -89,7 +69,32 @@ const FooterLink: React.FC<{
 };
 
 const Footer: React.FC = () => {
+  const { t } = useTranslation();
   const currentYear = new Date().getFullYear();
+
+  const footerLinks = {
+    product: [
+      { label: t("nav.dashboard"), to: "/dashboard" },
+      { label: t("nav.payroll"), to: "/payroll" },
+      { label: t("nav.treasury"), to: "/treasury-management" },
+      { label: t("nav.governance"), to: "/governance" },
+    ],
+    resources: [
+      { label: t("footer.documentation"), to: "/help" },
+      { label: t("footer.debugger"), to: "/debug" },
+      {
+        label: t("footer.api_reference"),
+        href: "https://developers.stellar.org",
+      },
+      { label: t("footer.soroban_docs"), href: "https://soroban.stellar.org" },
+    ],
+    company: [
+      { label: t("footer.about"), href: "#" },
+      { label: t("footer.blog"), href: "#" },
+      { label: t("footer.careers"), href: "#" },
+      { label: t("footer.contact"), href: "#" },
+    ],
+  };
 
   return (
     <footer className="bg-[var(--surface-subtle)] border-t border-[var(--border)]">
@@ -105,8 +110,7 @@ const Footer: React.FC = () => {
               </span>
             </div>
             <p className="text-[var(--muted)] text-sm mb-4 max-w-xs">
-              Payroll on Autopilot. Seamless, continuous streaming payments
-              built on Stellar.
+              {t("footer.tagline")}
             </p>
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--surface)] border border-[var(--border)] w-fit">
               <svg
@@ -117,14 +121,14 @@ const Footer: React.FC = () => {
                 <path d="M11.99 0C5.366 0 0 5.366 0 11.99c0 5.268 3.297 9.762 7.94 11.386.581.104.778-.252.778-.56 0-.274-.01-.992-.015-1.948-3.232.702-3.913-1.558-3.913-1.558-.528-1.342-1.29-1.699-1.29-1.699-1.054-.72.08-.706.08-.706 1.166.082 1.78 1.197 1.78 1.197 1.036 1.776 2.718 1.264 3.38.966.106-.75.405-1.264.737-1.555-2.577-.293-5.285-1.288-5.285-5.733 0-1.266.452-2.3 1.194-3.112-.12-.293-.518-1.472.114-3.068 0 0 .973-.312 3.187 1.189a11.1 11.1 0 012.907-.39c.985 0 1.977.133 2.907.39 2.213-1.501 3.184-1.189 3.184-1.189.633 1.596.235 2.775.115 3.068.744.812 1.192 1.846 1.192 3.112 0 4.457-2.712 5.437-5.298 5.724.416.359.788 1.07.788 2.158 0 1.558-.014 2.813-.014 3.195 0 .31.193.67.798.556C20.707 21.748 24 17.255 24 11.99 24 5.366 18.634 0 11.99 0z" />
               </svg>
               <span className="text-xs font-medium text-[var(--muted)]">
-                Built on Stellar
+                {t("footer.built_on_stellar")}
               </span>
             </div>
           </div>
 
           <div>
             <h4 className="text-sm font-semibold text-[var(--text)] mb-4">
-              Product
+              {t("footer.product")}
             </h4>
             <ul className="space-y-3">
               {footerLinks.product.map((link) => (
@@ -137,7 +141,7 @@ const Footer: React.FC = () => {
 
           <div>
             <h4 className="text-sm font-semibold text-[var(--text)] mb-4">
-              Resources
+              {t("footer.resources")}
             </h4>
             <ul className="space-y-3">
               {footerLinks.resources.map((link) => (
@@ -150,7 +154,7 @@ const Footer: React.FC = () => {
 
           <div>
             <h4 className="text-sm font-semibold text-[var(--text)] mb-4">
-              Company
+              {t("footer.company")}
             </h4>
             <ul className="space-y-3">
               {footerLinks.company.map((link) => (
@@ -165,14 +169,14 @@ const Footer: React.FC = () => {
         <div className="mt-12 pt-8 border-t border-[var(--border)]">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-sm text-[var(--muted)]">
-              © {currentYear} Quipay. Licensed under the{" "}
+              {t("footer.copyright", { year: currentYear })}{" "}
               <a
                 href="https://opensource.org/license/mit"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline hover:text-[var(--text)] transition-colors"
               >
-                MIT License
+                {t("footer.mit_license")}
               </a>
               .
             </p>

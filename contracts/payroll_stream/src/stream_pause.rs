@@ -118,6 +118,34 @@ impl PayrollStream {
         Ok(())
     }
 
+    /// Returns `true` if the stream is currently paused, `false` if active.
+    /// Returns `StreamNotFound` if no stream with the given id exists.
+    pub fn is_stream_paused(env: Env, stream_id: u64) -> Result<bool, QuipayError> {
+        let stream: Stream = env
+            .storage()
+            .persistent()
+            .get(&StreamKey::Stream(stream_id))
+            .ok_or(QuipayError::StreamNotFound)?;
+
+        Ok(stream.status == StreamStatus::Paused)
+    }
+
+    /// Returns `Some(timestamp)` of when the stream was paused, or `None` if it is not paused.
+    /// Returns `StreamNotFound` if no stream with the given id exists.
+    pub fn get_stream_paused_at(env: Env, stream_id: u64) -> Result<Option<u64>, QuipayError> {
+        let stream: Stream = env
+            .storage()
+            .persistent()
+            .get(&StreamKey::Stream(stream_id))
+            .ok_or(QuipayError::StreamNotFound)?;
+
+        if stream.status == StreamStatus::Paused {
+            Ok(Some(stream.paused_at))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub fn admin_resume_stream(env: Env, stream_id: u64) -> Result<(), QuipayError> {
         let admin = Self::get_admin(env.clone())?;
         admin.require_auth();

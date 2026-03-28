@@ -19,7 +19,8 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "docs:api": "typedoc"
   },
   "workspaces": [
     "packages/*"
@@ -42,7 +43,7 @@
     "i18next": "^25.8.14",
     "i18next-browser-languagedetector": "^8.2.1",
     "jspdf": "^4.2.1",
-    "jspdf-autotable": "^3.8.4",
+    "jspdf-autotable": "^5.0.7",
     "qrcode": "^1.5.1",
     "jws": "^4.0.1",
     "lossless-json": "^4.3.0",
@@ -100,7 +101,8 @@
     "vite": "^7.2.6",
     "vite-plugin-node-polyfills": "^0.24.0",
     "vite-plugin-pwa": "^1.2.0",
-    "vite-plugin-wasm": "^3.5.0"
+    "vite-plugin-wasm": "^3.5.0",
+    "typedoc": "^0.28.0"
   },
   "lint-staged": {
     "**/*": [
