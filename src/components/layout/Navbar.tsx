@@ -13,6 +13,10 @@ const Navbar: React.FC = () => {
 
   const navLinks = [
     { to: "/dashboard", label: t("nav.dashboard"), shortcut: "Ctrl+D" },
+    {
+      to: "/dashboard-customization",
+      label: t("nav.customize_dashboard"),
+    },
     { to: "/payroll", label: t("nav.payroll") },
     {
       to: "/treasury-management",

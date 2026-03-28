@@ -36,7 +36,8 @@
     "templates": "Plantillas",
     "withdraw": "Retirar",
     "create_stream": "Nuevo flujo",
-    "settings": "Configuración"
+    "settings": "Configuración",
+    "customize_dashboard": "Personalizar Panel"
   },
   "home": {
     "title": "El Futuro de la",
