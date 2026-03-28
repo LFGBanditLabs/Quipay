@@ -73,3 +73,5 @@ src/contracts/*
 !src/contracts/automation_gateway.ts
 !src/contracts/payroll_vault.ts
 !src/contracts/workforce_registry.ts
+playwright-report/
+test-results/
