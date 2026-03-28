@@ -42,10 +42,14 @@ const toResponse = async (
 const validateWorker = (worker: string | undefined): worker is string =>
   Boolean(worker && worker.trim().length > 0);
 
+const getWorkerParam = (
+  worker: string | string[] | undefined,
+): string | undefined => (Array.isArray(worker) ? worker[0] : worker);
+
 workerNotificationsRouter.get(
   "/:worker",
   async (req: Request, res: Response): Promise<void> => {
-    const { worker } = req.params;
+    const worker = getWorkerParam(req.params.worker);
 
     if (!validateWorker(worker)) {
       res.status(400).json({ ok: false, error: "Worker address is required" });
@@ -68,7 +72,7 @@ workerNotificationsRouter.get(
 workerNotificationsRouter.put(
   "/:worker",
   async (req: Request, res: Response): Promise<void> => {
-    const { worker } = req.params;
+    const worker = getWorkerParam(req.params.worker);
 
     if (!validateWorker(worker)) {
       res.status(400).json({ ok: false, error: "Worker address is required" });

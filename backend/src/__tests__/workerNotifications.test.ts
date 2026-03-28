@@ -2,9 +2,23 @@ import { describe, it, expect, beforeEach, jest } from "@jest/globals";
 import express from "express";
 import request from "supertest";
 import { workerNotificationsRouter } from "../routes/workerNotifications";
+import type { WorkerNotificationSettingsRecord } from "../db/queries";
 
-const mockGetWorkerNotificationSettings = jest.fn();
-const mockUpsertWorkerNotificationSettings = jest.fn();
+const mockGetWorkerNotificationSettings =
+  jest.fn<
+    (worker: string) => Promise<WorkerNotificationSettingsRecord | null>
+  >();
+const mockUpsertWorkerNotificationSettings =
+  jest.fn<
+    (params: {
+      worker: string;
+      emailEnabled: boolean;
+      inAppEnabled: boolean;
+      cliffUnlockAlerts: boolean;
+      streamEndingAlerts: boolean;
+      lowRunwayAlerts: boolean;
+    }) => Promise<void>
+  >();
 
 jest.mock("../db/queries", () => ({
   getWorkerNotificationSettings: (...args: unknown[]) =>
@@ -50,6 +64,8 @@ describe("workerNotificationsRouter", () => {
       cliff_unlock_alerts: false,
       stream_ending_alerts: true,
       low_runway_alerts: true,
+      created_at: new Date(),
+      updated_at: new Date(),
     });
 
     const res = await request(app)
