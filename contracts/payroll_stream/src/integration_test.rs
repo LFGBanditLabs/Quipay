@@ -41,6 +41,7 @@ fn setup_integration(
 
     vault_client.initialize(&admin);
     stream_client.init(&admin);
+    stream_client.set_min_stream_duration(&0u64);
 
     vault_client.set_authorized_contract(&stream_id);
     stream_client.set_vault(&vault_id);
