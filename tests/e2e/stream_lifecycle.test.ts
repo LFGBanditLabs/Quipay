@@ -43,10 +43,7 @@ const VAULT_WASM_PATH =
   resolve(__dirname, "../../target/wasm32v1-none/release/payroll_vault.wasm");
 const STREAM_WASM_PATH =
   process.env.STREAM_WASM_PATH ??
-  resolve(
-    __dirname,
-    "../../target/wasm32v1-none/release/payroll_stream.wasm",
-  );
+  resolve(__dirname, "../../target/wasm32v1-none/release/payroll_stream.wasm");
 
 // Token amount helpers (7 decimal places for XLM-style tokens)
 const ONE_TOKEN = 10_000_000n; // 1.0000000
@@ -83,7 +80,7 @@ async function submitTx(
   let getRes = await server.getTransaction(sendRes.hash);
   while (
     getRes.status === SorobanRpc.Api.GetTransactionStatus.NOT_FOUND ||
-    // @ts-expect-error – older SDK versions use "PENDING" string
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
     getRes.status === "PENDING"
   ) {
     await new Promise((r) => setTimeout(r, 2_000));
@@ -93,7 +90,7 @@ async function submitTx(
   if (getRes.status !== SorobanRpc.Api.GetTransactionStatus.SUCCESS) {
     throw new Error(`Transaction failed: ${JSON.stringify(getRes)}`);
   }
-  return getRes as SorobanRpc.Api.GetSuccessfulTransactionResponse;
+  return getRes;
 }
 
 /** Build a transaction that calls one Soroban contract function. */
@@ -224,9 +221,7 @@ async function deploySAC(
 }
 
 /** Return the current ledger Unix timestamp from the network. */
-async function ledgerTimestamp(
-  server: SorobanRpc.Server,
-): Promise<number> {
+async function ledgerTimestamp(server: SorobanRpc.Server): Promise<number> {
   const latest = await server.getLatestLedger();
   // getLatestLedger doesn't expose the timestamp directly; approximate from
   // the ledger sequence (each ledger ≈ 5 s, genesis at 2015-09-29 ~1443484800)
@@ -239,16 +234,9 @@ async function ledgerTimestamp(
 }
 
 // ScVal converters
-const addrScVal = (addr: string) =>
-  new Address(addr).toScVal();
-const i128ScVal = (n: bigint) =>
-  nativeToScVal(n, { type: "i128" });
-const u64ScVal = (n: bigint) =>
-  nativeToScVal(n, { type: "u64" });
-const u32ScVal = (n: number) =>
-  nativeToScVal(n, { type: "u32" });
-const boolScVal = (b: boolean) =>
-  xdr.ScVal.scvBool(b);
+const addrScVal = (addr: string) => new Address(addr).toScVal();
+const i128ScVal = (n: bigint) => nativeToScVal(n, { type: "i128" });
+const u64ScVal = (n: bigint) => nativeToScVal(n, { type: "u64" });
 
 // ─── Test suite ───────────────────────────────────────────────────────────────
 
@@ -268,7 +256,7 @@ test.describe("PayrollStream E2E lifecycle", () => {
     }
 
     server = new SorobanRpc.Server(RPC_URL);
-    admin = Keypair.fromSecret(process.env.E2E_DEPLOYER_SECRET!);
+    admin = Keypair.fromSecret(process.env.E2E_DEPLOYER_SECRET);
 
     console.log(`Admin: ${admin.publicKey()}`);
 
@@ -309,13 +297,9 @@ test.describe("PayrollStream E2E lifecycle", () => {
     await invokeContract(server, admin, streamId, "set_vault", [
       addrScVal(vaultId),
     ]);
-    await invokeContract(
-      server,
-      admin,
-      vaultId,
-      "set_authorized_contract",
-      [addrScVal(streamId)],
-    );
+    await invokeContract(server, admin, vaultId, "set_authorized_contract", [
+      addrScVal(streamId),
+    ]);
 
     // ── 6. Set stream contract as gateway (so gateway-cancel tests work) ─────
     await invokeContract(server, admin, streamId, "set_gateway", [
@@ -342,17 +326,11 @@ test.describe("PayrollStream E2E lifecycle", () => {
     ]);
 
     // Employer deposits tokens into vault
-    await invokeContract(
-      server,
-      employer,
-      vaultId,
-      "deposit",
-      [
-        addrScVal(employer.publicKey()),
-        addrScVal(tokenId),
-        i128ScVal(depositAmount),
-      ],
-    );
+    await invokeContract(server, employer, vaultId, "deposit", [
+      addrScVal(employer.publicKey()),
+      addrScVal(tokenId),
+      i128ScVal(depositAmount),
+    ]);
 
     // Get current ledger time and set stream start 10 s in the future
     const nowTs = BigInt(await ledgerTimestamp(server));
@@ -426,21 +404,15 @@ test.describe("PayrollStream E2E lifecycle", () => {
     // (or has insufficient balance for this total_amount)
     let threw = false;
     try {
-      await invokeContract(
-        server,
-        employer,
-        streamId,
-        "create_stream",
-        [
-          addrScVal(employer.publicKey()),
-          addrScVal(worker.publicKey()),
-          addrScVal(tokenId),
-          i128ScVal(rate),
-          u64ScVal(0n),
-          u64ScVal(startTs),
-          u64ScVal(endTs),
-        ],
-      );
+      await invokeContract(server, employer, streamId, "create_stream", [
+        addrScVal(employer.publicKey()),
+        addrScVal(worker.publicKey()),
+        addrScVal(tokenId),
+        i128ScVal(rate),
+        u64ScVal(0n),
+        u64ScVal(startTs),
+        u64ScVal(endTs),
+      ]);
     } catch (err: unknown) {
       threw = true;
       const msg = String(err);
@@ -463,17 +435,11 @@ test.describe("PayrollStream E2E lifecycle", () => {
       addrScVal(employer.publicKey()),
       i128ScVal(depositAmount),
     ]);
-    await invokeContract(
-      server,
-      employer,
-      vaultId,
-      "deposit",
-      [
-        addrScVal(employer.publicKey()),
-        addrScVal(tokenId),
-        i128ScVal(depositAmount),
-      ],
-    );
+    await invokeContract(server, employer, vaultId, "deposit", [
+      addrScVal(employer.publicKey()),
+      addrScVal(tokenId),
+      i128ScVal(depositAmount),
+    ]);
 
     const nowTs = BigInt(await ledgerTimestamp(server));
     const startTs = nowTs + 10n;
@@ -523,17 +489,11 @@ test.describe("PayrollStream E2E lifecycle", () => {
       addrScVal(employer.publicKey()),
       i128ScVal(depositAmount),
     ]);
-    await invokeContract(
-      server,
-      employer,
-      vaultId,
-      "deposit",
-      [
-        addrScVal(employer.publicKey()),
-        addrScVal(tokenId),
-        i128ScVal(depositAmount),
-      ],
-    );
+    await invokeContract(server, employer, vaultId, "deposit", [
+      addrScVal(employer.publicKey()),
+      addrScVal(tokenId),
+      i128ScVal(depositAmount),
+    ]);
 
     const nowTs = BigInt(await ledgerTimestamp(server));
     const startTs = nowTs + 10n;
@@ -557,17 +517,11 @@ test.describe("PayrollStream E2E lifecycle", () => {
     )) as bigint;
 
     // Cancel via gateway (admin was set as the gateway in beforeAll)
-    await invokeContract(
-      server,
-      admin,
-      streamId,
-      "cancel_stream_via_gateway",
-      [
-        addrScVal(admin.publicKey()), // gateway
-        i128ScVal(streamIdRaw),
-        addrScVal(employer.publicKey()),
-      ],
-    );
+    await invokeContract(server, admin, streamId, "cancel_stream_via_gateway", [
+      addrScVal(admin.publicKey()), // gateway
+      i128ScVal(streamIdRaw),
+      addrScVal(employer.publicKey()),
+    ]);
 
     // Stream should now be in Canceled state
     const streamData = (await simulateContract(
