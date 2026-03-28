@@ -154,12 +154,20 @@ refactor/contract-error-types
 ### Frontend
 
 ```bash
+# Unit and snapshot tests
+npm test
+
+# Update snapshot baselines intentionally after UI changes
+npm run test:update-snapshots
+
 # End-to-end tests (requires dev server running)
 npm run test:e2e
 
 # Interactive test mode
 npm run test:e2e:ui
 ```
+
+Snapshot tests fail automatically in CI when rendered output diverges from the committed baseline. If a visual change is intentional, run `npm run test:update-snapshots`, review the generated snapshot diff, and include it in your pull request.
 
 ### Backend
 
