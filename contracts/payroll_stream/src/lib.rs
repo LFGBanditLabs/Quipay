@@ -1,5 +1,4 @@
 #![no_std]
-#![allow(clippy::too_many_arguments, deprecated)]
 use core::convert::TryFrom;
 use quipay_common::{QuipayError, require};
 use soroban_sdk::{
@@ -609,7 +608,13 @@ impl PayrollStream {
 
             let plan = match env.storage().persistent().get::<StreamKey, Stream>(&key) {
                 Some(mut stream) => {
-                    if stream.worker != caller || Self::is_closed(&stream) {
+                    if stream.worker != caller {
+                        BatchWithdrawalPlan::Result(WithdrawResult {
+                            stream_id,
+                            amount: 0,
+                            success: false,
+                        })
+                    } else if Self::is_closed(&stream) {
                         BatchWithdrawalPlan::Result(WithdrawResult {
                             stream_id,
                             amount: 0,
@@ -1808,7 +1813,7 @@ impl PayrollStream {
             }
             i += 1;
         }
-        if new_ids.is_empty() {
+        if new_ids.len() == 0 {
             env.storage().persistent().remove(&key);
         } else {
             env.storage().persistent().set(&key, &new_ids);

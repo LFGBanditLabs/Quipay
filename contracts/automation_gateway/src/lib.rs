@@ -1,5 +1,4 @@
 #![no_std]
-#![allow(clippy::too_many_arguments)]
 use quipay_common::{QuipayError, require};
 use soroban_sdk::{
     Address, Bytes, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype, symbol_short,
@@ -38,7 +37,6 @@ pub enum DataKey {
 pub struct AutomationGateway;
 
 #[contractimpl]
-#[allow(clippy::too_many_arguments)]
 impl AutomationGateway {
     /// Initialize the contract with an admin (employer).
     pub fn init(env: Env, admin: Address) -> Result<(), QuipayError> {
@@ -52,7 +50,6 @@ impl AutomationGateway {
 
     /// Replace an agent's permissions.
     /// Only the admin can call this.
-    #[allow(deprecated)]
     pub fn set_agent_permissions(
         env: Env,
         agent_address: Address,
@@ -87,7 +84,6 @@ impl AutomationGateway {
 
     /// Grant a single permission to an agent.
     /// Only the admin can call this.
-    #[allow(deprecated)]
     pub fn grant_permission(
         env: Env,
         agent_address: Address,
@@ -124,7 +120,6 @@ impl AutomationGateway {
 
     /// Revoke a single permission from an agent.
     /// Only the admin can call this.
-    #[allow(deprecated)]
     pub fn revoke_permission(
         env: Env,
         agent_address: Address,
@@ -168,7 +163,6 @@ impl AutomationGateway {
 
     /// Register a new AI agent with specific permissions.
     /// Only the admin can call this.
-    #[allow(deprecated)]
     pub fn register_agent(
         env: Env,
         agent_address: Address,
@@ -202,7 +196,6 @@ impl AutomationGateway {
 
     /// Revoke an AI agent's authorization.
     /// Only the admin can call this.
-    #[allow(deprecated)]
     pub fn revoke_agent(env: Env, agent_address: Address) -> Result<(), QuipayError> {
         let admin = Self::get_admin(env.clone())?;
         admin.require_auth();
@@ -237,7 +230,6 @@ impl AutomationGateway {
 
     /// Route an automated action.
     /// For now, this is a placeholder that verifies authorization.
-    #[allow(deprecated)]
     pub fn execute_automation(
         env: Env,
         agent: Address,
@@ -344,7 +336,6 @@ impl AutomationGateway {
 
     /// Create a stream on behalf of an employer through an authorized agent.
     /// The agent must have CreateStream permission.
-    #[allow(clippy::too_many_arguments, deprecated)]
     pub fn agent_create_stream(
         env: Env,
         agent: Address,
@@ -397,7 +388,6 @@ impl AutomationGateway {
 
     /// Cancel a stream on behalf of an employer through an authorized agent.
     /// The agent must have CancelStream permission.
-    #[allow(deprecated)]
     pub fn agent_cancel_stream(
         env: Env,
         agent: Address,
@@ -428,7 +418,7 @@ impl AutomationGateway {
                 agent.clone(),
                 employer.clone(),
             ),
-            stream_id,
+            (stream_id,),
         );
 
         Ok(())

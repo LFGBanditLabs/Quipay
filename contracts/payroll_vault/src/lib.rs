@@ -1,5 +1,5 @@
 #![no_std]
-#![allow(unexpected_cfgs, deprecated, clippy::collapsible_if, clippy::needless_borrow)]
+#![allow(unexpected_cfgs)]
 use quipay_common::{QuipayError, require_positive_amount};
 use soroban_sdk::{
     Address, BytesN, Env, Symbol, Vec, contract, contractimpl, contracttype, symbol_short, token,
@@ -14,7 +14,6 @@ mod upgrade_test;
 #[cfg(test)]
 mod fuzz_test;
 
-#[allow(unexpected_cfgs)]
 #[cfg(kani)]
 mod kani_test;
 
@@ -564,7 +563,6 @@ impl PayrollVault {
 
     /// Withdraw free funds from the treasury.
     /// Enforces `amount <= available_balance(token)`.
-    #[allow(deprecated)]
     pub fn withdraw(e: Env, to: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
         to.require_auth();
         require_positive_amount!(amount);
@@ -613,7 +611,6 @@ impl PayrollVault {
     /// # Multisig Support
     /// Requires admin authorization. If admin is a multisig account, the transaction
     /// must meet the signature threshold (e.g., 2-of-3) before reaching this function.
-    #[allow(deprecated)]
     pub fn allocate_funds(e: Env, token: Address, amount: i128) -> Result<(), QuipayError> {
         let admin: Address = e
             .storage()
@@ -658,7 +655,6 @@ impl PayrollVault {
     /// # Multisig Support
     /// Requires admin authorization. Supports multisig admin accounts where the
     /// signature threshold must be met at the Stellar network level.
-    #[allow(deprecated)]
     pub fn release_funds(e: Env, token: Address, amount: i128) -> Result<(), QuipayError> {
         let admin: Address = e
             .storage()
@@ -701,7 +697,6 @@ impl PayrollVault {
     /// Requires admin authorization. When admin is a multisig account (e.g., DAO treasury),
     /// the transaction must meet the signature threshold before execution. This ensures
     /// decentralized control over payroll payouts.
-    #[allow(deprecated)]
     pub fn payout(e: Env, to: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
         let admin: Address = e
             .storage()
@@ -749,7 +744,6 @@ impl PayrollVault {
         Ok(())
     }
 
-    #[allow(deprecated)]
     pub fn payout_liability(
         e: Env,
         to: Address,

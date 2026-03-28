@@ -1,5 +1,4 @@
 #![no_std]
-#![allow(clippy::too_many_arguments, deprecated)]
 use quipay_common::{QuipayError, require};
 use soroban_sdk::{Address, Env, String, Vec, contract, contractimpl, contracttype, symbol_short};
 
@@ -96,7 +95,6 @@ impl WorkforceRegistryContract {
     /// * `worker` - The address of the worker registering.
     /// * `preferred_token` - The address of the preferred payment token.
     /// * `metadata_hash` - A hash string pointing to metadata (e.g., IPFS/Arweave).
-    #[allow(deprecated)]
     pub fn register_worker(
         e: Env,
         worker: Address,
