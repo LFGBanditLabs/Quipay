@@ -1,15 +1,24 @@
 import { describe, it, expect, beforeEach, jest } from "@jest/globals";
 import express from "express";
 import request from "supertest";
+import {
+  getWorkerNotificationSettings,
+  upsertWorkerNotificationSettings,
+} from "../db/queries";
 import { workerNotificationsRouter } from "../routes/workerNotifications";
 import type { WorkerNotificationSettingsRecord } from "../db/queries";
 
+jest.mock("../db/queries", () => ({
+  getWorkerNotificationSettings: jest.fn(),
+  upsertWorkerNotificationSettings: jest.fn(),
+}));
+
 const mockGetWorkerNotificationSettings =
-  jest.fn<
+  getWorkerNotificationSettings as jest.MockedFunction<
     (worker: string) => Promise<WorkerNotificationSettingsRecord | null>
-  >();
+  >;
 const mockUpsertWorkerNotificationSettings =
-  jest.fn<
+  upsertWorkerNotificationSettings as jest.MockedFunction<
     (params: {
       worker: string;
       emailEnabled: boolean;
@@ -18,12 +27,7 @@ const mockUpsertWorkerNotificationSettings =
       streamEndingAlerts: boolean;
       lowRunwayAlerts: boolean;
     }) => Promise<void>
-  >();
-
-jest.mock("../db/queries", () => ({
-  getWorkerNotificationSettings: mockGetWorkerNotificationSettings,
-  upsertWorkerNotificationSettings: mockUpsertWorkerNotificationSettings,
-}));
+  >;
 
 describe("workerNotificationsRouter", () => {
   let app: express.Express;
