@@ -30,6 +30,7 @@ pub enum DataKey {
     MaxStreamDuration,       // Configurable maximum stream duration in seconds
     MaxStreamsPerEmployer,   // Global default maximum active streams per employer
     EmployerStreamLimit(Address), // Per-employer maximum active stream override
+    MinStreamDuration,       // Configurable minimum stream duration in seconds
 }
 
 #[contracttype]
@@ -170,6 +171,8 @@ const DEFAULT_WITHDRAWAL_COOLDOWN: u64 = 60 * 60;
 const DEFAULT_CANCELLATION_GRACE_PERIOD: u64 = 7 * 24 * 60 * 60;
 
 const DEFAULT_MAX_STREAMS_PER_EMPLOYER: u32 = 500;
+
+const DEFAULT_MIN_STREAM_DURATION: u64 = 3600;
 
 // Storage entries (persistent) are automatically archived after their TTL runs out
 // unless we explicitly extend TTL. Long-running streams can be left untouched for
@@ -334,6 +337,30 @@ impl PayrollStream {
             .instance()
             .get(&DataKey::MaxStreamDuration)
             .unwrap_or(DEFAULT_MAX_STREAM_DURATION)
+    }
+
+    /// Set the minimum allowed duration for a stream in seconds.
+    /// Only admin can call this function.
+    pub fn set_min_stream_duration(env: Env, seconds: u64) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+
+        env.storage()
+            .instance()
+            .set(&DataKey::MinStreamDuration, &seconds);
+        Ok(())
+    }
+
+    /// Get the current minimum allowed duration for a stream in seconds.
+    pub fn get_min_stream_duration(env: Env) -> u64 {
+        env.storage()
+            .instance()
+            .get(&DataKey::MinStreamDuration)
+            .unwrap_or(DEFAULT_MIN_STREAM_DURATION)
     }
  
     /// Set the global default maximum number of active streams per employer.
@@ -1448,13 +1475,12 @@ impl PayrollStream {
             return Err(QuipayError::InvalidTimeRange);
         }
 
-        let max_duration: u64 = env
-            .storage()
-            .instance()
-            .get(&DataKey::MaxStreamDuration)
-            .unwrap_or(DEFAULT_MAX_STREAM_DURATION);
-        if end_ts.saturating_sub(start_ts) > max_duration {
+        let duration = end_ts.saturating_sub(start_ts);
+        if duration > Self::get_max_stream_duration(env.clone()) {
             return Err(QuipayError::InvalidTimeRange);
+        }
+        if duration < Self::get_min_stream_duration(env.clone()) {
+            return Err(QuipayError::DurationTooShort);
         }
 
         let limit = Self::get_employer_stream_limit(env.clone(), employer.clone());
