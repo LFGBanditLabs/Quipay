@@ -27,6 +27,32 @@ pub struct Agent {
 }
 
 #[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct StreamCreateParams {
+    pub employer: Address,
+    pub worker: Address,
+    pub token: Address,
+    pub rate: i128,
+    pub cliff_ts: u64,
+    pub start_ts: u64,
+    pub end_ts: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq)]
+pub enum AutomationEvent {
+    PermSet(Address),
+    PermAdd(Address, Permission),
+    PermRev(Address, Permission),
+    AgentReg(Address),
+    AgentRev(Address),
+    Executed(Address, Symbol),
+    StreamCreated(Address, Address, u64),
+    StreamCanceled(Address, Address, u64),
+}
+
+
+#[contracttype]
 pub enum DataKey {
     Admin,
     Agent(Address),
@@ -51,7 +77,6 @@ impl AutomationGateway {
 
     /// Replace an agent's permissions.
     /// Only the admin can call this.
-    #[allow(deprecated)]
     pub fn set_agent_permissions(
         env: Env,
         agent_address: Address,
@@ -72,21 +97,16 @@ impl AutomationGateway {
             .set(&DataKey::Agent(agent_address.clone()), &agent);
 
         env.events().publish(
-            (
-                symbol_short!("gateway"),
-                symbol_short!("perm_set"),
-                agent_address.clone(),
-                symbol_short!("admin"),
-            ),
-            permissions,
+            (symbol_short!("gateway"), symbol_short!("p_set")),
+            AutomationEvent::PermSet(agent_address),
         );
+
 
         Ok(())
     }
 
     /// Grant a single permission to an agent.
     /// Only the admin can call this.
-    #[allow(deprecated)]
     pub fn grant_permission(
         env: Env,
         agent_address: Address,
@@ -109,21 +129,16 @@ impl AutomationGateway {
         }
 
         env.events().publish(
-            (
-                symbol_short!("gateway"),
-                symbol_short!("perm_add"),
-                agent_address.clone(),
-                symbol_short!("admin"),
-            ),
-            permission,
+            (symbol_short!("gateway"), symbol_short!("p_add")),
+            AutomationEvent::PermAdd(agent_address, permission),
         );
+
 
         Ok(())
     }
 
     /// Revoke a single permission from an agent.
     /// Only the admin can call this.
-    #[allow(deprecated)]
     pub fn revoke_permission(
         env: Env,
         agent_address: Address,
@@ -153,21 +168,16 @@ impl AutomationGateway {
             .set(&DataKey::Agent(agent_address.clone()), &agent);
 
         env.events().publish(
-            (
-                symbol_short!("gateway"),
-                symbol_short!("perm_rev"),
-                agent_address.clone(),
-                symbol_short!("admin"),
-            ),
-            permission,
+            (symbol_short!("gateway"), symbol_short!("p_rev")),
+            AutomationEvent::PermRev(agent_address, permission),
         );
+
 
         Ok(())
     }
 
     /// Register a new AI agent with specific permissions.
     /// Only the admin can call this.
-    #[allow(deprecated)]
     pub fn register_agent(
         env: Env,
         agent_address: Address,
@@ -187,21 +197,16 @@ impl AutomationGateway {
             .set(&DataKey::Agent(agent_address.clone()), &agent);
 
         env.events().publish(
-            (
-                symbol_short!("gateway"),
-                symbol_short!("agent_reg"),
-                agent_address.clone(),
-                symbol_short!("admin"),
-            ),
-            permissions,
+            (symbol_short!("gateway"), symbol_short!("a_reg")),
+            AutomationEvent::AgentReg(agent_address),
         );
+
 
         Ok(())
     }
 
     /// Revoke an AI agent's authorization.
     /// Only the admin can call this.
-    #[allow(deprecated)]
     pub fn revoke_agent(env: Env, agent_address: Address) -> Result<(), QuipayError> {
         let admin = Self::get_admin(env.clone())?;
         admin.require_auth();
@@ -211,14 +216,10 @@ impl AutomationGateway {
             .remove(&DataKey::Agent(agent_address.clone()));
 
         env.events().publish(
-            (
-                symbol_short!("gateway"),
-                symbol_short!("agent_rev"),
-                agent_address.clone(),
-                symbol_short!("admin"),
-            ),
-            (),
+            (symbol_short!("gateway"), symbol_short!("a_rev")),
+            AutomationEvent::AgentRev(agent_address),
         );
+
 
         Ok(())
     }
@@ -236,7 +237,6 @@ impl AutomationGateway {
 
     /// Route an automated action.
     /// For now, this is a placeholder that verifies authorization.
-    #[allow(deprecated)]
     pub fn execute_automation(
         env: Env,
         agent: Address,
@@ -252,14 +252,10 @@ impl AutomationGateway {
 
         // TODO: Implement actual routing/integration with other contracts
         env.events().publish(
-            (
-                symbol_short!("gateway"),
-                symbol_short!("executed"),
-                agent.clone(),
-                Symbol::new(&env, "action"),
-            ),
-            _data,
+            (symbol_short!("gateway"), symbol_short!("exec")),
+            AutomationEvent::Executed(agent, Symbol::new(&env, "action")), // Symbol is used now
         );
+
 
         Ok(())
     }
@@ -291,18 +287,12 @@ impl AutomationGateway {
     /// Create a stream on behalf of an employer through an authorized agent.
     /// The agent must have CreateStream permission.
     #[allow(clippy::too_many_arguments)]
-    #[allow(deprecated)]
     pub fn agent_create_stream(
         env: Env,
         agent: Address,
-        employer: Address,
-        worker: Address,
-        token: Address,
-        rate: i128,
-        cliff_ts: u64,
-        start_ts: u64,
-        end_ts: u64,
+        params: StreamCreateParams,
     ) -> Result<u64, QuipayError> {
+
         agent.require_auth();
 
         require!(
@@ -319,32 +309,28 @@ impl AutomationGateway {
             &Symbol::new(&env, "create_stream_via_gateway"),
             vec![
                 &env,
-                employer.into_val(&env),
-                worker.clone().into_val(&env),
-                token.into_val(&env),
-                rate.into_val(&env),
-                cliff_ts.into_val(&env),
-                start_ts.into_val(&env),
-                end_ts.into_val(&env),
+                params.employer.clone().into_val(&env),
+                params.worker.clone().into_val(&env),
+                params.token.into_val(&env),
+                params.rate.into_val(&env),
+                params.cliff_ts.into_val(&env),
+                params.start_ts.into_val(&env),
+                params.end_ts.into_val(&env),
             ],
         );
 
+
         env.events().publish(
-            (
-                symbol_short!("gateway"),
-                Symbol::new(&env, "stream_created"),
-                agent.clone(),
-                employer.clone(),
-            ),
-            (stream_id, worker, rate, start_ts, end_ts),
+            (symbol_short!("gateway"), symbol_short!("s_cr")),
+            AutomationEvent::StreamCreated(agent, params.employer, stream_id),
         );
+
 
         Ok(stream_id)
     }
 
     /// Cancel a stream on behalf of an employer through an authorized agent.
     /// The agent must have CancelStream permission.
-    #[allow(deprecated)]
     pub fn agent_cancel_stream(
         env: Env,
         agent: Address,
@@ -369,14 +355,10 @@ impl AutomationGateway {
         );
 
         env.events().publish(
-            (
-                symbol_short!("gateway"),
-                Symbol::new(&env, "stream_canceled"),
-                agent.clone(),
-                employer.clone(),
-            ),
-            (stream_id,),
+            (symbol_short!("gateway"), symbol_short!("s_can")),
+            AutomationEvent::StreamCanceled(agent, employer.clone(), stream_id),
         );
+
 
         Ok(())
     }

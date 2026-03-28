@@ -42,6 +42,18 @@ pub struct VersionInfo {
     pub upgraded_at: u64,
 }
 
+#[contractevent]
+#[derive(Clone, Debug, PartialEq)]
+pub enum VaultEvent {
+    Upgraded(Address, u32, u32, u32, u32, u32, u32),
+    Deposited(Address, Address, i128),
+    Withdrawn(Address, Address, i128),
+    Allocated(Address, i128),
+    Released(Address, i128),
+    Payout(Address, Address, i128),
+}
+
+
 #[contract]
 pub struct PayrollVault;
 
@@ -117,10 +129,10 @@ impl PayrollVault {
             .set(&StateKey::Version, &version_info);
 
         // Emit upgrade event
-        #[allow(deprecated)]
         e.events().publish(
             (UPGRADED, admin.clone()),
-            (
+            VaultEvent::Upgraded(
+                admin,
                 current_version.major,
                 current_version.minor,
                 current_version.patch,
@@ -129,6 +141,7 @@ impl PayrollVault {
                 patch,
             ),
         );
+
         Ok(())
     }
 
@@ -162,7 +175,6 @@ impl PayrollVault {
         Ok(())
     }
 
-    #[allow(deprecated)]
     pub fn deposit(e: Env, from: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
         from.require_auth();
         require_positive_amount!(amount);
@@ -175,17 +187,15 @@ impl PayrollVault {
             .set(&key, &(current_balance + amount));
 
         let token_client = token::Client::new(&e, &token);
-        token_client.transfer(&from, e.current_contract_address(), &amount);
+        token_client.transfer(&from, &e.current_contract_address(), &amount);
+
+
 
         e.events().publish(
-            (
-                symbol_short!("vault"),
-                symbol_short!("deposited"),
-                from.clone(),
-                token.clone(),
-            ),
-            amount,
+            (symbol_short!("vault"), symbol_short!("deposited")),
+            VaultEvent::Deposited(from, token, amount),
         );
+
 
         Ok(())
     }
@@ -228,7 +238,6 @@ impl PayrollVault {
 
     /// Withdraw free funds from the treasury.
     /// Enforces `amount <= available_balance(token)`.
-    #[allow(deprecated)]
     pub fn withdraw(e: Env, to: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
         to.require_auth();
         require_positive_amount!(amount);
@@ -250,14 +259,10 @@ impl PayrollVault {
         token_client.transfer(&e.current_contract_address(), &to, &amount);
 
         e.events().publish(
-            (
-                symbol_short!("vault"),
-                symbol_short!("withdrawn"),
-                to.clone(),
-                token.clone(),
-            ),
-            amount,
+            (symbol_short!("vault"), symbol_short!("withdrawn")),
+            VaultEvent::Withdrawn(to, token, amount),
         );
+
 
         Ok(())
     }
@@ -268,7 +273,6 @@ impl PayrollVault {
     /// # Multisig Support
     /// Requires admin authorization. If admin is a multisig account, the transaction
     /// must meet the signature threshold (e.g., 2-of-3) before reaching this function.
-    #[allow(deprecated)]
     pub fn allocate_funds(e: Env, token: Address, amount: i128) -> Result<(), QuipayError> {
         let admin: Address = e
             .storage()
@@ -298,14 +302,10 @@ impl PayrollVault {
             .set(&liability_key, &(liability + amount));
 
         e.events().publish(
-            (
-                symbol_short!("vault"),
-                symbol_short!("allocated"),
-                token.clone(),
-                symbol_short!("admin"),
-            ),
-            amount,
+            (symbol_short!("vault"), symbol_short!("allocated")),
+            VaultEvent::Allocated(token, amount),
         );
+
 
         Ok(())
     }
@@ -315,7 +315,6 @@ impl PayrollVault {
     /// # Multisig Support
     /// Requires admin authorization. Supports multisig admin accounts where the
     /// signature threshold must be met at the Stellar network level.
-    #[allow(deprecated)]
     pub fn release_funds(e: Env, token: Address, amount: i128) -> Result<(), QuipayError> {
         let admin: Address = e
             .storage()
@@ -342,14 +341,10 @@ impl PayrollVault {
             .set(&liability_key, &(liability - amount));
 
         e.events().publish(
-            (
-                symbol_short!("vault"),
-                symbol_short!("released"),
-                token.clone(),
-                symbol_short!("admin"),
-            ),
-            amount,
+            (symbol_short!("vault"), symbol_short!("released")),
+            VaultEvent::Released(token, amount),
         );
+
 
         Ok(())
     }
@@ -360,7 +355,6 @@ impl PayrollVault {
     /// Requires admin authorization. When admin is a multisig account (e.g., DAO treasury),
     /// the transaction must meet the signature threshold before execution. This ensures
     /// decentralized control over payroll payouts.
-    #[allow(deprecated)]
     pub fn payout(e: Env, to: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
         let admin: Address = e
             .storage()
@@ -404,19 +398,14 @@ impl PayrollVault {
         token_client.transfer(&e.current_contract_address(), &to, &amount);
 
         e.events().publish(
-            (
-                symbol_short!("vault"),
-                symbol_short!("payout"),
-                to.clone(),
-                token.clone(),
-            ),
-            amount,
+            (symbol_short!("vault"), symbol_short!("payout")),
+            VaultEvent::Payout(to, token, amount),
         );
+
 
         Ok(())
     }
 
-    #[allow(deprecated)]
     pub fn payout_liability(
         e: Env,
         to: Address,
@@ -457,14 +446,10 @@ impl PayrollVault {
         token_client.transfer(&e.current_contract_address(), &to, &amount);
 
         e.events().publish(
-            (
-                symbol_short!("vault"),
-                symbol_short!("payout"),
-                to.clone(),
-                token.clone(),
-            ),
-            amount,
+            (symbol_short!("vault"), symbol_short!("payout")),
+            VaultEvent::Payout(to, token, amount),
         );
+
 
         Ok(())
     }

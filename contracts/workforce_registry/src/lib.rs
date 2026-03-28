@@ -3,6 +3,7 @@ use soroban_sdk::{
     Address, Env, String, Vec, contract, contractimpl, contracttype, symbol_short,
 };
 
+
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub struct WorkerProfile {
@@ -10,6 +11,16 @@ pub struct WorkerProfile {
     pub preferred_token: Address,
     pub metadata_hash: String,
 }
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq)]
+pub enum WorkforceEvent {
+    Register(Address, Address, String),
+    Updated(Address, Address, String),
+    StreamActive(Address, Address),
+    StreamInactive(Address, Address),
+}
+
 
 #[derive(Clone)]
 #[contracttype]
@@ -32,7 +43,6 @@ impl WorkforceRegistryContract {
     /// * `worker` - The address of the worker registering.
     /// * `preferred_token` - The address of the preferred payment token.
     /// * `metadata_hash` - A hash string pointing to metadata (e.g., IPFS/Arweave).
-    #[allow(deprecated)]
     pub fn register_worker(
         e: Env,
         worker: Address,
@@ -55,14 +65,10 @@ impl WorkforceRegistryContract {
         e.storage().persistent().set(&key, &profile);
 
         e.events().publish(
-            (
-                symbol_short!("registry"),
-                symbol_short!("register"),
-                worker.clone(),
-                preferred_token.clone(),
-            ),
-            metadata_hash.clone(),
+            (symbol_short!("registry"), symbol_short!("register")),
+            WorkforceEvent::Register(worker, preferred_token, metadata_hash),
         );
+
     }
 
     /// Updates an existing worker profile.
@@ -72,7 +78,6 @@ impl WorkforceRegistryContract {
     /// * `worker` - The address of the worker updating their profile.
     /// * `preferred_token` - The new preferred payment token address.
     /// * `metadata_hash` - The new metadata hash string.
-    #[allow(deprecated)]
     pub fn update_worker(e: Env, worker: Address, preferred_token: Address, metadata_hash: String) {
         worker.require_auth();
 
@@ -90,14 +95,10 @@ impl WorkforceRegistryContract {
         e.storage().persistent().set(&key, &profile);
 
         e.events().publish(
-            (
-                symbol_short!("registry"),
-                symbol_short!("updated"),
-                worker.clone(),
-                preferred_token.clone(),
-            ),
-            metadata_hash,
+            (symbol_short!("registry"), symbol_short!("updated")),
+            WorkforceEvent::Updated(worker, preferred_token, metadata_hash),
         );
+
     }
 
     /// Retrieves a worker's profile.
@@ -126,7 +127,6 @@ impl WorkforceRegistryContract {
         e.storage().persistent().has(&key)
     }
 
-    #[allow(deprecated)]
     pub fn set_stream_active(e: Env, employer: Address, worker: Address, active: bool) {
         employer.require_auth();
 
@@ -154,14 +154,10 @@ impl WorkforceRegistryContract {
             e.storage().persistent().set(&count_key, &(count + 1));
 
             e.events().publish(
-                (
-                    symbol_short!("stream"),
-                    symbol_short!("active"),
-                    employer.clone(),
-                    worker.clone(),
-                ),
-                (),
+                (symbol_short!("stream"), symbol_short!("active")),
+                WorkforceEvent::StreamActive(employer, worker),
             );
+
         } else {
             if !is_active {
                 return;
@@ -201,14 +197,10 @@ impl WorkforceRegistryContract {
             e.storage().persistent().set(&count_key, &(count - 1));
 
             e.events().publish(
-                (
-                    symbol_short!("stream"),
-                    symbol_short!("inactive"),
-                    employer.clone(),
-                    worker.clone(),
-                ),
-                (),
+                (symbol_short!("stream"), symbol_short!("inactive")),
+                WorkforceEvent::StreamInactive(employer, worker),
             );
+
         }
     }
 

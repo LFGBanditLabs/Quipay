@@ -2,6 +2,10 @@
 members = ["contracts/*", "fuzz"]
 resolver = "2"
 
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
+
+
 [workspace.package]
 authors = ["The Aha Company"]
 edition = "2024"

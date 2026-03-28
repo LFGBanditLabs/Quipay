@@ -191,9 +191,17 @@ fn test_agent_create_stream_authorized() {
     gateway_client.register_agent(&agent, &vec![&env, Permission::CreateStream]);
 
     // Agent creates stream on behalf of employer
-    let stream_id = gateway_client.agent_create_stream(
-        &agent, &employer, &worker, &token, &100i128, &0u64, &10u64, &100u64,
-    );
+    let params = StreamCreateParams {
+        employer: employer.clone(),
+        worker: worker.clone(),
+        token: token.clone(),
+        rate: 100i128,
+        cliff_ts: 0u64,
+        start_ts: 10u64,
+        end_ts: 100u64,
+    };
+    let stream_id = gateway_client.agent_create_stream(&agent, &params);
+
 
     assert_eq!(stream_id, 1u64);
 }
@@ -227,9 +235,17 @@ fn test_agent_create_stream_unauthorized() {
     gateway_client.register_agent(&agent, &vec![&env, Permission::CancelStream]);
 
     // Agent tries to create stream but is unauthorized
-    let result = gateway_client.try_agent_create_stream(
-        &agent, &employer, &worker, &token, &100i128, &0u64, &10u64, &100u64,
-    );
+    let params = StreamCreateParams {
+        employer: employer.clone(),
+        worker: worker.clone(),
+        token: token.clone(),
+        rate: 100i128,
+        cliff_ts: 0u64,
+        start_ts: 10u64,
+        end_ts: 100u64,
+    };
+    let result = gateway_client.try_agent_create_stream(&agent, &params);
+
 
     assert_eq!(result, Err(Ok(QuipayError::InsufficientPermissions)));
 }
@@ -266,9 +282,17 @@ fn test_agent_cancel_stream_authorized() {
     );
 
     // First, create a stream
-    let stream_id = gateway_client.agent_create_stream(
-        &agent, &employer, &worker, &token, &100i128, &0u64, &10u64, &100u64,
-    );
+    let params = StreamCreateParams {
+        employer: employer.clone(),
+        worker: worker.clone(),
+        token: token.clone(),
+        rate: 100i128,
+        cliff_ts: 0u64,
+        start_ts: 10u64,
+        end_ts: 100u64,
+    };
+    let stream_id = gateway_client.agent_create_stream(&agent, &params);
+
 
     // Then cancel it
     gateway_client.agent_cancel_stream(&agent, &stream_id, &employer);
@@ -303,9 +327,17 @@ fn test_agent_cancel_stream_unauthorized() {
     gateway_client.register_agent(&agent, &vec![&env, Permission::CreateStream]);
 
     // First, create a stream
-    let stream_id = gateway_client.agent_create_stream(
-        &agent, &employer, &worker, &token, &100i128, &0u64, &10u64, &100u64,
-    );
+    let params = StreamCreateParams {
+        employer: employer.clone(),
+        worker: worker.clone(),
+        token: token.clone(),
+        rate: 100i128,
+        cliff_ts: 0u64,
+        start_ts: 10u64,
+        end_ts: 100u64,
+    };
+    let stream_id = gateway_client.agent_create_stream(&agent, &params);
+
 
     // Agent tries to cancel stream but is unauthorized
     let result = gateway_client.try_agent_cancel_stream(&agent, &stream_id, &employer);
@@ -345,9 +377,17 @@ fn test_revoked_agent_blocked() {
     gateway_client.revoke_agent(&agent);
 
     // Revoked agent tries to create stream
-    let result = gateway_client.try_agent_create_stream(
-        &agent, &employer, &worker, &token, &100i128, &0u64, &10u64, &100u64,
-    );
+    let params = StreamCreateParams {
+        employer: employer.clone(),
+        worker: worker.clone(),
+        token: token.clone(),
+        rate: 100i128,
+        cliff_ts: 0u64,
+        start_ts: 10u64,
+        end_ts: 100u64,
+    };
+    let result = gateway_client.try_agent_create_stream(&agent, &params);
+
 
     assert_eq!(result, Err(Ok(QuipayError::InsufficientPermissions)));
 }
