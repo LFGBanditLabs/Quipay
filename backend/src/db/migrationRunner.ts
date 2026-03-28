@@ -65,7 +65,7 @@ export class MigrationRunner {
     version: number;
     name: string;
   } | null {
-    const match = filename.match(/^(\d{3})_(.+)\.sql$/);
+    const match = filename.match(/^(\d+)_(.+)\.sql$/);
     if (!match) return null;
 
     return {

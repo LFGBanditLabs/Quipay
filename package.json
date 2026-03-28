@@ -25,7 +25,10 @@
     "test:e2e:chromium": "playwright test --project=chromium --ignore-snapshots",
     "test:e2e:firefox": "playwright test --project=firefox --ignore-snapshots",
     "test:e2e:webkit": "playwright test --project=webkit --ignore-snapshots",
-    "test:e2e:mobile": "playwright test --project=mobile-chrome --project=mobile-safari --ignore-snapshots"
+    "test:e2e:mobile": "playwright test --project=mobile-chrome --project=mobile-safari --ignore-snapshots",
+    "test": "jest",
+    "test:update-snapshots": "jest -u",
+    "docs:api": "typedoc"
   },
   "workspaces": [
     "packages/*"
@@ -77,6 +80,7 @@
     "@types/bun": "^1.3.11",
     "@types/jspdf": "^2.0.0",
     "@types/lodash": "^4.17.21",
+    "@types/jest": "^30.0.0",
     "@types/node": "^25.5.0",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^18.3.1",
@@ -86,6 +90,9 @@
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.24",
     "concurrently": "^9.2.1",
+    "identity-obj-proxy": "^3.0.0",
+    "jest": "^30.2.0",
+    "jest-environment-jsdom": "^30.2.0",
     "dotenv": "^17.2.3",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
@@ -99,13 +106,17 @@
     "lint-staged": "^16.2.7",
     "postcss": "^8.5.6",
     "prettier": "3.6.2",
+    "react-test-renderer": "^18.3.1",
     "tailwindcss": "^4.2.0",
     "typescript": "~5.9.3",
+    "ts-jest": "^29.4.5",
+    "@types/react-test-renderer": "^19.1.0",
     "typescript-eslint": "^8.48.1",
     "vite": "^7.2.6",
     "vite-plugin-node-polyfills": "^0.24.0",
     "vite-plugin-pwa": "^1.2.0",
-    "vite-plugin-wasm": "^3.5.0"
+    "vite-plugin-wasm": "^3.5.0",
+    "typedoc": "^0.28.0"
   },
   "lint-staged": {
     "**/*": [

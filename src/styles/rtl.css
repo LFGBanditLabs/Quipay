@@ -1,0 +1,205 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   RTL (Right-to-Left) Layout Overrides for Arabic & Hebrew
+   ═══════════════════════════════════════════════════════════════════════
+   All rules are scoped to [dir="rtl"] so they have zero effect in LTR.
+   Uses CSS logical properties wherever possible, with explicit RTL
+   overrides only where Tailwind utilities use physical properties.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Global direction ──────────────────────────────────────────────── */
+[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+}
+
+/* ── Flexbox row reversal ──────────────────────────────────────────── */
+/* Reverse the visual order of flex-row containers in RTL mode.
+   This covers navbars, button groups, icon+text combos, etc. */
+[dir="rtl"] .flex-row,
+[dir="rtl"] .flex.items-center {
+  flex-direction: row-reverse;
+}
+
+/* Preserve column direction (don't reverse vertical stacks). */
+[dir="rtl"] .flex-col {
+  flex-direction: column;
+}
+
+/* ── Grid layouts ──────────────────────────────────────────────────── */
+/* Grids with auto-placed items inherit the `direction` property and
+   automatically flow RTL — no CSS override needed. */
+
+/* ── Spacing / margin / padding mirrors ────────────────────────────── */
+/* Tailwind physical utilities (ml-*, mr-*, pl-*, pr-*) are not
+   direction-aware, so we mirror them via the `rtl:` variant.
+   Below are global structural fixes for common layout patterns. */
+
+/* Skip-link in RTL: anchor to the right instead of the left. */
+[dir="rtl"] .skip-link {
+  left: auto;
+  right: 1rem;
+}
+
+/* ── Navbar ────────────────────────────────────────────────────────── */
+[dir="rtl"] nav .flex.items-center.gap-1,
+[dir="rtl"] nav .flex.items-center.gap-2,
+[dir="rtl"] nav .flex.items-center.gap-3 {
+  flex-direction: row-reverse;
+}
+
+/* Active indicator underline stays centred. */
+[dir="rtl"] .absolute.bottom-0.left-1\/2.-translate-x-1\/2 {
+  left: auto;
+  right: 50%;
+  transform: translateX(50%);
+}
+
+/* ── Sidebar / mobile menu slide direction ─────────────────────────── */
+[dir="rtl"] .fixed.top-16.left-0.right-0 {
+  /* The mobile slide-down drawer works identically in both directions. */
+}
+
+/* ── Form controls ─────────────────────────────────────────────────── */
+[dir="rtl"] input,
+[dir="rtl"] textarea,
+[dir="rtl"] select {
+  text-align: right;
+}
+
+/* Search icons: swap from left to right. */
+[dir="rtl"] .absolute.left-3 {
+  left: auto;
+  right: 0.75rem;
+}
+
+[dir="rtl"] .pl-10 {
+  padding-left: 1rem;
+  padding-right: 2.5rem;
+}
+
+/* ── Tables ────────────────────────────────────────────────────────── */
+[dir="rtl"] table {
+  text-align: right;
+}
+
+[dir="rtl"] th,
+[dir="rtl"] td {
+  text-align: right;
+}
+
+/* ── Modals / Dialogs ──────────────────────────────────────────────── */
+[dir="rtl"] .flex.justify-end {
+  flex-direction: row-reverse;
+}
+
+/* ── Cards & stat blocks ──────────────────────────────────────────── */
+[dir="rtl"] .text-left {
+  text-align: right;
+}
+
+[dir="rtl"] .text-right {
+  text-align: left;
+}
+
+/* ── Floating action buttons ──────────────────────────────────────── */
+[dir="rtl"] [style*="right: 20px"] {
+  right: auto !important;
+  left: 20px !important;
+}
+
+/* ── Charts & data viz ─────────────────────────────────────────────── */
+/* Recharts SVGs are direction-agnostic; wrapping containers just need
+   their flex order reversed, which is handled by the global flex rules. */
+
+/* ── Animations that move horizontally ─────────────────────────────── */
+[dir="rtl"] .animate-slide-up {
+  /* Vertical animation — no change needed. */
+}
+
+/* Token-flow animation goes the opposite direction in RTL. */
+@keyframes tokenFlowRtl {
+  0% {
+    transform: translateX(100%) translateY(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-100%) translateY(0);
+    opacity: 0;
+  }
+}
+
+[dir="rtl"] .animate-token-flow {
+  animation-name: tokenFlowRtl;
+}
+
+/* ── Footer ────────────────────────────────────────────────────────── */
+[dir="rtl"] footer .grid {
+  direction: rtl;
+}
+
+/* ── Scroll containers ─────────────────────────────────────────────── */
+[dir="rtl"] .overflow-x-auto {
+  direction: rtl;
+}
+
+/* ── Pill / Badge inline-flex items ────────────────────────────────── */
+[dir="rtl"] .inline-flex {
+  flex-direction: row-reverse;
+}
+
+/* ── Transitions: keep transform origins mirrored ──────────────────── */
+[dir="rtl"] .origin-left {
+  transform-origin: right;
+}
+
+[dir="rtl"] .origin-right {
+  transform-origin: left;
+}
+
+/* ── Logical property utilities (prefer these in new code) ─────────── */
+.ms-auto {
+  margin-inline-start: auto;
+}
+.me-auto {
+  margin-inline-end: auto;
+}
+.ps-4 {
+  padding-inline-start: 1rem;
+}
+.pe-4 {
+  padding-inline-end: 1rem;
+}
+.ps-6 {
+  padding-inline-start: 1.5rem;
+}
+.pe-6 {
+  padding-inline-end: 1.5rem;
+}
+
+/* Border logical properties */
+.border-s {
+  border-inline-start-width: 1px;
+}
+.border-e {
+  border-inline-end-width: 1px;
+}
+
+/* Positioning logical helpers */
+.start-0 {
+  inset-inline-start: 0;
+}
+.end-0 {
+  inset-inline-end: 0;
+}
+.start-3 {
+  inset-inline-start: 0.75rem;
+}
+.end-3 {
+  inset-inline-end: 0.75rem;
+}

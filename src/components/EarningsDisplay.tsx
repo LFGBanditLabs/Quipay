@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { useTranslation } from "react-i18next";
 import {
   useRealTimeEarnings,
   StreamEarning,
@@ -23,6 +24,7 @@ const COLORS = [
 export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
   streams,
 }) => {
+  const { t } = useTranslation();
   const earnings = useRealTimeEarnings(streams);
 
   const chartData = useMemo(() => {
@@ -42,7 +44,7 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
       <div className="z-[1] flex items-center justify-between max-[992px]:flex-col max-[992px]:items-start max-[992px]:gap-8">
         <div className="flex flex-col">
           <span className="mb-2 text-sm uppercase tracking-[0.1em] text-[var(--muted)]">
-            Real-time Total Earnings
+            {t("earnings.realtime_total")}
           </span>
           <div className="text-[3.5rem] font-extrabold leading-none text-[var(--text)] max-[992px]:text-[2.5rem]">
             {formatTokenAmount(earnings.totalEarned, activeToken)}
@@ -52,8 +54,10 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
           </div>
           <div className="mt-4 inline-flex w-fit items-center gap-2 rounded-[20px] bg-[rgba(16,185,129,0.1)] px-3 py-1 text-sm text-emerald-500">
             <div className="h-2 w-2 rounded-full bg-emerald-500 [animation:pulse_2s_infinite]"></div>
-            {earnings.activeStreamsCount} Active{" "}
-            {earnings.activeStreamsCount === 1 ? "Stream" : "Streams"}
+            {earnings.activeStreamsCount}{" "}
+            {earnings.activeStreamsCount === 1
+              ? t("earnings.active_stream")
+              : t("earnings.active_streams")}
           </div>
         </div>
 
@@ -96,14 +100,14 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
                     typeof value === "number"
                       ? formatTokenAmount(value, activeToken)
                       : value || "",
-                    "Earned",
+                    t("earnings.earned"),
                   ]}
                 />
               </PieChart>
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center text-sm text-[var(--muted)]">
-              Waiting for earnings to accumulate...
+              {t("earnings.waiting_for_earnings")}
             </div>
           )}
         </div>
@@ -112,7 +116,7 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
       <div className="z-[1] grid grid-cols-3 gap-6 max-[768px]:grid-cols-1">
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)] transition-all hover:-translate-y-[5px] hover:bg-[var(--bg)] dark:bg-[rgba(var(--surface-rgb),0.03)]">
           <div className="mb-2 text-sm uppercase tracking-[0.1em] text-[var(--muted)]">
-            Current Flow Rate
+            {t("earnings.current_flow_rate")}
           </div>
           <div className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-xl font-semibold text-emerald-500">
             +{formatTokenAmount(earnings.hourlyRate / 3600, activeToken, 5)}{" "}
@@ -122,7 +126,7 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
 
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)] transition-all hover:-translate-y-[5px] hover:bg-[var(--bg)] dark:bg-[rgba(var(--surface-rgb),0.03)]">
           <div className="mb-2 text-sm uppercase tracking-[0.1em] text-[var(--muted)]">
-            1 Hour Projection
+            {t("earnings.one_hour_projection")}
           </div>
           <div className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-xl font-semibold text-[var(--accent)]">
             {formatTokenAmount(earnings.projectedOneHour, activeToken)}{" "}
@@ -132,7 +136,7 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
 
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow)] transition-all hover:-translate-y-[5px] hover:bg-[var(--bg)] dark:bg-[rgba(var(--surface-rgb),0.03)]">
           <div className="mb-2 text-sm uppercase tracking-[0.1em] text-[var(--muted)]">
-            24 Hour Projection
+            {t("earnings.twenty_four_hour_projection")}
           </div>
           <div className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-xl font-semibold text-[var(--accent)]">
             {formatTokenAmount(earnings.projectedTwentyFourHours, activeToken)}{" "}

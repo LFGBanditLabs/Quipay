@@ -1075,6 +1075,7 @@ version = "0.0.0"
 dependencies = [
  "arbitrary",
  "libfuzzer-sys",
+ "payroll_stream",
  "payroll_vault",
  "soroban-sdk",
 ]

@@ -22,3 +22,12 @@ Each ADR follows this structure:
 - [ADR-002: Time-Based Stream Computation](./ADR-002-time-based-stream-computation.md)
 - [ADR-003: Automation Gateway Authorization Model](./ADR-003-automation-gateway-authorization.md)
 - [ADR-004: Backend Monitoring Architecture](./ADR-004-backend-monitoring-architecture.md)
+- [ADR-005: Stellar Network and Soroban Platform Selection](./ADR-005-stellar-network-selection.md)
+
+## Creating a New ADR
+
+1. Copy [0000-template.md](./0000-template.md) to a new file named `ADR-NNN-short-title.md` where `NNN` is the next sequential number.
+2. Fill in every section. The **Context** and **Consequences** sections are the most important.
+3. Set the status to `Proposed` and open a PR. Change to `Accepted` once merged.
+4. Add an entry to the index above in this README.
+5. Reference the ADR from any relevant code using an inline comment, e.g. `// See docs/adr/ADR-001-vault-stream-separation.md`.
