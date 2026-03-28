@@ -1,0 +1,21 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "src/hooks/useStreams.ts",
+    "src/hooks/useStreamTicker.ts",
+    "src/hooks/useRealTimeEarnings.ts",
+    "src/hooks/usePayroll.ts",
+    "src/lib/payrollVaultClient.ts",
+    "src/components/StreamProgressCard.tsx",
+    "src/components/StreamVisualizer.tsx"
+  ],
+  "out": "docs/api-generated",
+  "name": "Quipay SDK",
+  "readme": "none",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "includeVersion": true,
+  "navigationLinks": {
+    "GitHub": "https://github.com/LFGBanditLabs/Quipay"
+  }
+}
