@@ -11,7 +11,7 @@ import { ThemeProvider } from "./providers/ThemeProvider.tsx";
 import { NetworkStatusProvider } from "./providers/NetworkStatusProvider.tsx";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
+import { WalletProvider } from "./providers/WalletProvider.tsx";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -28,9 +28,11 @@ createRoot(document.getElementById("root") as HTMLElement).render(
         <NotificationProvider>
           <NetworkStatusProvider>
             <QueryClientProvider client={queryClient}>
-              <BrowserRouter>
-                <App />
-              </BrowserRouter>
+              <WalletProvider>
+                <BrowserRouter>
+                  <App />
+                </BrowserRouter>
+              </WalletProvider>
             </QueryClientProvider>
           </NetworkStatusProvider>
         </NotificationProvider>
