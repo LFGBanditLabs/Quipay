@@ -219,17 +219,17 @@ fn test_is_stream_paused() {
         client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None);
 
     // Active stream should not be paused
-    assert_eq!(client.is_stream_paused(&stream_id), Ok(false));
+    assert_eq!(client.is_stream_paused(&stream_id), false);
 
     // Pause the stream
     env.ledger().with_mut(|li| li.timestamp = 10);
     client.pause_stream(&stream_id, &employer);
-    assert_eq!(client.is_stream_paused(&stream_id), Ok(true));
+    assert_eq!(client.is_stream_paused(&stream_id), true);
 
     // Resume the stream
     env.ledger().with_mut(|li| li.timestamp = 20);
     client.resume_stream(&stream_id, &employer);
-    assert_eq!(client.is_stream_paused(&stream_id), Ok(false));
+    assert_eq!(client.is_stream_paused(&stream_id), false);
 }
 
 #[test]
@@ -253,17 +253,17 @@ fn test_get_stream_paused_at() {
         client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None);
 
     // Not paused — should return None
-    assert_eq!(client.get_stream_paused_at(&stream_id), Ok(None));
+    assert_eq!(client.get_stream_paused_at(&stream_id), None);
 
     // Pause at t=42
     env.ledger().with_mut(|li| li.timestamp = 42);
     client.pause_stream(&stream_id, &employer);
-    assert_eq!(client.get_stream_paused_at(&stream_id), Ok(Some(42u64)));
+    assert_eq!(client.get_stream_paused_at(&stream_id), Some(42u64));
 
     // Resume — should return None again
     env.ledger().with_mut(|li| li.timestamp = 50);
     client.resume_stream(&stream_id, &employer);
-    assert_eq!(client.get_stream_paused_at(&stream_id), Ok(None));
+    assert_eq!(client.get_stream_paused_at(&stream_id), None);
 }
 
 #[test]
