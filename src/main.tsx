@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import "./styles/accessibility.css";
+import "./styles/rtl.css";
 import "./i18n/config";
 import App from "./App.tsx";
 import ErrorBoundary from "./components/ErrorBoundary.tsx";
