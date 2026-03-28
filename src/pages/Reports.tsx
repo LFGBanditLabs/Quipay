@@ -1,10 +1,12 @@
 import React, { useState, useCallback } from "react";
 import { useTransactionData } from "../hooks/useTransactionData";
+import { usePayroll } from "../hooks/usePayroll";
 import {
   exportTransactionsCSV,
   exportTransactionsPDF,
   exportPaycheckPDF,
   exportMonthlySummaryPDF,
+  exportPayrollStreamsCSV,
 } from "../services/reportService";
 import type { PayrollTransaction } from "../types/reports";
 import { useAnalytics } from "../hooks/useAnalytics";
@@ -147,6 +149,12 @@ const Reports: React.FC = () => {
     availableMonths,
   } = useTransactionData();
 
+  // For payroll streams CSV export - using a dummy address for now
+  // In a real implementation, this would come from user authentication/context
+  const { streams } = usePayroll(
+    "GDUKJHGJAJJLFQEVKZJD5CEN5FXKSTZUPQ4L2N4QDQI2M7MF4WJ4WB2Y",
+  );
+
   const {
     trends,
     loading: analyticsLoading,
@@ -168,13 +176,41 @@ const Reports: React.FC = () => {
     showToast("CSV exported successfully");
   };
 
+  const handlePayrollStreamsCSVExport = () => {
+    try {
+      // Convert streams to the format expected by CSV export function
+      const payrollStreams = streams.map((stream) => ({
+        streamId: stream.id,
+        worker: stream.employeeAddress,
+        total_amount: BigInt(parseFloat(stream.totalAmount) * 1e7),
+        withdrawn_amount: BigInt(parseFloat(stream.totalStreamed) * 1e7),
+        start_ts: BigInt(
+          Math.floor(new Date(stream.startDate).getTime() / 1000),
+        ),
+        end_ts: BigInt(Math.floor(new Date(stream.endDate).getTime() / 1000)),
+        status:
+          stream.status === "active"
+            ? 0
+            : stream.status === "cancelled"
+              ? 1
+              : 2,
+      }));
+
+      exportPayrollStreamsCSV(payrollStreams);
+      showToast("Payroll streams CSV exported successfully");
+    } catch (error) {
+      showToast("Failed to export payroll streams CSV");
+      console.error("CSV export error:", error);
+    }
+  };
+
   const handlePDFExport = () => {
     exportTransactionsPDF(filteredTransactions);
     showToast("PDF exported successfully");
   };
 
   const handlePaycheckPDF = (tx: PayrollTransaction) => {
-    exportPaycheckPDF(tx);
+    void exportPaycheckPDF(tx);
     showToast(`Paycheck PDF generated for ${tx.employeeName}`);
   };
 
@@ -332,6 +368,13 @@ const Reports: React.FC = () => {
                     onClick={handleCSVExport}
                   >
                     📥 Export CSV
+                  </button>
+                  <button
+                    id="btn-export-payroll-csv"
+                    className={`${tw.btnExport} ${tw.btnCSV}`}
+                    onClick={handlePayrollStreamsCSVExport}
+                  >
+                    📊 Export Payroll CSV
                   </button>
                   <button
                     id="btn-export-pdf"

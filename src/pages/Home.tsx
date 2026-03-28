@@ -358,6 +358,153 @@ const AnimatedStat: React.FC<{
   );
 };
 
+const NewsletterForm: React.FC = () => {
+  const { t } = useTranslation();
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !email.includes("@")) {
+      setStatus("error");
+      return;
+    }
+    setStatus("loading");
+    // Simulate API call
+    setTimeout(() => {
+      setStatus("success");
+      setEmail("");
+    }, 1200);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="mx-auto mt-10 w-full max-w-md">
+      <div className="group relative">
+        <label htmlFor="newsletter-email" className="sr-only">
+          {t("home.cta_email_placeholder")}
+        </label>
+        <input
+          id="newsletter-email"
+          type="email"
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (status === "error") setStatus("idle");
+          }}
+          placeholder={t("home.cta_email_placeholder")}
+          required
+          className={`w-full rounded-2xl border bg-white/5 px-6 py-4.5 text-white backdrop-blur-xl transition-all duration-500 placeholder:text-white/30 focus:outline-none focus:ring-2 ${
+            status === "error"
+              ? "border-red-500/50 focus:ring-red-500/20"
+              : "border-white/10 focus:border-indigo-400/50 focus:ring-indigo-500/40"
+          }`}
+        />
+        <button
+          type="submit"
+          disabled={status === "loading" || status === "success"}
+          className="absolute bottom-2 right-2 top-2 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-6 text-sm font-bold tracking-wide text-white transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] active:scale-[0.98] disabled:scale-100 disabled:opacity-50 disabled:shadow-none"
+        >
+          {status === "loading" ? (
+            <span className="flex items-center gap-2">
+              <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              {t("common.loading")}
+            </span>
+          ) : status === "success" ? (
+            <span className="flex animate-fade-in items-center gap-1.5">
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Done
+            </span>
+          ) : (
+            t("home.cta_subscribe")
+          )}
+        </button>
+      </div>
+      {status === "error" && (
+        <p className="mt-3 animate-slide-up text-center text-sm font-medium text-red-400">
+          {t("home.cta_error_invalid_email")}
+        </p>
+      )}
+      {status === "success" && (
+        <p className="mt-3 animate-slide-up text-center text-sm font-medium text-emerald-400">
+          {t("home.cta_success")}
+        </p>
+      )}
+    </form>
+  );
+};
+
+const CTASection: React.FC = () => {
+  const { t } = useTranslation();
+
+  return (
+    <section className="relative w-full overflow-hidden px-4 py-24 sm:px-6 lg:px-8">
+      {/* Background Decor */}
+      <div className="pointer-events-none absolute inset-0 z-0">
+        <div className="absolute left-1/2 top-1/2 h-[400px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-500/20 opacity-50 blur-[120px]" />
+        <div className="absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-[var(--border)] to-transparent" />
+        <div className="absolute bottom-0 left-0 h-px w-full bg-gradient-to-r from-transparent via-[var(--border)] to-transparent" />
+      </div>
+
+      <div className="relative z-10 mx-auto max-w-5xl">
+        <div className="group relative overflow-hidden rounded-[3rem] border border-white/10 bg-gradient-to-br from-indigo-950/80 via-slate-900/90 to-purple-950/80 p-12 text-center shadow-[0_40px_100px_-20px_rgba(0,0,0,0.5)] backdrop-blur-3xl sm:p-20">
+          {/* Animated beam effect */}
+          <div className="pointer-events-none absolute -inset-[100%] animate-[spin_10s_linear_infinite] bg-[conic-gradient(from_0deg,transparent,rgba(99,102,241,0.2),transparent_30%)] opacity-30" />
+
+          <div className="relative z-10">
+            <h2 className="mb-6 tracking-tight text-[clamp(2rem,5vw,3.5rem)] font-extrabold leading-tight text-white transition-all duration-300 group-hover:scale-[1.01]">
+              {t("home.cta_title")}
+            </h2>
+            <p className="mx-auto mb-10 max-w-2xl text-lg leading-relaxed text-indigo-100/70 sm:text-xl">
+              {t("home.cta_subtitle")}
+            </p>
+
+            <NewsletterForm />
+
+            <div className="mt-16 flex flex-col items-center justify-center gap-6 border-t border-white/10 pt-12 sm:flex-row">
+              <Link
+                to="/dashboard"
+                className="group relative inline-flex min-h-12 items-center justify-center gap-3 overflow-hidden rounded-2xl bg-white px-10 py-4 text-lg font-bold text-indigo-950 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_40px_-5px_rgba(255,255,255,0.3)] active:scale-[0.98]"
+              >
+                <span className="relative z-10">{t("home.launch_app")}</span>
+                <svg
+                  className="relative z-10 h-5 w-5 transition-transform duration-300 group-hover:translate-x-1"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
+                  <path
+                    d="M5 12H19M19 12L12 5M19 12L12 19"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </Link>
+
+              <Link
+                to="/help"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 px-10 py-4 text-lg font-bold text-white backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-white/40 hover:bg-white/10 active:scale-[0.98]"
+              >
+                {t("home.view_docs")}
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
 const Home: React.FC = () => {
   const { t } = useTranslation();
   const stats = useMemo<StatMetric[]>(
@@ -887,6 +1034,8 @@ const Home: React.FC = () => {
             />
           </div>
         </section>
+
+        <CTASection />
       </main>
     </div>
   );

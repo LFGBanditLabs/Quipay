@@ -47,7 +47,13 @@
     "stat_total_streams": "Total des Flux",
     "stat_total_value": "Valeur Totale Streamée",
     "stat_active_workers": "Travailleurs Actifs",
-    "stat_avg_duration": "Durée Moy. du Flux"
+    "stat_avg_duration": "Durée Moy. du Flux",
+    "cta_title": "Prêt à automatiser votre paie ?",
+    "cta_subtitle": "Rejoignez des centaines d'équipes visionnaires qui utilisent Quipay pour effectuer des paiements en temps réel à l'échelle mondiale.",
+    "cta_email_placeholder": "Entrez votre adresse e-mail professionnelle",
+    "cta_subscribe": "Obtenir un Accès Anticipé",
+    "cta_success": "Merci de votre inscription !",
+    "cta_error_invalid_email": "Veuillez entrer une adresse e-mail valide"
   },
   "social_proof": {
     "built_on": "Construit sur",
@@ -78,7 +84,23 @@
     "total_paid": "Total Versé",
     "download_proof": "Télécharger la Preuve de Paie",
     "proof_generating": "Génération de la preuve…",
-    "proof_cid_label": "CID IPFS"
+    "proof_cid_label": "CID IPFS",
+    "dashboard_title": "Tableau de Bord du Travailleur",
+    "connect_prompt": "Veuillez connecter votre portefeuille pour voir votre tableau de bord",
+    "load_error": "Échec du chargement des données de flux",
+    "current_earnings": "Revenus Actuels",
+    "of_total": "sur {{amount}} {{symbol}} au total",
+    "available": "Disponible :",
+    "withdraw_funds": "Retirer des Fonds",
+    "batch_atomic_note": "Les retraits par lot sont atomiques. Si un paiement du lot échoue, la transaction entière est annulée et aucun flux du lot n'est partiellement retiré.",
+    "active_streams_heading": "Vos Flux Actifs",
+    "no_active_streams": "Aucun flux actif trouvé pour cette adresse.",
+    "withdrawal_history_heading": "Historique des Retraits",
+    "no_withdrawal_history": "Aucun historique de retraits pour l'instant.",
+    "col_date": "Date",
+    "col_amount": "Montant",
+    "col_token": "Token",
+    "col_transaction": "Transaction"
   },
   "payroll": {
     "analytics_title": "Quipay · Analytique Employeur",
@@ -207,24 +229,6 @@
     "cpu_instructions": "Instructions CPU",
     "memory_bytes": "Mémoire (octets)",
     "resulting_balances": "Soldes Résultants"
-  },
-  "worker": {
-    "dashboard_title": "Tableau de Bord du Travailleur",
-    "connect_prompt": "Veuillez connecter votre portefeuille pour voir votre tableau de bord",
-    "load_error": "Échec du chargement des données de flux",
-    "current_earnings": "Revenus Actuels",
-    "of_total": "sur {{amount}} {{symbol}} au total",
-    "available": "Disponible :",
-    "withdraw_funds": "Retirer des Fonds",
-    "batch_atomic_note": "Les retraits par lot sont atomiques. Si un paiement du lot échoue, la transaction entière est annulée et aucun flux du lot n'est partiellement retiré.",
-    "active_streams_heading": "Vos Flux Actifs",
-    "no_active_streams": "Aucun flux actif trouvé pour cette adresse.",
-    "withdrawal_history_heading": "Historique des Retraits",
-    "no_withdrawal_history": "Aucun historique de retraits pour l'instant.",
-    "col_date": "Date",
-    "col_amount": "Montant",
-    "col_token": "Token",
-    "col_transaction": "Transaction"
   },
   "help": {
     "eyebrow": "Centre d'aide Quipay",

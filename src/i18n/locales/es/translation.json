@@ -47,7 +47,13 @@
     "stat_total_streams": "Total de Flujos",
     "stat_total_value": "Valor Total Transmitido",
     "stat_active_workers": "Trabajadores Activos",
-    "stat_avg_duration": "Dur. Media del Flujo"
+    "stat_avg_duration": "Dur. Media del Flujo",
+    "cta_title": "¿Listo para automatizar su nómina?",
+    "cta_subtitle": "Únase a cientos de equipos con visión de futuro que utilizan Quipay para emitir pagos en tiempo real a nivel mundial.",
+    "cta_email_placeholder": "Ingrese su correo electrónico de trabajo",
+    "cta_subscribe": "Obtener Acceso Anticipado",
+    "cta_success": "¡Gracias por suscribirte!",
+    "cta_error_invalid_email": "Por favor, introduzca una dirección de correo electrónico válida"
   },
   "social_proof": {
     "built_on": "Construido sobre",
@@ -78,7 +84,23 @@
     "total_paid": "Total Pagado",
     "download_proof": "Descargar Prueba de Nómina",
     "proof_generating": "Generando prueba…",
-    "proof_cid_label": "CID de IPFS"
+    "proof_cid_label": "CID de IPFS",
+    "dashboard_title": "Panel del Trabajador",
+    "connect_prompt": "Por favor conecta tu billetera para ver tu panel",
+    "load_error": "No se pudieron cargar los datos del flujo",
+    "current_earnings": "Ganancias Actuales",
+    "of_total": "de {{amount}} {{symbol}} total",
+    "available": "Disponible:",
+    "withdraw_funds": "Retirar Fondos",
+    "batch_atomic_note": "Los retiros por lotes son atómicos. Si un pago del lote falla, la transacción completa se revierte y ningún flujo del lote se retira parcialmente.",
+    "active_streams_heading": "Tus Flujos Activos",
+    "no_active_streams": "No se encontraron flujos activos para esta dirección.",
+    "withdrawal_history_heading": "Historial de Retiros",
+    "no_withdrawal_history": "Aún no hay historial de retiros.",
+    "col_date": "Fecha",
+    "col_amount": "Monto",
+    "col_token": "Token",
+    "col_transaction": "Transacción"
   },
   "payroll": {
     "analytics_title": "Quipay · Analítica del Empleador",
@@ -207,24 +229,6 @@
     "cpu_instructions": "Instrucciones de CPU",
     "memory_bytes": "Memoria (bytes)",
     "resulting_balances": "Saldos Resultantes"
-  },
-  "worker": {
-    "dashboard_title": "Panel del Trabajador",
-    "connect_prompt": "Por favor conecta tu billetera para ver tu panel",
-    "load_error": "No se pudieron cargar los datos del flujo",
-    "current_earnings": "Ganancias Actuales",
-    "of_total": "de {{amount}} {{symbol}} total",
-    "available": "Disponible:",
-    "withdraw_funds": "Retirar Fondos",
-    "batch_atomic_note": "Los retiros por lotes son atómicos. Si un pago del lote falla, la transacción completa se revierte y ningún flujo del lote se retira parcialmente.",
-    "active_streams_heading": "Tus Flujos Activos",
-    "no_active_streams": "No se encontraron flujos activos para esta dirección.",
-    "withdrawal_history_heading": "Historial de Retiros",
-    "no_withdrawal_history": "Aún no hay historial de retiros.",
-    "col_date": "Fecha",
-    "col_amount": "Monto",
-    "col_token": "Token",
-    "col_transaction": "Transacción"
   },
   "help": {
     "eyebrow": "Centro de Ayuda de Quipay",
