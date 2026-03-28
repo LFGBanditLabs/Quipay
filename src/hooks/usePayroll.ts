@@ -13,21 +13,35 @@ import {
 /** Stellar uses 7 decimal places (10^7 stroops = 1 token unit). */
 const STROOPS_PER_UNIT = 1e7;
 
+/** Normalised view of a payroll stream as seen by the employer dashboard. */
 export interface Stream {
+  /** On-chain stream ID (stringified `u64`). */
   id: string;
+  /** Placeholder display name for the employee (derived from the stream ID). */
   employeeName: string;
+  /** Stellar account ID of the worker receiving this stream. */
   employeeAddress: string;
-  flowRate: string; // amount per second/block
+  /** Accrual rate formatted to 7 decimal places in token units per second. */
+  flowRate: string;
+  /** Token symbol, e.g. `"USDC"` or `"XLM"`. */
   tokenSymbol: string;
+  /** ISO 8601 date string (date portion only) for the stream start. */
   startDate: string;
+  /** ISO 8601 date string (date portion only) for the stream end. */
   endDate: string;
+  /** Total allocated amount formatted to 2 decimal places in token units. */
   totalAmount: string;
+  /** Amount already streamed (withdrawn) formatted to 2 decimal places in token units. */
   totalStreamed: string;
+  /** Lifecycle status of the stream. */
   status: "active" | "completed" | "cancelled";
 }
 
+/** Token balance as reported by the PayrollVault contract. */
 export interface TokenBalance {
+  /** Token symbol, e.g. `"USDC"` or `"XLM"`. */
   tokenSymbol: string;
+  /** Available balance as a plain string (raw bigint value from the contract). */
   balance: string;
 }
 
@@ -45,6 +59,26 @@ const DEFAULT_TOKENS: Array<{
   },
 ];
 
+/**
+ * Fetches vault balances and payroll streams for an employer.
+ *
+ * Combines data from two on-chain sources: the PayrollVault contract
+ * (treasury balances and liabilities) and the PayrollStream contract
+ * (per-stream metadata and status). Falls back gracefully if the vault is
+ * not yet configured.
+ *
+ * @param employerAddress - Stellar account ID of the employer, or `undefined`
+ *   while the wallet is disconnected. Passing `undefined` resets all state.
+ * @param options.offset - Index offset for paginating stream results.
+ * @param options.limit - Maximum number of streams to return per fetch.
+ * @returns Treasury balances, liabilities, stream list, loading state, error
+ *   message, and callbacks to refresh data.
+ *
+ * @example
+ * ```tsx
+ * const { streams, treasuryBalances, isLoading, refreshData } = usePayroll(address);
+ * ```
+ */
 export const usePayroll = (
   employerAddress: string | undefined,
   options?: {
@@ -178,7 +212,7 @@ export const usePayroll = (
         setStreams([]);
       }
     },
-    [options],
+    [options?.offset, options?.limit],
   );
 
   const refreshData = useCallback(async () => {

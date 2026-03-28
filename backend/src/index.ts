@@ -13,6 +13,7 @@ import { proofsRouter } from "./routes/proofs";
 import { stellarRouter } from "./routes/stellar";
 import { reportsRouter } from "./routes/reports";
 import { employersRouter } from "./routes/employers";
+import { streamsRouter } from "./routes/streams";
 import { startStellarListener } from "./stellarListener";
 import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
 import { startMonitor, runMonitorCycle } from "./monitor/monitor";
@@ -35,6 +36,7 @@ import Redis from "ioredis";
 import { rpc } from "@stellar/stellar-sdk";
 import { secretsBootstrap } from "./services/secretsBootstrap";
 import { requestIdMiddleware } from "./middleware/requestId";
+import { httpLoggerMiddleware } from "./middleware/httpLogger";
 import { requireMonitorStatusAdminToken } from "./middleware/monitorStatusAuth";
 import { getHealthResponse } from "./health";
 
@@ -91,8 +93,11 @@ app.use(
   }),
 ); // For Slack form data
 
-// Add X-Request-ID generation/forwarding via AsyncLocalStorage
+// Add X-Request-ID / X-Correlation-ID generation/forwarding via AsyncLocalStorage
 app.use(requestIdMiddleware);
+
+// Emit one structured JSON log line per request (correlationId, method, path, statusCode, durationMs)
+app.use(httpLoggerMiddleware);
 
 // Initialize database and audit logger
 async function initializeServices() {
@@ -124,6 +129,8 @@ app.use("/api/employers", employersRouter);
 app.use("/proofs", proofsRouter);
 app.use("/stellar", stellarRouter);
 app.use("/reports", reportsRouter);
+app.use("/streams", streamsRouter);
+app.use("/api/streams", streamsRouter);
 
 // Start time for uptime calculation
 const startTime = Date.now();

@@ -52,6 +52,7 @@ proptest! {
         let vault_id = env.register_contract(None, dummy_vault::DummyVault);
 
         client.init(&admin);
+        client.set_min_stream_duration(&0u64);
         client.set_vault(&vault_id);
         client.set_cancellation_grace_period(&0u64); // disable grace period for prop tests
 

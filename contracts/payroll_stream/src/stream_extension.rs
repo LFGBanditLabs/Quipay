@@ -36,9 +36,25 @@ impl PayrollStream {
             return Err(QuipayError::InvalidTimeRange);
         }
 
+        // Validation: New end time must be strictly after stream start time (no zero-duration)
+        if new_end_time <= stream.start_ts {
+            return Err(QuipayError::InvalidTimeRange);
+        }
+
         // Validation: additional_amount must be non-negative
         if additional_amount < 0 {
             return Err(QuipayError::InvalidAmount);
+        }
+
+        // Validation: Minimum duration check
+        let duration = new_end_time.saturating_sub(stream.start_ts);
+        if duration < Self::get_min_stream_duration(env.clone()) {
+            return Err(QuipayError::DurationTooShort);
+        }
+        
+        // Validation: Maximum duration check
+        if duration > Self::get_max_stream_duration(env.clone()) {
+            return Err(QuipayError::InvalidTimeRange);
         }
 
         // If additional amount is provided, we need to deposit it into the vault

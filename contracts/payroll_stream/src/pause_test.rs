@@ -207,3 +207,71 @@ fn test_admin_resume_event_fields() {
     let val: (u64, u64, u64) = TryFromVal::try_from_val(&env, &value).unwrap();
     assert_eq!(val, expected_val);
 }
+
+#[test]
+fn test_is_stream_paused() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _admin) = setup(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 0);
+    let stream_id =
+        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None);
+
+    // Active stream should not be paused
+    assert_eq!(client.is_stream_paused(&stream_id), false);
+
+    // Pause the stream
+    env.ledger().with_mut(|li| li.timestamp = 10);
+    client.pause_stream(&stream_id, &employer);
+    assert_eq!(client.is_stream_paused(&stream_id), true);
+
+    // Resume the stream
+    env.ledger().with_mut(|li| li.timestamp = 20);
+    client.resume_stream(&stream_id, &employer);
+    assert_eq!(client.is_stream_paused(&stream_id), false);
+}
+
+#[test]
+fn test_is_stream_paused_not_found() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _employer, _worker, _token, _admin) = setup(&env);
+
+    let result = client.try_is_stream_paused(&999u64);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_get_stream_paused_at() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _admin) = setup(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 0);
+    let stream_id =
+        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None);
+
+    // Not paused — should return None
+    assert_eq!(client.get_stream_paused_at(&stream_id), None);
+
+    // Pause at t=42
+    env.ledger().with_mut(|li| li.timestamp = 42);
+    client.pause_stream(&stream_id, &employer);
+    assert_eq!(client.get_stream_paused_at(&stream_id), Some(42u64));
+
+    // Resume — should return None again
+    env.ledger().with_mut(|li| li.timestamp = 50);
+    client.resume_stream(&stream_id, &employer);
+    assert_eq!(client.get_stream_paused_at(&stream_id), None);
+}
+
+#[test]
+fn test_get_stream_paused_at_not_found() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _employer, _worker, _token, _admin) = setup(&env);
+
+    let result = client.try_get_stream_paused_at(&999u64);
+    assert!(result.is_err());
+}

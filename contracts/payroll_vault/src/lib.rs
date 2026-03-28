@@ -478,6 +478,15 @@ impl PayrollVault {
         Ok(())
     }
 
+    /// Get the withdrawal threshold (amount above which multisig is required).
+    /// Returns 0 if no threshold has been set.
+    pub fn get_withdrawal_threshold(e: Env) -> i128 {
+        e.storage()
+            .persistent()
+            .get(&StateKey::WithdrawalThreshold)
+            .unwrap_or(0)
+    }
+
     /// Get all authorized signers
     pub fn get_signers(e: Env) -> Vec<Address> {
         e.storage()
@@ -523,9 +532,10 @@ impl PayrollVault {
         // Update treasury balance
         let key = StateKey::TreasuryBalance(token.clone());
         let current_balance: i128 = e.storage().persistent().get(&key).unwrap_or(0);
+        let new_total = current_balance + amount;
         e.storage()
             .persistent()
-            .set(&key, &(current_balance + amount));
+            .set(&key, &new_total);
         Self::track_supported_token(&e, token.clone());
 
         let token_client = token::Client::new(&e, &token);
@@ -538,7 +548,7 @@ impl PayrollVault {
                 from.clone(),
                 token.clone(),
             ),
-            amount,
+            (amount, new_total),
         );
 
         Ok(())
@@ -602,11 +612,11 @@ impl PayrollVault {
 
         let balance_key = StateKey::TreasuryBalance(token.clone());
         let balance: i128 = e.storage().persistent().get(&balance_key).unwrap_or(0);
-
+        let new_total = balance - amount;
         // If the invariant holds, this should never underflow.
         e.storage()
             .persistent()
-            .set(&balance_key, &(balance - amount));
+            .set(&balance_key, &new_total);
 
         let token_client = token::Client::new(&e, &token);
         token_client.transfer(&e.current_contract_address(), &to, &amount);
@@ -618,7 +628,7 @@ impl PayrollVault {
                 to.clone(),
                 token.clone(),
             ),
-            amount,
+            (amount, new_total),
         );
 
         Ok(())

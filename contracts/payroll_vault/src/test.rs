@@ -5,7 +5,8 @@ use super::*;
 use quipay_common::QuipayError;
 use soroban_sdk::xdr::{ReadXdr, ToXdr};
 use soroban_sdk::{
-    Address, BytesN, Env, TryIntoVal, testutils::Address as _, testutils::Ledger as _, token, xdr,
+    testutils::Address as _, testutils::Events as _, testutils::Ledger as _, Address, BytesN, Env,
+    Symbol, TryFromVal, TryIntoVal, token, xdr,
 };
 
 fn register_native_token_contract(env: &Env, admin: Address) -> Address {
@@ -1019,6 +1020,52 @@ fn test_high_value_withdraw_requires_multisig_signers() {
 }
 
 // ============================================================================
+// get_withdrawal_threshold Tests
+// ============================================================================
+
+#[test]
+fn test_get_withdrawal_threshold_default_after_init() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // initialize() sets the threshold to DEFAULT_WITHDRAWAL_THRESHOLD (100_000)
+    assert_eq!(client.get_withdrawal_threshold(), 100_000);
+}
+
+#[test]
+fn test_get_withdrawal_threshold_returns_set_value() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    client.set_withdrawal_threshold(&1000);
+    assert_eq!(client.get_withdrawal_threshold(), 1000);
+}
+
+#[test]
+fn test_get_withdrawal_threshold_reflects_update() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    client.set_withdrawal_threshold(&500);
+    assert_eq!(client.get_withdrawal_threshold(), 500);
+
+    client.set_withdrawal_threshold(&9999);
+    assert_eq!(client.get_withdrawal_threshold(), 9999);
+}
+
+// ============================================================================
 // Emergency Drain Timelock Tests
 // ============================================================================
 
@@ -1246,4 +1293,58 @@ fn test_drain_clears_multiple_tokens() {
     let tb_read = token::Client::new(&env, &tb_id);
     assert_eq!(ta_read.balance(&recipient), 3_000);
     assert_eq!(tb_read.balance(&recipient), 7_000);
+}
+
+#[test]
+fn test_vault_tvl_tracking_events() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_id = token_contract.address();
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+    let user = Address::generate(&env);
+
+    token_admin_client.mint(&user, &2000);
+
+    // Initial deposit: total 1000
+    client.deposit(&user, &token_id, &1000);
+    let events = env.events().all();
+    let last_event = events.last().unwrap();
+    assert_eq!(last_event.0, contract_id);
+    
+    let topics = last_event.1.clone();
+    assert_eq!(Symbol::try_from_val(&env, &topics.get(0).unwrap()).unwrap(), symbol_short!("vault"));
+    assert_eq!(Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap(), symbol_short!("deposited"));
+    assert_eq!(Address::try_from_val(&env, &topics.get(2).unwrap()).unwrap(), user);
+    assert_eq!(Address::try_from_val(&env, &topics.get(3).unwrap()).unwrap(), token_id);
+
+    let data: (i128, i128) = last_event.2.clone().try_into_val(&env).unwrap();
+    assert_eq!(data, (1000i128, 1000i128));
+
+    // Second deposit: total 1500
+    client.deposit(&user, &token_id, &500);
+    let events = env.events().all();
+    let last_event = events.last().unwrap();
+    assert_eq!(last_event.0, contract_id);
+    let topics = last_event.1.clone();
+    assert_eq!(Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap(), symbol_short!("deposited"));
+    let data: (i128, i128) = last_event.2.clone().try_into_val(&env).unwrap();
+    assert_eq!(data, (500i128, 1500i128));
+
+    // Withdrawal: total 1200
+    client.withdraw(&user, &token_id, &300);
+    let events = env.events().all();
+    let last_event = events.last().unwrap();
+    assert_eq!(last_event.0, contract_id);
+    let topics = last_event.1.clone();
+    assert_eq!(Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap(), symbol_short!("withdrawn"));
+    let data: (i128, i128) = last_event.2.clone().try_into_val(&env).unwrap();
+    assert_eq!(data, (300i128, 1200i128));
 }

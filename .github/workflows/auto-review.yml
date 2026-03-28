@@ -1,0 +1,265 @@
+name: Auto Review
+
+on:
+  workflow_run:
+    workflows:
+      - "Build Project and Run Tests"
+      - "Frontend CI"
+      - "Backend CI"
+      - "Contracts CI"
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  auto-review:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find PR for this CI run
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
+          HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
+          EVENT="${{ github.event.workflow_run.event }}"
+
+          echo "CI ran on branch=$HEAD_BRANCH sha=$HEAD_SHA event=$EVENT"
+
+          # Only review PRs, not pushes to main
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "Not a PR event, skipping"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Method 1: search open PRs by head branch
+          PR_NUM=$(gh pr list --repo "${{ github.repository }}" \
+            --head "$HEAD_BRANCH" --state open --json number \
+            --jq '.[0].number' 2>/dev/null || echo "")
+
+          # Method 2: fallback to commits API
+          if [ -z "$PR_NUM" ] || [ "$PR_NUM" = "null" ]; then
+            PR_NUM=$(gh api "repos/${{ github.repository }}/commits/${HEAD_SHA}/pulls" \
+              --jq '.[0].number' 2>/dev/null || echo "")
+          fi
+
+          if [ -z "$PR_NUM" ] || [ "$PR_NUM" = "null" ]; then
+            echo "No PR found for branch $HEAD_BRANCH"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Found PR #$PR_NUM"
+          echo "number=$PR_NUM" >> $GITHUB_OUTPUT
+          echo "skip=false" >> $GITHUB_OUTPUT
+
+      - name: Get PR diff and metadata
+        if: steps.pr.outputs.skip != 'true'
+        id: diff
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUM: ${{ steps.pr.outputs.number }}
+        run: |
+          PR_DATA=$(gh pr view "$PR_NUM" --json title,body,author,files,additions,deletions,changedFiles)
+          AUTHOR=$(echo "$PR_DATA" | jq -r '.author.login')
+          TITLE=$(echo "$PR_DATA" | jq -r '.title')
+          FILES=$(echo "$PR_DATA" | jq -r '.changedFiles')
+          ADDS=$(echo "$PR_DATA" | jq -r '.additions')
+          DELS=$(echo "$PR_DATA" | jq -r '.deletions')
+
+          echo "author=$AUTHOR" >> $GITHUB_OUTPUT
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+          echo "adds=$ADDS" >> $GITHUB_OUTPUT
+          echo "dels=$DELS" >> $GITHUB_OUTPUT
+
+          {
+            echo "title<<GHA_DELIM"
+            echo "$TITLE"
+            echo "GHA_DELIM"
+          } >> $GITHUB_OUTPUT
+
+          gh pr diff "$PR_NUM" > /tmp/pr-diff.txt 2>/dev/null || true
+          head -3000 /tmp/pr-diff.txt > /tmp/pr-diff-truncated.txt
+
+          LINKED_ISSUES=$(echo "$PR_DATA" | jq -r '.body // ""' | \
+            grep -oiE '(close[sd]?|fix(e[sd])?|resolve[sd]?)\s+#[0-9]+' | \
+            grep -oE '#[0-9]+' || echo "none")
+          {
+            echo "issues<<GHA_DELIM"
+            echo "$LINKED_ISSUES"
+            echo "GHA_DELIM"
+          } >> $GITHUB_OUTPUT
+
+      - name: Review with Groq
+        if: steps.pr.outputs.skip != 'true'
+        id: review
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          PR_TITLE: ${{ steps.diff.outputs.title }}
+          PR_AUTHOR: ${{ steps.diff.outputs.author }}
+          PR_FILES: ${{ steps.diff.outputs.files }}
+          PR_ADDS: ${{ steps.diff.outputs.adds }}
+          PR_DELS: ${{ steps.diff.outputs.dels }}
+          PR_ISSUES: ${{ steps.diff.outputs.issues }}
+        run: |
+          DIFF=$(cat /tmp/pr-diff-truncated.txt)
+
+          SYSTEM_PROMPT=$(cat <<'SYSTEM_EOF'
+          You are a lenient but intelligent code reviewer for Quipay, a real-time
+          payroll streaming platform built on Stellar and Soroban smart contracts
+          (Rust), with a React/TypeScript frontend and a Node.js backend.
+
+          Quipay allows employers to stream token payments to workers in real time.
+          Key contracts: payroll_stream, payroll_vault. Key frontend tech: React,
+          Vite, Freighter wallet, stellar-sdk. Backend: Node.js/Express, PostgreSQL.
+
+          This project has contributors of varying experience levels.
+          Be encouraging and constructive. We care that work is genuine and
+          functional, not perfect.
+
+          APPROVE the PR if:
+          - The changes are genuine and relate to the linked issue
+          - The code generally works and won't break the app
+          - Minor style issues, missing types, or imperfect patterns are acceptable
+
+          REQUEST CHANGES only if:
+          - The PR is empty or clearly fake (no real changes)
+          - The changes would break the app (removing critical imports, syntax errors)
+          - The PR has nothing to do with the linked issue (fraud)
+          - There are security vulnerabilities (exposed secrets, XSS, SQL injection)
+          - Soroban contract changes introduce reentrancy or overflow risks
+
+          Your response MUST start with exactly one of these two lines:
+          DECISION: APPROVE
+          DECISION: REQUEST_CHANGES
+
+          Then write a short friendly review (under 200 words) on the following lines.
+          SYSTEM_EOF
+          )
+
+          USER_MSG="PR Title: ${PR_TITLE}
+          Author: ${PR_AUTHOR}
+          Files changed: ${PR_FILES}
+          Additions: ${PR_ADDS}
+          Deletions: ${PR_DELS}
+          Linked issues: ${PR_ISSUES}
+
+          Diff:
+          \`\`\`
+          ${DIFF}
+          \`\`\`"
+
+          PAYLOAD=$(jq -n \
+            --arg system "$SYSTEM_PROMPT" \
+            --arg user "$USER_MSG" \
+            '{
+              model: "llama-3.1-8b-instant",
+              messages: [
+                { role: "system", content: $system },
+                { role: "user", content: $user }
+              ],
+              max_tokens: 1024,
+              temperature: 0.3
+            }')
+
+          RESPONSE=$(curl -s https://api.groq.com/openai/v1/chat/completions \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $GROQ_API_KEY" \
+            -d "$PAYLOAD")
+
+          echo "Response keys: $(echo "$RESPONSE" | jq -r 'keys | join(", ")')"
+
+          REVIEW_TEXT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // ""')
+
+          API_ERROR=$(echo "$RESPONSE" | jq -r '.error.message // ""')
+          if [ -n "$API_ERROR" ] && [ "$API_ERROR" != "" ] && [ "$API_ERROR" != "null" ]; then
+            echo "Groq API error: $API_ERROR"
+            REVIEW_TEXT="Could not generate review: $API_ERROR"
+            echo "action=COMMENT" >> $GITHUB_OUTPUT
+            {
+              echo "body<<REVIEW_EOF"
+              echo "$REVIEW_TEXT"
+              echo "REVIEW_EOF"
+            } >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          if [ -z "$REVIEW_TEXT" ] || [ "$REVIEW_TEXT" = "null" ]; then
+            REVIEW_TEXT="CI checks passed. Auto-review could not generate detailed feedback."
+          fi
+
+          echo "Review generated (${#REVIEW_TEXT} chars)"
+
+          if echo "$REVIEW_TEXT" | grep -qi "REQUEST.CHANGES"; then
+            echo "action=REQUEST_CHANGES" >> $GITHUB_OUTPUT
+          else
+            echo "action=APPROVE" >> $GITHUB_OUTPUT
+          fi
+
+          REVIEW_BODY=$(echo "$REVIEW_TEXT" | sed '/^DECISION:/d' | sed '/^$/N;/^\n$/d')
+          if [ -z "$REVIEW_BODY" ] || [ ${#REVIEW_BODY} -lt 5 ]; then
+            REVIEW_BODY="Looks good. CI checks passed."
+          fi
+
+          {
+            echo "body<<REVIEW_EOF"
+            echo "$REVIEW_BODY"
+            echo "REVIEW_EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Submit review as repo owner
+        if: steps.pr.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.OWNER_PAT }}
+          PR_NUM: ${{ steps.pr.outputs.number }}
+          ACTION: ${{ steps.review.outputs.action }}
+          BODY: ${{ steps.review.outputs.body }}
+          PR_AUTHOR: ${{ steps.diff.outputs.author }}
+        run: |
+          PAT_USER=$(gh api user --jq '.login' 2>/dev/null || echo "")
+
+          if [ -z "$BODY" ]; then
+            BODY="CI checks passed. Looks good."
+          fi
+
+          # GitHub does not allow approving your own PR
+          if [ "$PR_AUTHOR" = "$PAT_USER" ]; then
+            echo "Skipping formal review: PR author ($PR_AUTHOR) is the reviewer ($PAT_USER)"
+            gh pr comment "$PR_NUM" --body "$BODY"
+            exit 0
+          fi
+
+          if [ "$ACTION" = "COMMENT" ]; then
+            gh pr comment "$PR_NUM" --body "$BODY"
+            exit 0
+          fi
+
+          gh pr review "$PR_NUM" \
+            --"$(echo "$ACTION" | tr '[:upper:]' '[:lower:]' | tr '_' '-')" \
+            --body "$BODY"
+
+      - name: Auto-merge approved PRs
+        if: steps.pr.outputs.skip != 'true' && steps.review.outputs.action == 'APPROVE'
+        env:
+          GH_TOKEN: ${{ secrets.OWNER_PAT }}
+          PR_NUM: ${{ steps.pr.outputs.number }}
+          PR_TITLE: ${{ steps.diff.outputs.title }}
+        run: |
+          COMMIT_BODY=$(gh pr view "$PR_NUM" --json commits \
+            --jq '[.commits[].messageBody] | join("\n")' \
+            | grep -viE 'co-authored-by:.*(claude|qwen|copilot|github-actions|bot|\[bot\]|gpt|openai|anthropic)' \
+            || true)
+
+          MERGE_BODY=$(printf '%s' "$COMMIT_BODY" | sed '/^$/N;/^\n$/d')
+
+          gh pr merge "$PR_NUM" \
+            --squash \
+            --admin \
+            --subject "$PR_TITLE" \
+            --body "$MERGE_BODY"

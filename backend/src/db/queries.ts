@@ -285,6 +285,7 @@ export const getOverallStats = async (): Promise<OverallStats> => {
             COALESCE(SUM(total_amount),    0)              AS total_volume,
             COALESCE(SUM(withdrawn_amount),0)              AS total_withdrawn
         FROM payroll_streams
+        WHERE deleted_at IS NULL
     `);
   const row = res.rows[0];
   return {
@@ -385,16 +386,19 @@ export const getStreamsByEmployer = async (
   status?: string,
   limit = 50,
   offset = 0,
+  includeDeleted = false,
 ): Promise<StreamRecord[]> => {
   const params: unknown[] = [employer, limit, offset];
-  let statusClause = "";
+  const clauses: string[] = [];
+  if (!includeDeleted) clauses.push("deleted_at IS NULL");
   if (status) {
     params.push(status);
-    statusClause = `AND status = $${params.length}`;
+    clauses.push(`status = $${params.length}`);
   }
+  const whereExtra = clauses.length ? `AND ${clauses.join(" AND ")}` : "";
   const res = await query<StreamRecord>(
     `SELECT * FROM payroll_streams
-         WHERE employer = $1 ${statusClause}
+         WHERE employer = $1 ${whereExtra}
          ORDER BY created_at DESC
          LIMIT $2 OFFSET $3`,
     params,
@@ -407,16 +411,19 @@ export const getStreamsByWorker = async (
   status?: string,
   limit = 50,
   offset = 0,
+  includeDeleted = false,
 ): Promise<StreamRecord[]> => {
   const params: unknown[] = [worker, limit, offset];
-  let statusClause = "";
+  const clauses: string[] = [];
+  if (!includeDeleted) clauses.push("deleted_at IS NULL");
   if (status) {
     params.push(status);
-    statusClause = `AND status = $${params.length}`;
+    clauses.push(`status = $${params.length}`);
   }
+  const whereExtra = clauses.length ? `AND ${clauses.join(" AND ")}` : "";
   const res = await query<StreamRecord>(
     `SELECT * FROM payroll_streams
-         WHERE worker = $1 ${statusClause}
+         WHERE worker = $1 ${whereExtra}
          ORDER BY created_at DESC
          LIMIT $2 OFFSET $3`,
     params,
@@ -1021,13 +1028,91 @@ export const listWebhookOutboundEventsByOwner = async (params: {
 
 export const getStreamById = async (
   streamId: number,
+  includeSoftDeleted = false,
 ): Promise<StreamRecord | null> => {
   if (!getPool()) return null;
+  const deletedClause = includeSoftDeleted ? "" : "AND deleted_at IS NULL";
   const res = await query<StreamRecord>(
-    `SELECT * FROM payroll_streams WHERE stream_id = $1`,
+    `SELECT * FROM payroll_streams WHERE stream_id = $1 ${deletedClause}`,
     [streamId],
   );
   return res.rows[0] ?? null;
+};
+
+// ─── Soft-delete helpers (issue #614) ────────────────────────────────────────
+
+export interface StreamAuditEntry {
+  id: number;
+  stream_id: number;
+  changed_by: string;
+  action: string;
+  old_status: string | null;
+  new_status: string | null;
+  reason: string | null;
+  metadata: Record<string, unknown>;
+  created_at: Date;
+}
+
+/**
+ * Soft-delete a stream by setting `deleted_at`, `deleted_by`, and
+ * `cancel_reason`.  Also appends an entry to `stream_audit_log`.
+ * Returns `false` when the stream does not exist or is already deleted.
+ */
+export const softDeleteStream = async (params: {
+  streamId: number;
+  deletedBy: string;
+  cancelReason?: string;
+}): Promise<boolean> => {
+  if (!getPool()) throw new Error("Database pool is not initialized");
+
+  const existing = await query<{ status: string; stream_id: string }>(
+    `SELECT stream_id, status FROM payroll_streams
+     WHERE stream_id = $1 AND deleted_at IS NULL`,
+    [params.streamId],
+  );
+
+  if (existing.rows.length === 0) return false;
+
+  const oldStatus = existing.rows[0].status;
+
+  await query(
+    `UPDATE payroll_streams
+     SET deleted_at    = NOW(),
+         deleted_by    = $2,
+         cancel_reason = $3,
+         status        = 'cancelled',
+         updated_at    = NOW()
+     WHERE stream_id = $1 AND deleted_at IS NULL`,
+    [params.streamId, params.deletedBy, params.cancelReason ?? null],
+  );
+
+  // Record the cancellation in the immutable audit log
+  await query(
+    `INSERT INTO stream_audit_log
+       (stream_id, changed_by, action, old_status, new_status, reason)
+     VALUES ($1, $2, 'cancelled', $3, 'cancelled', $4)`,
+    [params.streamId, params.deletedBy, oldStatus, params.cancelReason ?? null],
+  );
+
+  // Invalidate analytics cache
+  globalCache.del("analytics:summary");
+  globalCache.invalidateByPrefix("analytics:trends:");
+
+  return true;
+};
+
+/**
+ * Retrieve the full audit trail for a single stream.
+ */
+export const getStreamAuditLog = async (
+  streamId: number,
+): Promise<StreamAuditEntry[]> => {
+  if (!getPool()) return [];
+  const res = await query<StreamAuditEntry>(
+    `SELECT * FROM stream_audit_log WHERE stream_id = $1 ORDER BY created_at ASC`,
+    [streamId],
+  );
+  return res.rows;
 };
 
 // ─── Payroll proof queries ────────────────────────────────────────────────────

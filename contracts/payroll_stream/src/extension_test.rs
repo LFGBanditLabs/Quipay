@@ -125,6 +125,26 @@ fn test_extend_stream_invalid_end_time() {
 }
 
 #[test]
+fn test_extend_stream_rejects_zero_duration() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _admin) = setup(&env);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    // Stream: start_ts = 0, end_ts = 10
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None,
+    );
+
+    // new_end_time == start_ts (0): zero-duration — must be rejected
+    let result = client.try_extend_stream(&stream_id, &0, &0u64);
+    assert_eq!(result, Err(Ok(QuipayError::InvalidTimeRange)));
+}
+
+#[test]
 fn test_extend_stream_wrong_auth() {
     let env = Env::default();
     env.mock_all_auths();
