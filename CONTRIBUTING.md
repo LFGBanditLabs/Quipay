@@ -311,6 +311,36 @@ git commit --no-verify -m "Your commit message"
 
 Use `--no-verify` sparingly. Commits that bypass hooks may fail CI checks.
 
+## Architecture Decision Records (ADRs)
+
+Significant architectural decisions are documented as ADRs in [`docs/adr/`](./docs/adr/).
+
+### When to write an ADR
+
+Write an ADR when you are making a decision that:
+
+- Affects the overall structure of the system (contracts, backend, frontend).
+- Introduces a new dependency or platform.
+- Changes a security-relevant pattern (auth model, key management, fee handling).
+- Will be hard or expensive to reverse later.
+
+You do **not** need an ADR for routine bug fixes, UI tweaks, or adding tests.
+
+### How to write an ADR
+
+1. Copy [`docs/adr/0000-template.md`](./docs/adr/0000-template.md) to `docs/adr/ADR-NNN-short-title.md`.
+2. Fill in all sections. Context and Consequences are mandatory.
+3. Open a PR with status set to `Proposed`. It becomes `Accepted` when the PR merges.
+4. Add an entry to [`docs/adr/README.md`](./docs/adr/README.md).
+
+### ADR checklist (for PR reviewers)
+
+- [ ] Context explains *why* a decision was needed, not just what it is.
+- [ ] Decision section starts with "We will…" or "We decided to…".
+- [ ] Alternatives considered are listed with rejection rationale.
+- [ ] Positive and Negative consequences are both filled in.
+- [ ] Related ADRs are cross-linked.
+
 ## Questions?
 
 Open a [GitHub Discussion](https://github.com/LFGBanditLabs/Quipay/discussions) or reach out in the issue tracker.
