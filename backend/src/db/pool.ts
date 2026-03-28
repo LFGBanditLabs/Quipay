@@ -106,13 +106,17 @@ const applySessionTimeouts = async (
   poolClient: PoolClient,
   config: ResolvedPoolConfig,
 ) => {
-  await poolClient.query("SET statement_timeout = $1", [
-    config.statementTimeoutMillis,
+  await poolClient.query(
+    "SELECT set_config('statement_timeout', $1::text, false)",
+    [String(config.statementTimeoutMillis)],
+  );
+  await poolClient.query(
+    "SELECT set_config('idle_in_transaction_session_timeout', $1::text, false)",
+    [String(config.idleInTransactionSessionTimeoutMillis)],
+  );
+  await poolClient.query("SELECT set_config('application_name', $1, false)", [
+    config.applicationName,
   ]);
-  await poolClient.query("SET idle_in_transaction_session_timeout = $1", [
-    config.idleInTransactionSessionTimeoutMillis,
-  ]);
-  await poolClient.query("SET application_name = $1", [config.applicationName]);
 };
 
 const getPoolEventContext = (
