@@ -3,30 +3,73 @@ use soroban_sdk::contracterror;
 /// Result type alias for Quipay contracts
 pub type QuipayResult<T> = Result<T, QuipayError>;
 
-/// Comprehensive error enum for Quipay contracts
+/// Comprehensive error enum for Quipay contracts.
+///
+/// All variants are stable `u32` identifiers that are part of the on-chain ABI.
+/// Once a code is deployed it must not change. New variants must use the next
+/// available number.
+///
+/// See `docs/error-codes.md` for the full table with recovery guidance.
 #[contracterror]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u32)]
 pub enum QuipayError {
+    // ── Initialisation ────────────────────────────────────────────────────────
+
+    /// `initialize()` was called on a contract that is already initialised.
     AlreadyInitialized = 1001,
+    /// An operation was attempted before `initialize()` was called.
     NotInitialized = 1002,
+
+    // ── Authorization ─────────────────────────────────────────────────────────
+
+    /// The transaction signer did not pass `require_auth` for the required account.
     Unauthorized = 1003,
+    /// The caller is authenticated but does not have the required role (e.g. not an admin).
     InsufficientPermissions = 1004,
+
+    // ── Funds & Balances ──────────────────────────────────────────────────────
+
+    /// Amount was zero or negative; all amounts must be strictly positive.
     InvalidAmount = 1005,
+    /// Requested amount exceeds available funds in the vault.
     InsufficientBalance = 1006,
+
+    // ── Protocol State ────────────────────────────────────────────────────────
+
+    /// The protocol is paused by an admin; no state-changing operations are allowed.
     ProtocolPaused = 1007,
+    /// The contract version storage entry is missing; the contract needs to be (re-)deployed.
     VersionNotSet = 1008,
+    /// A Soroban storage read or write failed unexpectedly.
     StorageError = 1009,
+
+    // ── Input Validation ──────────────────────────────────────────────────────
+
+    /// A provided address is not a valid Stellar account or contract ID.
     InvalidAddress = 1010,
+    /// No stream exists for the given stream ID.
     StreamNotFound = 1011,
+    /// The stream's end time has passed and it can no longer be modified.
     StreamExpired = 1012,
+    /// The automation agent address is not registered in the gateway.
     AgentNotFound = 1013,
+    /// The token address is not recognised or not allowlisted.
     InvalidToken = 1014,
+
+    // ── Operations ────────────────────────────────────────────────────────────
+
+    /// An underlying Stellar asset transfer failed.
     TransferFailed = 1015,
+    /// A WASM upgrade invocation failed.
     UpgradeFailed = 1016,
+    /// The caller is not the designated worker for this stream.
     NotWorker = 1017,
+    /// The stream was already cancelled or completed.
     StreamClosed = 1018,
+    /// The caller is not the employer who created this stream.
     NotEmployer = 1019,
+    /// An operation requires the stream to be closed, but it is still active.
     StreamNotClosed = 1020,
     Custom = 1999,
 }
