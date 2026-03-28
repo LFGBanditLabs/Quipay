@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck — @stellar/design-system types are incomplete for Badge, Card, Modal, Icon
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Layout,
   Text,
@@ -58,33 +59,33 @@ type TabId =
 const AVAILABLE_PERMISSIONS = [
   {
     id: Permission.CreateStream,
-    name: "Create Stream",
-    description: "Can create and propose new payroll streams",
+    nameKey: "settings.perm_create_stream",
+    descKey: "settings.perm_create_stream_desc",
   },
   {
     id: Permission.CancelStream,
-    name: "Cancel Stream",
-    description: "Can cancel existing active payroll streams",
+    nameKey: "settings.perm_cancel_stream",
+    descKey: "settings.perm_cancel_stream_desc",
   },
   {
     id: Permission.ExecutePayroll,
-    name: "Execute Payroll",
-    description: "Can trigger payroll execution via AutomationGateway",
+    nameKey: "settings.perm_execute_payroll",
+    descKey: "settings.perm_execute_payroll_desc",
   },
   {
     id: Permission.ManageTreasury,
-    name: "Manage Treasury",
-    description: "Can approve and manage vault treasury assets",
+    nameKey: "settings.perm_manage_treasury",
+    descKey: "settings.perm_manage_treasury_desc",
   },
   {
     id: Permission.RegisterAgent,
-    name: "Register Agent",
-    description: "Can add or remove other authorized agents",
+    nameKey: "settings.perm_register_agent",
+    descKey: "settings.perm_register_agent_desc",
   },
   {
     id: Permission.RebalanceTreasury,
-    name: "Rebalance Treasury",
-    description: "Can initiate treasury rebalancing operations",
+    nameKey: "settings.perm_rebalance_treasury",
+    descKey: "settings.perm_rebalance_treasury_desc",
   },
 ];
 
@@ -122,6 +123,7 @@ const ROLES: CustomRole[] = [
 ];
 
 const Settings: React.FC = () => {
+  const { t } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const { address } = useWallet();
   const { templates, deleteTemplate } = useStreamTemplates();
@@ -224,14 +226,14 @@ const Settings: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Text as="h2" size="lg" weight="medium">
-              Team Management
+              {t("settings.team_management")}
             </Text>
             <Badge variant="secondary" size="sm" className="opacity-70">
-              {members.length} Members
+              {t("settings.members_count", { count: members.length })}
             </Badge>
           </div>
           <Text as="p" size="sm" variant="secondary">
-            Invite and manage members of your treasury vault.
+            {t("settings.team_description")}
           </Text>
         </div>
         <Button
@@ -239,7 +241,7 @@ const Settings: React.FC = () => {
           size="sm"
           onClick={() => setIsMemberModalOpen(true)}
         >
-          <Icon name="add" size="sm" /> Add Member
+          <Icon name="add" size="sm" /> {t("settings.add_member")}
         </Button>
       </div>
 
@@ -272,7 +274,7 @@ const Settings: React.FC = () => {
                   </Badge>
                   {member.status === "pending" && (
                     <Badge variant="warning" size="sm">
-                      Pending
+                      {t("settings.pending")}
                     </Badge>
                   )}
                 </div>
@@ -305,7 +307,7 @@ const Settings: React.FC = () => {
                   variant="secondary"
                   className="opacity-50 uppercase tracking-widest font-bold"
                 >
-                  Access Level
+                  {t("settings.access_level")}
                 </Text>
                 <Text
                   as="p"
@@ -314,10 +316,10 @@ const Settings: React.FC = () => {
                   className="text-indigo-400"
                 >
                   {member.role === "Admin"
-                    ? "Full Access"
+                    ? t("settings.full_access")
                     : member.role === "Viewer"
-                      ? "Read Only"
-                      : "Limited Permissions"}
+                      ? t("settings.read_only")
+                      : t("settings.limited_permissions")}
                 </Text>
               </div>
               <Button variant="secondary" size="xs">
@@ -338,7 +340,7 @@ const Settings: React.FC = () => {
             Custom Roles
           </Text>
           <Text as="p" size="sm" variant="secondary">
-            Define granular permissions for different team responsibilities.
+            {t("settings.roles_description")}
           </Text>
         </div>
         <Button
@@ -346,7 +348,7 @@ const Settings: React.FC = () => {
           size="sm"
           onClick={() => setIsRoleModalOpen(true)}
         >
-          <Icon name="add" size="sm" /> Create Role
+          <Icon name="add" size="sm" /> {t("settings.create_role")}
         </Button>
       </div>
 
@@ -390,7 +392,10 @@ const Settings: React.FC = () => {
                     border: "1px solid var(--accent-transparent)",
                   }}
                 >
-                  {AVAILABLE_PERMISSIONS.find((ap) => ap.id === p)?.name || p}
+                  {t(
+                    AVAILABLE_PERMISSIONS.find((ap) => ap.id === p)?.nameKey ??
+                      "",
+                  ) || p}
                 </Badge>
               ))}
             </div>
@@ -425,7 +430,7 @@ const Settings: React.FC = () => {
     document.body.removeChild(link);
 
     setNotification({
-      message: "Audit logs exported successfully!",
+      message: t("settings.audit_exported"),
       type: "success",
     });
   };
@@ -438,8 +443,7 @@ const Settings: React.FC = () => {
             Audit Logs
           </Text>
           <Text as="p" size="sm" variant="secondary">
-            A permanent, verifiable record of all actions performed by
-            authorized wallets.
+            {t("settings.audit_description")}
           </Text>
         </div>
         <div className="flex gap-3">
@@ -449,7 +453,7 @@ const Settings: React.FC = () => {
             className="shadow-sm"
             onClick={handleExportCSV}
           >
-            <Icon name="download" size="sm" /> Export CSV
+            <Icon name="download" size="sm" /> {t("settings.export_csv")}
           </Button>
         </div>
       </div>
@@ -461,7 +465,7 @@ const Settings: React.FC = () => {
           </div>
           <input
             type="text"
-            placeholder="Search logs by action, wallet, or details..."
+            placeholder={t("settings.search_logs_placeholder")}
             className="w-full pl-10 pr-4 py-2 rounded-xl border border-(--border) bg-(--surface) text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all placeholder:opacity-50"
             value={auditSearch}
             onChange={(e) => setAuditSearch(e.target.value)}
@@ -474,14 +478,14 @@ const Settings: React.FC = () => {
             weight="medium"
             className="text-(--muted) whitespace-nowrap"
           >
-            Status:
+            {t("settings.status_filter")}
           </Text>
           <select
             className="p-2 rounded-xl border border-(--border) bg-(--surface) text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
             value={auditFilter}
             onChange={(e) => setAuditFilter(e.target.value)}
           >
-            <option value="all">All Status</option>
+            <option value="all">{t("settings.all_status")}</option>
             <option value="success">Success</option>
             <option value="failure">Failure</option>
             <option value="pending">Pending</option>
@@ -502,7 +506,7 @@ const Settings: React.FC = () => {
                     variant="secondary"
                     className="uppercase tracking-widest"
                   >
-                    Timestamp
+                    {t("settings.timestamp")}
                   </Text>
                 </th>
                 <th className="p-4">
@@ -513,7 +517,7 @@ const Settings: React.FC = () => {
                     variant="secondary"
                     className="uppercase tracking-widest"
                   >
-                    Wallet
+                    {t("wallet.connect").split(" ")[0]}
                   </Text>
                 </th>
                 <th className="p-4">
@@ -633,7 +637,7 @@ const Settings: React.FC = () => {
                     <div className="flex flex-col items-center gap-3">
                       <Icon name="search" size="lg" className="opacity-20" />
                       <Text as="p" size="md" variant="secondary">
-                        No logs found matching your filters.
+                        {t("settings.no_logs_found")}
                       </Text>
                       <Button
                         variant="secondary"
@@ -643,7 +647,7 @@ const Settings: React.FC = () => {
                           setAuditFilter("all");
                         }}
                       >
-                        Clear Filters
+                        {t("common.clear_filters")}
                       </Button>
                     </div>
                   </td>
@@ -664,8 +668,7 @@ const Settings: React.FC = () => {
             Approval Requests
           </Text>
           <Text as="p" size="sm" variant="secondary">
-            Queue of high-value treasury operations awaiting multi-sig
-            authorization.
+            {t("settings.approval_description")}
           </Text>
         </div>
       </div>
@@ -680,7 +683,7 @@ const Settings: React.FC = () => {
           />
         </div>
         <Text as="h3" size="lg" weight="bold" className="mb-2">
-          Queue is Empty
+          {t("settings.queue_empty")}
         </Text>
         <Text
           as="p"
@@ -688,14 +691,14 @@ const Settings: React.FC = () => {
           variant="secondary"
           className="mb-8 max-w-xs leading-relaxed"
         >
-          No pending treasury actions currently require your digital signature.
+          {t("settings.no_pending_actions")}
         </Text>
         <Button
           variant="secondary"
           size="sm"
           onClick={() => void window.open("/governance", "_blank")}
         >
-          View Governance Overview
+          {t("settings.view_governance")}
         </Button>
       </div>
     </div>
@@ -707,14 +710,14 @@ const Settings: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Text as="h2" size="lg" weight="medium">
-              Stream Templates
+              {t("settings.tab_templates")}
             </Text>
             <Badge variant="secondary" size="sm" className="opacity-70">
-              {templates.length} Templates
+              {t("settings.templates_count", { count: templates.length })}
             </Badge>
           </div>
           <Text as="p" size="sm" variant="secondary">
-            Saved payroll configurations for quick stream creation.
+            {t("settings.templates_description")}
           </Text>
         </div>
         <Button
@@ -722,7 +725,7 @@ const Settings: React.FC = () => {
           size="sm"
           onClick={() => void window.open("/create-stream", "_blank")}
         >
-          <Icon name="add" size="sm" /> Create Template
+          <Icon name="add" size="sm" /> {t("settings.create_template")}
         </Button>
       </div>
 
@@ -732,18 +735,17 @@ const Settings: React.FC = () => {
             <Icon name="fileText" size="lg" className="text-indigo-400" />
           </div>
           <Text as="h3" size="lg" weight="bold" className="mb-2">
-            No Templates Yet
+            {t("settings.no_templates")}
           </Text>
           <Text as="p" size="md" variant="secondary" className="mb-6 max-w-xs">
-            Save stream configurations as templates to quickly create payroll
-            streams with preset values.
+            {t("settings.no_templates_desc")}
           </Text>
           <Button
             variant="secondary"
             size="sm"
             onClick={() => void window.open("/create-stream", "_blank")}
           >
-            Create Your First Stream
+            {t("settings.create_first_stream")}
           </Button>
         </div>
       ) : (
@@ -828,10 +830,10 @@ const Settings: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <Text as="h2" size="lg" weight="medium">
-            Notification Preferences
+            {t("settings.notification_prefs")}
           </Text>
           <Text as="p" size="sm" variant="secondary">
-            Configure how the connected worker wallet receives payroll alerts.
+            {t("settings.notification_desc")}
           </Text>
         </div>
       </div>
@@ -869,7 +871,7 @@ const Settings: React.FC = () => {
 
           <div>
             <Text as="h3" size="md" weight="bold" className="mb-4">
-              Delivery Channels
+              {t("settings.delivery_channels")}
             </Text>
             <div className="flex flex-col gap-3">
               <label className="flex items-center gap-3 p-3 rounded-xl border border-(--border) bg-(--surface) hover:border-indigo-500/30 cursor-pointer transition-all">
@@ -887,10 +889,10 @@ const Settings: React.FC = () => {
                 />
                 <div>
                   <Text as="span" size="sm" weight="medium">
-                    Email Notifications
+                    {t("settings.email_notifications")}
                   </Text>
                   <Text as="p" size="xs" variant="secondary">
-                    Receive alerts via email
+                    {t("settings.email_desc")}
                   </Text>
                 </div>
               </label>
@@ -921,7 +923,7 @@ const Settings: React.FC = () => {
 
           <div>
             <Text as="h3" size="md" weight="bold" className="mb-4">
-              Alert Types
+              {t("settings.alert_types")}
             </Text>
             <div className="flex flex-col gap-3">
               <label className="flex items-center gap-3 p-3 rounded-xl border border-(--border) bg-(--surface) hover:border-indigo-500/30 cursor-pointer transition-all">
@@ -982,7 +984,9 @@ const Settings: React.FC = () => {
                 isSavingNotificationSettings
               }
             >
-              {isSavingNotificationSettings ? "Saving..." : "Save Preferences"}
+              {isSavingNotificationSettings
+                ? "Saving..."
+                : t("settings.save_preferences")}
             </Button>
           </div>
         </div>
@@ -991,20 +995,24 @@ const Settings: React.FC = () => {
   );
 
   const tabs: { id: TabId; label: string; icon: string }[] = [
-    { id: "team", label: "Team", icon: "user" },
-    { id: "roles", label: "Roles", icon: "settings" },
-    { id: "templates", label: "Templates", icon: "fileText" },
-    { id: "notifications", label: "Notifications", icon: "bell" },
-    { id: "network", label: "Network", icon: "activity" },
-    { id: "approvals", label: "Approvals", icon: "check" },
-    { id: "audit", label: "Audit Log", icon: "fileText" },
+    { id: "team", label: t("settings.tab_team"), icon: "user" },
+    { id: "roles", label: t("settings.tab_roles"), icon: "settings" },
+    { id: "templates", label: t("settings.tab_templates"), icon: "fileText" },
+    {
+      id: "notifications",
+      label: t("settings.tab_notifications"),
+      icon: "bell",
+    },
+    { id: "network", label: t("settings.tab_network"), icon: "activity" },
+    { id: "approvals", label: t("settings.tab_approvals"), icon: "check" },
+    { id: "audit", label: t("settings.tab_audit"), icon: "fileText" },
   ];
 
   return (
     <Layout.Content>
       <SeoHelmet
-        title="Security & Governance Settings | Quipay"
-        description="Manage team access, custom roles, multi-sig approvals, and view structured audit logs for your Quipay treasury."
+        title={t("settings.page_title")}
+        description={t("settings.page_description")}
       />
       <Layout.Inset>
         <header className="mb-10">
@@ -1015,7 +1023,7 @@ const Settings: React.FC = () => {
               weight="bold"
               className="mb-2 tracking-tight"
             >
-              Vault Settings
+              {t("settings.vault_settings")}
             </Text>
             <button
               onClick={toggleTheme}
@@ -1057,12 +1065,13 @@ const Settings: React.FC = () => {
                   <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
                 </svg>
               )}
-              {theme === "light" ? "Dark Mode" : "Light Mode"}
+              {theme === "light"
+                ? t("settings.dark_mode")
+                : t("settings.light_mode")}
             </button>
           </div>
           <Text as="p" size="md" variant="secondary" className="max-w-2xl">
-            Configure granular access controls, manage your treasury team, and
-            monitor all organizational activity through structured audit trails.
+            {t("settings.vault_description")}
           </Text>
         </header>
 
@@ -1103,11 +1112,10 @@ const Settings: React.FC = () => {
           {activeTab === "network" && (
             <div style={{ maxWidth: 640 }}>
               <Text as="h2" size="md" weight="bold" className="mb-2">
-                Network Health
+                {t("settings.network_health")}
               </Text>
               <p className="mb-4 text-sm text-(--muted)">
-                Monitor the status of Stellar Horizon and Soroban RPC nodes,
-                latency trends, and network congestion in real time.
+                {t("settings.network_health_desc")}
               </p>
               <NetworkHealthMonitor />
             </div>
@@ -1124,7 +1132,7 @@ const Settings: React.FC = () => {
           <div className="p-8 bg-(--surface) text-(--text) rounded-3xl shadow-2xl overflow-hidden relative">
             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full -mr-16 -mt-16 blur-3xl" />
             <Text as="h2" size="lg" weight="bold" className="mb-6">
-              Invite Collaborator
+              {t("settings.invite_collaborator")}
             </Text>
             <div className="flex flex-col gap-5">
               <Input
@@ -1146,7 +1154,7 @@ const Settings: React.FC = () => {
                   weight="semi-bold"
                   className="text-(--muted)"
                 >
-                  Assign Predefined Role
+                  {t("settings.assign_role")}
                 </Text>
                 <select
                   className="w-full p-3.5 rounded-xl border border-(--border) bg-(--surface-subtle) text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
@@ -1157,7 +1165,7 @@ const Settings: React.FC = () => {
                     }
                   }}
                 >
-                  <option value="">Select a role...</option>
+                  <option value="">{t("settings.select_role")}</option>
                   {roles.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name}
@@ -1165,8 +1173,7 @@ const Settings: React.FC = () => {
                   ))}
                 </select>
                 <Text as="p" size="xs" variant="secondary" className="mt-1">
-                  This will register the address as an authorized agent with the
-                  AutomationGateway contract.
+                  {t("settings.register_note")}
                 </Text>
               </div>
               <div className="flex justify-end gap-3 mt-8">
@@ -1175,20 +1182,20 @@ const Settings: React.FC = () => {
                   size="sm"
                   onClick={() => setIsMemberModalOpen(false)}
                 >
-                  Dismiss
+                  {t("common.dismiss")}
                 </Button>
                 <Button
                   variant="primary"
                   size="sm"
                   onClick={() => {
                     setNotification({
-                      message: "Invitation sent successfully!",
+                      message: t("settings.invitation_sent"),
                       type: "success",
                     });
                     setIsMemberModalOpen(false);
                   }}
                 >
-                  Send Invite
+                  {t("settings.send_invite")}
                 </Button>
               </div>
             </div>
@@ -1202,7 +1209,7 @@ const Settings: React.FC = () => {
           <div className="p-8 bg-(--surface) text-(--text) max-w-lg rounded-3xl shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 left-0 w-32 h-32 bg-purple-500/5 rounded-full -ml-16 -mt-16 blur-3xl" />
             <Text as="h2" size="lg" weight="bold" className="mb-6">
-              Create Custom Role
+              {t("settings.create_custom_role")}
             </Text>
             <div className="flex flex-col gap-5">
               <Input
@@ -1225,7 +1232,7 @@ const Settings: React.FC = () => {
                   weight="semi-bold"
                   className="text-(--muted)"
                 >
-                  Capability Permissions
+                  {t("settings.capability_permissions")}
                 </Text>
                 <div className="grid grid-cols-1 gap-3 max-h-75 overflow-y-auto pr-2 no-scrollbar">
                   {AVAILABLE_PERMISSIONS.map((p) => (
@@ -1251,7 +1258,7 @@ const Settings: React.FC = () => {
                           weight="bold"
                           className="group-hover:text-indigo-400 transition-colors"
                         >
-                          {p.name}
+                          {t(p.nameKey)}
                         </Text>
                         <Text
                           as="p"
@@ -1259,7 +1266,7 @@ const Settings: React.FC = () => {
                           variant="secondary"
                           className="mt-0.5 leading-relaxed opacity-80"
                         >
-                          {p.description}
+                          {t(p.descKey)}
                         </Text>
                       </div>
                     </label>
@@ -1280,13 +1287,13 @@ const Settings: React.FC = () => {
                   size="sm"
                   onClick={() => {
                     setNotification({
-                      message: "Custom role created successfully!",
+                      message: t("settings.role_created"),
                       type: "success",
                     });
                     setIsRoleModalOpen(false);
                   }}
                 >
-                  Define Role
+                  {t("settings.define_role")}
                 </Button>
               </div>
             </div>
