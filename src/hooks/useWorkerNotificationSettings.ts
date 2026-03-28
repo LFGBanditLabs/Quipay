@@ -51,7 +51,9 @@ export const useWorkerNotificationSettings = (
       };
 
       if (!json.ok || !json.data) {
-        throw new Error(json.error || "Failed to load notification preferences");
+        throw new Error(
+          json.error || "Failed to load notification preferences",
+        );
       }
 
       setSettings(json.data);
