@@ -22,9 +22,9 @@ export function requestIdMiddleware(
   next: NextFunction,
 ) {
   const existingRequestId = req.headers["x-request-id"] as string | undefined;
-  const existingCorrelationId = req.headers[
-    "x-correlation-id"
-  ] as string | undefined;
+  const existingCorrelationId = req.headers["x-correlation-id"] as
+    | string
+    | undefined;
 
   const requestId = existingRequestId || crypto.randomUUID();
   // Honour inbound X-Correlation-ID; fall back to requestId so every log line

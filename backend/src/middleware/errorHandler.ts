@@ -87,10 +87,7 @@ export function errorHandler(
   }
 
   const problem = createProblemDetails({
-    type:
-      status === 503
-        ? "service-unavailable"
-        : err.type || "internal-error",
+    type: status === 503 ? "service-unavailable" : err.type || "internal-error",
     title:
       status === 503
         ? "Service Unavailable"

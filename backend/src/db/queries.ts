@@ -1091,12 +1091,7 @@ export const softDeleteStream = async (params: {
     `INSERT INTO stream_audit_log
        (stream_id, changed_by, action, old_status, new_status, reason)
      VALUES ($1, $2, 'cancelled', $3, 'cancelled', $4)`,
-    [
-      params.streamId,
-      params.deletedBy,
-      oldStatus,
-      params.cancelReason ?? null,
-    ],
+    [params.streamId, params.deletedBy, oldStatus, params.cancelReason ?? null],
   );
 
   // Invalidate analytics cache

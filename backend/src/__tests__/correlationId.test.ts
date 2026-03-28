@@ -19,10 +19,7 @@ jest.mock("../audit/init", () => ({
 }));
 
 import { getAuditLogger, isAuditLoggerInitialized } from "../audit/init";
-import {
-  logServiceInfo,
-  logServiceError,
-} from "../audit/serviceLogger";
+import { logServiceInfo, logServiceError } from "../audit/serviceLogger";
 import {
   requestContext,
   requestIdMiddleware,
@@ -104,7 +101,10 @@ describe("setWalletAddressInContext", () => {
 describe("serviceLogger enrichment with correlationId", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGetAuditLogger.mockReturnValue({ info: mockInfo, error: mockError } as any);
+    mockGetAuditLogger.mockReturnValue({
+      info: mockInfo,
+      error: mockError,
+    } as any);
     mockIsInitialized.mockReturnValue(true);
   });
 
@@ -168,9 +168,7 @@ describe("serviceLogger enrichment with correlationId", () => {
 
   test("falls back to console when audit logger is not initialized", async () => {
     mockIsInitialized.mockReturnValue(false);
-    const consoleSpy = jest
-      .spyOn(console, "log")
-      .mockImplementation(() => {});
+    const consoleSpy = jest.spyOn(console, "log").mockImplementation(() => {});
 
     const store: RequestContextStore = {
       requestId: "req-333",

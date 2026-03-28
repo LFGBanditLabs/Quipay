@@ -21,7 +21,12 @@ import { idempotencyMiddleware } from "../middleware/idempotency";
 function makeStubService(
   cached: CachedIdempotentResponse | null,
 ): IdempotencyService & {
-  setCalls: Array<{ endpoint: string; key: string; statusCode: number; body: unknown }>;
+  setCalls: Array<{
+    endpoint: string;
+    key: string;
+    statusCode: number;
+    body: unknown;
+  }>;
 } {
   const setCalls: Array<{
     endpoint: string;

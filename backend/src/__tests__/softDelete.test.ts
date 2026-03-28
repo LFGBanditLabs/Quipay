@@ -13,7 +13,11 @@
 import { jest } from "@jest/globals";
 import supertest from "supertest";
 import express from "express";
-import { softDeleteStream, getStreamAuditLog, getStreamById } from "../db/queries";
+import {
+  softDeleteStream,
+  getStreamAuditLog,
+  getStreamById,
+} from "../db/queries";
 import { streamsRouter } from "../routes/streams";
 import { requestIdMiddleware } from "../middleware/requestId";
 import { errorHandler } from "../middleware/errorHandler";
@@ -39,7 +43,11 @@ jest.mock("../middleware/rbac", () => {
   return {
     ...original,
     authenticateRequest: (req: any, _res: any, next: any) => {
-      req.user = { id: "test-employer", role: 1, stellarAddress: "GTEST...ADDR" };
+      req.user = {
+        id: "test-employer",
+        role: 1,
+        stellarAddress: "GTEST...ADDR",
+      };
       next();
     },
     requireUser: (_req: any, _res: any, next: any) => next(),
@@ -109,7 +117,10 @@ describe("GET /streams/:id/audit", () => {
   beforeEach(() => jest.clearAllMocks());
 
   test("returns the audit log for an existing stream", async () => {
-    mockGetStream.mockResolvedValue({ stream_id: 1, status: "cancelled" } as any);
+    mockGetStream.mockResolvedValue({
+      stream_id: 1,
+      status: "cancelled",
+    } as any);
     mockGetAudit.mockResolvedValue([
       {
         id: 1,

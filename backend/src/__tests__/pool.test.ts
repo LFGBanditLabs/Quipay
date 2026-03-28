@@ -44,9 +44,11 @@ import { createProblemDetails } from "../middleware/errorHandler";
  * Re-test the mapDbErrorToStatus logic through the errorHandler by constructing
  * a synthetic request with a statement_timeout error.
  */
-function callErrorHandler(
-  errCode: string,
-): { status: number; hasRetryAfter: boolean; problem: any } {
+function callErrorHandler(errCode: string): {
+  status: number;
+  hasRetryAfter: boolean;
+  problem: any;
+} {
   const err: any = { code: errCode, message: "DB error" };
 
   let capturedStatus = 500;
