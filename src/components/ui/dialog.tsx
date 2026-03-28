@@ -52,7 +52,8 @@ function DialogContent({
   children,
   showCloseButton = true,
   ...props
-}: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Popup> & {
+}: // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+React.ComponentPropsWithoutRef<typeof DialogPrimitive.Popup> & {
   showCloseButton?: boolean;
 }) {
   return (

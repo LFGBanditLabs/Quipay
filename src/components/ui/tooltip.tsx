@@ -37,7 +37,8 @@ function TooltipContent({
   alignOffset = 0,
   children,
   ...props
-}: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Popup> &
+}: // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Popup> &
   Pick<
     React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Positioner>,
     "align" | "alignOffset" | "side" | "sideOffset"

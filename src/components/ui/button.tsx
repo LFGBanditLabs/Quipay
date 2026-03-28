@@ -52,7 +52,8 @@ function Button({
   variant = "primary",
   size = "md",
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
   return (
     <ButtonPrimitive
       data-slot="button"
