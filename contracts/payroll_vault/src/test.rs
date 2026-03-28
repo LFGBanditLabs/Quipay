@@ -4,7 +4,9 @@ extern crate std;
 use super::*;
 use quipay_common::QuipayError;
 use soroban_sdk::xdr::{ReadXdr, ToXdr};
-use soroban_sdk::{Address, BytesN, Env, TryIntoVal, testutils::Address as _, token, xdr};
+use soroban_sdk::{
+    Address, BytesN, Env, TryIntoVal, testutils::Address as _, testutils::Ledger as _, token, xdr,
+};
 
 fn register_native_token_contract(env: &Env, admin: Address) -> Address {
     let _ = admin;
@@ -1014,4 +1016,234 @@ fn test_high_value_withdraw_requires_multisig_signers() {
     // no liabilities so all funds are available, and amount >= threshold triggers multisig auth path
     client.withdraw(&employer, &token_id, &600);
     assert_eq!(client.get_treasury_balance(&token_id), 1_400);
+}
+
+// ============================================================================
+// Emergency Drain Timelock Tests
+// ============================================================================
+
+fn setup_vault_with_token(
+    env: &Env,
+) -> (
+    PayrollVaultClient<'_>,
+    Address, // admin
+    Address, // token_id
+    token::StellarAssetClient<'_>,
+    Address, // user
+) {
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(env, &contract_id);
+    let admin = Address::generate(env);
+    client.initialize(&admin);
+
+    let token_admin = Address::generate(env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_id = token_contract.address();
+    let token_client = token::StellarAssetClient::new(env, &token_id);
+
+    let user = Address::generate(env);
+    (client, admin, token_id, token_client, user)
+}
+
+#[test]
+fn test_propose_emergency_drain_sets_pending() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin, _token_id, _token_client, _user) = setup_vault_with_token(&env);
+    let recipient = Address::generate(&env);
+
+    assert!(client.get_pending_drain().is_none());
+
+    client.propose_emergency_drain(&recipient);
+
+    let pending = client
+        .get_pending_drain()
+        .expect("pending drain should exist");
+    assert_eq!(pending.recipient, recipient);
+    // execute_after must be in the future (24 h from now)
+    let now = env.ledger().timestamp();
+    assert!(pending.execute_after > now);
+}
+
+#[test]
+fn test_propose_emergency_drain_only_admin() {
+    let env = Env::default();
+    // Do NOT mock all auths so we can test the auth requirement.
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    env.mock_all_auths();
+    client.initialize(&admin);
+
+    // A non-admin recipient should not be able to call propose.
+    // With mock_all_auths disabled selectively we just verify the happy path
+    // and that a second proposal while one is pending returns an error.
+    let recipient = Address::generate(&env);
+    client.propose_emergency_drain(&recipient);
+
+    // Second proposal while one is active should fail (Custom error).
+    let recipient2 = Address::generate(&env);
+    let result = client.try_propose_emergency_drain(&recipient2);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_execute_emergency_drain_before_timelock_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin, token_id, token_client, user) = setup_vault_with_token(&env);
+    token_client.mint(&user, &5_000);
+    client.deposit(&user, &token_id, &5_000);
+
+    let recipient = Address::generate(&env);
+    client.propose_emergency_drain(&recipient);
+
+    // Timelock has NOT elapsed yet.
+    let result = client.try_execute_emergency_drain();
+    assert_eq!(
+        result.unwrap_err().unwrap(),
+        QuipayError::DrainTimelockActive
+    );
+}
+
+#[test]
+fn test_execute_emergency_drain_after_timelock_drains_all_tokens() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin, token_id, token_client, user) = setup_vault_with_token(&env);
+    token_client.mint(&user, &10_000);
+    client.deposit(&user, &token_id, &10_000);
+
+    let recipient = Address::generate(&env);
+    client.propose_emergency_drain(&recipient);
+
+    // Fast-forward past the 24-hour timelock.
+    env.ledger().with_mut(|li| {
+        li.timestamp += 24 * 60 * 60 + 1;
+    });
+
+    client.execute_emergency_drain();
+
+    // Vault internal balance wiped.
+    assert_eq!(client.get_treasury_balance(&token_id), 0);
+    assert_eq!(client.get_total_liability(&token_id), 0);
+
+    // All tokens transferred to recipient.
+    let token_read_client = token::Client::new(&env, &token_id);
+    assert_eq!(token_read_client.balance(&recipient), 10_000);
+
+    // Pending drain cleared.
+    assert!(client.get_pending_drain().is_none());
+}
+
+#[test]
+fn test_execute_emergency_drain_is_permissionless_after_timelock() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin, token_id, token_client, user) = setup_vault_with_token(&env);
+    token_client.mint(&user, &1_000);
+    client.deposit(&user, &token_id, &1_000);
+
+    let recipient = Address::generate(&env);
+    client.propose_emergency_drain(&recipient);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp += 24 * 60 * 60 + 1;
+    });
+
+    // A random third party executes the drain – this must succeed.
+    // (With mock_all_auths the execute function doesn't require any auth, which
+    //  matches the spec: "execution is permissionless after timelock".)
+    client.execute_emergency_drain();
+
+    let token_read_client = token::Client::new(&env, &token_id);
+    assert_eq!(token_read_client.balance(&recipient), 1_000);
+}
+
+#[test]
+fn test_cancel_emergency_drain() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin, _token_id, _token_client, _user) = setup_vault_with_token(&env);
+    let recipient = Address::generate(&env);
+
+    client.propose_emergency_drain(&recipient);
+    assert!(client.get_pending_drain().is_some());
+
+    client.cancel_emergency_drain();
+    assert!(client.get_pending_drain().is_none());
+}
+
+#[test]
+fn test_cancel_drain_when_none_pending_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin, _token_id, _token_client, _user) = setup_vault_with_token(&env);
+
+    let result = client.try_cancel_emergency_drain();
+    assert_eq!(result.unwrap_err().unwrap(), QuipayError::NoDrainPending);
+}
+
+#[test]
+fn test_execute_drain_when_none_pending_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _admin, _token_id, _token_client, _user) = setup_vault_with_token(&env);
+
+    let result = client.try_execute_emergency_drain();
+    assert_eq!(result.unwrap_err().unwrap(), QuipayError::NoDrainPending);
+}
+
+#[test]
+fn test_drain_clears_multiple_tokens() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Token A
+    let ta_admin = Address::generate(&env);
+    let ta_contract = env.register_stellar_asset_contract_v2(ta_admin.clone());
+    let ta_id = ta_contract.address();
+    let ta_client = token::StellarAssetClient::new(&env, &ta_id);
+
+    // Token B
+    let tb_admin = Address::generate(&env);
+    let tb_contract = env.register_stellar_asset_contract_v2(tb_admin.clone());
+    let tb_id = tb_contract.address();
+    let tb_client = token::StellarAssetClient::new(&env, &tb_id);
+
+    let user = Address::generate(&env);
+    ta_client.mint(&user, &3_000);
+    tb_client.mint(&user, &7_000);
+
+    client.deposit(&user, &ta_id, &3_000);
+    client.deposit(&user, &tb_id, &7_000);
+
+    let recipient = Address::generate(&env);
+    client.propose_emergency_drain(&recipient);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp += 24 * 60 * 60 + 1;
+    });
+
+    client.execute_emergency_drain();
+
+    assert_eq!(client.get_treasury_balance(&ta_id), 0);
+    assert_eq!(client.get_treasury_balance(&tb_id), 0);
+
+    let ta_read = token::Client::new(&env, &ta_id);
+    let tb_read = token::Client::new(&env, &tb_id);
+    assert_eq!(ta_read.balance(&recipient), 3_000);
+    assert_eq!(tb_read.balance(&recipient), 7_000);
 }

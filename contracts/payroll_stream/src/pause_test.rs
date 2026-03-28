@@ -1,7 +1,7 @@
 #![cfg(test)]
 use super::*;
 use crate::test::setup;
-use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, testutils::Events, TryFromVal};
+use soroban_sdk::{TryFromVal, testutils::Address as _, testutils::Events, testutils::Ledger as _};
 
 #[test]
 fn test_pause_and_resume_stream_vesting() {
@@ -156,10 +156,15 @@ fn test_resume_event_fields() {
     client.resume_stream(&stream_id, &employer);
 
     let events = env.events().all();
-    let (_, _, value) = events.iter().find(|(_, topics, _)| {
-        Symbol::try_from_val(&env, &topics.get(0).unwrap()).unwrap() == Symbol::new(&env, "stream") &&
-        Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap() == Symbol::new(&env, "resumed")
-    }).expect("Resume event not found");
+    let (_, _, value) = events
+        .iter()
+        .find(|(_, topics, _)| {
+            Symbol::try_from_val(&env, &topics.get(0).unwrap()).unwrap()
+                == Symbol::new(&env, "stream")
+                && Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap()
+                    == Symbol::new(&env, "resumed")
+        })
+        .expect("Resume event not found");
 
     // The value should be (now, paused_duration, total_paused_duration)
     // now = 25, paused_duration = 15, total_paused_duration = 15
@@ -187,10 +192,15 @@ fn test_admin_resume_event_fields() {
     client.admin_resume_stream(&stream_id);
 
     let events = env.events().all();
-    let (_, _, value) = events.iter().find(|(_, topics, _)| {
-        Symbol::try_from_val(&env, &topics.get(0).unwrap()).unwrap() == Symbol::new(&env, "stream") &&
-        Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap() == Symbol::new(&env, "resumed")
-    }).expect("Resume event not found");
+    let (_, _, value) = events
+        .iter()
+        .find(|(_, topics, _)| {
+            Symbol::try_from_val(&env, &topics.get(0).unwrap()).unwrap()
+                == Symbol::new(&env, "stream")
+                && Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap()
+                    == Symbol::new(&env, "resumed")
+        })
+        .expect("Resume event not found");
 
     // now = 35, pause_duration = 25, total_paused_duration = 25
     let expected_val: (u64, u64, u64) = (35, 25, 25);

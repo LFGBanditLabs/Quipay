@@ -1,6 +1,9 @@
 use crate::{PayrollVault, PayrollVaultClient, StateKey};
 use quipay_common::QuipayError;
-use soroban_sdk::{testutils::{Address as _, Ledger}, Address, Env, Vec};
+use soroban_sdk::{
+    Address, Env, Vec,
+    testutils::{Address as _, Ledger},
+};
 
 #[test]
 fn test_duplicate_signers_rejected() {
@@ -22,7 +25,8 @@ fn test_duplicate_signers_rejected() {
     client.propose_upgrade(&new_wasm_hash, &(2, 0, 0));
 
     // Fast forward time past the timelock (48 hours)
-    env.ledger().set_timestamp(env.ledger().timestamp() + (48 * 60 * 60) + 1);
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp() + (48 * 60 * 60) + 1);
 
     // Manually create a duplicate signer list to test the deduplication check
     let mut signers = Vec::new(&env);

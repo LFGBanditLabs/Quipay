@@ -30,7 +30,7 @@ import React, {
 } from "react";
 import { z } from "zod";
 import { TransactionBuilder } from "@stellar/stellar-sdk";
-import { Button } from "@stellar/design-system";
+import { Button, Text } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
 import { useNotification } from "../hooks/useNotification";
 import { translateError } from "../util/errors";
@@ -51,6 +51,8 @@ import {
   type CurrentBalance,
   type SimulationResult,
 } from "../util/simulationUtils";
+import { useAddressBook } from "../hooks/useAddressBook";
+import { User, Star } from "lucide-react";
 
 const tw = {
   wrapper: "mx-auto max-w-[680px]",
@@ -73,7 +75,7 @@ const tw = {
   spinner:
     "inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/50 border-t-white align-middle",
   walletNotice:
-    "flex items-start gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-sm text-[var(--muted)]",
+    "flex items-start gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-sm text-muted",
   walletNoticeIcon: "text-base leading-6",
 };
 
@@ -294,11 +296,46 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
 }: StreamCreatorProps) => {
   const { address, signTransaction, networkPassphrase } = useWallet();
   const { addNotification } = useNotification();
+  const { contacts } = useAddressBook();
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const autocompleteRef = useRef<HTMLDivElement>(null);
+
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
   const [step, setStep] = useState<number>(0);
   const { values, errors, txPhase, solvency } = state;
+  const isBusy =
+    txPhase.kind === "simulating" ||
+    txPhase.kind === "signing" ||
+    txPhase.kind === "submitting" ||
+    isPreviewOpen;
+
+  const filteredContacts = useMemo(() => {
+    const query = (values.workerAddress || "").toLowerCase();
+    if (!query) return [];
+
+    return contacts
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(query) ||
+          c.address.toLowerCase().includes(query),
+      )
+      .slice(0, 5);
+  }, [contacts, values.workerAddress]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        autocompleteRef.current &&
+        !autocompleteRef.current.contains(event.target as Node)
+      ) {
+        setShowAutocomplete(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const uid = useId();
   const id = (field: string) => `${uid}-${field}`;
@@ -662,12 +699,6 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
     openSimulation(values);
   };
 
-  const isBusy =
-    txPhase.kind === "simulating" ||
-    txPhase.kind === "signing" ||
-    txPhase.kind === "submitting" ||
-    isPreviewOpen;
-
   const isCurrentFormValid = Object.keys(validate(values)).length === 0;
 
   return (
@@ -697,31 +728,90 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
                 <label htmlFor={id("workerAddress")} className={tw.label}>
                   Worker Address <span className={tw.required}>*</span>
                 </label>
-                <input
-                  id={id("workerAddress")}
-                  name="workerAddress"
-                  type="text"
-                  className={`${tw.input} ${errors.workerAddress ? tw.inputError : ""}`}
-                  placeholder="e.g. GABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-                  value={values.workerAddress}
-                  onChange={handleChange}
-                  disabled={isBusy}
-                  spellCheck={false}
-                  required
-                  aria-required="true"
-                  aria-describedby={
-                    errors.workerAddress ? id("workerAddress-error") : undefined
-                  }
-                  aria-invalid={!!errors.workerAddress}
-                  pattern="^G[A-Z2-7]{55}$"
-                />
+                <div className="relative" ref={autocompleteRef}>
+                  <input
+                    id={id("workerAddress")}
+                    name="workerAddress"
+                    type="text"
+                    className={`${tw.input} ${errors.workerAddress ? tw.inputError : ""}`}
+                    placeholder="Search by name or enter G... address"
+                    value={values.workerAddress}
+                    onChange={(e) => {
+                      handleChange(e);
+                      setShowAutocomplete(true);
+                    }}
+                    onFocus={() => setShowAutocomplete(true)}
+                    disabled={isBusy}
+                    spellCheck={false}
+                    required
+                    aria-required="true"
+                    aria-describedby={
+                      errors.workerAddress
+                        ? id("workerAddress-error")
+                        : undefined
+                    }
+                    aria-invalid={!!errors.workerAddress}
+                    autoComplete="off"
+                  />
+
+                  {showAutocomplete && filteredContacts.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-xl border border-white/10 bg-(--surface)/95 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="p-1 space-y-0.5">
+                        {filteredContacts.map((contact) => (
+                          <button
+                            key={contact.id}
+                            type="button"
+                            onClick={() => {
+                              dispatch({
+                                type: "SET_FIELD",
+                                field: "workerAddress",
+                                value: contact.address,
+                              });
+                              setShowAutocomplete(false);
+                            }}
+                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-white/5 transition-colors group"
+                          >
+                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500/20 transition-colors">
+                              <User size={16} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="truncate text-sm font-semibold">
+                                  {contact.name}
+                                </span>
+                                {contact.isFavorite && (
+                                  <Star
+                                    size={12}
+                                    className="text-amber-400 fill-amber-400"
+                                  />
+                                )}
+                              </div>
+                              <div className="truncate text-[10px] font-mono text-muted">
+                                {contact.address}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <div aria-live="assertive">
                   <ErrorMessage error={errors.workerAddress || null} />
                 </div>
               </div>
 
-              <div className="text-sm text-[var(--muted)]">
-                Use your address book to pick a worker (coming soon).
+              <div className="flex items-center justify-between px-1">
+                <Text as="span" size="xs" className="text-muted">
+                  Pick from your saved contacts or enter a new address.
+                </Text>
+                <button
+                  type="button"
+                  onClick={() => window.open("/address-book", "_blank")}
+                  className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1"
+                >
+                  Manage Address Book
+                </button>
               </div>
 
               <div className={tw.footer}>

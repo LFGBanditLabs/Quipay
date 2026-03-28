@@ -47,7 +47,13 @@
     "stat_total_streams": "Total Streams",
     "stat_total_value": "Total Value Streamed",
     "stat_active_workers": "Active Workers",
-    "stat_avg_duration": "Avg. Stream Duration"
+    "stat_avg_duration": "Avg. Stream Duration",
+    "cta_title": "Ready to automate your payroll?",
+    "cta_subtitle": "Join hundreds of forward-thinking teams using Quipay to stream real-time payments globally.",
+    "cta_email_placeholder": "Enter your work email",
+    "cta_subscribe": "Get Early Access",
+    "cta_success": "Thanks for subscribing!",
+    "cta_error_invalid_email": "Please enter a valid email address"
   },
   "social_proof": {
     "built_on": "Built on",
@@ -78,7 +84,23 @@
     "total_paid": "Total Paid",
     "download_proof": "Download Payroll Proof",
     "proof_generating": "Proof generating…",
-    "proof_cid_label": "IPFS CID"
+    "proof_cid_label": "IPFS CID",
+    "dashboard_title": "Worker Dashboard",
+    "connect_prompt": "Please connect your wallet to view your dashboard",
+    "load_error": "Failed to load stream data",
+    "current_earnings": "Current Earnings",
+    "of_total": "of {{amount}} {{symbol}} total",
+    "available": "Available:",
+    "withdraw_funds": "Withdraw Funds",
+    "batch_atomic_note": "Batch withdrawals are atomic. If a single payout in the batch fails, the entire transaction reverts and no stream in that batch is withdrawn.",
+    "active_streams_heading": "Your Active Streams",
+    "no_active_streams": "No active streams found for this address.",
+    "withdrawal_history_heading": "Withdrawal History",
+    "no_withdrawal_history": "No withdrawal history yet.",
+    "col_date": "Date",
+    "col_amount": "Amount",
+    "col_token": "Token",
+    "col_transaction": "Transaction"
   },
   "payroll": {
     "analytics_title": "Quipay · Employer Analytics",
@@ -207,24 +229,6 @@
     "cpu_instructions": "CPU Instructions",
     "memory_bytes": "Memory (bytes)",
     "resulting_balances": "Resulting Balances"
-  },
-  "worker": {
-    "dashboard_title": "Worker Dashboard",
-    "connect_prompt": "Please connect your wallet to view your dashboard",
-    "load_error": "Failed to load stream data",
-    "current_earnings": "Current Earnings",
-    "of_total": "of {{amount}} {{symbol}} total",
-    "available": "Available:",
-    "withdraw_funds": "Withdraw Funds",
-    "batch_atomic_note": "Batch withdrawals are atomic. If a single payout in the batch fails, the entire transaction reverts and no stream in that batch is withdrawn.",
-    "active_streams_heading": "Your Active Streams",
-    "no_active_streams": "No active streams found for this address.",
-    "withdrawal_history_heading": "Withdrawal History",
-    "no_withdrawal_history": "No withdrawal history yet.",
-    "col_date": "Date",
-    "col_amount": "Amount",
-    "col_token": "Token",
-    "col_transaction": "Transaction"
   },
   "help": {
     "eyebrow": "Quipay Help Center",
