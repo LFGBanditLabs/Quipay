@@ -28,6 +28,8 @@ pub enum DataKey {
     LastWithdrawal(Address), // Timestamp of last successful withdrawal per worker
     CancellationGracePeriod, // Seconds a stream keeps paying after cancel is requested
     MaxStreamDuration,       // Configurable maximum stream duration in seconds
+    MaxStreamsPerEmployer,   // Global default maximum active streams per employer
+    EmployerStreamLimit(Address), // Per-employer maximum active stream override
 }
 
 #[contracttype]
@@ -166,6 +168,8 @@ const DEFAULT_WITHDRAWAL_COOLDOWN: u64 = 60 * 60;
 
 // Default cancellation grace period: 7 days in seconds
 const DEFAULT_CANCELLATION_GRACE_PERIOD: u64 = 7 * 24 * 60 * 60;
+
+const DEFAULT_MAX_STREAMS_PER_EMPLOYER: u32 = 500;
 
 // Storage entries (persistent) are automatically archived after their TTL runs out
 // unless we explicitly extend TTL. Long-running streams can be left untouched for
@@ -330,6 +334,60 @@ impl PayrollStream {
             .instance()
             .get(&DataKey::MaxStreamDuration)
             .unwrap_or(DEFAULT_MAX_STREAM_DURATION)
+    }
+ 
+    /// Set the global default maximum number of active streams per employer.
+    /// Only admin can call this function.
+    pub fn set_max_streams_per_employer(env: Env, limit: u32) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+ 
+        env.storage()
+            .instance()
+            .set(&DataKey::MaxStreamsPerEmployer, &limit);
+        Ok(())
+    }
+ 
+    /// Get the current global default maximum active streams per employer.
+    pub fn get_max_streams_per_employer(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::MaxStreamsPerEmployer)
+            .unwrap_or(DEFAULT_MAX_STREAMS_PER_EMPLOYER)
+    }
+ 
+    /// Set a custom active stream limit for a specific employer.
+    /// This override takes precedence over the global default. Only admin can call this.
+    pub fn set_employer_stream_limit(env: Env, employer: Address, limit: u32) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+ 
+        env.storage()
+            .instance()
+            .set(&DataKey::EmployerStreamLimit(employer), &limit);
+        Ok(())
+    }
+ 
+    /// Get the effective active stream limit for a specific employer.
+    /// Returns the override if set, otherwise returns the global default.
+    pub fn get_employer_stream_limit(env: Env, employer: Address) -> u32 {
+        if let Some(limit) = env
+            .storage()
+            .instance()
+            .get(&DataKey::EmployerStreamLimit(employer.clone()))
+        {
+            limit
+        } else {
+            Self::get_max_streams_per_employer(env)
+        }
     }
 
     /// Set the vault contract address for payroll operations
@@ -658,7 +716,7 @@ impl PayrollStream {
             let key = StreamKey::Stream(stream_id);
 
             let plan = match env.storage().persistent().get::<StreamKey, Stream>(&key) {
-                Some(mut stream) => {
+                Some(stream) => {
                     if stream.worker != caller {
                         BatchWithdrawalPlan::Result(WithdrawResult {
                             stream_id,
@@ -1399,6 +1457,35 @@ impl PayrollStream {
             return Err(QuipayError::InvalidTimeRange);
         }
 
+        let limit = Self::get_employer_stream_limit(env.clone(), employer.clone());
+        let emp_key = StreamKey::EmployerStreams(employer.clone());
+        let emp_ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&emp_key)
+            .unwrap_or_else(|| Vec::new(&env));
+
+        let mut active_count = 0u32;
+        let mut i = 0u32;
+        while i < emp_ids.len() {
+            if let Some(id) = emp_ids.get(i) {
+                if let Some(s) = env
+                    .storage()
+                    .persistent()
+                    .get::<StreamKey, Stream>(&StreamKey::Stream(id))
+                {
+                    if !Self::is_closed(&s) {
+                        active_count += 1;
+                    }
+                }
+            }
+            i += 1;
+        }
+
+        if active_count >= limit {
+            return Err(QuipayError::StreamLimitReached);
+        }
+
         let effective_cliff = if cliff_ts <= start_ts {
             start_ts
         } else {
@@ -2065,7 +2152,7 @@ impl PayrollStream {
         }
 
         // Subtract total paused duration from the elapsed time
-        let mut elapsed_reduction = stream.total_paused_duration;
+        let elapsed_reduction = stream.total_paused_duration;
 
         if effective_ts < stream.cliff_ts {
             return 0;

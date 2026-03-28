@@ -2514,3 +2514,75 @@ fn test_transfer_stream_closed_fails() {
     let res = client.try_transfer_stream(&stream_id, &worker2, &employer);
     assert!(res.is_err());
 }
+
+#[test]
+fn test_employer_stream_limit_enforcement() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_timestamp(100);
+    let (client, employer, _, token, _) = setup(&env);
+    let worker = Address::generate(&env);
+    
+    // Set limit to a small value for testing
+    client.set_max_streams_per_employer(&3u32);
+    
+    // Create 3 streams
+    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    
+    // 4th should fail
+    let res = client.try_create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    assert_eq!(res, Err(Ok(QuipayError::StreamLimitReached)));
+}
+
+#[test]
+fn test_employer_stream_limit_override() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_timestamp(100);
+    let (client, employer, _, token, _) = setup(&env);
+    let worker = Address::generate(&env);
+    
+    // Set global limit to 2
+    client.set_max_streams_per_employer(&2u32);
+    
+    // Override for this employer to 4
+    client.set_employer_stream_limit(&employer, &4u32);
+    
+    // Create 4 streams
+    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    
+    // 5th should fail
+    let res = client.try_create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    assert_eq!(res, Err(Ok(QuipayError::StreamLimitReached)));
+}
+
+#[test]
+fn test_employer_stream_limit_counts_only_active() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_timestamp(100);
+    let (client, employer, _, token, _) = setup(&env);
+    let worker = Address::generate(&env);
+    
+    // Set grace period to 0 for immediate cancellation
+    client.set_cancellation_grace_period(&0u64);
+    client.set_max_streams_per_employer(&1u32);
+    
+    // Create 1 stream
+    let stream_id = client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    
+    // 2nd should fail
+    let res = client.try_create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    assert_eq!(res, Err(Ok(QuipayError::StreamLimitReached)));
+    
+    // Cancel the first stream (requires employer auth)
+    client.cancel_stream(&stream_id, &employer, &None);
+    
+    // Now we should be able to create a new one
+    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+}
