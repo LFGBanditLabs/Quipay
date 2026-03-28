@@ -1,6 +1,7 @@
 #![no_std]
+#![allow(deprecated, clippy::too_many_arguments, unexpected_cfgs)]
 use quipay_common::{QuipayError, require};
-use soroban_sdk::{Address, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype};
+use soroban_sdk::{Address, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype, vec};
 
 #[contracttype]
 #[derive(Clone)]
@@ -187,7 +188,6 @@ impl PayrollStream {
             .instance()
             .get(&DataKey::Vault)
             .expect("vault not configured");
-        use soroban_sdk::{IntoVal, Symbol, vec};
         env.invoke_contract::<()>(
             &vault,
             &Symbol::new(&env, "payout_liability"),
@@ -238,13 +238,7 @@ impl PayrollStream {
 
             let result = match env.storage().persistent().get::<StreamKey, Stream>(&key) {
                 Some(mut stream) => {
-                    if stream.worker != caller {
-                        WithdrawResult {
-                            stream_id,
-                            amount: 0,
-                            success: false,
-                        }
-                    } else if Self::is_closed(&stream) {
+                    if stream.worker != caller || Self::is_closed(&stream) {
                         WithdrawResult {
                             stream_id,
                             amount: 0,
@@ -266,8 +260,7 @@ impl PayrollStream {
                                 .instance()
                                 .get(&DataKey::Vault)
                                 .expect("vault not configured");
-                            use soroban_sdk::{IntoVal, Symbol, vec};
-                            env.invoke_contract::<()>(
+                                                env.invoke_contract::<()>(
                                 &vault,
                                 &Symbol::new(&env, "payout_liability"),
                                 vec![
@@ -384,8 +377,7 @@ impl PayrollStream {
 
         // Pay out owed amount to worker
         if owed > 0 {
-            use soroban_sdk::{IntoVal, Symbol, vec};
-            env.invoke_contract::<()>(
+                env.invoke_contract::<()>(
                 &vault,
                 &Symbol::new(&env, "payout_liability"),
                 vec![
@@ -408,8 +400,7 @@ impl PayrollStream {
             .expect("remaining liability underflow");
 
         if remaining_liability > 0 {
-            use soroban_sdk::{IntoVal, Symbol, vec};
-            env.invoke_contract::<()>(
+                env.invoke_contract::<()>(
                 &vault,
                 &Symbol::new(&env, "remove_liability"),
                 vec![
@@ -569,7 +560,6 @@ impl PayrollStream {
             .get(&DataKey::Vault)
             .ok_or(QuipayError::NotInitialized)?;
 
-        use soroban_sdk::{IntoVal, Symbol, vec};
 
         // Block stream creation if treasury would be insolvent
         let solvent: bool = env.invoke_contract(
@@ -789,7 +779,7 @@ impl PayrollStream {
             }
             i += 1;
         }
-        if new_ids.len() == 0 {
+        if new_ids.is_empty() {
             env.storage().persistent().remove(&key);
         } else {
             env.storage().persistent().set(&key, &new_ids);

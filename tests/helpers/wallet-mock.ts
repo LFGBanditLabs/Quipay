@@ -32,10 +32,10 @@ export const mockWallet = async (
     };
 
     // Use bracket notation to avoid unsafe member access on window
-    (window as Record<string, unknown>).stk = mockKit;
+    (window as unknown as Record<string, unknown>).stk = mockKit;
 
     // Mock window.freighterApi if the app checks for it
-    (window as Record<string, unknown>).freighterApi = {
+    (window as unknown as Record<string, unknown>).freighterApi = {
       isConnected: () => Promise.resolve(true),
       getAddress: () => Promise.resolve({ address: mockAddress }),
       getNetwork: () => Promise.resolve("TESTNET"),

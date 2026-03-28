@@ -1,6 +1,6 @@
 #![no_std]
 use soroban_sdk::{
-    Address, Env, String, Symbol, Vec, contract, contractimpl, contracttype, symbol_short,
+    Address, Env, String, Vec, contract, contractimpl, contracttype, symbol_short,
 };
 
 #[contracttype]
@@ -32,6 +32,7 @@ impl WorkforceRegistryContract {
     /// * `worker` - The address of the worker registering.
     /// * `preferred_token` - The address of the preferred payment token.
     /// * `metadata_hash` - A hash string pointing to metadata (e.g., IPFS/Arweave).
+    #[allow(deprecated)]
     pub fn register_worker(
         e: Env,
         worker: Address,
@@ -71,6 +72,7 @@ impl WorkforceRegistryContract {
     /// * `worker` - The address of the worker updating their profile.
     /// * `preferred_token` - The new preferred payment token address.
     /// * `metadata_hash` - The new metadata hash string.
+    #[allow(deprecated)]
     pub fn update_worker(e: Env, worker: Address, preferred_token: Address, metadata_hash: String) {
         worker.require_auth();
 
@@ -124,6 +126,7 @@ impl WorkforceRegistryContract {
         e.storage().persistent().has(&key)
     }
 
+    #[allow(deprecated)]
     pub fn set_stream_active(e: Env, employer: Address, worker: Address, active: bool) {
         employer.require_auth();
 
