@@ -335,7 +335,7 @@ You do **not** need an ADR for routine bug fixes, UI tweaks, or adding tests.
 
 ### ADR checklist (for PR reviewers)
 
-- [ ] Context explains *why* a decision was needed, not just what it is.
+- [ ] Context explains _why_ a decision was needed, not just what it is.
 - [ ] Decision section starts with "We will…" or "We decided to…".
 - [ ] Alternatives considered are listed with rejection rationale.
 - [ ] Positive and Negative consequences are both filled in.

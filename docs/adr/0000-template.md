@@ -3,6 +3,7 @@
 ## Status
 
 <!-- Proposed | Accepted | Deprecated | Superseded by ADR-XXXX -->
+
 Proposed
 
 ## Context

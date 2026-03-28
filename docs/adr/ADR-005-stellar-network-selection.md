@@ -16,12 +16,12 @@ Quipay is a continuous payroll streaming protocol requiring the following from i
 
 Alternatives evaluated:
 
-| Platform | Finality | Avg. Fee | USDC | Smart Contracts | Notes |
-|----------|----------|----------|------|-----------------|-------|
-| Ethereum (L1) | ~12 s | $1–20 | Yes (ERC-20) | Solidity | Fees prohibitive for small withdrawals |
-| Polygon PoS | ~2 s | ~$0.01 | Yes | Solidity | Centralised sequencer risk; bridge trust assumptions |
-| Solana | ~0.4 s | ~$0.0005 | Yes | Rust/Anchor | Outage history; no built-in account model for payroll |
-| Stellar + Soroban | ~5 s | ~$0.0001 | Yes (native) | Rust (Soroban) | Purpose-built for payments; Stellar DEX liquidity |
+| Platform          | Finality | Avg. Fee | USDC         | Smart Contracts | Notes                                                 |
+| ----------------- | -------- | -------- | ------------ | --------------- | ----------------------------------------------------- |
+| Ethereum (L1)     | ~12 s    | $1–20    | Yes (ERC-20) | Solidity        | Fees prohibitive for small withdrawals                |
+| Polygon PoS       | ~2 s     | ~$0.01   | Yes          | Solidity        | Centralised sequencer risk; bridge trust assumptions  |
+| Solana            | ~0.4 s   | ~$0.0005 | Yes          | Rust/Anchor     | Outage history; no built-in account model for payroll |
+| Stellar + Soroban | ~5 s     | ~$0.0001 | Yes (native) | Rust (Soroban)  | Purpose-built for payments; Stellar DEX liquidity     |
 
 ## Decision
 
