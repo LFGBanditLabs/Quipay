@@ -20,7 +20,7 @@ fn make_stream(
     start: u64,
     end: u64,
 ) -> u64 {
-    client.create_stream(employer, worker, token, &rate, &start, &start, &end, &None)
+    client.create_stream(employer, worker, token, &rate, &start, &start, &end, &None, &None)
 }
 
 // ── basic functionality ───────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ fn test_batch_claim_skips_zero_balance_streams() {
     // Stream with cliff in the future — nothing vested yet.
     env.ledger().with_mut(|li| li.timestamp = 0);
     let stream_id_cliff = client.create_stream(
-        &employer, &worker, &token, &10, &200u64, &0u64, &300u64, &None,
+        &employer, &worker, &token, &10, &200u64, &0u64, &300u64, &None, &None,
     );
     // Normal stream.
     make_stream(&client, &employer, &worker, &token, 10, 0, 100);
@@ -182,7 +182,7 @@ fn test_batch_claim_returns_empty_when_nothing_to_claim() {
     // Stream hasn't started vesting yet (cliff far in future).
     env.ledger().with_mut(|li| li.timestamp = 0);
     client.create_stream(
-        &employer, &worker, &token, &10, &1000u64, &0u64, &2000u64, &None,
+        &employer, &worker, &token, &10, &1000u64, &0u64, &2000u64, &None, &None,
     );
 
     env.ledger().with_mut(|li| li.timestamp = 5);
