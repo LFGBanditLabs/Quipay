@@ -478,6 +478,15 @@ impl PayrollVault {
         Ok(())
     }
 
+    /// Get the withdrawal threshold (amount above which multisig is required).
+    /// Returns 0 if no threshold has been set.
+    pub fn get_withdrawal_threshold(e: Env) -> i128 {
+        e.storage()
+            .persistent()
+            .get(&StateKey::WithdrawalThreshold)
+            .unwrap_or(0)
+    }
+
     /// Get all authorized signers
     pub fn get_signers(e: Env) -> Vec<Address> {
         e.storage()

@@ -1019,6 +1019,52 @@ fn test_high_value_withdraw_requires_multisig_signers() {
 }
 
 // ============================================================================
+// get_withdrawal_threshold Tests
+// ============================================================================
+
+#[test]
+fn test_get_withdrawal_threshold_default_after_init() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // initialize() sets the threshold to DEFAULT_WITHDRAWAL_THRESHOLD (100_000)
+    assert_eq!(client.get_withdrawal_threshold(), 100_000);
+}
+
+#[test]
+fn test_get_withdrawal_threshold_returns_set_value() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    client.set_withdrawal_threshold(&1000);
+    assert_eq!(client.get_withdrawal_threshold(), 1000);
+}
+
+#[test]
+fn test_get_withdrawal_threshold_reflects_update() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    client.set_withdrawal_threshold(&500);
+    assert_eq!(client.get_withdrawal_threshold(), 500);
+
+    client.set_withdrawal_threshold(&9999);
+    assert_eq!(client.get_withdrawal_threshold(), 9999);
+}
+
+// ============================================================================
 // Emergency Drain Timelock Tests
 // ============================================================================
 

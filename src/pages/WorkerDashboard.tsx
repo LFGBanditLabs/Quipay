@@ -206,12 +206,15 @@ const StreamCard: React.FC<{
       </div>
 
       {/* Last event indicator */}
-      {lastEventAmount !== null && (
-        <div className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/8 px-3 py-2 text-xs text-sky-400">
-          ⚡ Last withdrawal detected: {lastEventAmount.toFixed(7)}{" "}
-          {stream.tokenSymbol}
-        </div>
-      )}
+      {lastEventAmount !== null &&
+        (() => {
+          const amt = lastEventAmount;
+          return (
+            <div className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/8 px-3 py-2 text-xs text-sky-400">
+              ⚡ Last withdrawal detected: {amt.toFixed(7)} {stream.tokenSymbol}
+            </div>
+          );
+        })()}
 
       <div
         style={{
