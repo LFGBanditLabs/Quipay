@@ -26,6 +26,7 @@ const PayrollDashboard = lazy(() => import("./pages/PayrollDashboard"));
 const TreasuryManager = lazy(() => import("./pages/TreasuryManager"));
 const WithdrawPage = lazy(() => import("./pages/WithdrawPage"));
 const Reports = lazy(() => import("./pages/Reports"));
+const TestReceipt = lazy(() => import("./pages/TestReceipt"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const WorkerDashboard = lazy(() => import("./pages/WorkerDashboard"));
 const Analytics = lazy(() => import("./pages/Analytics"));
@@ -269,6 +270,8 @@ function App() {
           <Route path="/ui-primitives" element={<UIPrimitivesPreview />} />
           <Route path="/debug" element={<Debugger />} />
           <Route path="/debug/:contractName" element={<Debugger />} />
+          {/* Test-only route to trigger a paycheck PDF without wallet auth */}
+          <Route path="/__test/receipt" element={<TestReceipt />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
