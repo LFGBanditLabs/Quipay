@@ -2165,4 +2165,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod proptest;
+
+#[cfg(test)]
+mod withdraw_proptest;
 mod upgrade_migration_test;
