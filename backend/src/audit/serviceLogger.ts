@@ -4,10 +4,17 @@ import { requestContext } from "../middleware/requestId";
 
 function enrichContext(context: LogContext = {}): LogContext {
   const store = requestContext.getStore();
-  if (store?.requestId) {
-    return { ...context, request_id: store.requestId };
-  }
-  return context;
+  if (!store) return context;
+
+  const enriched: LogContext = { ...context };
+
+  if (store.requestId) enriched.request_id = store.requestId;
+  if (store.correlationId) enriched.correlation_id = store.correlationId;
+  if (store.walletAddress) enriched.wallet_address = store.walletAddress;
+  if (store.method) enriched.method = store.method;
+  if (store.path) enriched.path = store.path;
+
+  return enriched;
 }
 
 function formatFallbackMessage(service: string, message: string): string {
