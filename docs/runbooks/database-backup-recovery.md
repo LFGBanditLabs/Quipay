@@ -6,15 +6,15 @@ Quipay's production database uses automated daily backups with point-in-time rec
 
 ## Backup Strategy
 
-| Parameter               | Staging           | Production         |
-|-------------------------|-------------------|--------------------|
-| Backup frequency        | Daily at 03:00 UTC| Daily at 03:00 UTC |
-| Retention               | 7 days            | 30 days            |
-| Point-in-time recovery  | Enabled           | Enabled            |
-| PITR granularity        | 5 minutes (WAL)   | 5 minutes (WAL)    |
-| Storage location        | Same region       | Geo-redundant      |
-| RPO (Recovery Point)    | 5 minutes         | 5 minutes          |
-| RTO (Recovery Time)     | < 1 hour          | < 30 minutes       |
+| Parameter              | Staging            | Production         |
+| ---------------------- | ------------------ | ------------------ |
+| Backup frequency       | Daily at 03:00 UTC | Daily at 03:00 UTC |
+| Retention              | 7 days             | 30 days            |
+| Point-in-time recovery | Enabled            | Enabled            |
+| PITR granularity       | 5 minutes (WAL)    | 5 minutes (WAL)    |
+| Storage location       | Same region        | Geo-redundant      |
+| RPO (Recovery Point)   | 5 minutes          | 5 minutes          |
+| RTO (Recovery Time)    | < 1 hour           | < 30 minutes       |
 
 ## Configuration
 
@@ -52,6 +52,7 @@ gcloud sql backups list \
 ### Alerts
 
 Configure alerts for backup failures in your monitoring system. The backup job should emit metrics that trigger notifications on:
+
 - Backup job failure
 - Backup duration exceeding 2x the normal time
 - Backup size anomaly (sudden drop may indicate data loss)

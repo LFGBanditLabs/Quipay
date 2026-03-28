@@ -39,10 +39,10 @@ infra/
 
 ## Prerequisites
 
-| Tool      | Version  | Install                                  |
-|-----------|----------|------------------------------------------|
-| Terraform | >= 1.7   | https://developer.hashicorp.com/terraform/install |
-| Cloud CLI | latest   | `gcloud` / `aws` / `az` depending on provider     |
+| Tool      | Version | Install                                           |
+| --------- | ------- | ------------------------------------------------- |
+| Terraform | >= 1.7  | https://developer.hashicorp.com/terraform/install |
+| Cloud CLI | latest  | `gcloud` / `aws` / `az` depending on provider     |
 
 ## Remote State
 

@@ -20,14 +20,14 @@ Quipay uses a blue-green deployment strategy to achieve zero-downtime releases. 
 
 The `blue-green-deploy.yml` workflow automates the full process:
 
-| Stage          | Description                                   | Auto-rollback |
-|----------------|-----------------------------------------------|---------------|
-| Build          | Build and push container image to GHCR        | No            |
-| Deploy Green   | Deploy new image to green environment         | No            |
-| Smoke Test     | Health and API checks against green           | Yes           |
-| Cutover        | Switch load balancer traffic to green         | Yes           |
-| Monitor        | 5-minute error rate monitoring (threshold 5%) | Yes           |
-| Rollback       | Switch back to blue if monitoring fails       | Automatic     |
+| Stage        | Description                                   | Auto-rollback |
+| ------------ | --------------------------------------------- | ------------- |
+| Build        | Build and push container image to GHCR        | No            |
+| Deploy Green | Deploy new image to green environment         | No            |
+| Smoke Test   | Health and API checks against green           | Yes           |
+| Cutover      | Switch load balancer traffic to green         | Yes           |
+| Monitor      | 5-minute error rate monitoring (threshold 5%) | Yes           |
+| Rollback     | Switch back to blue if monitoring fails       | Automatic     |
 
 ## Manual Deployment
 
@@ -55,11 +55,11 @@ kubectl patch service quipay \
 
 ## Required Secrets
 
-| Secret                   | Description                           |
-|--------------------------|---------------------------------------|
-| `GREEN_ENVIRONMENT_URL`  | URL of the green environment          |
-| `PRODUCTION_URL`         | URL of the production environment     |
-| `GITHUB_TOKEN`           | Auto-provided for GHCR push           |
+| Secret                  | Description                       |
+| ----------------------- | --------------------------------- |
+| `GREEN_ENVIRONMENT_URL` | URL of the green environment      |
+| `PRODUCTION_URL`        | URL of the production environment |
+| `GITHUB_TOKEN`          | Auto-provided for GHCR push       |
 
 ## Verifying Zero Downtime
 

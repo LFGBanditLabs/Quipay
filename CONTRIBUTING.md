@@ -17,15 +17,16 @@ Thank you for your interest in contributing to Quipay! This guide covers everyth
 
 ## Prerequisites
 
-| Tool       | Version  | Purpose                        |
-|------------|----------|--------------------------------|
-| Node.js    | >= 22    | Frontend and backend runtime   |
-| npm        | >= 10    | Package management             |
-| Rust       | 1.89+    | Smart contract development     |
-| Docker     | latest   | Local development environment  |
-| stellar-cli| latest   | Contract build and deployment  |
+| Tool        | Version | Purpose                       |
+| ----------- | ------- | ----------------------------- |
+| Node.js     | >= 22   | Frontend and backend runtime  |
+| npm         | >= 10   | Package management            |
+| Rust        | 1.89+   | Smart contract development    |
+| Docker      | latest  | Local development environment |
+| stellar-cli | latest  | Contract build and deployment |
 
 Optional but recommended:
+
 - [Freighter Wallet](https://www.freighter.app/) browser extension for testing wallet interactions
 
 ## Development Setup
@@ -44,6 +45,7 @@ make dev
 ```
 
 This runs `docker compose up --build`, which starts:
+
 - Frontend at `http://localhost:5173`
 - Backend API at `http://localhost:3000`
 - PostgreSQL database with automatic migrations and seed data
@@ -297,6 +299,7 @@ cargo test test_name_here
 This project uses [Husky](https://typicode.github.io/husky/) and [lint-staged](https://github.com/lint-staged/lint-staged) to automatically format and lint code before commits.
 
 The pre-commit hook runs:
+
 - **ESLint** with auto-fix for TypeScript files
 - **Prettier** to format all files
 
