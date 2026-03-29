@@ -1,16 +1,18 @@
-/**
- * BugReportModal.tsx
- * ──────────────────
- * A modal for users to submit structured bug reports with automatically
- * captured state context (wallet, network, route, browser, console errors).
- */
-
 import React, { useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import CopyButton from "./CopyButton";
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalTitle,
+  ModalFooter,
+} from "@/components/ui/Modal";
+import { Button } from "@/components/ui/button";
 
 /* ── State collector ────────────────────────────────────────────────────────── */
 
+/* ... (collectStateContext remains same) ... */
 function collectStateContext(): Record<string, unknown> {
   return {
     app: {
@@ -128,159 +130,55 @@ const BugReportModal: React.FC<BugReportModalProps> = ({
     onClose();
   }, [onClose]);
 
-  if (!open) return null;
-
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 9999,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(0,0,0,0.5)",
-        backdropFilter: "blur(4px)",
-      }}
-      onClick={handleClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "100%",
-          maxWidth: "520px",
-          maxHeight: "85vh",
-          borderRadius: "16px",
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          boxShadow: "0 20px 60px -15px var(--shadow-color, rgba(0,0,0,0.4))",
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-          margin: "16px",
-        }}
-      >
+    <Modal open={open} onOpenChange={handleClose}>
+      <ModalContent className="max-w-[520px]">
         {/* Header */}
-        <div
-          style={{
-            padding: "20px 24px 16px",
-            borderBottom: "1px solid var(--border)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ fontSize: "20px" }}>🐛</span>
-            <h3
-              style={{
-                margin: 0,
-                fontSize: "16px",
-                fontWeight: 700,
-                color: "var(--text)",
-              }}
-            >
-              {t("bug_report.title", "Report a Bug")}
-            </h3>
+        <ModalHeader>
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🐛</span>
+            <ModalTitle>{t("bug_report.title", "Report a Bug")}</ModalTitle>
           </div>
-          <button
-            onClick={handleClose}
-            style={{
-              background: "none",
-              border: "none",
-              fontSize: "18px",
-              cursor: "pointer",
-              color: "var(--muted)",
-              padding: "4px",
-            }}
-          >
-            ✕
-          </button>
-        </div>
+        </ModalHeader>
 
         {/* Body */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "20px 24px",
-          }}
-        >
+        <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1">
           {submitted ? (
-            <div style={{ textAlign: "center", padding: "24px 0" }}>
-              <div style={{ fontSize: "40px", marginBottom: "12px" }}>✅</div>
-              <h4
-                style={{
-                  margin: "0 0 8px",
-                  fontSize: "16px",
-                  fontWeight: 700,
-                  color: "var(--text)",
-                }}
-              >
+            <div className="py-6 text-center">
+              <div className="mb-3 text-4xl">✅</div>
+              <h4 className="mb-2 text-base font-bold text-[var(--text)]">
                 {t("bug_report.submitted", "Report Captured!")}
               </h4>
-              <p
-                style={{
-                  margin: "0 0 16px",
-                  fontSize: "13px",
-                  color: "var(--muted)",
-                }}
-              >
+              <p className="mb-4 text-xs text-[var(--muted)]">
                 {t(
                   "bug_report.submitted_desc",
                   "The bug report has been copied to your clipboard and logged. You can paste it in a GitHub issue or send it to the team.",
                 )}
               </p>
-              <button
+              <Button
                 onClick={handleClose}
-                style={{
-                  padding: "8px 20px",
-                  borderRadius: "8px",
-                  border: "none",
-                  background: "var(--accent, #6366f1)",
-                  color: "white",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
+                className="rounded-xl px-6"
+                variant="primary"
               >
                 {t("common.close", "Close")}
-              </button>
+              </Button>
             </div>
           ) : (
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "16px" }}
-            >
+            <div className="flex flex-col gap-4">
               {/* Error context */}
               {error && (
-                <div
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: "8px",
-                    background: "rgba(239,68,68,0.08)",
-                    border: "1px solid rgba(239,68,68,0.2)",
-                    fontSize: "12px",
-                    color: "var(--sds-color-feedback-error, #ef4444)",
-                  }}
-                >
+                <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-xs text-red-500">
                   <strong>Error:</strong> {error.message}
                 </div>
               )}
 
               {/* Description */}
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "var(--text)",
-                    marginBottom: "6px",
-                  }}
-                >
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">
                   {t("bug_report.description_label", "What happened?")}
                 </label>
                 <textarea
+                  autoFocus
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder={t(
@@ -288,31 +186,13 @@ const BugReportModal: React.FC<BugReportModalProps> = ({
                     "Describe what you were doing and what went wrong…",
                   )}
                   rows={3}
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    borderRadius: "8px",
-                    border: "1px solid var(--border)",
-                    background: "var(--bg)",
-                    color: "var(--text)",
-                    fontSize: "13px",
-                    resize: "vertical",
-                    fontFamily: "inherit",
-                  }}
+                  className="w-full rounded-xl border border-[var(--border)] bg-white/5 px-3 py-2 text-sm text-[var(--text)] placeholder:text-white/20 focus:border-indigo-500/50 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all font-sans"
                 />
               </div>
 
               {/* Steps to reproduce */}
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "var(--text)",
-                    marginBottom: "6px",
-                  }}
-                >
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">
                   {t("bug_report.steps_label", "Steps to reproduce (optional)")}
                 </label>
                 <textarea
@@ -320,57 +200,26 @@ const BugReportModal: React.FC<BugReportModalProps> = ({
                   onChange={(e) => setStepsToReproduce(e.target.value)}
                   placeholder="1. Go to…&#10;2. Click on…&#10;3. See error…"
                   rows={3}
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    borderRadius: "8px",
-                    border: "1px solid var(--border)",
-                    background: "var(--bg)",
-                    color: "var(--text)",
-                    fontSize: "13px",
-                    resize: "vertical",
-                    fontFamily: "inherit",
-                  }}
+                  className="w-full rounded-xl border border-[var(--border)] bg-white/5 px-3 py-2 text-sm text-[var(--text)] placeholder:text-white/20 focus:border-indigo-500/50 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all font-sans"
                 />
               </div>
 
               {/* Auto-captured context (collapsible) */}
-              <details>
-                <summary
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "var(--muted)",
-                    cursor: "pointer",
-                    marginBottom: "6px",
-                  }}
-                >
+              <details className="group">
+                <summary className="cursor-pointer text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider list-none flex items-center gap-1.5">
+                  <span className="group-open:rotate-90 transition-transform text-[8px]">
+                    ▶
+                  </span>
                   {t(
                     "bug_report.auto_context",
                     "Auto-captured context (included in report)",
                   )}
                 </summary>
-                <div
-                  style={{
-                    position: "relative",
-                    marginTop: "6px",
-                  }}
-                >
-                  <pre
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: "8px",
-                      background: "var(--bg)",
-                      border: "1px solid var(--border)",
-                      fontSize: "11px",
-                      color: "var(--muted)",
-                      overflowX: "auto",
-                      maxHeight: "200px",
-                    }}
-                  >
+                <div className="relative mt-2">
+                  <pre className="max-h-[180px] overflow-auto rounded-xl border border-[var(--border)] bg-black/20 p-3 font-mono text-[10px] text-[var(--muted)] scrollbar-thin">
                     {JSON.stringify(stateContext, null, 2)}
                   </pre>
-                  <div style={{ position: "absolute", top: 6, right: 6 }}>
+                  <div className="absolute top-2 right-2">
                     <CopyButton
                       value={JSON.stringify(stateContext, null, 2)}
                       label="Copy context"
@@ -384,49 +233,26 @@ const BugReportModal: React.FC<BugReportModalProps> = ({
 
         {/* Footer */}
         {!submitted && (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: "10px",
-              padding: "16px 24px",
-              borderTop: "1px solid var(--border)",
-            }}
-          >
-            <button
+          <ModalFooter className="mt-4 pt-4 border-t border-[var(--border)] bg-transparent">
+            <Button
+              variant="secondary"
               onClick={handleClose}
-              style={{
-                padding: "8px 18px",
-                borderRadius: "8px",
-                border: "1px solid var(--border)",
-                background: "var(--surface)",
-                color: "var(--text)",
-                fontSize: "13px",
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
+              className="rounded-xl"
             >
               {t("common.cancel", "Cancel")}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSubmit}
-              style={{
-                padding: "8px 18px",
-                borderRadius: "8px",
-                border: "none",
-                background: "var(--accent, #6366f1)",
-                color: "white",
-                fontSize: "13px",
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
+              variant="primary"
+              className="rounded-xl flex items-center gap-2"
             >
-              🐛 {t("bug_report.submit", "Submit Report")}
-            </button>
-          </div>
+              <span className="text-sm">🐛</span>
+              {t("bug_report.submit", "Submit Report")}
+            </Button>
+          </ModalFooter>
         )}
-      </div>
-    </div>
+      </ModalContent>
+    </Modal>
   );
 };
 
