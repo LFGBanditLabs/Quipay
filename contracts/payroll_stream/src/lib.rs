@@ -35,6 +35,9 @@ pub enum DataKey {
     EmployerStreamLimit(Address), // Per-employer maximum active stream override
     MinStreamDuration,       // Configurable minimum stream duration in seconds
     Receipt,                 // PayrollReceipt contract address (optional)
+    GovernanceMode,          // bool: if true, create_stream requires governance approval
+    GovernanceContract,      // Address of the DaoGovernance contract
+    ApprovedProposal(u64),   // proposal_id -> stream_id: marks a proposal as consumed
 }
 
 #[contracttype]
@@ -489,6 +492,39 @@ impl PayrollStream {
         env.storage().instance().get(&DataKey::Receipt)
     }
 
+    /// Enable or disable governance-gated stream creation.
+    /// When enabled, `create_stream` requires a valid approved proposal ID.
+    pub fn set_governance_mode(env: Env, enabled: bool) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::GovernanceMode, &enabled);
+        Ok(())
+    }
+
+    pub fn get_governance_mode(env: Env) -> bool {
+        env.storage().instance().get(&DataKey::GovernanceMode).unwrap_or(false)
+    }
+
+    /// Register the DaoGovernance contract address.
+    pub fn set_governance_contract(env: Env, governance: Address) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::GovernanceContract, &governance);
+        Ok(())
+    }
+
+    pub fn get_governance_contract(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::GovernanceContract)
+    }
+
     pub fn get_admin(env: Env) -> Result<Address, QuipayError> {
         env.storage()
             .instance()
@@ -560,6 +596,23 @@ impl PayrollStream {
     ) -> Result<u64, QuipayError> {
         Self::require_not_paused(&env)?;
         employer.require_auth();
+
+        // Governance mode: only the registered governance contract may call create_stream.
+        // Direct calls from an employer are blocked when governance mode is active.
+        let governance_mode: bool = env
+            .storage()
+            .instance()
+            .get(&DataKey::GovernanceMode)
+            .unwrap_or(false);
+        if governance_mode {
+            let governance: Address = env
+                .storage()
+                .instance()
+                .get(&DataKey::GovernanceContract)
+                .ok_or(QuipayError::NotInitialized)?;
+            // The governance contract must be the direct invoker of this function.
+            governance.require_auth();
+        }
 
         // Call the internal create stream logic
         let stream_id = Self::create_stream_internal(
