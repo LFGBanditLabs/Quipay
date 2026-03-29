@@ -1687,8 +1687,7 @@ impl PayrollStream {
         Ok(stream_id)
     }
 
-    /// Cancel a stream via an authorized AutomationGateway on behalf of an employer.
-    /// Only the registered gateway can call this method.
+
     pub fn cancel_stream_via_gateway(
         env: Env,
         stream_id: u64,
