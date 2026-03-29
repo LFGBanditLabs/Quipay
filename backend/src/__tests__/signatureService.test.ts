@@ -9,14 +9,17 @@ import {
 import crypto from "crypto";
 
 // Mock QRCode module
-jest.mock("qrcode", () => ({
-  toBuffer: jest.fn(),
-  toDataURL: jest.fn(),
-}));
+jest.mock("qrcode");
 jest.mock("../audit/serviceLogger");
 
 import QRCode from "qrcode";
-const mockQRCode = QRCode as jest.Mocked<typeof QRCode>;
+
+// Create properly typed mocks
+const mockToBuffer = jest.fn();
+const mockToDataURL = jest.fn();
+
+(QRCode as any).toBuffer = mockToBuffer;
+(QRCode as any).toDataURL = mockToDataURL;
 
 describe("SignatureService", () => {
   // Generate test keys for consistent testing
@@ -159,13 +162,13 @@ describe("SignatureService", () => {
   describe("generateQRCode", () => {
     it("should generate QR code buffer", async () => {
       const mockBuffer = Buffer.from("fake-qr-code");
-      mockQRCode.toBuffer.mockResolvedValue(mockBuffer);
+      mockToBuffer.mockResolvedValue(mockBuffer);
 
       const signature = "test-signature-123";
       const qrCode = await generateQRCode(signature);
 
       expect(qrCode).toBe(mockBuffer);
-      expect(mockQRCode.toBuffer).toHaveBeenCalledWith(
+      expect(mockToBuffer).toHaveBeenCalledWith(
         signature,
         expect.objectContaining({
           errorCorrectionLevel: "M",
@@ -176,7 +179,7 @@ describe("SignatureService", () => {
     });
 
     it("should throw error if QR code generation fails", async () => {
-      mockQRCode.toBuffer.mockRejectedValue(new Error("QR generation failed"));
+      mockToBuffer.mockRejectedValue(new Error("QR generation failed"));
 
       await expect(generateQRCode("test-signature")).rejects.toThrow(
         "Failed to generate QR code",
@@ -187,13 +190,13 @@ describe("SignatureService", () => {
   describe("generateQRCodeDataURL", () => {
     it("should generate QR code data URL", async () => {
       const mockDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...";
-      mockQRCode.toDataURL.mockResolvedValue(mockDataUrl);
+      mockToDataURL.mockResolvedValue(mockDataUrl);
 
       const signature = "test-signature-123";
       const dataUrl = await generateQRCodeDataURL(signature);
 
       expect(dataUrl).toBe(mockDataUrl);
-      expect(mockQRCode.toDataURL).toHaveBeenCalledWith(
+      expect(mockToDataURL).toHaveBeenCalledWith(
         signature,
         expect.objectContaining({
           errorCorrectionLevel: "M",
@@ -204,7 +207,7 @@ describe("SignatureService", () => {
     });
 
     it("should throw error if data URL generation fails", async () => {
-      mockQRCode.toDataURL.mockRejectedValue(
+      mockToDataURL.mockRejectedValue(
         new Error("Data URL generation failed"),
       );
 
