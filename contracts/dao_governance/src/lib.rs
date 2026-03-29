@@ -17,7 +17,7 @@
 #![no_std]
 use quipay_common::{QuipayError, require};
 use soroban_sdk::{
-    Address, BytesN, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype,
+    Address, BytesN, Env, IntoVal, Symbol, contract, contractimpl, contracttype,
     symbol_short, token,
 };
 

@@ -697,7 +697,21 @@ impl PayrollStream {
 
             env.storage().persistent().set(&StreamKey::Stream(stream_id), &stream);
             created_ids.push_back(stream_id);
-            
+
+            // Update employer index
+            let emp_key = StreamKey::EmployerStreams(authorized_employer.clone());
+            let mut emp_ids: Vec<u64> = env.storage().persistent().get(&emp_key)
+                .unwrap_or_else(|| Vec::new(&env));
+            emp_ids.push_back(stream_id);
+            env.storage().persistent().set(&emp_key, &emp_ids);
+
+            // Update worker index
+            let wrk_key = StreamKey::WorkerStreams(param.worker.clone());
+            let mut wrk_ids: Vec<u64> = env.storage().persistent().get(&wrk_key)
+                .unwrap_or_else(|| Vec::new(&env));
+            wrk_ids.push_back(stream_id);
+            env.storage().persistent().set(&wrk_key, &wrk_ids);
+
             // Emit individual events for downstream indexers
             env.events().publish(
                 (Symbol::new(&env, "stream"), Symbol::new(&env, "created"), param.worker.clone(), authorized_employer.clone()),

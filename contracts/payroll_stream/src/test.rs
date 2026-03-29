@@ -1856,12 +1856,12 @@ fn test_batch_create_streams_succeeds() {
         make_stream_params(&employer, &worker, &token, 50, 0, 50),
     ];
 
-    let stream_ids = client.batch_create_streams(&params);
+    let stream_ids = client.create_stream_batch(&params, &0i128);
 
     assert_eq!(stream_ids.len(), 3);
-    assert_eq!(stream_ids.get(0).unwrap(), 1u32);
-    assert_eq!(stream_ids.get(1).unwrap(), 2u32);
-    assert_eq!(stream_ids.get(2).unwrap(), 3u32);
+    assert_eq!(stream_ids.get(0).unwrap(), 1u64);
+    assert_eq!(stream_ids.get(1).unwrap(), 2u64);
+    assert_eq!(stream_ids.get(2).unwrap(), 3u64);
 
     let first = client.get_stream(&1u64).unwrap();
     assert_eq!(first.total_amount, 10000);
@@ -1890,7 +1890,7 @@ fn test_batch_create_streams_rejects_more_than_twenty() {
         ));
     }
 
-    let result = client.try_batch_create_streams(&params);
+    let result = client.try_create_stream_batch(&params, &0i128);
     let contract_err = result.unwrap_err().unwrap();
     assert_eq!(contract_err, QuipayError::BatchTooLarge);
 }
@@ -1971,16 +1971,16 @@ fn test_batch_create_with_mixed_cliff_times() {
         },
     ];
 
-    let stream_ids = client.batch_create_streams(&params);
+    let stream_ids = client.create_stream_batch(&params, &0i128);
     assert_eq!(stream_ids.len(), 3);
 
     env.ledger().with_mut(|li| {
         li.timestamp = 25;
     });
 
-    let stream1_id = stream_ids.get(0).unwrap() as u64;
-    let stream2_id = stream_ids.get(1).unwrap() as u64;
-    let stream3_id = stream_ids.get(2).unwrap() as u64;
+    let stream1_id = stream_ids.get(0).unwrap();
+    let stream2_id = stream_ids.get(1).unwrap();
+    let stream3_id = stream_ids.get(2).unwrap();
 
     let amount1 = client.withdraw(&stream1_id, &worker);
     assert!(amount1 > 0);
