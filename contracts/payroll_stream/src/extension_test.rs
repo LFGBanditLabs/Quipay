@@ -15,7 +15,7 @@ fn test_extend_stream_duration() {
 
     // Create a 10s stream with rate 100 (total 1000)
     let stream_id = client.create_stream(
-        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None,
+        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None, &None
     );
     let stream_before = client.get_stream(&stream_id).unwrap();
     assert_eq!(stream_before.end_ts, 10);
@@ -44,7 +44,7 @@ fn test_extend_stream_amount() {
 
     // Create a 10s stream with rate 100 (total 1000)
     let stream_id = client.create_stream(
-        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None,
+        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None, &None
     );
 
     // Add 1000 tokens, keep end time at 10
@@ -69,7 +69,7 @@ fn test_extend_stream_duration_and_amount() {
 
     // Create a 10s stream with rate 100 (total 1000)
     let stream_id = client.create_stream(
-        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None,
+        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None, &None
     );
 
     // Add 1000 tokens, extend to 20s
@@ -93,9 +93,9 @@ fn test_extend_stream_rounds_rate_down_with_integer_division() {
     });
 
     let stream_id =
-        client.create_stream(&employer, &worker, &token, &334, &0u64, &0u64, &3u64, &None);
+        client.create_stream(&employer, &worker, &token, &334, &0u64, &0u64, &3u64, &None, &None);
     let stream = client.get_stream(&stream_id).unwrap();
-
+    
     // 334 * 3 = 1002 total amount. Extending to 4s recomputes the rate as
     // 1002 / 4 = 250, truncating the 0.5 remainder.
     client.extend_stream(&stream_id, &0, &4u64);
@@ -116,12 +116,33 @@ fn test_extend_stream_invalid_end_time() {
     });
 
     let stream_id = client.create_stream(
-        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None,
+        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None, &None
     );
 
     // Try to reduce end time
     let result = client.try_extend_stream(&stream_id, &0, &5u64);
     assert!(result.is_err());
+}
+
+#[test]
+fn test_extend_stream_rejects_zero_duration() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _admin) = setup(&env);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    // Stream: start_ts = 0, end_ts = 10
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None,
+        &None,
+    );
+
+    // new_end_time == start_ts (0): zero-duration — must be rejected
+    let result = client.try_extend_stream(&stream_id, &0, &0u64);
+    assert_eq!(result, Err(Ok(QuipayError::InvalidTimeRange)));
 }
 
 #[test]
@@ -136,7 +157,7 @@ fn test_extend_stream_wrong_auth() {
     });
 
     let stream_id = client.create_stream(
-        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None,
+        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None, &None
     );
 
     // Malicious user tries to extend stream

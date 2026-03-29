@@ -65,9 +65,24 @@ export const WalletContext = // eslint-disable-line react-refresh/only-export-co
 export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
   const queryClient = useQueryClient();
   const [balances, setBalances] = useState<MappedBalances>({});
-  const [address, setAddress] = useState<string>();
-  const [network, setNetwork] = useState<string>();
-  const [networkPassphrase, setNetworkPassphrase] = useState<string>();
+  // const [address, setAddress] = useState<string>();
+  // const [network, setNetwork] = useState<string>();
+  // const [networkPassphrase, setNetworkPassphrase] = useState<string>();
+
+  const [address, setAddress] = useState<string | undefined>(() => {
+    const stored = storage.getItem("walletAddress");
+    return stored || undefined;
+  });
+  const [network, setNetwork] = useState<string | undefined>(() => {
+    const stored = storage.getItem("walletNetwork");
+    return stored || undefined;
+  });
+  const [networkPassphrase, setNetworkPassphrase] = useState<
+    string | undefined
+  >(() => {
+    const stored = storage.getItem("networkPassphrase");
+    return stored || undefined;
+  });
   const [isPending, startTransition] = useTransition();
   const [connectionError, setConnectionError] = useState<string | undefined>();
   const popupLock = useRef(false);

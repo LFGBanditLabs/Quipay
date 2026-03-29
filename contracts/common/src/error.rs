@@ -128,6 +128,15 @@ pub enum QuipayError {
     NoDrainPending = 1040,
     /// The drain timelock has not yet expired.
     DrainTimelockActive = 1041,
+    /// The employer address has reached its active stream limit.
+    StreamLimitReached = 1042,
+    /// The stream duration is less than the configured minimum.
+    DurationTooShort = 1043,
+
+    // ── Receipts ──────────────────────────────────────────────────────────────
+
+    /// No receipt exists for the given receipt ID.
+    ReceiptNotFound = 1044,
 
     // ── Catch-all ─────────────────────────────────────────────────────────────
 

@@ -10,6 +10,7 @@ import {
   jsonb,
   index,
   check,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -36,6 +37,11 @@ export const payrollStreams = pgTable(
     status: text("status").notNull().default("active"), // active | completed | cancelled
     closedAt: bigint("closed_at", { mode: "number" }),
     ledgerCreated: bigint("ledger_created", { mode: "number" }).notNull(),
+    metadata: jsonb("metadata"),
+    // ── Soft-delete fields (issue #614) ──────────────────────────────────────
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: text("deleted_by"),
+    cancelReason: text("cancel_reason"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -374,6 +380,56 @@ export const adminAuditLog = pgTable(
       table.adminAddress,
       table.timestamp.desc(),
     ),
+  ],
+);
+
+// ── Idempotency keys audit log (issue #612) ──────────────────────────────────
+export const idempotencyKeys = pgTable(
+  "idempotency_keys",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    endpoint: text("endpoint").notNull(),
+    statusCode: integer("status_code").notNull(),
+    responseBody: jsonb("response_body").notNull().default({}),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("uq_idempotency_key_endpoint").on(
+      table.idempotencyKey,
+      table.endpoint,
+    ),
+    index("idx_idempotency_expires_at").on(table.expiresAt),
+  ],
+);
+
+// ── Stream-level audit trail (issue #614) ────────────────────────────────────
+export const streamAuditLog = pgTable(
+  "stream_audit_log",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    streamId: bigint("stream_id", { mode: "number" })
+      .notNull()
+      .references(() => payrollStreams.streamId),
+    changedBy: text("changed_by").notNull(),
+    action: text("action").notNull(),
+    oldStatus: text("old_status"),
+    newStatus: text("new_status"),
+    reason: text("reason"),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_stream_audit_stream_id").on(
+      table.streamId,
+      table.createdAt.desc(),
+    ),
+    index("idx_stream_audit_changed_by").on(table.changedBy),
   ],
 );
 

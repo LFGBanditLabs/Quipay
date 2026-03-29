@@ -1,0 +1,182 @@
+##############################################################################
+# This workflow runs only on push to main.
+# E2E & Visual Regression tests are NOT run on pull requests to keep PR CI
+# fast and green — these tests require committed baseline snapshots that only
+# exist post-merge.
+##############################################################################
+
+name: "E2E & Visual Regression"
+
+on:
+  push:
+    branches: [main]
+
+# Cancel in-flight runs for the same PR / branch
+concurrency:
+  group: e2e-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+env:
+  NODE_VERSION: "22"
+  CI: "true"
+
+jobs:
+  # ── Gate: build must succeed before we spend CI minutes on tests ──
+  build-gate:
+    name: "Build Gate"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npm run lint
+      - run: npm run build
+
+  # ── E2E Functional Tests ──
+  e2e-tests:
+    name: "E2E Tests (${{ matrix.project }})"
+    needs: build-gate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps ${{ matrix.project }}
+
+      - name: Run E2E tests
+        run: |
+          npx playwright test \
+            --project=${{ matrix.project }} \
+            --ignore-snapshots \
+            --reporter=github,html,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/results-${{ matrix.project }}.json
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results-${{ matrix.project }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+
+  # ── Visual Regression Tests ──
+  visual-regression:
+    name: "Visual Regression (chromium)"
+    needs: build-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run visual regression tests
+        id: visual
+        continue-on-error: true
+        run: |
+          npx playwright test visual-regression \
+            --project=chromium \
+            --reporter=github,html,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/visual-results.json
+
+      - name: Upload visual diff artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-diffs
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 30
+
+      - name: Comment on PR with visual diff summary
+        if: steps.visual.outcome == 'failure' && github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let summary = '## 🖼️ Visual Regression Diffs Detected\n\n';
+            summary += 'Screenshot differences were found. ';
+            summary += 'Download the **visual-regression-diffs** artifact to review.\n\n';
+            summary += '### What to do\n';
+            summary += '- If the changes are **intentional**, update baselines:\n';
+            summary += '  ```bash\n  npx playwright test visual-regression --update-snapshots\n  ```\n';
+            summary += '- If the changes are **unintentional**, fix the regression before merging.\n';
+
+            // Try to parse results JSON for details
+            try {
+              const raw = fs.readFileSync('test-results/visual-results.json', 'utf8');
+              const results = JSON.parse(raw);
+              const failed = results.suites
+                ?.flatMap(s => s.specs || [])
+                ?.filter(s => s.ok === false)
+                ?.map(s => `- ❌ ${s.title}`) || [];
+              if (failed.length > 0) {
+                summary += '\n### Failed Snapshots\n' + failed.join('\n') + '\n';
+              }
+            } catch (e) {
+              // JSON might not exist if tests errored early
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+
+      - name: Fail if visual diffs found
+        if: steps.visual.outcome == 'failure'
+        run: |
+          echo "::error::Visual regression diffs detected. Review the artifacts."
+          exit 1
+
+  # ── Summary gate — blocks merge if any test job failed ──
+  tests-passed:
+    name: "All Tests Passed"
+    if: always()
+    needs: [e2e-tests, visual-regression]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        run: |
+          if [ "${{ needs.e2e-tests.result }}" == "failure" ]; then
+            echo "::error::E2E tests failed"
+            exit 1
+          fi
+          if [ "${{ needs.visual-regression.result }}" == "failure" ]; then
+            echo "::error::Visual regression tests failed"
+            exit 1
+          fi
+          echo "All tests passed!"

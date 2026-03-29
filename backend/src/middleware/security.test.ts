@@ -234,9 +234,7 @@ describe("Security Middleware", () => {
       inputSanitizationMiddleware(mockReq, mockRes, next);
 
       expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        error: "Invalid request body",
-      });
+      expect(mockRes.json).toHaveBeenCalledWith({ error: "Invalid request body" });
       expect(next).not.toHaveBeenCalled();
     });
   });

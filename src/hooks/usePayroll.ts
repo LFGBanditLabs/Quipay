@@ -212,7 +212,7 @@ export const usePayroll = (
         setStreams([]);
       }
     },
-    [options],
+    [options?.offset, options?.limit],
   );
 
   const refreshData = useCallback(async () => {

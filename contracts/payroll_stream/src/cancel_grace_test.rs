@@ -11,7 +11,7 @@ use crate::test::setup;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-/// Create a basic stream starting at `now` and ending 100 s later.
+/// Create a basic stream starting at `now` and ending 10
 fn create_basic_stream(
     client: &PayrollStreamClient,
     employer: &Address,
@@ -27,6 +27,7 @@ fn create_basic_stream(
         &now,
         &now,
         &(now + 100),
+        &None,
         &None,
     )
 }

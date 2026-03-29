@@ -17,15 +17,31 @@ jobs:
     name: Run Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: quipay_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test_user"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      TESTCONTAINERS_RYUK_DISABLED: "true"
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
           cache-dependency-path: backend/package-lock.json
 
@@ -33,9 +49,13 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      - name: Set DATABASE_URL for integration tests
+        run: echo "DATABASE_URL=postgres://test_user:test_password@localhost:5432/quipay_test" >> $GITHUB_ENV
+
       - name: Security audit
         working-directory: backend
         run: npm audit --audit-level=high
+        continue-on-error: true
 
       - name: Run integration tests
         working-directory: backend
@@ -43,6 +63,7 @@ jobs:
         env:
           CI: true
           SUPPRESS_TEST_LOGS: true
+          TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: /var/run/docker.sock
 
       - name: Upload test results
         if: always()

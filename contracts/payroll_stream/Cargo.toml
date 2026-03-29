@@ -7,12 +7,13 @@ publish = false
 version.workspace = true
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
 payroll_vault = { path = "../payroll_vault" }
+payroll_receipt = { path = "../payroll_receipt" }
 quipay_common = { path = "../common" }
 
 [dev-dependencies]

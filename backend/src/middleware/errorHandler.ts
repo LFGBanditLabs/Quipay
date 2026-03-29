@@ -37,6 +37,31 @@ export function createProblemDetails(params: {
 }
 
 /**
+ * Maps database-level error codes to HTTP status codes.
+ *
+ * PostgreSQL error code 57014 = query_canceled (statement_timeout exceeded).
+ * Returning 503 with a Retry-After hint signals transient availability issues
+ * and satisfies acceptance criteria for issue #613.
+ */
+function mapDbErrorToStatus(err: any): {
+  status: number;
+  retryAfter?: number;
+} {
+  const pgCode: string | undefined = err?.code;
+
+  if (pgCode === "57014") {
+    // query_canceled – statement_timeout exceeded
+    return { status: 503, retryAfter: 5 };
+  }
+  if (pgCode === "53300") {
+    // too_many_connections – pool exhausted
+    return { status: 503, retryAfter: 2 };
+  }
+
+  return { status: err.status || err.statusCode || 500 };
+}
+
+/**
  * Global error handler middleware
  * Converts errors to RFC 7807 Problem Details format
  */
@@ -51,17 +76,29 @@ export function errorHandler(
     return next(err);
   }
 
-  // Default to 500 Internal Server Error
-  const status = err.status || err.statusCode || 500;
-  const message = err.message || "An unexpected error occurred";
+  const { status, retryAfter } = mapDbErrorToStatus(err);
+  const message =
+    status === 503 && err?.code === "57014"
+      ? "The database query exceeded its time limit. Please retry."
+      : err.message || "An unexpected error occurred";
+
+  if (retryAfter !== undefined) {
+    res.setHeader("Retry-After", String(retryAfter));
+  }
 
   const problem = createProblemDetails({
-    type: err.type || "internal-error",
-    title: err.title || "Internal Server Error",
+    type: status === 503 ? "service-unavailable" : err.type || "internal-error",
+    title:
+      status === 503
+        ? "Service Unavailable"
+        : err.title || "Internal Server Error",
     status,
     detail: message,
     instance: req.originalUrl,
     ...(err.errors && { errors: err.errors }), // Include validation errors if present
+    ...(retryAfter !== undefined && {
+      retryHint: `Retry after ${retryAfter} seconds`,
+    }),
   });
 
   // Log error for debugging (in production, use proper logging)

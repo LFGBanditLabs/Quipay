@@ -36,7 +36,8 @@
     "templates": "Modèles",
     "withdraw": "Retirer",
     "create_stream": "Nouveau flux",
-    "settings": "Paramètres"
+    "settings": "Paramètres",
+    "customize_dashboard": "Personnaliser le tableau de bord"
   },
   "home": {
     "title": "L'avenir de la",
