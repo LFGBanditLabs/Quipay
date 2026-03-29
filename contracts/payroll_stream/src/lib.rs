@@ -562,23 +562,6 @@ impl PayrollStream {
         Self::require_not_paused(&env)?;
         employer.require_auth();
 
-        // Governance mode: only the registered governance contract may call create_stream.
-        // Direct calls from an employer are blocked when governance mode is active.
-        let governance_mode: bool = env
-            .storage()
-            .instance()
-            .get(&DataKey::GovernanceMode)
-            .unwrap_or(false);
-        if governance_mode {
-            let governance: Address = env
-                .storage()
-                .instance()
-                .get(&DataKey::GovernanceContract)
-                .ok_or(QuipayError::NotInitialized)?;
-            // The governance contract must be the direct invoker of this function.
-            governance.require_auth();
-        }
-
         // Call the internal create stream logic
         let stream_id = Self::create_stream_internal(
             env.clone(),
@@ -714,7 +697,21 @@ impl PayrollStream {
 
             env.storage().persistent().set(&StreamKey::Stream(stream_id), &stream);
             created_ids.push_back(stream_id);
-            
+
+            // Update employer index
+            let emp_key = StreamKey::EmployerStreams(authorized_employer.clone());
+            let mut emp_ids: Vec<u64> = env.storage().persistent().get(&emp_key)
+                .unwrap_or_else(|| Vec::new(&env));
+            emp_ids.push_back(stream_id);
+            env.storage().persistent().set(&emp_key, &emp_ids);
+
+            // Update worker index
+            let wrk_key = StreamKey::WorkerStreams(param.worker.clone());
+            let mut wrk_ids: Vec<u64> = env.storage().persistent().get(&wrk_key)
+                .unwrap_or_else(|| Vec::new(&env));
+            wrk_ids.push_back(stream_id);
+            env.storage().persistent().set(&wrk_key, &wrk_ids);
+
             // Emit individual events for downstream indexers
             env.events().publish(
                 (Symbol::new(&env, "stream"), Symbol::new(&env, "created"), param.worker.clone(), authorized_employer.clone()),
