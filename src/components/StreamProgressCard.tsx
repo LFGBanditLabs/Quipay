@@ -36,9 +36,7 @@ const StreamProgressCard: React.FC<StreamProgressCardProps> = ({
   return (
     <div className="stream-progress-card">
       <div className="stream-progress-card-header">
-        <span className="stream-progress-card-title">
-          {employerName}
-        </span>
+        <span className="stream-progress-card-title">{employerName}</span>
         <span
           className={`stream-progress-card-status ${
             isComplete ? "stream-progress-card-status--complete" : ""

@@ -92,8 +92,8 @@
 
   /* Shadow tokens */
   --token-shadow-sm: 0 2px 4px rgb(0 0 0 / 8%);
-  --token-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 10%),
-    0 2px 4px -2px rgb(0 0 0 / 10%);
+  --token-shadow-md:
+    0 4px 6px -1px rgb(0 0 0 / 10%), 0 2px 4px -2px rgb(0 0 0 / 10%);
   --token-shadow-lg: 0 12px 28px rgb(2 6 23 / 14%);
   --token-shadow-color: rgb(0 0 0 / 10%);
 
@@ -217,8 +217,8 @@
   --token-color-error-soft-strong: rgb(248 113 113 / 20%);
 
   --token-shadow-sm: 0 2px 4px rgb(0 0 0 / 22%);
-  --token-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 50%),
-    0 2px 4px -2px rgb(0 0 0 / 50%);
+  --token-shadow-md:
+    0 4px 6px -1px rgb(0 0 0 / 50%), 0 2px 4px -2px rgb(0 0 0 / 50%);
   --token-shadow-lg: 0 14px 30px rgb(0 0 0 / 52%);
   --token-shadow-color: rgb(0 0 0 / 50%);
 

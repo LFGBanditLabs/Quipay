@@ -40,13 +40,12 @@ export default function BrandingSettings({
   const fetchBranding = useCallback(async () => {
     setIsLoading(true);
     try {
-      const apiBase =
-        (import.meta.env?.VITE_API_BASE_URL as string | undefined) || "";
+      const apiBase = import.meta.env?.VITE_API_BASE_URL || "";
       const response = await fetch(
         `${apiBase}/api/employers/${employerAddress}/branding`,
         {
           credentials: "include",
-        }
+        },
       );
 
       if (response.ok) {
@@ -99,7 +98,10 @@ export default function BrandingSettings({
     reader.readAsDataURL(file);
   };
 
-  const handleColorChange = (field: "primaryColor" | "secondaryColor", value: string) => {
+  const handleColorChange = (
+    field: "primaryColor" | "secondaryColor",
+    value: string,
+  ) => {
     // Validate hex color format
     if (!/^#[0-9A-Fa-f]{6}$/.test(value) && value !== "") {
       return;
@@ -112,8 +114,7 @@ export default function BrandingSettings({
     setErrorMsg("");
 
     try {
-      const apiBase =
-        (import.meta.env?.VITE_API_BASE_URL as string | undefined) || "";
+      const apiBase = import.meta.env?.VITE_API_BASE_URL || "";
 
       // Upload logo if changed
       if (logoFile) {
@@ -126,7 +127,7 @@ export default function BrandingSettings({
             method: "POST",
             body: formData,
             credentials: "include",
-          }
+          },
         );
 
         if (!logoResponse.ok) {
@@ -147,7 +148,7 @@ export default function BrandingSettings({
             secondaryColor: branding.secondaryColor,
           }),
           credentials: "include",
-        }
+        },
       );
 
       if (!colorsResponse.ok) {
@@ -176,14 +177,13 @@ export default function BrandingSettings({
 
   const handleDeleteLogo = async () => {
     try {
-      const apiBase =
-        (import.meta.env?.VITE_API_BASE_URL as string | undefined) || "";
+      const apiBase = import.meta.env?.VITE_API_BASE_URL || "";
       const response = await fetch(
         `${apiBase}/api/employers/${employerAddress}/branding/logo`,
         {
           method: "DELETE",
           credentials: "include",
-        }
+        },
       );
 
       if (response.ok) {
@@ -339,7 +339,8 @@ export default function BrandingSettings({
         <div className="bs-section">
           <h3 className="bs-section-title">Company Logo</h3>
           <p className="bs-section-desc">
-            Upload your company logo to appear on worker payslips. Supported formats: PNG, JPG, SVG (max 2MB)
+            Upload your company logo to appear on worker payslips. Supported
+            formats: PNG, JPG, SVG (max 2MB)
           </p>
 
           <div className="bs-logo-preview">
@@ -368,7 +369,7 @@ export default function BrandingSettings({
             {logoPreview && (
               <button
                 className="bs-btn bs-btn-danger"
-                onClick={handleDeleteLogo}
+                onClick={() => void handleDeleteLogo()}
               >
                 Remove Logo
               </button>
@@ -380,7 +381,8 @@ export default function BrandingSettings({
         <div className="bs-section">
           <h3 className="bs-section-title">Brand Colors</h3>
           <p className="bs-section-desc">
-            Customize the color scheme for your payslips. Use hex color codes (e.g., #2563eb)
+            Customize the color scheme for your payslips. Use hex color codes
+            (e.g., #2563eb)
           </p>
 
           <div className="bs-color-input-group">
@@ -390,12 +392,17 @@ export default function BrandingSettings({
                 id="primaryColor"
                 type="text"
                 value={branding.primaryColor}
-                onChange={(e) => handleColorChange("primaryColor", e.target.value)}
+                onChange={(e) =>
+                  handleColorChange("primaryColor", e.target.value)
+                }
                 placeholder="#2563eb"
                 maxLength={7}
               />
             </div>
-            <div className="bs-color-preview" style={{ backgroundColor: branding.primaryColor }} />
+            <div
+              className="bs-color-preview"
+              style={{ backgroundColor: branding.primaryColor }}
+            />
           </div>
 
           <div className="bs-color-input-group">
@@ -405,23 +412,26 @@ export default function BrandingSettings({
                 id="secondaryColor"
                 type="text"
                 value={branding.secondaryColor}
-                onChange={(e) => handleColorChange("secondaryColor", e.target.value)}
+                onChange={(e) =>
+                  handleColorChange("secondaryColor", e.target.value)
+                }
                 placeholder="#64748b"
                 maxLength={7}
               />
             </div>
-            <div className="bs-color-preview" style={{ backgroundColor: branding.secondaryColor }} />
+            <div
+              className="bs-color-preview"
+              style={{ backgroundColor: branding.secondaryColor }}
+            />
           </div>
         </div>
 
         {/* Save Button */}
         <button
           className={`bs-btn ${
-            saveStatus === "success"
-              ? "bs-btn-success"
-              : "bs-btn-primary"
+            saveStatus === "success" ? "bs-btn-success" : "bs-btn-primary"
           }`}
-          onClick={handleSave}
+          onClick={() => void handleSave()}
           disabled={saveStatus === "loading"}
         >
           {saveStatus === "loading"
@@ -433,7 +443,9 @@ export default function BrandingSettings({
 
         {errorMsg && <div className="bs-error">{errorMsg}</div>}
         {saveStatus === "success" && (
-          <div className="bs-success">Branding settings saved successfully!</div>
+          <div className="bs-success">
+            Branding settings saved successfully!
+          </div>
         )}
       </div>
     </>

@@ -1,6 +1,10 @@
-import PDFDocument from 'pdfkit';
-import { generateQRCode } from './signatureService';
-import { logServiceInfo, logServiceWarn, logServiceError } from '../audit/serviceLogger';
+import PDFDocument from "pdfkit";
+import { generateQRCode } from "./signatureService";
+import {
+  logServiceInfo,
+  logServiceWarn,
+  logServiceError,
+} from "../audit/serviceLogger";
 
 export interface StreamRecord {
   stream_id: number;
@@ -43,7 +47,9 @@ export interface GeneratePayslipParams {
 /**
  * Generate a PDF payslip for a given stream
  */
-export async function generatePayslip(params: GeneratePayslipParams): Promise<Buffer> {
+export async function generatePayslip(
+  params: GeneratePayslipParams,
+): Promise<Buffer> {
   const {
     streamId,
     streamData,
@@ -54,7 +60,7 @@ export async function generatePayslip(params: GeneratePayslipParams): Promise<Bu
     generatedAt,
   } = params;
 
-  logServiceInfo('pdfGenerator', 'Generating payslip', {
+  logServiceInfo("pdfGenerator", "Generating payslip", {
     streamId,
     payslipId,
     workerAddress: streamData.worker,
@@ -63,13 +69,13 @@ export async function generatePayslip(params: GeneratePayslipParams): Promise<Bu
 
   return new Promise(async (resolve, reject) => {
     try {
-      const doc = new PDFDocument({ size: 'A4', margin: 50 });
+      const doc = new PDFDocument({ size: "A4", margin: 50 });
       const chunks: Buffer[] = [];
 
-      doc.on('data', (chunk) => chunks.push(chunk));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', (err) => {
-        logServiceError('pdfGenerator', 'PDF generation failed', {
+      doc.on("data", (chunk) => chunks.push(chunk));
+      doc.on("end", () => resolve(Buffer.concat(chunks)));
+      doc.on("error", (err) => {
+        logServiceError("pdfGenerator", "PDF generation failed", {
           error: err.message,
           streamId,
           payslipId,
@@ -82,7 +88,7 @@ export async function generatePayslip(params: GeneratePayslipParams): Promise<Bu
       try {
         qrCodeBuffer = await generateQRCode(signature);
       } catch (err) {
-        logServiceWarn('pdfGenerator', 'QR code generation failed', {
+        logServiceWarn("pdfGenerator", "QR code generation failed", {
           error: err instanceof Error ? err.message : String(err),
           streamId,
         });
@@ -94,11 +100,11 @@ export async function generatePayslip(params: GeneratePayslipParams): Promise<Bu
         try {
           // In a real implementation, fetch from S3
           // For now, we'll handle graceful degradation
-          logServiceInfo('pdfGenerator', 'Logo URL provided', {
+          logServiceInfo("pdfGenerator", "Logo URL provided", {
             logoUrl: branding.logoUrl,
           });
         } catch (err) {
-          logServiceWarn('pdfGenerator', 'Logo retrieval failed', {
+          logServiceWarn("pdfGenerator", "Logo retrieval failed", {
             error: err instanceof Error ? err.message : String(err),
             logoUrl: branding.logoUrl,
             streamId,
@@ -113,15 +119,15 @@ export async function generatePayslip(params: GeneratePayslipParams): Promise<Bu
       doc
         .fontSize(20)
         .fillColor(branding.primaryColor)
-        .text('PAYSLIP', { align: 'center' })
+        .text("PAYSLIP", { align: "center" })
         .moveDown();
 
       // Payslip metadata
       doc
         .fontSize(10)
-        .fillColor('#000000')
-        .text(`Payslip ID: ${payslipId}`, { align: 'right' })
-        .text(`Generated: ${generatedAt.toISOString()}`, { align: 'right' })
+        .fillColor("#000000")
+        .text(`Payslip ID: ${payslipId}`, { align: "right" })
+        .text(`Generated: ${generatedAt.toISOString()}`, { align: "right" })
         .moveDown();
 
       // Worker and Employer information
@@ -141,11 +147,15 @@ export async function generatePayslip(params: GeneratePayslipParams): Promise<Bu
 
       doc.end();
     } catch (err) {
-      logServiceError('pdfGenerator', 'Unexpected error during PDF generation', {
-        error: err instanceof Error ? err.message : String(err),
-        streamId,
-        payslipId,
-      });
+      logServiceError(
+        "pdfGenerator",
+        "Unexpected error during PDF generation",
+        {
+          error: err instanceof Error ? err.message : String(err),
+          streamId,
+          payslipId,
+        },
+      );
       reject(err);
     }
   });
@@ -160,7 +170,7 @@ function addHeader(
     try {
       doc.image(logoBuffer, 50, 45, { width: 100 });
     } catch (err) {
-      logServiceWarn('pdfGenerator', 'Failed to embed logo in PDF', {
+      logServiceWarn("pdfGenerator", "Failed to embed logo in PDF", {
         error: err instanceof Error ? err.message : String(err),
       });
     }
@@ -169,7 +179,7 @@ function addHeader(
   doc
     .fontSize(12)
     .fillColor(branding.secondaryColor)
-    .text('Quipay Payment Stream', 200, 50, { align: 'right' })
+    .text("Quipay Payment Stream", 200, 50, { align: "right" })
     .moveDown(2);
 }
 
@@ -184,18 +194,18 @@ function addPartyInformation(
   doc
     .fontSize(12)
     .fillColor(branding.primaryColor)
-    .text('Worker', 50, startY)
+    .text("Worker", 50, startY)
     .fontSize(10)
-    .fillColor('#000000')
+    .fillColor("#000000")
     .text(streamData.worker, 50, startY + 20, { width: 200 });
 
   // Employer information (right column)
   doc
     .fontSize(12)
     .fillColor(branding.primaryColor)
-    .text('Employer', 300, startY)
+    .text("Employer", 300, startY)
     .fontSize(10)
-    .fillColor('#000000')
+    .fillColor("#000000")
     .text(streamData.employer, 300, startY + 20, { width: 200 });
 
   doc.moveDown(3);
@@ -209,7 +219,7 @@ function addStreamDetails(
   doc
     .fontSize(14)
     .fillColor(branding.primaryColor)
-    .text('Payment Stream Details')
+    .text("Payment Stream Details")
     .moveDown(0.5);
 
   const startY = doc.y;
@@ -220,40 +230,52 @@ function addStreamDetails(
   // Left column
   doc
     .fontSize(10)
-    .fillColor('#666666')
-    .text('Stream ID:', leftX, startY)
-    .fillColor('#000000')
+    .fillColor("#666666")
+    .text("Stream ID:", leftX, startY)
+    .fillColor("#000000")
     .text(streamData.stream_id.toString(), leftX + 100, startY);
 
   doc
-    .fillColor('#666666')
-    .text('Total Amount:', leftX, startY + lineHeight)
-    .fillColor('#000000')
-    .text(formatAmount(streamData.total_amount), leftX + 100, startY + lineHeight);
+    .fillColor("#666666")
+    .text("Total Amount:", leftX, startY + lineHeight)
+    .fillColor("#000000")
+    .text(
+      formatAmount(streamData.total_amount),
+      leftX + 100,
+      startY + lineHeight,
+    );
 
   doc
-    .fillColor('#666666')
-    .text('Withdrawn Amount:', leftX, startY + lineHeight * 2)
-    .fillColor('#000000')
-    .text(formatAmount(streamData.withdrawn_amount), leftX + 100, startY + lineHeight * 2);
+    .fillColor("#666666")
+    .text("Withdrawn Amount:", leftX, startY + lineHeight * 2)
+    .fillColor("#000000")
+    .text(
+      formatAmount(streamData.withdrawn_amount),
+      leftX + 100,
+      startY + lineHeight * 2,
+    );
 
   // Right column
   doc
-    .fillColor('#666666')
-    .text('Start Date:', rightX, startY)
-    .fillColor('#000000')
+    .fillColor("#666666")
+    .text("Start Date:", rightX, startY)
+    .fillColor("#000000")
     .text(formatTimestamp(streamData.start_ts), rightX + 100, startY);
 
   doc
-    .fillColor('#666666')
-    .text('End Date:', rightX, startY + lineHeight)
-    .fillColor('#000000')
-    .text(formatTimestamp(streamData.end_ts), rightX + 100, startY + lineHeight);
+    .fillColor("#666666")
+    .text("End Date:", rightX, startY + lineHeight)
+    .fillColor("#000000")
+    .text(
+      formatTimestamp(streamData.end_ts),
+      rightX + 100,
+      startY + lineHeight,
+    );
 
   doc
-    .fillColor('#666666')
-    .text('Status:', rightX, startY + lineHeight * 2)
-    .fillColor('#000000')
+    .fillColor("#666666")
+    .text("Status:", rightX, startY + lineHeight * 2)
+    .fillColor("#000000")
     .text(streamData.status, rightX + 100, startY + lineHeight * 2);
 
   doc.moveDown(3);
@@ -267,14 +289,14 @@ function addWithdrawalHistory(
   doc
     .fontSize(14)
     .fillColor(branding.primaryColor)
-    .text('Withdrawal History')
+    .text("Withdrawal History")
     .moveDown(0.5);
 
   if (withdrawals.length === 0) {
     doc
       .fontSize(10)
-      .fillColor('#666666')
-      .text('No withdrawals recorded')
+      .fillColor("#666666")
+      .text("No withdrawals recorded")
       .moveDown(2);
     return;
   }
@@ -286,29 +308,41 @@ function addWithdrawalHistory(
 
   doc
     .fontSize(10)
-    .fillColor('#FFFFFF')
+    .fillColor("#FFFFFF")
     .rect(leftMargin, tableTop, 495, 20)
     .fill(branding.primaryColor);
 
   doc
-    .fillColor('#FFFFFF')
-    .text('Date', leftMargin + 5, tableTop + 5, { width: colWidths.date })
-    .text('Amount', leftMargin + colWidths.date + 5, tableTop + 5, { width: colWidths.amount })
-    .text('Ledger', leftMargin + colWidths.date + colWidths.amount + 5, tableTop + 5, {
-      width: colWidths.ledger,
-    });
+    .fillColor("#FFFFFF")
+    .text("Date", leftMargin + 5, tableTop + 5, { width: colWidths.date })
+    .text("Amount", leftMargin + colWidths.date + 5, tableTop + 5, {
+      width: colWidths.amount,
+    })
+    .text(
+      "Ledger",
+      leftMargin + colWidths.date + colWidths.amount + 5,
+      tableTop + 5,
+      {
+        width: colWidths.ledger,
+      },
+    );
 
   // Table rows
   let currentY = tableTop + 25;
   withdrawals.forEach((withdrawal, index) => {
-    const bgColor = index % 2 === 0 ? '#F9FAFB' : '#FFFFFF';
+    const bgColor = index % 2 === 0 ? "#F9FAFB" : "#FFFFFF";
     doc.rect(leftMargin, currentY, 495, 20).fill(bgColor);
 
     doc
-      .fillColor('#000000')
-      .text(formatTimestamp(withdrawal.ledger_ts), leftMargin + 5, currentY + 5, {
-        width: colWidths.date,
-      })
+      .fillColor("#000000")
+      .text(
+        formatTimestamp(withdrawal.ledger_ts),
+        leftMargin + 5,
+        currentY + 5,
+        {
+          width: colWidths.date,
+        },
+      )
       .text(
         formatAmount(withdrawal.amount),
         leftMargin + colWidths.date + 5,
@@ -338,14 +372,14 @@ function addSignatureSection(
   doc
     .fontSize(14)
     .fillColor(branding.primaryColor)
-    .text('Cryptographic Signature')
+    .text("Cryptographic Signature")
     .moveDown(0.5);
 
   if (!signature) {
     doc
       .fontSize(10)
-      .fillColor('#DC2626')
-      .text('Signature unavailable')
+      .fillColor("#DC2626")
+      .text("Signature unavailable")
       .moveDown(2);
     return;
   }
@@ -355,7 +389,7 @@ function addSignatureSection(
     try {
       doc.image(qrCodeBuffer, 50, doc.y, { width: 100 });
     } catch (err) {
-      logServiceWarn('pdfGenerator', 'Failed to embed QR code in PDF', {
+      logServiceWarn("pdfGenerator", "Failed to embed QR code in PDF", {
         error: err instanceof Error ? err.message : String(err),
       });
     }
@@ -364,19 +398,19 @@ function addSignatureSection(
   // Signature text
   doc
     .fontSize(8)
-    .fillColor('#000000')
-    .text('Signature:', 170, doc.y)
+    .fillColor("#000000")
+    .text("Signature:", 170, doc.y)
     .text(signature, 170, doc.y + 15, { width: 350 })
     .moveDown(2);
 
   doc
     .fontSize(8)
-    .fillColor('#666666')
+    .fillColor("#666666")
     .text(
-      'This payslip is cryptographically signed. Verify authenticity at /verify-signature',
+      "This payslip is cryptographically signed. Verify authenticity at /verify-signature",
       50,
       doc.y,
-      { width: 495, align: 'center' },
+      { width: 495, align: "center" },
     )
     .moveDown();
 }
@@ -385,12 +419,12 @@ function addFooter(doc: PDFKit.PDFDocument): void {
   const pageHeight = doc.page.height;
   doc
     .fontSize(8)
-    .fillColor('#666666')
+    .fillColor("#666666")
     .text(
-      'This is a computer-generated document. No signature is required.',
+      "This is a computer-generated document. No signature is required.",
       50,
       pageHeight - 50,
-      { align: 'center', width: 495 },
+      { align: "center", width: 495 },
     );
 }
 
@@ -402,5 +436,5 @@ function formatAmount(amount: string): string {
 
 function formatTimestamp(timestamp: number): string {
   const date = new Date(timestamp * 1000);
-  return date.toISOString().split('T')[0];
+  return date.toISOString().split("T")[0];
 }
