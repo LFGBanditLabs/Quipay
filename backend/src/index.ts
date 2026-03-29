@@ -14,6 +14,8 @@ import { stellarRouter } from "./routes/stellar";
 import { reportsRouter } from "./routes/reports";
 import { employersRouter } from "./routes/employers";
 import { streamsRouter } from "./routes/streams";
+import { payslipsRouter } from "./routes/payslips";
+import { brandingRouter } from "./routes/branding";
 import { startStellarListener } from "./stellarListener";
 import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
 import { startMonitor, runMonitorCycle } from "./monitor/monitor";
@@ -139,6 +141,9 @@ app.use("/stellar", stellarRouter);
 app.use("/reports", reportsRouter);
 app.use("/streams", streamsRouter);
 app.use("/api/streams", streamsRouter);
+app.use("/api/workers", payslipsRouter);
+app.use("/api", payslipsRouter); // For /api/verify-signature
+app.use("/api/employers", brandingRouter);
 
 // Start time for uptime calculation
 const startTime = Date.now();
