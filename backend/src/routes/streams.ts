@@ -48,6 +48,7 @@ const createStreamSchema = z.object({
   endTs: z.number().int().positive(),
   status: z.enum(["active", "completed", "cancelled"]).default("active"),
   ledger: z.number().int().positive(),
+  metadata: z.record(z.string(), z.string()).optional(),
 });
 
 const cancelStreamSchema = z.object({
@@ -97,6 +98,7 @@ streamsRouter.post(
       endTs: body.endTs,
       status: body.status,
       ledger: body.ledger,
+      metadata: body.metadata ? (body.metadata as Record<string, string>) : undefined,
     });
 
     const stream = await getStreamById(body.streamId);

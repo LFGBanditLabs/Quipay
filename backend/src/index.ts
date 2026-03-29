@@ -38,6 +38,7 @@ import { secretsBootstrap } from "./services/secretsBootstrap";
 import { requestIdMiddleware } from "./middleware/requestId";
 import { httpLoggerMiddleware } from "./middleware/httpLogger";
 import { requireMonitorStatusAdminToken } from "./middleware/monitorStatusAuth";
+import { inputSanitizationMiddleware } from "./middleware/inputSanitization";
 import { getHealthResponse } from "./health";
 
 dotenv.config();
@@ -77,16 +78,17 @@ app.use(
 );
 app.use(
   express.json({
-    limit: "1mb",
+    limit: "64kb",
     verify: (req: any, res: any, buf: Buffer) => {
       req.rawBody = buf;
     },
   }),
 ); // Limit payload size to prevent memory exhaustion
+app.use(inputSanitizationMiddleware);
 app.use(
   express.urlencoded({
     extended: true,
-    limit: "1mb",
+    limit: "64kb",
     verify: (req: any, res: any, buf: Buffer) => {
       req.rawBody = buf;
     },
@@ -115,6 +117,12 @@ async function initializeServices() {
 app.use("/api-docs", docsRouter);
 // Backwards-compatible alias
 app.use("/docs", docsRouter);
+
+// CSP violation reporting endpoint
+app.post("/csp-report", (req, res) => {
+  console.error("CSP Violation:", JSON.stringify(req.body, null, 2));
+  res.status(204).end();
+});
 
 app.use("/webhooks", webhookRouter);
 app.use("/slack", slackRouter);
