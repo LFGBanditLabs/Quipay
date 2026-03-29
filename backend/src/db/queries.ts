@@ -187,17 +187,19 @@ export const upsertStream = async (params: {
   status: "active" | "completed" | "cancelled";
   closedAt?: number;
   ledger: number;
+  metadata?: Record<string, string>;
 }): Promise<void> => {
   if (!getPool()) return; // DB not configured
   await query(
     `INSERT INTO payroll_streams
            (stream_id, employer, worker, total_amount, withdrawn_amount,
-            start_ts, end_ts, status, closed_at, ledger_created, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, NOW())
+            start_ts, end_ts, status, closed_at, ledger_created, metadata, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, NOW())
          ON CONFLICT (stream_id) DO UPDATE
            SET withdrawn_amount = EXCLUDED.withdrawn_amount,
                status           = EXCLUDED.status,
                closed_at        = EXCLUDED.closed_at,
+               metadata         = EXCLUDED.metadata,
                updated_at       = NOW()`,
     [
       params.streamId,
@@ -210,6 +212,7 @@ export const upsertStream = async (params: {
       params.status,
       params.closedAt ?? null,
       params.ledger,
+      params.metadata ?? null,
     ],
   );
 
@@ -1283,5 +1286,46 @@ export const getWithdrawalFrequency = async (
   return res.rows.map((r) => ({
     ...r,
     withdrawal_count: Number(r.withdrawal_count),
+  }));
+};
+
+// ─── Employer Spend Analytics ─────────────────────────────────────────────────
+
+export const getEmployerSpendBreakdown = async (
+  employer: string,
+  period: "monthly" | "weekly" | "daily" = "monthly",
+): Promise<
+  Array<{
+    worker: string;
+    department?: string;
+    project?: string;
+    role?: string;
+    period_start: string;
+    total_spend: number;
+  }>
+> => {
+  if (!getPool()) return [];
+  const interval = period === "monthly" ? "month" : period === "weekly" ? "week" : "day";
+  const res = await query(
+    `SELECT
+       s.worker,
+       s.metadata->>'department' as department,
+       s.metadata->>'project' as project,
+       s.metadata->>'role' as role,
+       DATE_TRUNC('${interval}', TO_TIMESTAMP(s.start_ts))::text as period_start,
+       SUM(s.total_amount::numeric) as total_spend
+     FROM payroll_streams s
+     WHERE s.employer = $1 AND s.status = 'active'
+     GROUP BY s.worker, s.metadata->>'department', s.metadata->>'project', s.metadata->>'role', DATE_TRUNC('${interval}', TO_TIMESTAMP(s.start_ts))
+     ORDER BY period_start DESC, total_spend DESC`,
+    [employer],
+  );
+  return res.rows.map((r) => ({
+    worker: r.worker,
+    department: r.department || undefined,
+    project: r.project || undefined,
+    role: r.role || undefined,
+    period_start: r.period_start,
+    total_spend: Number(r.total_spend),
   }));
 };

@@ -13,6 +13,7 @@ import {
   getTopWorkersByEarnings,
   getStreamCreationRate,
   getWithdrawalFrequency,
+  getEmployerSpendBreakdown,
 } from "./db/queries";
 import { globalCache } from "./utils/cache";
 import {
@@ -295,6 +296,33 @@ analyticsRouter.get(
             recentWithdrawals: data.recentWithdrawals,
           },
         });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      res.status(500).json({ ok: false, error: msg });
+    }
+  },
+);
+
+/**
+ * GET /analytics/employer/:address/spend
+ * Spend breakdown for a specific employer.
+ */
+analyticsRouter.get(
+  "/employer/:address/spend",
+  async (req: Request, res: Response) => {
+    try {
+      const address = req.params.address as string;
+      const period = (req.query.period as string) || "monthly";
+      if (!["monthly", "weekly", "daily"].includes(period)) {
+        return res.status(400).json({ error: "Invalid period" });
+      }
+      const { data, ms } = await timed(() =>
+        getEmployerSpendBreakdown(address, period as any),
+      );
+      res.set("X-Response-Time", `${ms}ms`).json({
+        ok: true,
+        data,
+      });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       res.status(500).json({ ok: false, error: msg });
