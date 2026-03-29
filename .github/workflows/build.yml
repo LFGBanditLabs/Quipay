@@ -65,7 +65,8 @@ jobs:
         run: npm audit --audit-level=high
         continue-on-error: true
       - run: npm run lint
-      - run: npx prettier . --check
+      - name: Check formatting (tracked files only)
+        run: git ls-files -z | xargs -0 npx prettier --check --ignore-unknown
       - run: npm run build
       - name: Run tests
         run: npm test --if-present
