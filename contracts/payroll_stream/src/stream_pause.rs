@@ -57,7 +57,7 @@ impl PayrollStream {
         }
 
         if stream.status != StreamStatus::Paused {
-            return Err(QuipayError::Custom); // Should be Active or something else
+            return Err(QuipayError::StreamNotPaused);
         }
 
         let now = env.ledger().timestamp();

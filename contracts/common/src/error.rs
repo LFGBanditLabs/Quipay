@@ -138,6 +138,20 @@ pub enum QuipayError {
     /// No receipt exists for the given receipt ID.
     ReceiptNotFound = 1044,
 
+    // ── Upgrades ──────────────────────────────────────────────────────────────
+
+    /// A WASM upgrade was proposed but one is already pending.
+    UpgradeAlreadyPending = 1045,
+    /// An upgrade operation was attempted but no upgrade is currently pending.
+    NoPendingUpgrade = 1046,
+    /// The upgrade timelock has not yet expired; too early to execute.
+    TimelockNotExpired = 1047,
+
+    // ── Stream State ──────────────────────────────────────────────────────────
+
+    /// An operation requires the stream to be paused, but it is not paused.
+    StreamNotPaused = 1048,
+
     // ── Catch-all ─────────────────────────────────────────────────────────────
 
     /// A custom error condition not covered by the above codes.

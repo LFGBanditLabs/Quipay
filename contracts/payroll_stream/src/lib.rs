@@ -274,10 +274,28 @@ impl PayrollStream {
             .get(&DataKey::Admin)
             .ok_or(QuipayError::NotInitialized)?;
         admin.require_auth();
+        if retention_secs == 0 {
+            return Err(QuipayError::InvalidAmount);
+        }
         env.storage()
             .instance()
             .set(&DataKey::RetentionSecs, &retention_secs);
         Ok(())
+    }
+
+    /// Get the current retention policy duration in seconds.
+    /// Returns the configured value, or the 30-day default if not set.
+    pub fn get_retention_secs(env: Env) -> u64 {
+        env.storage()
+            .instance()
+            .get(&DataKey::RetentionSecs)
+            .unwrap_or(DEFAULT_RETENTION_SECS)
+    }
+
+    /// Get the currently configured vault address.
+    /// Returns `Some(address)` when set, `None` when not configured.
+    pub fn get_vault(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::Vault)
     }
 
     /// Set early cancellation fee as basis points (max 1000 = 10%)
@@ -2209,7 +2227,7 @@ impl PayrollStream {
 
         // Check if there's already a pending upgrade
         if env.storage().instance().has(&DataKey::PendingUpgrade) {
-            return Err(QuipayError::Custom);
+            return Err(QuipayError::UpgradeAlreadyPending);
         }
 
         let pending_upgrade = PendingUpgrade {
@@ -2245,11 +2263,11 @@ impl PayrollStream {
             .storage()
             .instance()
             .get(&DataKey::PendingUpgrade)
-            .ok_or(QuipayError::Custom)?;
+            .ok_or(QuipayError::NoPendingUpgrade)?;
 
         let now = env.ledger().timestamp();
         if now < pending_upgrade.execute_after {
-            return Err(QuipayError::Custom);
+            return Err(QuipayError::TimelockNotExpired);
         }
 
         // Perform the upgrade
@@ -2281,7 +2299,7 @@ impl PayrollStream {
             .storage()
             .instance()
             .get(&DataKey::PendingUpgrade)
-            .ok_or(QuipayError::Custom)?;
+            .ok_or(QuipayError::NoPendingUpgrade)?;
 
         // Clear pending upgrade
         env.storage().instance().remove(&DataKey::PendingUpgrade);
