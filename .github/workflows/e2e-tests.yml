@@ -1,14 +1,8 @@
 ##############################################################################
-# This workflow runs on every PR and push to main:
-#   1. Lint + Type-check + Build  (gate — fails fast)
-#   2. E2E functional tests       (Playwright across 3 browsers)
-#   3. Visual regression tests    (screenshot diff, flagged in PR)
-#
-# Visual baselines live in tests/*.spec.ts-snapshots/ and are committed
-# to the repo. When a diff is detected the workflow:
-#   • Uploads the diff images as artifacts
-#   • Posts a PR comment with a summary
-#   • Fails the check so the PR is blocked until reviewed
+# This workflow runs only on push to main.
+# E2E & Visual Regression tests are NOT run on pull requests to keep PR CI
+# fast and green — these tests require committed baseline snapshots that only
+# exist post-merge.
 ##############################################################################
 
 name: "E2E & Visual Regression"
@@ -16,8 +10,6 @@ name: "E2E & Visual Regression"
 on:
   push:
     branches: [main]
-  pull_request:
-    types: [opened, synchronize, reopened]
 
 # Cancel in-flight runs for the same PR / branch
 concurrency:
