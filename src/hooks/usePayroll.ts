@@ -61,7 +61,6 @@ const DEFAULT_TOKENS: Array<{
   },
 ];
 
-
 /**
  * Fetches vault balances and payroll streams for an employer.
  *

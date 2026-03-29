@@ -11,7 +11,8 @@ const {
 } = sdk;
 const SorobanRpc = sdk.rpc;
 
-const RPC_URL = process.env.STELLAR_RPC_URL || "https://soroban-testnet.stellar.org";
+const RPC_URL =
+  process.env.STELLAR_RPC_URL || "https://soroban-testnet.stellar.org";
 const NETWORK_PASSPHRASE =
   process.env.STELLAR_NETWORK_PASSPHRASE || "Test SDF Network ; September 2015";
 
