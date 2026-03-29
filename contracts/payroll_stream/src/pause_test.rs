@@ -56,7 +56,7 @@ fn test_pause_stream_wrong_auth() {
 
     env.ledger().with_mut(|li| li.timestamp = 0);
     let stream_id =
-        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None , &None);
+        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None);
 
     // Malicious user tries to pause
     let result = client.try_pause_stream(&stream_id, &malicious);

@@ -24,6 +24,7 @@ pub enum DataKey {
     RetentionSecs,
     Vault,
     Gateway,
+    DaoGovernance,           // Authorized DAO governance contract for gated stream creation
     PendingUpgrade,          // (wasm_hash, execute_after_timestamp)
     EarlyCancelFeeBps,       // Basis points for early cancellation fee (max 1000 = 10%)
     WithdrawalCooldown,      // Minimum seconds a worker must wait between withdrawals
@@ -35,9 +36,6 @@ pub enum DataKey {
     EmployerStreamLimit(Address), // Per-employer maximum active stream override
     MinStreamDuration,       // Configurable minimum stream duration in seconds
     Receipt,                 // PayrollReceipt contract address (optional)
-    GovernanceMode,          // bool: if true, create_stream requires governance approval
-    GovernanceContract,      // Address of the DaoGovernance contract
-    ApprovedProposal(u64),   // proposal_id -> stream_id: marks a proposal as consumed
 }
 
 #[contracttype]
@@ -492,39 +490,6 @@ impl PayrollStream {
         env.storage().instance().get(&DataKey::Receipt)
     }
 
-    /// Enable or disable governance-gated stream creation.
-    /// When enabled, `create_stream` requires a valid approved proposal ID.
-    pub fn set_governance_mode(env: Env, enabled: bool) -> Result<(), QuipayError> {
-        let admin: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::Admin)
-            .ok_or(QuipayError::NotInitialized)?;
-        admin.require_auth();
-        env.storage().instance().set(&DataKey::GovernanceMode, &enabled);
-        Ok(())
-    }
-
-    pub fn get_governance_mode(env: Env) -> bool {
-        env.storage().instance().get(&DataKey::GovernanceMode).unwrap_or(false)
-    }
-
-    /// Register the DaoGovernance contract address.
-    pub fn set_governance_contract(env: Env, governance: Address) -> Result<(), QuipayError> {
-        let admin: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::Admin)
-            .ok_or(QuipayError::NotInitialized)?;
-        admin.require_auth();
-        env.storage().instance().set(&DataKey::GovernanceContract, &governance);
-        Ok(())
-    }
-
-    pub fn get_governance_contract(env: Env) -> Option<Address> {
-        env.storage().instance().get(&DataKey::GovernanceContract)
-    }
-
     pub fn get_admin(env: Env) -> Result<Address, QuipayError> {
         env.storage()
             .instance()
@@ -641,75 +606,124 @@ impl PayrollStream {
         Ok(stream_id)
     }
 
-    pub fn batch_create_streams(
+    /// Creates multiple streams atomically and optionally deposits a lump sum into the vault.
+    /// This is significantly more gas-efficient than calling create_stream individually
+    /// as it groups vault interactions into single calls.
+    pub fn create_stream_batch(
         env: Env,
         params: Vec<StreamParams>,
-    ) -> Result<Vec<u32>, QuipayError> {
+        vault_deposit: i128,
+    ) -> Result<Vec<u64>, QuipayError> {
         Self::require_not_paused(&env)?;
 
         if params.len() > MAX_BATCH_CREATE_STREAMS {
             return Err(QuipayError::BatchTooLarge);
         }
-
         if params.is_empty() {
             return Ok(Vec::new(&env));
         }
 
+        // All streams in a batch must share the same employer and token for atomic funding
         let first_param = params.get(0).ok_or(QuipayError::InvalidAmount)?;
         let authorized_employer = first_param.employer.clone();
+        let token = first_param.token.clone();
         authorized_employer.require_auth();
 
-        let mut stream_ids = Vec::new(&env);
-        let mut index = 0u32;
+        let vault: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Vault)
+            .ok_or(QuipayError::NotInitialized)?;
 
-        while index < params.len() {
-            let Some(param) = params.get(index) else {
-                index += 1;
-                continue;
-            };
+        let mut total_liability: i128 = 0;
+        let mut validated_params = Vec::new(&env);
 
-            if param.employer != authorized_employer {
-                return Err(QuipayError::Unauthorized);
+        // Phase 1: Pre-validation and liability calculation
+        for param in params.iter() {
+            if param.employer != authorized_employer || param.token != token {
+                return Err(QuipayError::Custom); // Batch must be homogeneous (same employer/token)
+            }
+            
+            if param.rate <= 0 || param.end_ts <= param.start_ts {
+                return Err(QuipayError::InvalidAmount);
             }
 
-            let stream_id = Self::create_stream_internal(
-                env.clone(),
-                param.employer.clone(),
-                param.worker.clone(),
-                param.token.clone(),
-                param.rate,
-                param.cliff_ts,
-                param.start_ts,
-                param.end_ts,
-                param.metadata_hash.clone(),
-                match param.speed_curve {
-                    MaybeSpeedCurve::Some(c) => Some(c),
-                    MaybeSpeedCurve::None => None,
-                },
-            )?;
-
-            env.events().publish(
-                (
-                    Symbol::new(&env, "stream"),
-                    Symbol::new(&env, "created"),
-                    param.worker,
-                    param.employer,
-                ),
-                (
-                    stream_id,
-                    param.token,
-                    param.rate,
-                    param.start_ts,
-                    param.end_ts,
-                ),
-            );
-
-            let stream_id = u32::try_from(stream_id).map_err(|_| QuipayError::Overflow)?;
-            stream_ids.push_back(stream_id);
-            index += 1;
+            let duration = param.end_ts.saturating_sub(param.start_ts);
+            let stream_total = param.rate
+                .checked_mul(i128::from(duration as i64))
+                .ok_or(QuipayError::Overflow)?;
+            
+            total_liability = total_liability.checked_add(stream_total).ok_or(QuipayError::Overflow)?;
+            validated_params.push_back(param);
         }
 
-        Ok(stream_ids)
+        // Phase 2: Atomic Vault Interaction
+        if vault_deposit > 0 {
+            // Optionally fund the treasury first
+            env.invoke_contract::<()>(
+                &vault,
+                &Symbol::new(&env, "deposit"),
+                soroban_sdk::vec![&env, authorized_employer.into_val(&env), token.into_val(&env), vault_deposit.into_val(&env)],
+            );
+        }
+
+        // Single solvency check for the entire batch
+        let solvent: bool = env.invoke_contract(
+            &vault,
+            &Symbol::new(&env, "check_solvency"),
+            soroban_sdk::vec![&env, token.clone().into_val(&env), total_liability.into_val(&env)],
+        );
+        require!(solvent, QuipayError::InsufficientBalance);
+
+        // Single liability update
+        env.invoke_contract::<()>(
+            &vault,
+            &Symbol::new(&env, "add_liability"),
+            soroban_sdk::vec![&env, token.clone().into_val(&env), total_liability.into_val(&env)],
+        );
+
+        // Phase 3: Record Creation
+        let mut next_id: u64 = env.storage().instance().get(&DataKey::NextStreamId).unwrap_or(1);
+        let mut created_ids = Vec::new(&env);
+        let now = env.ledger().timestamp();
+
+        for param in validated_params.iter() {
+            let stream_id = next_id;
+            next_id += 1;
+
+            let stream = Stream {
+                employer: authorized_employer.clone(),
+                worker: param.worker.clone(),
+                token: token.clone(),
+                rate: param.rate,
+                cliff_ts: if param.cliff_ts <= param.start_ts { param.start_ts } else { param.cliff_ts },
+                start_ts: param.start_ts,
+                end_ts: param.end_ts,
+                total_amount: param.rate.checked_mul(i128::from((param.end_ts - param.start_ts) as i64)).unwrap(),
+                withdrawn_amount: 0,
+                last_withdrawal_ts: 0,
+                status: StreamStatus::Active,
+                created_at: now,
+                closed_at: 0,
+                paused_at: 0,
+                total_paused_duration: 0,
+                metadata_hash: param.metadata_hash.clone(),
+                cancel_effective_at: 0,
+                speed_curve: match param.speed_curve { MaybeSpeedCurve::Some(c) => c, _ => stream_curve::SpeedCurve::Linear },
+            };
+
+            env.storage().persistent().set(&StreamKey::Stream(stream_id), &stream);
+            created_ids.push_back(stream_id);
+            
+            // Emit individual events for downstream indexers
+            env.events().publish(
+                (Symbol::new(&env, "stream"), Symbol::new(&env, "created"), param.worker.clone(), authorized_employer.clone()),
+                (stream_id, token.clone(), param.rate, param.start_ts, param.end_ts),
+            );
+        }
+
+        env.storage().instance().set(&DataKey::NextStreamId, &next_id);
+        Ok(created_ids)
     }
 
     /// Withdraw vested funds from a stream.
@@ -1623,8 +1637,74 @@ impl PayrollStream {
         )
     }
 
-    /// Cancel a stream via an authorized AutomationGateway on behalf of an employer.
-    /// Only the registered gateway can call this method.
+    /// Set the authorized DAO governance contract address.
+    /// Only admin can call this.
+    pub fn set_dao_governance(env: Env, dao: Address) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::DaoGovernance, &dao);
+        Ok(())
+    }
+
+    /// Get the authorized DAO governance contract address.
+    pub fn get_dao_governance(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::DaoGovernance)
+    }
+
+    /// Create a stream via an executed DAO governance proposal.
+    /// Only the registered DaoGovernance contract can call this method.
+    pub fn create_stream_via_governance(
+        env: Env,
+        employer: Address,
+        worker: Address,
+        token: Address,
+        rate: i128,
+        cliff_ts: u64,
+        start_ts: u64,
+        end_ts: u64,
+        metadata_hash: Option<BytesN<32>>,
+    ) -> Result<u64, QuipayError> {
+        Self::require_not_paused(&env)?;
+
+        // Verify the caller is the authorized DAO governance contract
+        let dao: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::DaoGovernance)
+            .ok_or(QuipayError::NotInitialized)?;
+        dao.require_auth();
+
+        let stream_id = Self::create_stream_internal(
+            env.clone(),
+            employer.clone(),
+            worker.clone(),
+            token.clone(),
+            rate,
+            cliff_ts,
+            start_ts,
+            end_ts,
+            metadata_hash,
+            core::option::Option::<stream_curve::SpeedCurve>::None,
+        )?;
+
+        env.events().publish(
+            (
+                Symbol::new(&env, "stream"),
+                Symbol::new(&env, "created_via_governance"),
+                worker,
+                employer,
+            ),
+            (stream_id, token, rate, start_ts, end_ts),
+        );
+
+        Ok(stream_id)
+    }
+
+
     pub fn cancel_stream_via_gateway(
         env: Env,
         stream_id: u64,

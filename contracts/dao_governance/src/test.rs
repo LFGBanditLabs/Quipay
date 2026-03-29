@@ -14,13 +14,17 @@ fn setup_env() -> (Env, Address, Address, Address, Address) {
     let gov_token_id = env.register_stellar_asset_contract_v2(admin.clone());
     let gov_token = gov_token_id.address();
 
-    StellarAssetClient::new(&env, &gov_token).mint(&admin, &1_000_000_i128);
+    // Mint tokens to admin so they can propose
+    let asset_client = StellarAssetClient::new(&env, &gov_token);
+    asset_client.mint(&admin, &1_000_000_i128);
 
+    // Register a dummy payroll stream contract (we use a plain address for unit tests)
     let payroll_stream = Address::generate(&env);
 
     let contract_id = env.register(DaoGovernance, ());
     let client = DaoGovernanceClient::new(&env, &contract_id);
     client.init(&admin, &gov_token, &payroll_stream);
+    // Set total supply for quorum calculations (matches minted amount)
     client.set_total_supply(&1_000_000_i128);
 
     (env, contract_id, admin, gov_token, payroll_stream)
@@ -49,16 +53,6 @@ fn test_init() {
 }
 
 #[test]
-fn test_get_config() {
-    let (env, contract_id, _admin, _gov_token, _payroll_stream) = setup_env();
-    let client = DaoGovernanceClient::new(&env, &contract_id);
-    let (period, quorum, approval) = client.get_config();
-    assert_eq!(period, 3 * 24 * 60 * 60);
-    assert_eq!(quorum, 1000);
-    assert_eq!(approval, 5001);
-}
-
-#[test]
 fn test_create_proposal() {
     let (env, contract_id, admin, _gov_token, _payroll_stream) = setup_env();
     let client = DaoGovernanceClient::new(&env, &contract_id);
@@ -83,13 +77,14 @@ fn test_vote_for() {
     let client = DaoGovernanceClient::new(&env, &contract_id);
 
     let voter = Address::generate(&env);
-    StellarAssetClient::new(&env, &gov_token).mint(&voter, &500_000_i128);
+    let asset_client = StellarAssetClient::new(&env, &gov_token);
+    asset_client.mint(&voter, &500_000_i128);
 
     let params = make_stream_params(&env, &admin);
     let proposal_id = client.create_proposal(
         &admin,
         &String::from_str(&env, "Pay Bob"),
-        &String::from_str(&env, "desc"),
+        &String::from_str(&env, "Stream to Bob"),
         &params,
     );
 
@@ -112,12 +107,13 @@ fn test_double_vote_rejected() {
     let proposal_id = client.create_proposal(
         &admin,
         &String::from_str(&env, "Test"),
-        &String::from_str(&env, "desc"),
+        &String::from_str(&env, "Test desc"),
         &params,
     );
 
     client.vote(&voter, &proposal_id, &true);
-    let result = client.try_vote(&voter, &proposal_id, &false);
+    // Second vote should fail
+    let result = client.try_vote(&voter, &proposal_id, &true);
     assert!(result.is_err());
 }
 
@@ -126,20 +122,27 @@ fn test_finalize_passed() {
     let (env, contract_id, admin, gov_token, _payroll_stream) = setup_env();
     let client = DaoGovernanceClient::new(&env, &contract_id);
 
+    // Mint enough tokens so quorum is met
+    // total_supply = 1_000_000 (admin) + 600_000 (voter) = 1_600_000
+    // quorum = 10% = 160_000; voter has 600_000 > 160_000 ✓
+    // approval = >50%; 600_000 / 600_000 = 100% ✓
     let voter = Address::generate(&env);
-    StellarAssetClient::new(&env, &gov_token).mint(&voter, &500_000_i128);
+    StellarAssetClient::new(&env, &gov_token).mint(&voter, &600_000_i128);
 
     let params = make_stream_params(&env, &admin);
     let proposal_id = client.create_proposal(
         &admin,
-        &String::from_str(&env, "Pay Carol"),
-        &String::from_str(&env, "desc"),
+        &String::from_str(&env, "Hire Carol"),
+        &String::from_str(&env, "Stream to Carol"),
         &params,
     );
 
     client.vote(&voter, &proposal_id, &true);
 
-    env.ledger().with_mut(|l| { l.timestamp += 259_201; });
+    // Advance ledger past voting period (default 3 days = 259200s)
+    env.ledger().with_mut(|l| {
+        l.timestamp += 259_201;
+    });
 
     let status = client.finalize_proposal(&proposal_id);
     assert_eq!(status, ProposalStatus::Passed);
@@ -153,6 +156,7 @@ fn test_finalize_rejected_no_quorum() {
     // total_supply = 1_000_500; voter has 500 (0.05%) < 10% quorum
     let voter = Address::generate(&env);
     StellarAssetClient::new(&env, &gov_token).mint(&voter, &500_i128);
+    // Update total supply to reflect the new mint
     client.set_total_supply(&1_000_500_i128);
 
     let params = make_stream_params(&env, &admin);
@@ -165,7 +169,9 @@ fn test_finalize_rejected_no_quorum() {
 
     client.vote(&voter, &proposal_id, &true);
 
-    env.ledger().with_mut(|l| { l.timestamp += 259_201; });
+    env.ledger().with_mut(|l| {
+        l.timestamp += 259_201;
+    });
 
     let status = client.finalize_proposal(&proposal_id);
     assert_eq!(status, ProposalStatus::Rejected);
@@ -187,8 +193,20 @@ fn test_cannot_vote_after_window() {
         &params,
     );
 
-    env.ledger().with_mut(|l| { l.timestamp += 259_201; });
+    env.ledger().with_mut(|l| {
+        l.timestamp += 259_201;
+    });
 
     let result = client.try_vote(&voter, &proposal_id, &true);
     assert!(result.is_err());
+}
+
+#[test]
+fn test_get_config() {
+    let (env, contract_id, _admin, _gov_token, _payroll_stream) = setup_env();
+    let client = DaoGovernanceClient::new(&env, &contract_id);
+    let (voting_period, quorum_bps, approval_bps) = client.get_config();
+    assert_eq!(voting_period, 3 * 24 * 60 * 60);
+    assert_eq!(quorum_bps, 1000);
+    assert_eq!(approval_bps, 5001);
 }
