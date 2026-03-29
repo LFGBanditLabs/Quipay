@@ -623,97 +623,30 @@ impl PayrollStream {
             return Ok(Vec::new(&env));
         }
 
-        // All streams in a batch must share the same employer and token for atomic funding
         let first_param = params.get(0).ok_or(QuipayError::InvalidAmount)?;
-        let authorized_employer = first_param.employer.clone();
-        let token = first_param.token.clone();
-        authorized_employer.require_auth();
+        first_param.employer.require_auth();
 
-        let vault: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::Vault)
-            .ok_or(QuipayError::NotInitialized)?;
-
-        let mut total_liability: i128 = 0;
-        let mut validated_params = Vec::new(&env);
-
-        // Phase 1: Pre-validation and liability calculation
-        for param in params.iter() {
-            if param.employer != authorized_employer || param.token != token {
-                return Err(QuipayError::Unauthorized);
-            }
-
-            if param.rate <= 0 || param.end_ts <= param.start_ts {
-                return Err(QuipayError::InvalidAmount);
-            }
-
-            let duration = param.end_ts.saturating_sub(param.start_ts);
-            let stream_total = param.rate
-                .checked_mul(i128::from(duration as i64))
-                .ok_or(QuipayError::Overflow)?;
-
-            total_liability = total_liability.checked_add(stream_total).ok_or(QuipayError::Overflow)?;
-            validated_params.push_back(param);
-        }
-
-        // Single solvency check for the entire batch
-        let solvent: bool = env.invoke_contract(
-            &vault,
-            &Symbol::new(&env, "check_solvency"),
-            soroban_sdk::vec![&env, token.clone().into_val(&env), total_liability.into_val(&env)],
-        );
-        require!(solvent, QuipayError::InsufficientBalance);
-
-        // Single liability update
-        env.invoke_contract::<()>(
-            &vault,
-            &Symbol::new(&env, "add_liability"),
-            soroban_sdk::vec![&env, token.clone().into_val(&env), total_liability.into_val(&env)],
-        );
-
-        // Phase 3: Record Creation
-        let mut next_id: u64 = env.storage().instance().get(&DataKey::NextStreamId).unwrap_or(1);
         let mut created_ids = Vec::new(&env);
-        let now = env.ledger().timestamp();
 
-        for param in validated_params.iter() {
-            let stream_id = next_id;
-            next_id += 1;
-
-            let stream = Stream {
-                employer: authorized_employer.clone(),
-                worker: param.worker.clone(),
-                token: token.clone(),
-                rate: param.rate,
-                cliff_ts: if param.cliff_ts <= param.start_ts { param.start_ts } else { param.cliff_ts },
-                start_ts: param.start_ts,
-                end_ts: param.end_ts,
-                total_amount: param.rate.checked_mul(i128::from((param.end_ts - param.start_ts) as i64)).unwrap(),
-                withdrawn_amount: 0,
-                last_withdrawal_ts: 0,
-                status: StreamStatus::Active,
-                created_at: now,
-                closed_at: 0,
-                paused_at: 0,
-                total_paused_duration: 0,
-                metadata_hash: param.metadata_hash.clone(),
-                cancel_effective_at: 0,
-                speed_curve: match param.speed_curve { MaybeSpeedCurve::Some(c) => c, _ => stream_curve::SpeedCurve::Linear },
-            };
-
-            env.storage().persistent().set(&StreamKey::Stream(stream_id), &stream);
+        for param in params.iter() {
+            let stream_id = Self::create_stream_internal(
+                env.clone(),
+                param.employer.clone(),
+                param.worker.clone(),
+                param.token.clone(),
+                param.rate,
+                param.cliff_ts,
+                param.start_ts,
+                param.end_ts,
+                param.metadata_hash.clone(),
+                match param.speed_curve {
+                    MaybeSpeedCurve::Some(c) => Some(c),
+                    MaybeSpeedCurve::None => None,
+                },
+            )?;
             created_ids.push_back(u32::try_from(stream_id).map_err(|_| QuipayError::Overflow)?);
-
-            // Emit individual events for downstream indexers
-            #[allow(deprecated)]
-            env.events().publish(
-                (Symbol::new(&env, "stream"), Symbol::new(&env, "created"), param.worker.clone(), authorized_employer.clone()),
-                (stream_id, token.clone(), param.rate, param.start_ts, param.end_ts),
-            );
         }
 
-        env.storage().instance().set(&DataKey::NextStreamId, &next_id);
         Ok(created_ids)
     }
 
