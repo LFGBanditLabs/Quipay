@@ -13,6 +13,7 @@ const DEFAULT_MAX_STREAM_DURATION: u64 = 365 * 24 * 60 * 60; // 365 days in seco
 /// Maximum page size for pagination to prevent DoS attacks.
 /// Requests exceeding this limit will be capped to this value.
 const MAX_PAGE_SIZE: u32 = 1000;
+pub const CURRENT_SCHEMA_VERSION: u32 = 1;
 
 #[contracttype]
 #[derive(Clone)]
@@ -34,6 +35,7 @@ pub enum DataKey {
     MaxStreamsPerEmployer,   // Global default maximum active streams per employer
     EmployerStreamLimit(Address), // Per-employer maximum active stream override
     MinStreamDuration,       // Configurable minimum stream duration in seconds
+    SchemaVersion,
 }
 
 #[contracttype]
@@ -244,6 +246,7 @@ impl PayrollStream {
         env.storage()
             .instance()
             .set(&DataKey::RetentionSecs, &DEFAULT_RETENTION_SECS);
+        env.storage().instance().set(&DataKey::SchemaVersion, &CURRENT_SCHEMA_VERSION);
         Ok(())
     }
 
@@ -2275,7 +2278,6 @@ impl PayrollStream {
         );
     }
 
-    pub(crate) fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
     /// Calculate the vested amount at a specific timestamp, accounting for pauses.
     ///
     /// This function implements the core vesting logic with support for pause/resume cycles.
@@ -2314,7 +2316,7 @@ impl PayrollStream {
     ///
     /// ### Returns
     /// The amount vested at the given timestamp (capped at `total_amount`)
-    fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
+    pub(crate) fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
         let is_closed = Self::is_closed(stream);
         let mut effective_ts = if is_closed {
             core::cmp::min(timestamp, stream.closed_at)
@@ -2393,6 +2395,33 @@ impl PayrollStream {
 
     pub fn has_open_dispute(env: Env, stream_id: u64) -> bool {
         dispute::has_open_dispute(&env, stream_id)
+    }
+
+    pub fn migrate(env: Env) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        let stored: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::SchemaVersion)
+            .unwrap_or(0);
+        if stored < 1 {
+            env.storage()
+                .instance()
+                .set(&DataKey::SchemaVersion, &1u32);
+        }
+        Ok(())
+    }
+
+    pub fn schema_version(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::SchemaVersion)
+            .unwrap_or(0)
     }
 }
 

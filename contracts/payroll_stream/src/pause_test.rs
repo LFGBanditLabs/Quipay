@@ -56,7 +56,7 @@ fn test_pause_stream_wrong_auth() {
 
     env.ledger().with_mut(|li| li.timestamp = 0);
     let stream_id =
-        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None , &None);
+        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None);
 
     // Malicious user tries to pause
     let result = client.try_pause_stream(&stream_id, &malicious);
@@ -145,7 +145,7 @@ fn test_resume_event_fields() {
 
     env.ledger().with_mut(|li| li.timestamp = 0);
     let stream_id =
-        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None);
+        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None);
 
     // Pause at t=10
     env.ledger().with_mut(|li| li.timestamp = 10);
@@ -181,7 +181,7 @@ fn test_admin_resume_event_fields() {
 
     env.ledger().with_mut(|li| li.timestamp = 0);
     let stream_id =
-        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None);
+        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None);
 
     // Admin Pause at t=10
     env.ledger().with_mut(|li| li.timestamp = 10);
@@ -216,7 +216,7 @@ fn test_is_stream_paused() {
 
     env.ledger().with_mut(|li| li.timestamp = 0);
     let stream_id =
-        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None);
+        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None);
 
     // Active stream should not be paused
     assert_eq!(client.is_stream_paused(&stream_id), false);
@@ -250,7 +250,7 @@ fn test_get_stream_paused_at() {
 
     env.ledger().with_mut(|li| li.timestamp = 0);
     let stream_id =
-        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None);
+        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None);
 
     // Not paused — should return None
     assert_eq!(client.get_stream_paused_at(&stream_id), None);

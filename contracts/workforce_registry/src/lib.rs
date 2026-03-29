@@ -10,6 +10,8 @@ pub struct WorkerProfile {
     pub metadata_hash: String,
 }
 
+pub const CURRENT_SCHEMA_VERSION: u32 = 1;
+
 #[derive(Clone)]
 #[contracttype]
 pub enum DataKey {
@@ -20,6 +22,7 @@ pub enum DataKey {
     EmployerActiveWorkerByIndex(Address, u32),
     EmployerActiveWorkerIndex(Address, Address),
     BlacklistedWorker(Address),
+    SchemaVersion,
 }
 
 #[contract]
@@ -34,6 +37,7 @@ impl WorkforceRegistryContract {
         }
 
         e.storage().persistent().set(&DataKey::Admin, &admin);
+        e.storage().instance().set(&DataKey::SchemaVersion, &CURRENT_SCHEMA_VERSION);
         Ok(())
     }
 
@@ -444,6 +448,33 @@ impl WorkforceRegistryContract {
     pub fn is_blacklisted(e: Env, worker: Address) -> bool {
         let key = DataKey::BlacklistedWorker(worker);
         e.storage().persistent().get(&key).unwrap_or(false)
+    }
+
+    pub fn migrate(env: Env) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        let stored: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::SchemaVersion)
+            .unwrap_or(0);
+        if stored < 1 {
+            env.storage()
+                .instance()
+                .set(&DataKey::SchemaVersion, &1u32);
+        }
+        Ok(())
+    }
+
+    pub fn schema_version(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::SchemaVersion)
+            .unwrap_or(0)
     }
 }
 

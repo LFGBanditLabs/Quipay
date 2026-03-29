@@ -506,3 +506,40 @@ fn test_propose_admin_overwrites_previous_pending() {
     client.accept_admin();
     assert_eq!(client.get_admin(), new_admin2);
 }
+
+// ============================================================================
+// Schema Versioning Tests
+// ============================================================================
+
+#[test]
+fn test_schema_version_written_on_init() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(AutomationGateway, ());
+    let client = AutomationGatewayClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.init(&admin);
+    assert_eq!(client.schema_version(), 1u32);
+}
+
+#[test]
+fn test_migrate_succeeds_idempotently() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(AutomationGateway, ());
+    let client = AutomationGatewayClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.init(&admin);
+    client.migrate();
+    assert_eq!(client.schema_version(), 1u32);
+}
+
+#[test]
+fn test_migrate_reverts_without_init() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(AutomationGateway, ());
+    let client = AutomationGatewayClient::new(&env, &contract_id);
+    let result = client.try_migrate();
+    assert_eq!(result, Err(Ok(QuipayError::NotInitialized)));
+}

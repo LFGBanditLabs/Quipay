@@ -379,3 +379,40 @@ fn test_set_blacklisted_requires_admin() {
     client.set_blacklisted(&worker, &false);
     assert_eq!(client.is_blacklisted(&worker), false);
 }
+
+// ============================================================================
+// Schema Versioning Tests
+// ============================================================================
+
+#[test]
+fn test_schema_version_written_on_init() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
+    let admin = Address::generate(&e);
+    client.initialize(&admin);
+    assert_eq!(client.schema_version(), 1u32);
+}
+
+#[test]
+fn test_migrate_succeeds_idempotently() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
+    let admin = Address::generate(&e);
+    client.initialize(&admin);
+    client.migrate();
+    assert_eq!(client.schema_version(), 1u32);
+}
+
+#[test]
+fn test_migrate_reverts_without_init() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
+    let result = client.try_migrate();
+    assert_eq!(result, Err(Ok(QuipayError::NotInitialized)));
+}

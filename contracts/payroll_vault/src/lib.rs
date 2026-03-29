@@ -43,6 +43,7 @@ pub enum StateKey {
     Signers,             // Vec<Address> - list of authorized signers
     Threshold,           // u32 - M of N required
     WithdrawalThreshold, // i128 - amount above which multisig is required
+    SchemaVersion,
 }
 
 #[contracttype]
@@ -95,6 +96,8 @@ const DRAIN_PROPOSED: Symbol = symbol_short!("dr_prop");
 const DRAIN_EXECUTED: Symbol = symbol_short!("dr_exec");
 const DRAIN_CANCELED: Symbol = symbol_short!("dr_cncl");
 
+pub const CURRENT_SCHEMA_VERSION: u32 = 1;
+
 // 48 hours in seconds
 const TIMELOCK_DURATION: u64 = 48 * 60 * 60;
 
@@ -142,6 +145,7 @@ impl PayrollVault {
 
         // Authorized contract starts as None - must be set by admin later
         // No need to initialize balances/liabilities as they are maps
+        e.storage().instance().set(&StateKey::SchemaVersion, &CURRENT_SCHEMA_VERSION);
         Ok(())
     }
 
@@ -1116,6 +1120,33 @@ impl PayrollVault {
     /// Get the current contract address
     pub fn get_contract_address(e: Env) -> Address {
         e.current_contract_address()
+    }
+
+    pub fn migrate(e: Env) -> Result<(), QuipayError> {
+        let admin: Address = e
+            .storage()
+            .persistent()
+            .get(&StateKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        let stored: u32 = e
+            .storage()
+            .instance()
+            .get(&StateKey::SchemaVersion)
+            .unwrap_or(0);
+        if stored < 1 {
+            e.storage()
+                .instance()
+                .set(&StateKey::SchemaVersion, &1u32);
+        }
+        Ok(())
+    }
+
+    pub fn schema_version(e: Env) -> u32 {
+        e.storage()
+            .instance()
+            .get(&StateKey::SchemaVersion)
+            .unwrap_or(0)
     }
 }
 

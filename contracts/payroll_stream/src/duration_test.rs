@@ -87,6 +87,7 @@ fn test_create_stream_respects_configured_max_duration() {
         &0u64,
         &thirty_days,
         &None,
+        &None,
     );
     assert!(res.is_ok());
 
@@ -99,6 +100,7 @@ fn test_create_stream_respects_configured_max_duration() {
         &0u64,
         &0u64,
         &(thirty_days + 1),
+        &None,
         &None,
     );
     let err = res.unwrap_err().unwrap();
@@ -128,6 +130,7 @@ fn test_create_stream_max_duration_enforced() {
         &0u64,
         &valid_duration,
         &None,
+        &None,
     );
     assert!(res.is_ok());
 
@@ -141,6 +144,7 @@ fn test_create_stream_max_duration_enforced() {
         &0u64,
         &0u64,
         &invalid_duration,
+        &None,
         &None,
     );
 
@@ -174,6 +178,7 @@ fn test_update_max_duration_affects_subsequent_streams() {
         &0u64,
         &ninety_days,
         &None,
+        &None,
     );
     assert!(res.is_err());
 
@@ -187,6 +192,7 @@ fn test_update_max_duration_affects_subsequent_streams() {
         &0u64,
         &0u64,
         &ninety_days,
+        &None,
         &None,
     );
     assert!(res.is_ok());

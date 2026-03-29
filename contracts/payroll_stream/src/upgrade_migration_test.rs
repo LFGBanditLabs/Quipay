@@ -40,14 +40,15 @@ fn test_upgrade_proposal_and_state_preservation() {
     let token = Address::generate(&env);
     
     let stream_id = client.create_stream(
-        &employer, 
-        &worker, 
-        &token, 
-        &100, 
-        &0u64, 
-        &env.ledger().timestamp(), 
-        &(env.ledger().timestamp() + 1000), 
-        &None
+        &employer,
+        &worker,
+        &token,
+        &100,
+        &0u64,
+        &env.ledger().timestamp(),
+        &(env.ledger().timestamp() + 1000),
+        &None,
+        &None,
     );
     assert_eq!(stream_id, 1);
 

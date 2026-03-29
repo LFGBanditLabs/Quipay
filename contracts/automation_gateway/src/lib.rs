@@ -25,12 +25,15 @@ pub struct Agent {
     pub registered_at: u64,
 }
 
+pub const CURRENT_SCHEMA_VERSION: u32 = 1;
+
 #[contracttype]
 pub enum DataKey {
     Admin,
     PendingAdmin, // Two-step admin transfer
     Agent(Address),
     PayrollStream,
+    SchemaVersion,
 }
 
 #[contract]
@@ -45,6 +48,7 @@ impl AutomationGateway {
             QuipayError::AlreadyInitialized
         );
         env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::SchemaVersion, &CURRENT_SCHEMA_VERSION);
         Ok(())
     }
 
@@ -422,6 +426,29 @@ impl AutomationGateway {
         );
 
         Ok(())
+    }
+
+    pub fn migrate(env: Env) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(env.clone())?;
+        admin.require_auth();
+        let stored: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::SchemaVersion)
+            .unwrap_or(0);
+        if stored < 1 {
+            env.storage()
+                .instance()
+                .set(&DataKey::SchemaVersion, &1u32);
+        }
+        Ok(())
+    }
+
+    pub fn schema_version(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::SchemaVersion)
+            .unwrap_or(0)
     }
 }
 

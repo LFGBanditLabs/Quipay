@@ -4,7 +4,7 @@ extern crate std;
 
 use super::*;
 use quipay_common::QuipayError;
-use soroban_sdk::{Address, Env, testutils::Address as _, testutils::Ledger as _};
+use soroban_sdk::{Address, Env, Symbol, TryFromVal, testutils::Address as _, testutils::Events as _, testutils::Ledger as _};
 
 use crate::test::setup;
 
@@ -18,7 +18,7 @@ fn make_stream(
     rate: i128,
     end: u64,
 ) -> u64 {
-    client.create_stream(employer, worker, token, &rate, &0u64, &0u64, &end, &None)
+    client.create_stream(employer, worker, token, &rate, &0u64, &0u64, &end, &None, &None)
 }
 
 // ── basic functionality ───────────────────────────────────────────────────────
