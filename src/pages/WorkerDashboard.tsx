@@ -10,6 +10,7 @@ import {
 } from "../hooks/useStreams";
 import { useNotification } from "../hooks/useNotification";
 import { EarningsDisplay } from "../components/EarningsDisplay";
+import { EarningsForecast } from "../components/EarningsForecast";
 import CopyButton from "../components/CopyButton";
 import { formatTokenAmount } from "../util/tokenDecimals";
 import { StreamTimeline } from "../components/StreamTimeline";
@@ -449,6 +450,10 @@ const WorkerDashboard: React.FC = () => {
 
           <section className="mb-12 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-6 max-[768px]:grid-cols-1">
             <EarningsDisplay streams={streams} />
+          </section>
+
+          <section className="mb-12">
+            <EarningsForecast streams={streams} />
           </section>
 
           <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-[var(--text)]">

@@ -15,10 +15,13 @@ function sanitizeObject(obj: any, depth = 0): any {
     // Strip null bytes and control characters (except tab, newline, carriage return)
     let sanitized = obj.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
     // Strip HTML tags
-    sanitized = sanitizeHtml(sanitized, { allowedTags: [], allowedAttributes: {} });
+    sanitized = sanitizeHtml(sanitized, {
+      allowedTags: [],
+      allowedAttributes: {},
+    });
     return sanitized;
   } else if (Array.isArray(obj)) {
-    return obj.map(item => sanitizeObject(item, depth + 1));
+    return obj.map((item) => sanitizeObject(item, depth + 1));
   } else if (obj !== null && typeof obj === "object") {
     const result: any = {};
     for (const key in obj) {

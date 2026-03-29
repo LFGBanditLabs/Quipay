@@ -19,28 +19,39 @@ import fs from "fs";
 import path from "path";
 
 describe("MigrationRunner", () => {
-  let container: any;
+  let container: any = null;
   let pool: Pool;
   let runner: MigrationRunner;
   let testMigrationsDir: string;
 
   beforeAll(async () => {
-    // Start a dedicated PostgreSQL container for migration tests
-    console.log("[MigrationTest] Starting PostgreSQL container...");
-    container = await new PostgreSqlContainer("postgres:16-alpine")
-      .withExposedPorts(5432)
-      .withEnvironment({
-        POSTGRES_DB: "migration_test",
-        POSTGRES_USER: "test_user",
-        POSTGRES_PASSWORD: "test_password",
-      })
-      .start();
+    const existingDbUrl = process.env.DATABASE_URL;
 
-    const connectionString = container.getConnectionUri();
-    pool = new Pool({ connectionString });
+    if (existingDbUrl) {
+      // In CI we already provision Postgres as a service in the workflow.
+      console.log(
+        "[MigrationTest] Using existing DATABASE_URL from environment",
+      );
+      pool = new Pool({ connectionString: existingDbUrl });
+    } else {
+      // Local fallback: start a dedicated PostgreSQL container for migration tests.
+      console.log("[MigrationTest] Starting PostgreSQL container...");
+      container = await new PostgreSqlContainer("postgres:16-alpine")
+        .withExposedPorts(5432)
+        .withEnvironment({
+          POSTGRES_DB: "migration_test",
+          POSTGRES_USER: "test_user",
+          POSTGRES_PASSWORD: "test_password",
+        })
+        .start();
+
+      const connectionString = container.getConnectionUri();
+      pool = new Pool({ connectionString });
+
+      console.log("[MigrationTest] ✅ Container started");
+    }
+
     testMigrationsDir = path.join(__dirname, "test_migrations");
-
-    console.log("[MigrationTest] ✅ Container started");
   });
 
   afterAll(async () => {
