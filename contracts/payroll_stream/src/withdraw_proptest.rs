@@ -55,6 +55,7 @@ fn setup_stream(rate: i128, duration: u64, start_padding: u64) -> (Env, Address,
         &start_ts,
         &end_ts,
         &None,
+        &None,
     );
 
     (env, contract_id, stream_id, worker)

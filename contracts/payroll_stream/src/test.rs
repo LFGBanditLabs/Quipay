@@ -2426,7 +2426,7 @@ fn test_pause_and_cancel_interaction() {
 
     // Create a 100s stream with rate 100 (total 10,000)
     let stream_id = client.create_stream(
-        &employer, &worker, &token, &100, &0u64, &0u64, &100u64, &None,
+        &employer, &worker, &token, &100, &0u64, &0u64, &100u64, &None, &None,
     );
 
     // Fast forward to t=20 (Vested: 20 * 100 = 2000)
@@ -2473,7 +2473,7 @@ fn test_transfer_stream_success() {
     });
 
     let stream_id = client.create_stream(
-        &employer, &worker1, &token, &100, &0u64, &0u64, &100u64, &None,
+        &employer, &worker1, &token, &100, &0u64, &0u64, &100u64, &None, &None,
     );
 
     // Accrue some balance for worker1 (total duration 100s, rate 100 -> total_amount 10000)
@@ -2519,7 +2519,7 @@ fn test_transfer_stream_unauthorized() {
     });
 
     let stream_id = client.create_stream(
-        &employer, &worker1, &token, &100, &0u64, &0u64, &100u64, &None,
+        &employer, &worker1, &token, &100, &0u64, &0u64, &100u64, &None, &None,
     );
 
     // Intruder attempts to transfer
@@ -2540,7 +2540,7 @@ fn test_transfer_stream_closed_fails() {
     });
 
     let stream_id = client.create_stream(
-        &employer, &worker1, &token, &100, &0u64, &0u64, &100u64, &None,
+        &employer, &worker1, &token, &100, &0u64, &0u64, &100u64, &None, &None,
     );
 
     // Cancel the stream
@@ -2563,12 +2563,12 @@ fn test_employer_stream_limit_enforcement() {
     client.set_max_streams_per_employer(&3u32);
     
     // Create 3 streams
-    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
-    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
-    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None, &None);
+    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None, &None);
+    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None, &None);
     
     // 4th should fail
-    let res = client.try_create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    let res = client.try_create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None, &None);
     assert_eq!(res, Err(Ok(QuipayError::StreamLimitReached)));
 }
 
@@ -2587,13 +2587,13 @@ fn test_employer_stream_limit_override() {
     client.set_employer_stream_limit(&employer, &4u32);
     
     // Create 4 streams
-    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
-    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
-    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
-    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None, &None);
+    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None, &None);
+    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None, &None);
+    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None, &None);
     
     // 5th should fail
-    let res = client.try_create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    let res = client.try_create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None, &None);
     assert_eq!(res, Err(Ok(QuipayError::StreamLimitReached)));
 }
 
@@ -2610,17 +2610,17 @@ fn test_employer_stream_limit_counts_only_active() {
     client.set_max_streams_per_employer(&1u32);
     
     // Create 1 stream
-    let stream_id = client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    let stream_id = client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None, &None);
     
     // 2nd should fail
-    let res = client.try_create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    let res = client.try_create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None, &None);
     assert_eq!(res, Err(Ok(QuipayError::StreamLimitReached)));
     
     // Cancel the first stream (requires employer auth)
     client.cancel_stream(&stream_id, &employer, &None);
     
     // Now we should be able to create a new one
-    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None, &None);
 }
 #[test]
 fn test_min_stream_duration_enforcement() {
@@ -2633,11 +2633,11 @@ fn test_min_stream_duration_enforcement() {
     client.set_min_stream_duration(&3600u64);
     
     // 600s is too short
-    let res = client.try_create_stream(&employer, &worker, &token, &100, &100, &100, &700, &None);
+    let res = client.try_create_stream(&employer, &worker, &token, &100, &100, &100, &700, &None, &None);
     assert_eq!(res, Err(Ok(QuipayError::DurationTooShort)));
     
     // 3600s is fine
-    client.create_stream(&employer, &worker, &token, &100, &100, &100, &3700, &None);
+    client.create_stream(&employer, &worker, &token, &100, &100, &100, &3700, &None, &None);
 }
 
 #[test]
@@ -2661,13 +2661,13 @@ fn test_extend_stream_min_duration_enforced() {
     client.set_min_stream_duration(&10000u64);
     
     // Create a 11000s stream (duration is 11100-100 = 11000)
-    let stream_id = client.create_stream(&employer, &worker, &token, &100, &100, &100, &11100, &None);
+    let stream_id = client.create_stream(&employer, &worker, &token, &100, &100, &100, &11100, &None, &None);
     
     // Try to extend it but keep total duration < 10000
     // (Actually the existing stream is already 11000, so any extension keeps it > 10000).
     // Let's create a stream with duration 0 (since setup set min to 0) then set min to 10000.
     client.set_min_stream_duration(&0u64);
-    let s2 = client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None);
+    let s2 = client.create_stream(&employer, &worker, &token, &100, &100, &100, &200, &None, &None);
     
     client.set_min_stream_duration(&10000u64);
     // Extending s2 to 500s total duration is now too short
