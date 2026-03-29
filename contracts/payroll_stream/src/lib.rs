@@ -24,6 +24,7 @@ pub enum DataKey {
     RetentionSecs,
     Vault,
     Gateway,
+    DaoGovernance,           // Authorized DAO governance contract for gated stream creation
     PendingUpgrade,          // (wasm_hash, execute_after_timestamp)
     EarlyCancelFeeBps,       // Basis points for early cancellation fee (max 1000 = 10%)
     WithdrawalCooldown,      // Minimum seconds a worker must wait between withdrawals
@@ -1570,6 +1571,73 @@ impl PayrollStream {
         )
     }
 
+    /// Set the authorized DAO governance contract address.
+    /// Only admin can call this.
+    pub fn set_dao_governance(env: Env, dao: Address) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::DaoGovernance, &dao);
+        Ok(())
+    }
+
+    /// Get the authorized DAO governance contract address.
+    pub fn get_dao_governance(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::DaoGovernance)
+    }
+
+    /// Create a stream via an executed DAO governance proposal.
+    /// Only the registered DaoGovernance contract can call this method.
+    pub fn create_stream_via_governance(
+        env: Env,
+        employer: Address,
+        worker: Address,
+        token: Address,
+        rate: i128,
+        cliff_ts: u64,
+        start_ts: u64,
+        end_ts: u64,
+        metadata_hash: Option<BytesN<32>>,
+    ) -> Result<u64, QuipayError> {
+        Self::require_not_paused(&env)?;
+
+        // Verify the caller is the authorized DAO governance contract
+        let dao: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::DaoGovernance)
+            .ok_or(QuipayError::NotInitialized)?;
+        dao.require_auth();
+
+        let stream_id = Self::create_stream_internal(
+            env.clone(),
+            employer.clone(),
+            worker.clone(),
+            token.clone(),
+            rate,
+            cliff_ts,
+            start_ts,
+            end_ts,
+            metadata_hash,
+            core::option::Option::<stream_curve::SpeedCurve>::None,
+        )?;
+
+        env.events().publish(
+            (
+                Symbol::new(&env, "stream"),
+                Symbol::new(&env, "created_via_governance"),
+                worker,
+                employer,
+            ),
+            (stream_id, token, rate, start_ts, end_ts),
+        );
+
+        Ok(stream_id)
+    }
+
     /// Cancel a stream via an authorized AutomationGateway on behalf of an employer.
     /// Only the registered gateway can call this method.
     pub fn cancel_stream_via_gateway(
@@ -2346,45 +2414,6 @@ impl PayrollStream {
     }
 
     pub(crate) fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
-    /// Calculate the vested amount at a specific timestamp, accounting for pauses.
-    ///
-    /// This function implements the core vesting logic with support for pause/resume cycles.
-    /// When a stream is paused and resumed, the `total_paused_duration` field shifts the
-    /// effective vesting timeline forward, ensuring workers are only paid for active time.
-    ///
-    /// ### Vesting Formula
-    /// ```ignore
-    /// effective_start = start_ts + total_paused_duration
-    /// effective_end = end_ts + total_paused_duration
-    /// elapsed = timestamp - effective_start
-    /// vested = total_amount * elapsed / (end_ts - start_ts)
-    /// ```
-    ///
-    /// ### Pause Handling
-    /// The `total_paused_duration` accumulates all pause periods:
-    /// - When paused: vesting stops at `paused_at`
-    /// - When resumed: `total_paused_duration += (resume_time - paused_at)`
-    /// - The timeline shifts forward by `total_paused_duration`
-    ///
-    /// ### Example
-    /// ```ignore
-    /// Stream: 1000 tokens, start=0, end=100 (10 tokens/sec)
-    /// Paused at t=30 (300 vested), resumed at t=70 (pause_duration=40s)
-    ///
-    /// At t=80:
-    /// - effective_start = 0 + 40 = 40
-    /// - elapsed = 80 - 40 = 40s
-    /// - vested = 1000 * 40 / 100 = 400 tokens
-    /// - Correct: 30s before pause + 10s after resume = 40s active
-    /// ```
-    ///
-    /// ### Parameters
-    /// - `stream`: The stream to calculate vesting for
-    /// - `timestamp`: The time to calculate vesting at
-    ///
-    /// ### Returns
-    /// The amount vested at the given timestamp (capped at `total_amount`)
-    fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
         let is_closed = Self::is_closed(stream);
         let mut effective_ts = if is_closed {
             core::cmp::min(timestamp, stream.closed_at)
