@@ -185,8 +185,7 @@ export function authenticateRequest(
   req.user = user;
   // Propagate the wallet / user address into the async context so that every
   // downstream log line automatically includes it without extra plumbing.
-  const address = user.stellarAddress || user.id;
-  if (address) setWalletAddressInContext(address);
+  setWalletAddressInContext(user.id);
   next();
 }
 
