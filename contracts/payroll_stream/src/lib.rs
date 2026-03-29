@@ -36,6 +36,9 @@ pub enum DataKey {
     EmployerStreamLimit(Address), // Per-employer maximum active stream override
     MinStreamDuration,       // Configurable minimum stream duration in seconds
     Receipt,                 // PayrollReceipt contract address (optional)
+    ScheduledPause,          // u64 effective timestamp
+    EmergencyMultisig,       // Vec<Address> (3 authorized keys)
+    EmergencyPauseVotes,     // Vec<Address> (keys that voted for current pause)
 }
 
 #[contracttype]
@@ -229,6 +232,10 @@ const MAX_EARLY_CANCEL_FEE_BPS: u32 = 1000;
 const UPGRADE_PROPOSED: soroban_sdk::Symbol = soroban_sdk::symbol_short!("up_prop");
 const UPGRADE_EXECUTED: soroban_sdk::Symbol = soroban_sdk::symbol_short!("up_exec");
 const UPGRADE_CANCELED: soroban_sdk::Symbol = soroban_sdk::symbol_short!("up_cancel");
+const PAUSE_SCHEDULED: soroban_sdk::Symbol = soroban_sdk::symbol_short!("p_sched");
+const PAUSE_CANCELED: soroban_sdk::Symbol = soroban_sdk::symbol_short!("p_cancel");
+const EMERGENCY_PAUSED: soroban_sdk::Symbol = soroban_sdk::symbol_short!("em_pause");
+const PAUSE_TIMELOCK_DURATION: u64 = 24 * 60 * 60;
 
 #[contract]
 pub struct PayrollStream;
@@ -256,15 +263,118 @@ impl PayrollStream {
             .get(&DataKey::Admin)
             .ok_or(QuipayError::NotInitialized)?;
         admin.require_auth();
-        env.storage().instance().set(&DataKey::Paused, &paused);
+        if paused {
+            let now = env.ledger().timestamp();
+            let effective_at = now.saturating_add(PAUSE_TIMELOCK_DURATION);
+            env.storage().instance().set(&DataKey::ScheduledPause, &effective_at);
+            env.events().publish(
+                (Symbol::new(&env, "admin"), PAUSE_SCHEDULED),
+                effective_at,
+            );
+        } else {
+            env.storage().instance().set(&DataKey::Paused, &false);
+            env.storage().instance().remove(&DataKey::ScheduledPause);
+            env.storage().instance().remove(&DataKey::EmergencyPauseVotes);
+        }
         Ok(())
     }
 
     pub fn is_paused(env: Env) -> bool {
-        env.storage()
+        if env.storage().instance().get(&DataKey::Paused).unwrap_or(false) {
+            return true;
+        }
+        if let Some(scheduled_ts) =
+            env.storage().instance().get::<DataKey, u64>(&DataKey::ScheduledPause)
+        {
+            if env.ledger().timestamp() >= scheduled_ts {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn cancel_pause(env: Env) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
             .instance()
-            .get(&DataKey::Paused)
-            .unwrap_or(false)
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+
+        if env.storage().instance().has(&DataKey::ScheduledPause) {
+            env.storage().instance().remove(&DataKey::ScheduledPause);
+            env.events().publish((Symbol::new(&env, "admin"), PAUSE_CANCELED), ());
+        }
+        Ok(())
+    }
+
+    pub fn get_scheduled_pause(env: Env) -> Option<u64> {
+        env.storage().instance().get(&DataKey::ScheduledPause)
+    }
+
+    pub fn set_emergency_multisig(env: Env, addresses: Vec<Address>) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+
+        require!(addresses.len() == 3, QuipayError::Custom);
+        env.storage().instance().set(&DataKey::EmergencyMultisig, &addresses);
+        Ok(())
+    }
+
+    pub fn get_emergency_multisig(env: Env) -> Option<Vec<Address>> {
+        env.storage().instance().get(&DataKey::EmergencyMultisig)
+    }
+
+    pub fn emergency_pause(env: Env, caller: Address) -> Result<(), QuipayError> {
+        caller.require_auth();
+        let multisig: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&DataKey::EmergencyMultisig)
+            .ok_or(QuipayError::NotInitialized)?;
+
+        let mut is_member = false;
+        for i in 0..multisig.len() {
+            if multisig.get(i).unwrap() == caller {
+                is_member = true;
+                break;
+            }
+        }
+        require!(is_member, QuipayError::Unauthorized);
+
+        let mut votes: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&DataKey::EmergencyPauseVotes)
+            .unwrap_or_else(|| Vec::new(&env));
+
+        let mut already_voted = false;
+        for i in 0..votes.len() {
+            if votes.get(i).unwrap() == caller {
+                already_voted = true;
+                break;
+            }
+        }
+
+        if !already_voted {
+            votes.push_back(caller);
+            env.storage().instance().set(&DataKey::EmergencyPauseVotes, &votes);
+        }
+
+        if votes.len() >= 2 {
+            env.storage().instance().set(&DataKey::Paused, &true);
+            env.storage().instance().remove(&DataKey::ScheduledPause);
+            env.storage().instance().remove(&DataKey::EmergencyPauseVotes);
+            env.events().publish(
+                (Symbol::new(&env, "admin"), EMERGENCY_PAUSED),
+                (),
+            );
+        }
+        Ok(())
     }
 
     pub fn set_retention_secs(env: Env, retention_secs: u64) -> Result<(), QuipayError> {
@@ -2324,12 +2434,7 @@ impl PayrollStream {
     }
 
     fn require_not_paused(env: &Env) -> Result<(), QuipayError> {
-        if env
-            .storage()
-            .instance()
-            .get(&DataKey::Paused)
-            .unwrap_or(false)
-        {
+        if Self::is_paused(env.clone()) {
             return Err(QuipayError::ProtocolPaused);
         }
         Ok(())
@@ -2564,6 +2669,7 @@ impl PayrollStream {
 mod dispute;
 mod extension_test;
 mod pause_test;
+mod pause_timelock_test;
 mod stream_extension;
 mod stream_pause;
 
