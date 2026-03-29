@@ -610,11 +610,10 @@ impl PayrollStream {
     /// Creates multiple streams atomically and optionally deposits a lump sum into the vault.
     /// This is significantly more gas-efficient than calling create_stream individually
     /// as it groups vault interactions into single calls.
-    pub fn create_stream_batch(
+    pub fn batch_create_streams(
         env: Env,
         params: Vec<StreamParams>,
-        vault_deposit: i128,
-    ) -> Result<Vec<u64>, QuipayError> {
+    ) -> Result<Vec<u32>, QuipayError> {
         Self::require_not_paused(&env)?;
 
         if params.len() > MAX_BATCH_CREATE_STREAMS {
@@ -642,9 +641,9 @@ impl PayrollStream {
         // Phase 1: Pre-validation and liability calculation
         for param in params.iter() {
             if param.employer != authorized_employer || param.token != token {
-                return Err(QuipayError::Custom); // Batch must be homogeneous (same employer/token)
+                return Err(QuipayError::Unauthorized);
             }
-            
+
             if param.rate <= 0 || param.end_ts <= param.start_ts {
                 return Err(QuipayError::InvalidAmount);
             }
@@ -653,19 +652,9 @@ impl PayrollStream {
             let stream_total = param.rate
                 .checked_mul(i128::from(duration as i64))
                 .ok_or(QuipayError::Overflow)?;
-            
+
             total_liability = total_liability.checked_add(stream_total).ok_or(QuipayError::Overflow)?;
             validated_params.push_back(param);
-        }
-
-        // Phase 2: Atomic Vault Interaction
-        if vault_deposit > 0 {
-            // Optionally fund the treasury first
-            env.invoke_contract::<()>(
-                &vault,
-                &Symbol::new(&env, "deposit"),
-                soroban_sdk::vec![&env, authorized_employer.into_val(&env), token.into_val(&env), vault_deposit.into_val(&env)],
-            );
         }
 
         // Single solvency check for the entire batch
@@ -714,9 +703,10 @@ impl PayrollStream {
             };
 
             env.storage().persistent().set(&StreamKey::Stream(stream_id), &stream);
-            created_ids.push_back(stream_id);
-            
+            created_ids.push_back(u32::try_from(stream_id).map_err(|_| QuipayError::Overflow)?);
+
             // Emit individual events for downstream indexers
+            #[allow(deprecated)]
             env.events().publish(
                 (Symbol::new(&env, "stream"), Symbol::new(&env, "created"), param.worker.clone(), authorized_employer.clone()),
                 (stream_id, token.clone(), param.rate, param.start_ts, param.end_ts),
