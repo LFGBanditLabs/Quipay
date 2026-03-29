@@ -191,7 +191,7 @@ const tw = {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const BulkStreamCreator: React.FC = () => {
-  const { publicKey, signTransaction } = useWallet();
+  const { address: publicKey, signTransaction } = useWallet();
   const { addNotification } = useNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -311,11 +311,19 @@ const BulkStreamCreator: React.FC = () => {
       );
 
       setPhase({ kind: "submitting" });
-      const signedXdr = await signTransaction(preparedXdr, {
+      const signResult = await signTransaction(preparedXdr, {
         networkPassphrase: import.meta.env
           .VITE_STELLAR_NETWORK_PASSPHRASE as string,
       });
-      const txHash = await submitAndAwaitTx(signedXdr);
+      if (
+        !signResult ||
+        typeof signResult !== "object" ||
+        !("signedTxXdr" in signResult)
+      ) {
+        throw new Error("Invalid response from signTransaction");
+      }
+      const { signedTxXdr } = signResult as { signedTxXdr: string };
+      const txHash = await submitAndAwaitTx(signedTxXdr);
 
       setPhase({ kind: "success", txHash });
       addNotification(
