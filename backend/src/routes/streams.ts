@@ -98,7 +98,9 @@ streamsRouter.post(
       endTs: body.endTs,
       status: body.status,
       ledger: body.ledger,
-      metadata: body.metadata ? (body.metadata as Record<string, string>) : undefined,
+      metadata: body.metadata
+        ? (body.metadata as Record<string, string>)
+        : undefined,
     });
 
     const stream = await getStreamById(body.streamId);

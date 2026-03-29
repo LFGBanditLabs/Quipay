@@ -1305,7 +1305,8 @@ export const getEmployerSpendBreakdown = async (
   }>
 > => {
   if (!getPool()) return [];
-  const interval = period === "monthly" ? "month" : period === "weekly" ? "week" : "day";
+  const interval =
+    period === "monthly" ? "month" : period === "weekly" ? "week" : "day";
   const res = await query(
     `SELECT
        s.worker,
