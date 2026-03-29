@@ -2,6 +2,7 @@ import { z } from "zod";
 
 /**
  * Schema for webhook registration
+ * TODO: Integrate with zod-to-openapi for automated spec generation
  */
 export const webhookRegistrationSchema = z.object({
   url: z
