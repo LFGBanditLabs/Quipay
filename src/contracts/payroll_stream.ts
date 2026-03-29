@@ -612,3 +612,106 @@ export async function getWorkerWithdrawalEvents(
     return [];
   }
 }
+
+// ─── buildBatchCreateStreamsTx ────────────────────────────────────────────────
+
+/**
+ * A single entry in a batch stream creation request.
+ * Mirrors the on-chain `StreamParams` struct.
+ */
+export interface BatchStreamEntry {
+  worker: string;
+  token: string;
+  /** Flow rate in stroops per second */
+  rate: bigint;
+  /** Unix timestamp (seconds) for stream start */
+  startTs: number;
+  /** Unix timestamp (seconds) for stream end */
+  endTs: number;
+  /** Optional cliff timestamp — defaults to startTs if omitted */
+  cliffTs?: number;
+}
+
+/**
+ * Simulates and builds a `batch_create_streams` transaction.
+ *
+ * All entries must share the same employer (the connected wallet).
+ * Solvency for the total batch amount must be validated before calling this
+ * via `checkTreasurySolvency`.
+ *
+ * Returns the base64-encoded prepared XDR ready for signing.
+ */
+export async function buildBatchCreateStreamsTx(
+  employer: string,
+  entries: BatchStreamEntry[],
+): Promise<{ preparedXdr: string }> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) {
+    throw new Error(
+      "VITE_PAYROLL_STREAM_CONTRACT_ID is not set in environment variables.",
+    );
+  }
+  if (entries.length === 0) throw new Error("Batch must not be empty.");
+  if (entries.length > 20)
+    throw new Error("Batch exceeds maximum of 20 streams.");
+
+  const server = getRpcServer();
+  const account = await server.getAccount(employer);
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+
+  // Build the Vec<StreamParams> ScVal
+  const paramsVec = xdr.ScVal.scvVec(
+    entries.map((e) => {
+      const cliffTs = e.cliffTs ?? e.startTs;
+      return xdr.ScVal.scvMap([
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("employer"),
+          val: new Address(employer).toScVal(),
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("worker"),
+          val: new Address(e.worker).toScVal(),
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("token"),
+          val: tokenToScVal(e.token),
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("rate"),
+          val: nativeToScVal(e.rate, { type: "i128" }),
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("cliff_ts"),
+          val: nativeToScVal(BigInt(cliffTs), { type: "u64" }),
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("start_ts"),
+          val: nativeToScVal(BigInt(e.startTs), { type: "u64" }),
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("end_ts"),
+          val: nativeToScVal(BigInt(e.endTs), { type: "u64" }),
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("metadata_hash"),
+          val: xdr.ScVal.scvVoid(),
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("speed_curve"),
+          // MaybeSpeedCurve::None
+          val: xdr.ScVal.scvVec([xdr.ScVal.scvSymbol("None")]),
+        }),
+      ]);
+    }),
+  );
+
+  const tx = new TransactionBuilder(account, {
+    fee: "1000000",
+    networkPassphrase,
+  })
+    .addOperation(contract.call("batch_create_streams", paramsVec))
+    .setTimeout(30)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  return { preparedXdr: prepared.toXDR() };
+}

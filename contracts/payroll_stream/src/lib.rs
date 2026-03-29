@@ -2327,7 +2327,7 @@ impl PayrollStream {
         };
         // ClosureReason enum discriminant is passed as u32 to avoid a cross-crate
         // contracttype dependency at the call site.
-        let _ = env.try_invoke_contract::<u64, ()>(
+        let _ = env.try_invoke_contract::<u64, soroban_sdk::Error>(
             &receipt_addr,
             &Symbol::new(env, "mint"),
             vec![
@@ -2345,46 +2345,11 @@ impl PayrollStream {
         );
     }
 
-    pub(crate) fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
     /// Calculate the vested amount at a specific timestamp, accounting for pauses.
     ///
-    /// This function implements the core vesting logic with support for pause/resume cycles.
-    /// When a stream is paused and resumed, the `total_paused_duration` field shifts the
-    /// effective vesting timeline forward, ensuring workers are only paid for active time.
-    ///
-    /// ### Vesting Formula
-    /// ```ignore
-    /// effective_start = start_ts + total_paused_duration
-    /// effective_end = end_ts + total_paused_duration
-    /// elapsed = timestamp - effective_start
-    /// vested = total_amount * elapsed / (end_ts - start_ts)
-    /// ```
-    ///
-    /// ### Pause Handling
-    /// The `total_paused_duration` accumulates all pause periods:
-    /// - When paused: vesting stops at `paused_at`
-    /// - When resumed: `total_paused_duration += (resume_time - paused_at)`
-    /// - The timeline shifts forward by `total_paused_duration`
-    ///
-    /// ### Example
-    /// ```ignore
-    /// Stream: 1000 tokens, start=0, end=100 (10 tokens/sec)
-    /// Paused at t=30 (300 vested), resumed at t=70 (pause_duration=40s)
-    ///
-    /// At t=80:
-    /// - effective_start = 0 + 40 = 40
-    /// - elapsed = 80 - 40 = 40s
-    /// - vested = 1000 * 40 / 100 = 400 tokens
-    /// - Correct: 30s before pause + 10s after resume = 40s active
-    /// ```
-    ///
-    /// ### Parameters
-    /// - `stream`: The stream to calculate vesting for
-    /// - `timestamp`: The time to calculate vesting at
-    ///
-    /// ### Returns
-    /// The amount vested at the given timestamp (capped at `total_amount`)
-    fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
+    /// Subtracts `total_paused_duration` from elapsed time so workers are only
+    /// paid for active (non-paused) time. Caps the result at `total_amount`.
+    pub(crate) fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
         let is_closed = Self::is_closed(stream);
         let mut effective_ts = if is_closed {
             core::cmp::min(timestamp, stream.closed_at)
