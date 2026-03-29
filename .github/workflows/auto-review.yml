@@ -4,9 +4,10 @@ on:
   workflow_run:
     workflows:
       - "Build Project and Run Tests"
-      - "Frontend CI"
       - "Backend CI"
       - "Contracts CI"
+      - "E2E & Visual Regression"
+      - "Integration Tests"
     types: [completed]
 
 permissions:
@@ -89,15 +90,45 @@ jobs:
 
           LINKED_ISSUES=$(echo "$PR_DATA" | jq -r '.body // ""' | \
             grep -oiE '(close[sd]?|fix(e[sd])?|resolve[sd]?)\s+#[0-9]+' | \
-            grep -oE '#[0-9]+' || echo "none")
+            grep -oE '#[0-9]+' || echo "")
+          if [ -z "$LINKED_ISSUES" ]; then
+            LINKED_ISSUES="none"
+          fi
           {
             echo "issues<<GHA_DELIM"
             echo "$LINKED_ISSUES"
             echo "GHA_DELIM"
           } >> $GITHUB_OUTPUT
 
-      - name: Review with Groq
+      # Hard gate: block PRs with no linked issue immediately
+      - name: Check linked issue
         if: steps.pr.outputs.skip != 'true'
+        id: issue_gate
+        env:
+          GH_TOKEN: ${{ secrets.OWNER_PAT }}
+          PR_NUM: ${{ steps.pr.outputs.number }}
+          PR_ISSUES: ${{ steps.diff.outputs.issues }}
+        run: |
+          if [ "$PR_ISSUES" = "none" ] || [ -z "$PR_ISSUES" ]; then
+            echo "block=true" >> $GITHUB_OUTPUT
+            BODY="**Auto Review blocked this PR.**
+
+          No linked issue found. Please update the PR description to reference the issue this PR addresses, e.g. \`Closes #123\`."
+
+            PAT_USER=$(gh api user --jq '.login' 2>/dev/null || echo "")
+            PR_AUTHOR="${{ steps.diff.outputs.author }}"
+
+            if [ "$PR_AUTHOR" = "$PAT_USER" ]; then
+              gh pr comment "$PR_NUM" --body "$BODY"
+            else
+              gh pr review "$PR_NUM" --request-changes --body "$BODY"
+            fi
+          else
+            echo "block=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Review with Groq
+        if: steps.pr.outputs.skip != 'true' && steps.issue_gate.outputs.block != 'true'
         id: review
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
@@ -214,7 +245,7 @@ jobs:
           } >> $GITHUB_OUTPUT
 
       - name: Submit review as repo owner
-        if: steps.pr.outputs.skip != 'true'
+        if: steps.pr.outputs.skip != 'true' && steps.issue_gate.outputs.block != 'true'
         env:
           GH_TOKEN: ${{ secrets.OWNER_PAT }}
           PR_NUM: ${{ steps.pr.outputs.number }}
@@ -244,8 +275,48 @@ jobs:
             --"$(echo "$ACTION" | tr '[:upper:]' '[:lower:]' | tr '_' '-')" \
             --body "$BODY"
 
+      # Hard gate: verify ALL check-runs completed and none failed before merging
+      - name: Verify all CI checks passed
+        if: steps.pr.outputs.skip != 'true' && steps.issue_gate.outputs.block != 'true' && steps.review.outputs.action == 'APPROVE'
+        id: ci_gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          CHECKS=$(gh api "repos/${{ github.repository }}/commits/${HEAD_SHA}/check-runs" \
+            --paginate --jq '.check_runs[]')
+
+          PENDING=$(echo "$CHECKS" | jq -s '[.[] | select(
+            .name != "Auto Review" and
+            .status != "completed"
+          )] | length')
+
+          FAILED=$(echo "$CHECKS" | jq -s '[.[] | select(
+            .name != "Auto Review" and
+            .status == "completed" and
+            (.conclusion | IN("success","skipped","neutral") | not)
+          )] | length')
+
+          echo "Pending checks: $PENDING"
+          echo "Failed checks: $FAILED"
+
+          if [ "$FAILED" -gt 0 ]; then
+            echo "merge=false" >> $GITHUB_OUTPUT
+            echo "reason=one or more checks failed" >> $GITHUB_OUTPUT
+          elif [ "$PENDING" -gt 0 ]; then
+            echo "merge=false" >> $GITHUB_OUTPUT
+            echo "reason=checks still in progress" >> $GITHUB_OUTPUT
+          else
+            echo "merge=true" >> $GITHUB_OUTPUT
+            echo "reason=all checks completed successfully" >> $GITHUB_OUTPUT
+          fi
+
       - name: Auto-merge approved PRs
-        if: steps.pr.outputs.skip != 'true' && steps.review.outputs.action == 'APPROVE'
+        if: |
+          steps.pr.outputs.skip != 'true' &&
+          steps.issue_gate.outputs.block != 'true' &&
+          steps.review.outputs.action == 'APPROVE' &&
+          steps.ci_gate.outputs.merge == 'true'
         env:
           GH_TOKEN: ${{ secrets.OWNER_PAT }}
           PR_NUM: ${{ steps.pr.outputs.number }}
