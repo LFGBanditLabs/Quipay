@@ -200,7 +200,7 @@ describe("SignatureService", () => {
         signature,
         expect.objectContaining({
           errorCorrectionLevel: "M",
-          type: "png",
+          type: "image/png",
           width: 200,
         }),
       );

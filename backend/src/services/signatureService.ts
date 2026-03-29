@@ -32,8 +32,11 @@ export interface VerifySignatureParams {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 // In production, these should be stored in a secure key management system (Vault, AWS Secrets Manager)
-const SIGNING_KEY_PRIVATE = process.env.PAYSLIP_SIGNING_KEY_PRIVATE || "";
-const SIGNING_KEY_PUBLIC = process.env.PAYSLIP_SIGNING_KEY_PUBLIC || "";
+// Lazy load keys to allow tests to set them
+const getEnvKeys = () => ({
+  private: process.env.PAYSLIP_SIGNING_KEY_PRIVATE || "",
+  public: process.env.PAYSLIP_SIGNING_KEY_PUBLIC || "",
+});
 
 // QR code generation options
 const QR_CODE_BUFFER_OPTIONS = {
@@ -59,11 +62,12 @@ const getSigningKeys = (): {
   privateKey: string;
   publicKey: string;
 } => {
+  const envKeys = getEnvKeys();
   // In production, keys should be loaded from secure storage
-  if (SIGNING_KEY_PRIVATE && SIGNING_KEY_PUBLIC) {
+  if (envKeys.private && envKeys.public) {
     return {
-      privateKey: SIGNING_KEY_PRIVATE,
-      publicKey: SIGNING_KEY_PUBLIC,
+      privateKey: envKeys.private,
+      publicKey: envKeys.public,
     };
   }
 
@@ -251,9 +255,10 @@ export const generatePayslipId = (): string => {
  * Throws an error if keys are missing in production
  */
 export const validateSigningKeysConfigured = (): void => {
+  const envKeys = getEnvKeys();
   if (
     process.env.NODE_ENV === "production" &&
-    (!SIGNING_KEY_PRIVATE || !SIGNING_KEY_PUBLIC)
+    (!envKeys.private || !envKeys.public)
   ) {
     throw new Error(
       "Signing keys not configured. Set PAYSLIP_SIGNING_KEY_PRIVATE and PAYSLIP_SIGNING_KEY_PUBLIC environment variables.",
