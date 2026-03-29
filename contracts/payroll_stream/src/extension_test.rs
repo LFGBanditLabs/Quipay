@@ -136,7 +136,8 @@ fn test_extend_stream_rejects_zero_duration() {
 
     // Stream: start_ts = 0, end_ts = 10
     let stream_id = client.create_stream(
-        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None, &None,
+        &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None,
+        &None,
     );
 
     // new_end_time == start_ts (0): zero-duration — must be rejected

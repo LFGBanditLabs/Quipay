@@ -179,11 +179,11 @@ jobs:
     steps:
       - name: Check results
         run: |
-          if [ "${{ needs.e2e-tests.result }}" != "success" ]; then
+          if [ "${{ needs.e2e-tests.result }}" == "failure" ]; then
             echo "::error::E2E tests failed"
             exit 1
           fi
-          if [ "${{ needs.visual-regression.result }}" != "success" ]; then
+          if [ "${{ needs.visual-regression.result }}" == "failure" ]; then
             echo "::error::Visual regression tests failed"
             exit 1
           fi

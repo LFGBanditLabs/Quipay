@@ -2426,7 +2426,8 @@ fn test_pause_and_cancel_interaction() {
 
     // Create a 100s stream with rate 100 (total 10,000)
     let stream_id = client.create_stream(
-        &employer, &worker, &token, &100, &0u64, &0u64, &100u64, &None, &None,
+        &employer, &worker, &token, &100, &0u64, &0u64, &100u64, &None,
+        &None,
     );
 
     // Fast forward to t=20 (Vested: 20 * 100 = 2000)
@@ -2473,7 +2474,8 @@ fn test_transfer_stream_success() {
     });
 
     let stream_id = client.create_stream(
-        &employer, &worker1, &token, &100, &0u64, &0u64, &100u64, &None, &None,
+        &employer, &worker1, &token, &100, &0u64, &0u64, &100u64, &None,
+        &None,
     );
 
     // Accrue some balance for worker1 (total duration 100s, rate 100 -> total_amount 10000)
@@ -2519,7 +2521,8 @@ fn test_transfer_stream_unauthorized() {
     });
 
     let stream_id = client.create_stream(
-        &employer, &worker1, &token, &100, &0u64, &0u64, &100u64, &None, &None,
+        &employer, &worker1, &token, &100, &0u64, &0u64, &100u64, &None,
+        &None,
     );
 
     // Intruder attempts to transfer
@@ -2540,7 +2543,8 @@ fn test_transfer_stream_closed_fails() {
     });
 
     let stream_id = client.create_stream(
-        &employer, &worker1, &token, &100, &0u64, &0u64, &100u64, &None, &None,
+        &employer, &worker1, &token, &100, &0u64, &0u64, &100u64, &None,
+        &None,
     );
 
     // Cancel the stream

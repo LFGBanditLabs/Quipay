@@ -2443,7 +2443,7 @@ impl PayrollStream {
         };
         // ClosureReason enum discriminant is passed as u32 to avoid a cross-crate
         // contracttype dependency at the call site.
-        let _ = env.try_invoke_contract::<u64, ()>(
+        let _ = env.try_invoke_contract::<u64, soroban_sdk::Error>(
             &receipt_addr,
             &Symbol::new(env, "mint"),
             vec![
@@ -2461,6 +2461,10 @@ impl PayrollStream {
         );
     }
 
+    /// Calculate the vested amount at a specific timestamp, accounting for pauses.
+    ///
+    /// Subtracts `total_paused_duration` from elapsed time so workers are only
+    /// paid for active (non-paused) time. Caps the result at `total_amount`.
     pub(crate) fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
         let is_closed = Self::is_closed(stream);
         let mut effective_ts = if is_closed {

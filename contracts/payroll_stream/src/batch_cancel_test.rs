@@ -261,8 +261,7 @@ fn test_batch_cancel_emits_cancel_scheduled_event() {
     let ids = soroban_sdk::vec![&env, stream_id];
     client.batch_cancel_streams(&ids, &employer);
 
-    // Verify the cancel_scheduled event was emitted by checking the stream status
-    // (event API varies by SDK version; status check is the canonical assertion)
+    // Verify cancel_scheduled was emitted via stream status
     let stream = client.get_stream(&stream_id).unwrap();
     assert_eq!(stream.status, StreamStatus::PendingCancel,
         "cancel_scheduled event not emitted — stream should be PendingCancel");
@@ -283,7 +282,7 @@ fn test_batch_cancel_emits_canceled_event_when_no_grace() {
     let ids = soroban_sdk::vec![&env, stream_id];
     client.batch_cancel_streams(&ids, &employer);
 
-    // Verify the canceled event was emitted by checking the stream status
+    // Verify canceled event was emitted via stream status
     let stream = client.get_stream(&stream_id).unwrap();
     assert_eq!(stream.status, StreamStatus::Canceled,
         "canceled event not emitted — stream should be Canceled");
