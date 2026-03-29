@@ -187,17 +187,19 @@ export const upsertStream = async (params: {
   status: "active" | "completed" | "cancelled";
   closedAt?: number;
   ledger: number;
+  metadata?: Record<string, string>;
 }): Promise<void> => {
   if (!getPool()) return; // DB not configured
   await query(
     `INSERT INTO payroll_streams
            (stream_id, employer, worker, total_amount, withdrawn_amount,
-            start_ts, end_ts, status, closed_at, ledger_created, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, NOW())
+            start_ts, end_ts, status, closed_at, ledger_created, metadata, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, NOW())
          ON CONFLICT (stream_id) DO UPDATE
            SET withdrawn_amount = EXCLUDED.withdrawn_amount,
                status           = EXCLUDED.status,
                closed_at        = EXCLUDED.closed_at,
+               metadata         = EXCLUDED.metadata,
                updated_at       = NOW()`,
     [
       params.streamId,
@@ -210,6 +212,7 @@ export const upsertStream = async (params: {
       params.status,
       params.closedAt ?? null,
       params.ledger,
+      params.metadata ?? null,
     ],
   );
 
@@ -285,6 +288,7 @@ export const getOverallStats = async (): Promise<OverallStats> => {
             COALESCE(SUM(total_amount),    0)              AS total_volume,
             COALESCE(SUM(withdrawn_amount),0)              AS total_withdrawn
         FROM payroll_streams
+        WHERE deleted_at IS NULL
     `);
   const row = res.rows[0];
   return {
@@ -385,16 +389,19 @@ export const getStreamsByEmployer = async (
   status?: string,
   limit = 50,
   offset = 0,
+  includeDeleted = false,
 ): Promise<StreamRecord[]> => {
   const params: unknown[] = [employer, limit, offset];
-  let statusClause = "";
+  const clauses: string[] = [];
+  if (!includeDeleted) clauses.push("deleted_at IS NULL");
   if (status) {
     params.push(status);
-    statusClause = `AND status = $${params.length}`;
+    clauses.push(`status = $${params.length}`);
   }
+  const whereExtra = clauses.length ? `AND ${clauses.join(" AND ")}` : "";
   const res = await query<StreamRecord>(
     `SELECT * FROM payroll_streams
-         WHERE employer = $1 ${statusClause}
+         WHERE employer = $1 ${whereExtra}
          ORDER BY created_at DESC
          LIMIT $2 OFFSET $3`,
     params,
@@ -407,16 +414,19 @@ export const getStreamsByWorker = async (
   status?: string,
   limit = 50,
   offset = 0,
+  includeDeleted = false,
 ): Promise<StreamRecord[]> => {
   const params: unknown[] = [worker, limit, offset];
-  let statusClause = "";
+  const clauses: string[] = [];
+  if (!includeDeleted) clauses.push("deleted_at IS NULL");
   if (status) {
     params.push(status);
-    statusClause = `AND status = $${params.length}`;
+    clauses.push(`status = $${params.length}`);
   }
+  const whereExtra = clauses.length ? `AND ${clauses.join(" AND ")}` : "";
   const res = await query<StreamRecord>(
     `SELECT * FROM payroll_streams
-         WHERE worker = $1 ${statusClause}
+         WHERE worker = $1 ${whereExtra}
          ORDER BY created_at DESC
          LIMIT $2 OFFSET $3`,
     params,
@@ -1021,13 +1031,91 @@ export const listWebhookOutboundEventsByOwner = async (params: {
 
 export const getStreamById = async (
   streamId: number,
+  includeSoftDeleted = false,
 ): Promise<StreamRecord | null> => {
   if (!getPool()) return null;
+  const deletedClause = includeSoftDeleted ? "" : "AND deleted_at IS NULL";
   const res = await query<StreamRecord>(
-    `SELECT * FROM payroll_streams WHERE stream_id = $1`,
+    `SELECT * FROM payroll_streams WHERE stream_id = $1 ${deletedClause}`,
     [streamId],
   );
   return res.rows[0] ?? null;
+};
+
+// ─── Soft-delete helpers (issue #614) ────────────────────────────────────────
+
+export interface StreamAuditEntry {
+  id: number;
+  stream_id: number;
+  changed_by: string;
+  action: string;
+  old_status: string | null;
+  new_status: string | null;
+  reason: string | null;
+  metadata: Record<string, unknown>;
+  created_at: Date;
+}
+
+/**
+ * Soft-delete a stream by setting `deleted_at`, `deleted_by`, and
+ * `cancel_reason`.  Also appends an entry to `stream_audit_log`.
+ * Returns `false` when the stream does not exist or is already deleted.
+ */
+export const softDeleteStream = async (params: {
+  streamId: number;
+  deletedBy: string;
+  cancelReason?: string;
+}): Promise<boolean> => {
+  if (!getPool()) throw new Error("Database pool is not initialized");
+
+  const existing = await query<{ status: string; stream_id: string }>(
+    `SELECT stream_id, status FROM payroll_streams
+     WHERE stream_id = $1 AND deleted_at IS NULL`,
+    [params.streamId],
+  );
+
+  if (existing.rows.length === 0) return false;
+
+  const oldStatus = existing.rows[0].status;
+
+  await query(
+    `UPDATE payroll_streams
+     SET deleted_at    = NOW(),
+         deleted_by    = $2,
+         cancel_reason = $3,
+         status        = 'cancelled',
+         updated_at    = NOW()
+     WHERE stream_id = $1 AND deleted_at IS NULL`,
+    [params.streamId, params.deletedBy, params.cancelReason ?? null],
+  );
+
+  // Record the cancellation in the immutable audit log
+  await query(
+    `INSERT INTO stream_audit_log
+       (stream_id, changed_by, action, old_status, new_status, reason)
+     VALUES ($1, $2, 'cancelled', $3, 'cancelled', $4)`,
+    [params.streamId, params.deletedBy, oldStatus, params.cancelReason ?? null],
+  );
+
+  // Invalidate analytics cache
+  globalCache.del("analytics:summary");
+  globalCache.invalidateByPrefix("analytics:trends:");
+
+  return true;
+};
+
+/**
+ * Retrieve the full audit trail for a single stream.
+ */
+export const getStreamAuditLog = async (
+  streamId: number,
+): Promise<StreamAuditEntry[]> => {
+  if (!getPool()) return [];
+  const res = await query<StreamAuditEntry>(
+    `SELECT * FROM stream_audit_log WHERE stream_id = $1 ORDER BY created_at ASC`,
+    [streamId],
+  );
+  return res.rows;
 };
 
 // ─── Payroll proof queries ────────────────────────────────────────────────────
@@ -1063,4 +1151,182 @@ export const getProofByStreamId = async (
     [streamId],
   );
   return res.rows[0] ?? null;
+};
+
+// ─── Dashboard analytics queries ─────────────────────────────────────────────
+
+export interface VolumePoint {
+  bucket: string; // ISO date string (day or week)
+  xlm_volume: string;
+  usdc_volume: string;
+  total_volume: string;
+  stream_count: number;
+}
+
+export interface TopWorker {
+  worker: string;
+  total_earned: string;
+  stream_count: number;
+  last_withdrawal_at: string | null;
+}
+
+export interface StreamCreationPoint {
+  bucket: string;
+  streams_created: number;
+}
+
+export interface WithdrawalFrequencyPoint {
+  bucket: string;
+  withdrawal_count: number;
+  total_withdrawn: string;
+}
+
+/**
+ * Total XLM/USDC streamed per day or week.
+ * Uses vault_events for token-level breakdown; falls back to payroll_streams volume.
+ */
+export const getVolumeOverTime = async (
+  granularity: "daily" | "weekly" = "daily",
+  days = 30,
+): Promise<VolumePoint[]> => {
+  if (!getPool()) return [];
+  const trunc = granularity === "weekly" ? "week" : "day";
+  const res = await query<VolumePoint>(
+    `SELECT
+        date_trunc('${trunc}', created_at)::date::text          AS bucket,
+        COALESCE(SUM(total_amount) FILTER (
+          WHERE LOWER(worker) LIKE '%xlm%' OR LOWER(employer) LIKE '%xlm%'
+        ), 0)                                                    AS xlm_volume,
+        COALESCE(SUM(total_amount) FILTER (
+          WHERE LOWER(worker) NOT LIKE '%xlm%' AND LOWER(employer) NOT LIKE '%xlm%'
+        ), 0)                                                    AS usdc_volume,
+        COALESCE(SUM(total_amount), 0)                           AS total_volume,
+        COUNT(*)                                                 AS stream_count
+      FROM payroll_streams
+      WHERE deleted_at IS NULL
+        AND created_at >= NOW() - INTERVAL '${days} days'
+      GROUP BY 1
+      ORDER BY 1 ASC`,
+  );
+  return res.rows.map((r) => ({
+    ...r,
+    stream_count: Number(r.stream_count),
+  }));
+};
+
+/**
+ * Top workers ranked by total withdrawn amount.
+ */
+export const getTopWorkersByEarnings = async (
+  limit = 10,
+): Promise<TopWorker[]> => {
+  if (!getPool()) return [];
+  const res = await query<TopWorker>(
+    `SELECT
+        w.worker,
+        COALESCE(SUM(w.amount), 0)                              AS total_earned,
+        COUNT(DISTINCT w.stream_id)                             AS stream_count,
+        MAX(w.created_at)::text                                 AS last_withdrawal_at
+      FROM withdrawals w
+      GROUP BY w.worker
+      ORDER BY total_earned DESC
+      LIMIT $1`,
+    [limit],
+  );
+  return res.rows.map((r) => ({
+    ...r,
+    stream_count: Number(r.stream_count),
+  }));
+};
+
+/**
+ * Stream creation rate per day or week.
+ */
+export const getStreamCreationRate = async (
+  granularity: "daily" | "weekly" = "daily",
+  days = 30,
+): Promise<StreamCreationPoint[]> => {
+  if (!getPool()) return [];
+  const trunc = granularity === "weekly" ? "week" : "day";
+  const res = await query<StreamCreationPoint>(
+    `SELECT
+        date_trunc('${trunc}', created_at)::date::text  AS bucket,
+        COUNT(*)                                         AS streams_created
+      FROM payroll_streams
+      WHERE deleted_at IS NULL
+        AND created_at >= NOW() - INTERVAL '${days} days'
+      GROUP BY 1
+      ORDER BY 1 ASC`,
+  );
+  return res.rows.map((r) => ({
+    ...r,
+    streams_created: Number(r.streams_created),
+  }));
+};
+
+/**
+ * Withdrawal frequency per day or week.
+ */
+export const getWithdrawalFrequency = async (
+  granularity: "daily" | "weekly" = "daily",
+  days = 30,
+): Promise<WithdrawalFrequencyPoint[]> => {
+  if (!getPool()) return [];
+  const trunc = granularity === "weekly" ? "week" : "day";
+  const res = await query<WithdrawalFrequencyPoint>(
+    `SELECT
+        date_trunc('${trunc}', created_at)::date::text  AS bucket,
+        COUNT(*)                                         AS withdrawal_count,
+        COALESCE(SUM(amount), 0)                         AS total_withdrawn
+      FROM withdrawals
+      WHERE created_at >= NOW() - INTERVAL '${days} days'
+      GROUP BY 1
+      ORDER BY 1 ASC`,
+  );
+  return res.rows.map((r) => ({
+    ...r,
+    withdrawal_count: Number(r.withdrawal_count),
+  }));
+};
+
+// ─── Employer Spend Analytics ─────────────────────────────────────────────────
+
+export const getEmployerSpendBreakdown = async (
+  employer: string,
+  period: "monthly" | "weekly" | "daily" = "monthly",
+): Promise<
+  Array<{
+    worker: string;
+    department?: string;
+    project?: string;
+    role?: string;
+    period_start: string;
+    total_spend: number;
+  }>
+> => {
+  if (!getPool()) return [];
+  const interval =
+    period === "monthly" ? "month" : period === "weekly" ? "week" : "day";
+  const res = await query(
+    `SELECT
+       s.worker,
+       s.metadata->>'department' as department,
+       s.metadata->>'project' as project,
+       s.metadata->>'role' as role,
+       DATE_TRUNC('${interval}', TO_TIMESTAMP(s.start_ts))::text as period_start,
+       SUM(s.total_amount::numeric) as total_spend
+     FROM payroll_streams s
+     WHERE s.employer = $1 AND s.status = 'active'
+     GROUP BY s.worker, s.metadata->>'department', s.metadata->>'project', s.metadata->>'role', DATE_TRUNC('${interval}', TO_TIMESTAMP(s.start_ts))
+     ORDER BY period_start DESC, total_spend DESC`,
+    [employer],
+  );
+  return res.rows.map((r) => ({
+    worker: r.worker,
+    department: r.department || undefined,
+    project: r.project || undefined,
+    role: r.role || undefined,
+    period_start: r.period_start,
+    total_spend: Number(r.total_spend),
+  }));
 };
