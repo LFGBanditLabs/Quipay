@@ -133,6 +133,11 @@ pub enum QuipayError {
     /// The stream duration is less than the configured minimum.
     DurationTooShort = 1043,
 
+    // ── Receipts ──────────────────────────────────────────────────────────────
+
+    /// No receipt exists for the given receipt ID.
+    ReceiptNotFound = 1044,
+
     // ── Catch-all ─────────────────────────────────────────────────────────────
 
     /// A custom error condition not covered by the above codes.

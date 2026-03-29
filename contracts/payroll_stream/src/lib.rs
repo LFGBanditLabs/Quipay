@@ -34,6 +34,7 @@ pub enum DataKey {
     MaxStreamsPerEmployer,   // Global default maximum active streams per employer
     EmployerStreamLimit(Address), // Per-employer maximum active stream override
     MinStreamDuration,       // Configurable minimum stream duration in seconds
+    Receipt,                 // PayrollReceipt contract address (optional)
 }
 
 #[contracttype]
@@ -465,6 +466,29 @@ impl PayrollStream {
         Ok(())
     }
 
+    /// Register the PayrollReceipt contract so receipts are minted on stream closure.
+    /// Pass `None` to disable receipt minting.
+    pub fn set_receipt_contract(
+        env: Env,
+        receipt_contract: Option<Address>,
+    ) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        match receipt_contract {
+            Some(addr) => env.storage().instance().set(&DataKey::Receipt, &addr),
+            None => env.storage().instance().remove(&DataKey::Receipt),
+        }
+        Ok(())
+    }
+
+    pub fn get_receipt_contract(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::Receipt)
+    }
+
     pub fn get_admin(env: Env) -> Result<Address, QuipayError> {
         env.storage()
             .instance()
@@ -734,6 +758,11 @@ impl PayrollStream {
             (available, stream.token.clone()),
         );
 
+        // Mint receipt if stream just completed
+        if stream.status == StreamStatus::Completed {
+            Self::try_mint_receipt(&env, &stream, stream_id, 0u32); // 0 = Completed
+        }
+
         Ok(available)
     }
 
@@ -888,6 +917,11 @@ impl PayrollStream {
                         ),
                         (available, stream.token.clone()),
                     );
+
+                    // Mint receipt if stream just completed
+                    if stream.status == StreamStatus::Completed {
+                        Self::try_mint_receipt(&env, &stream, candidate.stream_id, 0u32);
+                    }
 
                     WithdrawResult {
                         stream_id: candidate.stream_id,
@@ -1471,6 +1505,8 @@ impl PayrollStream {
             ),
             (stream.worker.clone(), stream.token.clone()),
         );
+
+        Self::try_mint_receipt(env, stream, stream_id, 1u32); // 1 = Cancelled
 
         stream.status = StreamStatus::Canceled;
         stream.closed_at = now;
@@ -2272,6 +2308,40 @@ impl PayrollStream {
             vault,
             &Symbol::new(env, "remove_liability"),
             vec![env, token.into_val(env), amount.into_val(env)],
+        );
+    }
+
+    /// If a PayrollReceipt contract is registered, mint a receipt for the closed stream.
+    /// Failures are silently ignored so they never block stream closure.
+    pub(crate) fn try_mint_receipt(
+        env: &Env,
+        stream: &Stream,
+        stream_id: u64,
+        reason: u32, // 0 = Completed, 1 = Cancelled
+    ) {
+        use soroban_sdk::{IntoVal, Symbol, vec};
+        let Some(receipt_addr): Option<Address> =
+            env.storage().instance().get(&DataKey::Receipt)
+        else {
+            return;
+        };
+        // ClosureReason enum discriminant is passed as u32 to avoid a cross-crate
+        // contracttype dependency at the call site.
+        let _ = env.try_invoke_contract::<u64, ()>(
+            &receipt_addr,
+            &Symbol::new(env, "mint"),
+            vec![
+                env,
+                stream_id.into_val(env),
+                stream.employer.clone().into_val(env),
+                stream.worker.clone().into_val(env),
+                stream.token.clone().into_val(env),
+                stream.withdrawn_amount.into_val(env),
+                stream.start_ts.into_val(env),
+                stream.end_ts.into_val(env),
+                stream.closed_at.into_val(env),
+                reason.into_val(env),
+            ],
         );
     }
 

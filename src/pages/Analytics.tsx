@@ -1,306 +1,526 @@
-import { useRef } from "react";
 import { useAnalyticsData } from "../hooks/useAnalyticsData";
-import { PayrollTrendChart } from "../components/Charts/PayrollTrendChart";
-import { EarningsTrendChart } from "../components/Charts/EarningsTrendChart";
-import { TreasuryBalanceChart } from "../components/Charts/TreasuryBalanceChart";
-import { StreamStatusChart } from "../components/Charts/StreamStatusChart";
 import { useTheme } from "../providers/ThemeProvider";
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+} from "recharts";
 
-const tw = {
-  page: "min-h-screen bg-[linear-gradient(135deg,#0f172a_0%,#1e1b4b_50%,#0f172a_100%)] px-6 pb-16 pt-8 font-[Inter,sans-serif] text-slate-200",
-  header: "mx-auto mb-8 max-w-[1200px]",
-  title:
-    "mb-1 text-[2rem] font-extrabold tracking-[-0.02em] text-transparent bg-[linear-gradient(135deg,#818cf8,#c084fc,#6366f1)] bg-clip-text",
-  subtitle: "m-0 text-[0.95rem] text-slate-400",
-  kpiGrid:
-    "mx-auto mb-8 grid max-w-[1200px] grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4",
-  kpi: "rounded-2xl border border-indigo-500/15 bg-slate-800/55 p-5 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-[20px]",
-  kpiLabel:
-    "mb-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-slate-500",
-  kpiValue: "text-[1.5rem] font-extrabold",
-  chartsGrid: "mx-auto grid max-w-[1200px] grid-cols-1 gap-6 md:grid-cols-2",
-  card: "rounded-2xl border border-indigo-500/15 bg-slate-800/55 p-5 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-[20px]",
-  cardHeader: "mb-4 flex items-start justify-between gap-3",
-  cardMeta: "flex-1",
-  cardTitle: "text-[1rem] font-bold text-slate-100",
-  cardDesc: "mt-0.5 text-[0.8rem] text-slate-400",
-  exportRow: "flex shrink-0 gap-2",
-  btnExport:
-    "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[0.75rem] font-semibold transition-all duration-200",
-  btnCSV:
-    "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20",
-  btnPNG:
-    "border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20",
-};
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmt(n: number) {
-  return `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+function shortAddr(addr: string) {
+  if (addr.length <= 12) return addr;
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
-function exportCSV(data: Record<string, string | number>[], filename: string) {
-  if (!data.length) return;
-  const keys = Object.keys(data[0]);
-  const rows = [
-    keys.join(","),
-    ...data.map((row) => keys.map((k) => String(row[k])).join(",")),
-  ];
-  const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
+function fmtVolume(raw: string | number) {
+  const n = typeof raw === "string" ? parseFloat(raw) : raw;
+  if (isNaN(n)) return "0";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return n.toFixed(0);
 }
 
-function exportPNG(
-  ref: React.RefObject<HTMLDivElement | null>,
-  filename: string,
-) {
-  const svg = ref.current?.querySelector("svg");
-  if (!svg) return;
-  const { width, height } = svg.getBoundingClientRect();
-  const xml = new XMLSerializer().serializeToString(svg);
-  const blob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const img = new Image();
-  img.onload = () => {
-    const canvas = document.createElement("canvas");
-    canvas.width = width || 600;
-    canvas.height = height || 300;
-    const ctx = canvas.getContext("2d")!;
-    ctx.fillStyle = "#1e293b";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0);
-    URL.revokeObjectURL(url);
-    const a = document.createElement("a");
-    a.href = canvas.toDataURL("image/png");
-    a.download = filename;
-    a.click();
+function shortBucket(bucket: string) {
+  // "2025-01-15" → "Jan 15" or "Jan W3"
+  const d = new Date(bucket);
+  if (isNaN(d.getTime())) return bucket;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+// ── Chart theme helpers ───────────────────────────────────────────────────────
+
+function useChartTheme(theme: string) {
+  const dark = theme === "dark";
+  return {
+    axisColor: dark ? "#94a3b8" : "#64748b",
+    gridColor: dark ? "rgba(99,102,241,0.1)" : "rgba(71,85,105,0.12)",
+    tooltipStyle: {
+      backgroundColor: dark ? "#0f172a" : "#ffffff",
+      border: dark
+        ? "1px solid rgba(99,102,241,0.25)"
+        : "1px solid rgba(148,163,184,0.4)",
+      borderRadius: "0.75rem",
+      color: dark ? "#e2e8f0" : "#0f172a",
+      fontSize: "0.78rem",
+    },
   };
-  img.src = url;
 }
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function ChartCard({
+  title,
+  description,
+  children,
+  cardCls,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+  cardCls: string;
+}) {
+  return (
+    <div className={cardCls}>
+      <div className="mb-4">
+        <p className="text-[0.95rem] font-bold text-slate-100">{title}</p>
+        <p className="mt-0.5 text-[0.78rem] text-slate-400">{description}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  accent,
+  cardCls,
+}: {
+  label: string;
+  value: string;
+  accent: string;
+  cardCls: string;
+}) {
+  return (
+    <div className={cardCls}>
+      <p className="mb-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.06em] text-slate-500">
+        {label}
+      </p>
+      <p className={`text-[1.45rem] font-extrabold ${accent}`}>{value}</p>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 const Analytics: React.FC = () => {
   const { theme } = useTheme();
+  const ct = useChartTheme(theme);
+  const dark = theme === "dark";
+
   const {
-    payrollTrend,
-    earningsTrend,
-    topEmployees,
-    treasuryHistory,
-    streamStatus,
-    kpis,
+    summary,
+    volumeOverTime,
+    topWorkers,
+    streamCreationRate,
+    withdrawalFrequency,
+    granularity,
+    setGranularity,
+    loading,
+    error,
     lastUpdatedAt,
     refreshIntervalMs,
+    refresh,
   } = useAnalyticsData();
 
-  const payrollRef = useRef<HTMLDivElement>(null);
-  const earningsRef = useRef<HTMLDivElement>(null);
-  const treasuryRef = useRef<HTMLDivElement>(null);
-  const statusRef = useRef<HTMLDivElement>(null);
+  const pageCls = dark
+    ? "min-h-screen bg-[linear-gradient(135deg,#0f172a_0%,#1e1b4b_50%,#0f172a_100%)] px-4 pb-16 pt-8 text-slate-200"
+    : "min-h-screen bg-[linear-gradient(135deg,#f7fbff_0%,#eef4ff_55%,#f8fafc_100%)] px-4 pb-16 pt-8 text-slate-900";
 
-  const palette =
-    theme === "dark"
-      ? {
-          page: "min-h-screen bg-[linear-gradient(135deg,#0f172a_0%,#1e1b4b_50%,#0f172a_100%)] px-6 pb-16 pt-8 font-[Inter,sans-serif] text-slate-200",
-          card: "rounded-2xl border border-indigo-500/15 bg-slate-800/55 p-5 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-[20px]",
-          subtitle: "text-slate-400",
-          title:
-            "mb-1 text-[2rem] font-extrabold tracking-[-0.02em] text-transparent bg-[linear-gradient(135deg,#818cf8,#c084fc,#6366f1)] bg-clip-text",
-        }
-      : {
-          page: "min-h-screen bg-[linear-gradient(135deg,#f7fbff_0%,#eef4ff_55%,#f8fafc_100%)] px-6 pb-16 pt-8 font-[Inter,sans-serif] text-slate-900",
-          card: "rounded-2xl border border-slate-200/80 bg-white/80 p-5 shadow-[0_8px_32px_rgba(15,23,42,0.08)] backdrop-blur-[20px]",
-          subtitle: "text-slate-500",
-          title:
-            "mb-1 text-[2rem] font-extrabold tracking-[-0.02em] text-transparent bg-[linear-gradient(135deg,#0f172a,#1d4ed8,#14b8a6)] bg-clip-text",
-        };
+  const cardCls = dark
+    ? "rounded-2xl border border-indigo-500/15 bg-slate-800/55 p-5 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-[20px]"
+    : "rounded-2xl border border-slate-200/80 bg-white/80 p-5 shadow-[0_8px_32px_rgba(15,23,42,0.08)] backdrop-blur-[20px]";
+
+  const titleCls = dark
+    ? "mb-1 text-[1.9rem] font-extrabold tracking-[-0.02em] text-transparent bg-[linear-gradient(135deg,#818cf8,#c084fc,#6366f1)] bg-clip-text"
+    : "mb-1 text-[1.9rem] font-extrabold tracking-[-0.02em] text-transparent bg-[linear-gradient(135deg,#0f172a,#1d4ed8,#14b8a6)] bg-clip-text";
+
+  const subtitleCls = dark ? "text-slate-400" : "text-slate-500";
+
+  const btnBase =
+    "rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-150";
+  const btnActive = dark
+    ? `${btnBase} bg-indigo-500/20 border border-indigo-500/40 text-indigo-300`
+    : `${btnBase} bg-indigo-100 border border-indigo-300 text-indigo-700`;
+  const btnInactive = dark
+    ? `${btnBase} border border-slate-700 text-slate-400 hover:text-slate-200`
+    : `${btnBase} border border-slate-200 text-slate-500 hover:text-slate-700`;
 
   return (
-    <div className={palette.page}>
-      <header className={tw.header}>
-        <h1 className={palette.title}>Payroll Analytics</h1>
-        <p className={`m-0 text-[0.95rem] ${palette.subtitle}`}>
-          Visualise spending trends, earnings, and treasury health
-        </p>
-        <p className={`mt-2 text-xs ${palette.subtitle}`}>
-          Auto-refreshes every {refreshIntervalMs / 1000}s. Last updated{" "}
-          {lastUpdatedAt.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          })}
-          .
-        </p>
+    <div className={pageCls}>
+      {/* Header */}
+      <header className="mx-auto mb-6 max-w-[1200px]">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className={titleCls}>Streaming Analytics</h1>
+            <p className={`m-0 text-[0.9rem] ${subtitleCls}`}>
+              Real-time XLM/USDC volume, top earners, stream creation and
+              withdrawal activity
+            </p>
+            <p className={`mt-1 text-xs ${subtitleCls}`}>
+              Auto-refreshes every {refreshIntervalMs / 1000}s · Last updated{" "}
+              {lastUpdatedAt.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              })}
+            </p>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-xs ${subtitleCls}`}>Granularity:</span>
+            <button
+              className={granularity === "daily" ? btnActive : btnInactive}
+              onClick={() => setGranularity("daily")}
+            >
+              Daily
+            </button>
+            <button
+              className={granularity === "weekly" ? btnActive : btnInactive}
+              onClick={() => setGranularity("weekly")}
+            >
+              Weekly
+            </button>
+            <button
+              className={btnInactive}
+              onClick={() => void refresh()}
+              aria-label="Refresh analytics"
+            >
+              ↻ Refresh
+            </button>
+          </div>
+        </div>
+
+        {/* Error banner */}
+        {error && (
+          <div
+            role="alert"
+            className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
+          >
+            {error} — showing last known data.
+          </div>
+        )}
       </header>
 
-      {/* KPIs */}
-      <div className={tw.kpiGrid} role="region" aria-label="Key metrics">
-        <div className={palette.card}>
-          <div className={tw.kpiLabel}>Total Disbursed</div>
-          <div className={`${tw.kpiValue} text-indigo-300`}>
-            {fmt(kpis.totalDisbursed)} USDC
-          </div>
-        </div>
-        <div className={palette.card}>
-          <div className={tw.kpiLabel}>Active Workers</div>
-          <div className={`${tw.kpiValue} text-slate-100`}>{kpis.workers}</div>
-        </div>
-        <div className={palette.card}>
-          <div className={tw.kpiLabel}>Avg Monthly Payroll</div>
-          <div className={`${tw.kpiValue} text-purple-300`}>
-            {fmt(kpis.avgMonthly)} USDC
-          </div>
-        </div>
-        <div className={palette.card}>
-          <div className={tw.kpiLabel}>Current Treasury</div>
-          <div className={`${tw.kpiValue} text-emerald-400`}>
-            {fmt(kpis.treasury)} USDC
-          </div>
-        </div>
+      {/* KPI row */}
+      <div
+        className="mx-auto mb-6 grid max-w-[1200px] grid-cols-2 gap-4 sm:grid-cols-4"
+        role="region"
+        aria-label="Key metrics"
+      >
+        <KpiCard
+          label="Total Streams"
+          value={summary ? String(summary.total_streams) : "—"}
+          accent="text-indigo-400"
+          cardCls={cardCls}
+        />
+        <KpiCard
+          label="Active Streams"
+          value={summary ? String(summary.active_streams) : "—"}
+          accent="text-emerald-400"
+          cardCls={cardCls}
+        />
+        <KpiCard
+          label="Total Volume"
+          value={summary ? fmtVolume(summary.total_volume) : "—"}
+          accent="text-purple-400"
+          cardCls={cardCls}
+        />
+        <KpiCard
+          label="Total Withdrawn"
+          value={summary ? fmtVolume(summary.total_withdrawn) : "—"}
+          accent="text-pink-400"
+          cardCls={cardCls}
+        />
       </div>
 
-      {/* Charts */}
-      <div className={tw.chartsGrid}>
-        {/* Payroll Spending */}
-        <div className={palette.card}>
-          <div className={tw.cardHeader}>
-            <div className={tw.cardMeta}>
-              <div className={tw.cardTitle}>Payroll Spending</div>
-              <div className={tw.cardDesc}>
-                Completed vs failed payments per month
-              </div>
-            </div>
-            <div className={tw.exportRow}>
-              <button
-                className={`${tw.btnExport} ${tw.btnCSV}`}
-                onClick={() => exportCSV(payrollTrend, "payroll-trend.csv")}
-                aria-label="Export payroll trend as CSV"
+      {/* Charts grid */}
+      <div className="mx-auto grid max-w-[1200px] grid-cols-1 gap-6 md:grid-cols-2">
+        {/* 1 — Volume over time */}
+        <ChartCard
+          title="XLM / USDC Streamed"
+          description={`Total payroll volume per ${granularity === "weekly" ? "week" : "day"} (last 30 days)`}
+          cardCls={cardCls}
+        >
+          {loading && volumeOverTime.length === 0 ? (
+            <Skeleton />
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <AreaChart
+                data={volumeOverTime.map((d) => ({
+                  ...d,
+                  bucket: shortBucket(d.bucket),
+                  total_volume: parseFloat(d.total_volume),
+                  xlm_volume: parseFloat(d.xlm_volume),
+                  usdc_volume: parseFloat(d.usdc_volume),
+                }))}
+                margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
               >
-                CSV
-              </button>
-              <button
-                className={`${tw.btnExport} ${tw.btnPNG}`}
-                onClick={() => exportPNG(payrollRef, "payroll-trend.png")}
-                aria-label="Export payroll trend as PNG"
-              >
-                PNG
-              </button>
-            </div>
-          </div>
-          <div
-            ref={payrollRef}
-            role="img"
-            aria-label="Payroll spending area chart"
-          >
-            <PayrollTrendChart data={payrollTrend} />
-          </div>
-        </div>
+                <defs>
+                  <linearGradient id="vol-total" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="vol-usdc" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke={ct.gridColor}
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="bucket"
+                  tick={{ fill: ct.axisColor, fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  tick={{ fill: ct.axisColor, fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={fmtVolume}
+                />
+                <Tooltip
+                  contentStyle={ct.tooltipStyle}
+                  formatter={(v) => [fmtVolume(v as number)]}
+                />
+                <Legend
+                  wrapperStyle={{ fontSize: "0.75rem", color: ct.axisColor }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="total_volume"
+                  name="Total"
+                  stroke="#6366f1"
+                  strokeWidth={2}
+                  fill="url(#vol-total)"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="usdc_volume"
+                  name="USDC"
+                  stroke="#10b981"
+                  strokeWidth={1.5}
+                  fill="url(#vol-usdc)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
 
-        {/* Worker Earnings */}
-        <div className={palette.card}>
-          <div className={tw.cardHeader}>
-            <div className={tw.cardMeta}>
-              <div className={tw.cardTitle}>Worker Earnings</div>
-              <div className={tw.cardDesc}>Top 5 earners month-over-month</div>
-            </div>
-            <div className={tw.exportRow}>
-              <button
-                className={`${tw.btnExport} ${tw.btnCSV}`}
-                onClick={() => exportCSV(earningsTrend, "earnings-trend.csv")}
-                aria-label="Export earnings trend as CSV"
+        {/* 2 — Top workers by earned amount */}
+        <ChartCard
+          title="Top Workers by Earned Amount"
+          description="Cumulative withdrawals per worker"
+          cardCls={cardCls}
+        >
+          {loading && topWorkers.length === 0 ? (
+            <Skeleton />
+          ) : topWorkers.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart
+                data={topWorkers.map((w) => ({
+                  worker: shortAddr(w.worker),
+                  earned: parseFloat(w.total_earned),
+                  streams: w.stream_count,
+                }))}
+                layout="vertical"
+                margin={{ top: 4, right: 16, left: 8, bottom: 0 }}
               >
-                CSV
-              </button>
-              <button
-                className={`${tw.btnExport} ${tw.btnPNG}`}
-                onClick={() => exportPNG(earningsRef, "earnings-trend.png")}
-                aria-label="Export earnings trend as PNG"
-              >
-                PNG
-              </button>
-            </div>
-          </div>
-          <div
-            ref={earningsRef}
-            role="img"
-            aria-label="Worker earnings line chart"
-          >
-            <EarningsTrendChart data={earningsTrend} employees={topEmployees} />
-          </div>
-        </div>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke={ct.gridColor}
+                  horizontal={false}
+                />
+                <XAxis
+                  type="number"
+                  tick={{ fill: ct.axisColor, fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={fmtVolume}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="worker"
+                  tick={{ fill: ct.axisColor, fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={72}
+                />
+                <Tooltip
+                  contentStyle={ct.tooltipStyle}
+                  formatter={(v) => [fmtVolume(v as number), "Earned"]}
+                />
+                <Bar
+                  dataKey="earned"
+                  name="Earned"
+                  fill="#818cf8"
+                  radius={[0, 4, 4, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
 
-        {/* Treasury Balance */}
-        <div className={palette.card}>
-          <div className={tw.cardHeader}>
-            <div className={tw.cardMeta}>
-              <div className={tw.cardTitle}>Treasury Balance</div>
-              <div className={tw.cardDesc}>
-                Running balance vs monthly payouts
-              </div>
-            </div>
-            <div className={tw.exportRow}>
-              <button
-                className={`${tw.btnExport} ${tw.btnCSV}`}
-                onClick={() =>
-                  exportCSV(treasuryHistory, "treasury-history.csv")
-                }
-                aria-label="Export treasury history as CSV"
+        {/* 3 — Stream creation rate */}
+        <ChartCard
+          title="Stream Creation Rate"
+          description={`New streams per ${granularity === "weekly" ? "week" : "day"} (last 30 days)`}
+          cardCls={cardCls}
+        >
+          {loading && streamCreationRate.length === 0 ? (
+            <Skeleton />
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart
+                data={streamCreationRate.map((d) => ({
+                  ...d,
+                  bucket: shortBucket(d.bucket),
+                }))}
+                margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
               >
-                CSV
-              </button>
-              <button
-                className={`${tw.btnExport} ${tw.btnPNG}`}
-                onClick={() => exportPNG(treasuryRef, "treasury-balance.png")}
-                aria-label="Export treasury balance as PNG"
-              >
-                PNG
-              </button>
-            </div>
-          </div>
-          <div
-            ref={treasuryRef}
-            role="img"
-            aria-label="Treasury balance area chart"
-          >
-            <TreasuryBalanceChart data={treasuryHistory} />
-          </div>
-        </div>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke={ct.gridColor}
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="bucket"
+                  tick={{ fill: ct.axisColor, fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  tick={{ fill: ct.axisColor, fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  contentStyle={ct.tooltipStyle}
+                  formatter={(v) => [v, "Streams created"]}
+                />
+                <Bar
+                  dataKey="streams_created"
+                  name="Streams Created"
+                  fill="#c084fc"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
 
-        {/* Stream Status */}
-        <div className={palette.card}>
-          <div className={tw.cardHeader}>
-            <div className={tw.cardMeta}>
-              <div className={tw.cardTitle}>Stream Status</div>
-              <div className={tw.cardDesc}>Breakdown by payment outcome</div>
-            </div>
-            <div className={tw.exportRow}>
-              <button
-                className={`${tw.btnExport} ${tw.btnCSV}`}
-                onClick={() => exportCSV(streamStatus, "stream-status.csv")}
-                aria-label="Export stream status as CSV"
+        {/* 4 — Withdrawal frequency */}
+        <ChartCard
+          title="Withdrawal Frequency"
+          description={`Withdrawal count & volume per ${granularity === "weekly" ? "week" : "day"} (last 30 days)`}
+          cardCls={cardCls}
+        >
+          {loading && withdrawalFrequency.length === 0 ? (
+            <Skeleton />
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart
+                data={withdrawalFrequency.map((d) => ({
+                  ...d,
+                  bucket: shortBucket(d.bucket),
+                  total_withdrawn: parseFloat(d.total_withdrawn),
+                }))}
+                margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
               >
-                CSV
-              </button>
-              <button
-                className={`${tw.btnExport} ${tw.btnPNG}`}
-                onClick={() => exportPNG(statusRef, "stream-status.png")}
-                aria-label="Export stream status as PNG"
-              >
-                PNG
-              </button>
-            </div>
-          </div>
-          <div
-            ref={statusRef}
-            role="img"
-            aria-label="Stream status donut chart"
-          >
-            <StreamStatusChart data={streamStatus} />
-          </div>
-        </div>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke={ct.gridColor}
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="bucket"
+                  tick={{ fill: ct.axisColor, fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  yAxisId="count"
+                  tick={{ fill: ct.axisColor, fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  allowDecimals={false}
+                />
+                <YAxis
+                  yAxisId="vol"
+                  orientation="right"
+                  tick={{ fill: ct.axisColor, fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={fmtVolume}
+                />
+                <Tooltip
+                  contentStyle={ct.tooltipStyle}
+                  formatter={(v, name) =>
+                    name === "Volume"
+                      ? [fmtVolume(v as number), name]
+                      : [v, name]
+                  }
+                />
+                <Legend
+                  wrapperStyle={{ fontSize: "0.75rem", color: ct.axisColor }}
+                />
+                <Line
+                  yAxisId="count"
+                  type="monotone"
+                  dataKey="withdrawal_count"
+                  name="Count"
+                  stroke="#f472b6"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  yAxisId="vol"
+                  type="monotone"
+                  dataKey="total_withdrawn"
+                  name="Volume"
+                  stroke="#fb923c"
+                  strokeWidth={2}
+                  dot={false}
+                  strokeDasharray="4 2"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
       </div>
     </div>
   );
 };
+
+// ── Micro-components ──────────────────────────────────────────────────────────
+
+function Skeleton() {
+  return (
+    <div
+      className="h-[240px] w-full animate-pulse rounded-xl bg-slate-700/30"
+      aria-busy="true"
+      aria-label="Loading chart"
+    />
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="flex h-[240px] items-center justify-center text-sm text-slate-500">
+      No data yet
+    </div>
+  );
+}
 
 export default Analytics;
