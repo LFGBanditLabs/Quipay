@@ -2393,7 +2393,9 @@ impl PayrollStream {
         else {
             return;
         };
-        let _ = env.try_invoke_contract::<u64, soroban_sdk::Error>(
+        // ClosureReason enum discriminant is passed as u32 to avoid a cross-crate
+        // contracttype dependency at the call site.
+        let _ = env.try_invoke_contract::<u64, ()>(
             &receipt_addr,
             &Symbol::new(env, "mint"),
             vec![

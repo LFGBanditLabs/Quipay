@@ -13,6 +13,7 @@ doctest = false
 [dependencies]
 soroban-sdk = { workspace = true }
 payroll_vault = { path = "../payroll_vault" }
+payroll_receipt = { path = "../payroll_receipt" }
 quipay_common = { path = "../common" }
 
 [dev-dependencies]

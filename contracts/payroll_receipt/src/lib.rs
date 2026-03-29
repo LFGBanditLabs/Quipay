@@ -15,9 +15,11 @@ mod test;
 pub enum DataKey {
     Admin,
     PendingAdmin,
+    /// Authorised minter (PayrollStream contract address)
     Minter,
     NextReceiptId,
     Receipt(u64),
+    /// Index: all receipt IDs for a given worker
     WorkerReceipts(Address),
 }
 
@@ -33,6 +35,7 @@ pub enum ClosureReason {
 }
 
 /// Immutable, non-transferable proof-of-payment record.
+///
 /// Minted once per stream closure. Useful for proof-of-income and tax records.
 #[contracttype]
 #[derive(Clone, Debug)]
@@ -58,7 +61,11 @@ pub struct PayrollReceiptContract;
 
 #[contractimpl]
 impl PayrollReceiptContract {
-    /// Initialise the contract. `minter` should be the PayrollStream contract address.
+    // ── Initialisation ────────────────────────────────────────────────────
+
+    /// Initialise the contract.
+    ///
+    /// `minter` should be the deployed PayrollStream contract address.
     pub fn init(env: Env, admin: Address, minter: Address) -> Result<(), QuipayError> {
         require!(
             !env.storage().instance().has(&DataKey::Admin),
@@ -66,9 +73,13 @@ impl PayrollReceiptContract {
         );
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Minter, &minter);
-        env.storage().instance().set(&DataKey::NextReceiptId, &1u64);
+        env.storage()
+            .instance()
+            .set(&DataKey::NextReceiptId, &1u64);
         Ok(())
     }
+
+    // ── Admin helpers ─────────────────────────────────────────────────────
 
     pub fn set_minter(env: Env, minter: Address) -> Result<(), QuipayError> {
         Self::require_admin(&env)?;
@@ -78,7 +89,9 @@ impl PayrollReceiptContract {
 
     pub fn propose_admin(env: Env, new_admin: Address) -> Result<(), QuipayError> {
         Self::require_admin(&env)?;
-        env.storage().instance().set(&DataKey::PendingAdmin, &new_admin);
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingAdmin, &new_admin);
         Ok(())
     }
 
@@ -94,7 +107,10 @@ impl PayrollReceiptContract {
         Ok(())
     }
 
+    // ── Minting ───────────────────────────────────────────────────────────
+
     /// Mint a receipt for a completed or cancelled stream.
+    ///
     /// Only the authorised minter (PayrollStream) may call this.
     /// Receipts are non-transferable: once written they are immutable.
     pub fn mint(
@@ -109,6 +125,7 @@ impl PayrollReceiptContract {
         closed_at: u64,
         reason: ClosureReason,
     ) -> Result<u64, QuipayError> {
+        // Only the registered minter may call this.
         let minter: Address = env
             .storage()
             .instance()
@@ -135,8 +152,11 @@ impl PayrollReceiptContract {
             reason,
         };
 
-        env.storage().persistent().set(&DataKey::Receipt(receipt_id), &receipt);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Receipt(receipt_id), &receipt);
 
+        // Append to worker index
         let index_key = DataKey::WorkerReceipts(worker.clone());
         let mut ids: soroban_sdk::Vec<u64> = env
             .storage()
@@ -146,15 +166,24 @@ impl PayrollReceiptContract {
         ids.push_back(receipt_id);
         env.storage().persistent().set(&index_key, &ids);
 
-        env.storage().instance().set(&DataKey::NextReceiptId, &(receipt_id + 1));
+        env.storage()
+            .instance()
+            .set(&DataKey::NextReceiptId, &(receipt_id + 1));
 
         env.events().publish(
-            (symbol_short!("receipt"), symbol_short!("minted"), worker, employer),
+            (
+                symbol_short!("receipt"),
+                symbol_short!("minted"),
+                worker,
+                employer,
+            ),
             (receipt_id, stream_id, token, total_paid, reason),
         );
 
         Ok(receipt_id)
     }
+
+    // ── Queries ───────────────────────────────────────────────────────────
 
     pub fn get_receipt(env: Env, receipt_id: u64) -> Result<PayrollReceipt, QuipayError> {
         env.storage()
@@ -163,7 +192,7 @@ impl PayrollReceiptContract {
             .ok_or(QuipayError::ReceiptNotFound)
     }
 
-    /// Return receipt IDs for a given worker (paginated).
+    /// Return all receipt IDs for a given worker (paginated).
     pub fn get_worker_receipts(
         env: Env,
         worker: Address,
@@ -180,6 +209,7 @@ impl PayrollReceiptContract {
         if offset >= total {
             return soroban_sdk::Vec::new(&env);
         }
+
         let end = core::cmp::min(offset + limit, total);
         let mut page = soroban_sdk::Vec::new(&env);
         let mut i = offset;
@@ -198,6 +228,8 @@ impl PayrollReceiptContract {
             .get(&DataKey::Admin)
             .ok_or(QuipayError::NotInitialized)
     }
+
+    // ── Internal helpers ──────────────────────────────────────────────────
 
     fn require_admin(env: &Env) -> Result<(), QuipayError> {
         let admin: Address = env

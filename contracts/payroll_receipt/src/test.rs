@@ -8,9 +8,11 @@ fn setup(env: &Env) -> (Address, Address, PayrollReceiptContractClient) {
     env.mock_all_auths();
     let contract_id = env.register_contract(None, PayrollReceiptContract);
     let client = PayrollReceiptContractClient::new(env, &contract_id);
+
     let admin = Address::generate(env);
     let minter = Address::generate(env);
     client.init(&admin, &minter);
+
     (admin, minter, client)
 }
 
@@ -24,8 +26,14 @@ fn test_mint_and_get_receipt() {
     let token = Address::generate(&env);
 
     let receipt_id = client.mint(
-        &1u64, &employer, &worker, &token,
-        &1_000_000i128, &1_000u64, &2_000u64, &2_000u64,
+        &1u64,
+        &employer,
+        &worker,
+        &token,
+        &1_000_000i128,
+        &1_000u64,
+        &2_000u64,
+        &2_000u64,
         &ClosureReason::Completed,
     );
     assert_eq!(receipt_id, 1u64);

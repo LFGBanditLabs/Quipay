@@ -1,138 +1,144 @@
-import { useEffect, useMemo, useState } from "react";
-import { useTransactionData } from "./useTransactionData";
+import { useEffect, useState, useCallback } from "react";
 
-const MONTHS = ["January 2026", "February 2026", "March 2026"];
-const LABELS = ["Jan", "Feb", "Mar"];
+const API_BASE = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3001";
+const REFRESH_MS = 60_000;
 
-export function useAnalyticsData() {
-  const { allTransactions } = useTransactionData();
+// ── Types matching backend responses ─────────────────────────────────────────
+
+export interface VolumePoint {
+  bucket: string;
+  xlm_volume: string;
+  usdc_volume: string;
+  total_volume: string;
+  stream_count: number;
+}
+
+export interface TopWorker {
+  worker: string;
+  total_earned: string;
+  stream_count: number;
+  last_withdrawal_at: string | null;
+}
+
+export interface StreamCreationPoint {
+  bucket: string;
+  streams_created: number;
+}
+
+export interface WithdrawalFrequencyPoint {
+  bucket: string;
+  withdrawal_count: number;
+  total_withdrawn: string;
+}
+
+export interface OverallStats {
+  total_streams: number;
+  active_streams: number;
+  completed_streams: number;
+  cancelled_streams: number;
+  total_volume: string;
+  total_withdrawn: string;
+}
+
+export type Granularity = "daily" | "weekly";
+
+// ── Fetch helpers ─────────────────────────────────────────────────────────────
+
+async function fetchJson<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, { credentials: "include" });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  const json = await res.json();
+  return json.data as T;
+}
+
+// ── Hook ──────────────────────────────────────────────────────────────────────
+
+export interface AnalyticsDashboardData {
+  summary: OverallStats | null;
+  volumeOverTime: VolumePoint[];
+  topWorkers: TopWorker[];
+  streamCreationRate: StreamCreationPoint[];
+  withdrawalFrequency: WithdrawalFrequencyPoint[];
+  granularity: Granularity;
+  setGranularity: (g: Granularity) => void;
+  loading: boolean;
+  error: string | null;
+  lastUpdatedAt: Date;
+  refreshIntervalMs: number;
+  refresh: () => Promise<void>;
+}
+
+export function useAnalyticsData(): AnalyticsDashboardData {
+  const [granularity, setGranularity] = useState<Granularity>("daily");
+  const [summary, setSummary] = useState<OverallStats | null>(null);
+  const [volumeOverTime, setVolumeOverTime] = useState<VolumePoint[]>([]);
+  const [topWorkers, setTopWorkers] = useState<TopWorker[]>([]);
+  const [streamCreationRate, setStreamCreationRate] = useState<
+    StreamCreationPoint[]
+  >([]);
+  const [withdrawalFrequency, setWithdrawalFrequency] = useState<
+    WithdrawalFrequencyPoint[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(() => new Date());
 
-  useEffect(() => {
-    const interval = window.setInterval(() => {
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const gran = granularity;
+      const [sum, vol, workers, creation, withdrawals] = await Promise.all([
+        fetchJson<OverallStats>("/analytics/summary"),
+        fetchJson<VolumePoint[]>(
+          `/analytics/volume-over-time?granularity=${gran}&days=30`,
+        ),
+        fetchJson<TopWorker[]>("/analytics/top-workers?limit=10"),
+        fetchJson<StreamCreationPoint[]>(
+          `/analytics/stream-creation-rate?granularity=${gran}&days=30`,
+        ),
+        fetchJson<WithdrawalFrequencyPoint[]>(
+          `/analytics/withdrawal-frequency?granularity=${gran}&days=30`,
+        ),
+      ]);
+      setSummary(sum);
+      setVolumeOverTime(vol);
+      setTopWorkers(workers);
+      setStreamCreationRate(creation);
+      setWithdrawalFrequency(withdrawals);
       setLastUpdatedAt(new Date());
-    }, 15_000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load analytics");
+    } finally {
+      setLoading(false);
+    }
+  }, [granularity]);
 
-    return () => window.clearInterval(interval);
-  }, []);
+  // Initial fetch + re-fetch when granularity changes
+  useEffect(() => {
+    void fetchAll();
+  }, [fetchAll]);
 
-  const payrollTrend = useMemo(
-    () =>
-      MONTHS.map((_, i) => {
-        const txs = allTransactions.filter((tx) => {
-          const d = new Date(tx.date);
-          return d.getMonth() === i && d.getFullYear() === 2026;
-        });
-        return {
-          month: LABELS[i],
-          completed: txs
-            .filter((t) => t.status === "completed")
-            .reduce((s, t) => s + t.amount, 0),
-          failed: txs
-            .filter((t) => t.status === "failed")
-            .reduce((s, t) => s + t.amount, 0),
-        };
-      }),
-    [allTransactions],
-  );
-
-  const topEmployees = useMemo(
-    () =>
-      Array.from(new Set(allTransactions.map((t) => t.employeeName)))
-        .slice(0, 5)
-        .map((n) => n.split(" ")[0]),
-    [allTransactions],
-  );
-
-  const earningsTrend = useMemo(
-    () =>
-      MONTHS.map((_, i) => {
-        const txs = allTransactions.filter((tx) => {
-          const d = new Date(tx.date);
-          return (
-            d.getMonth() === i &&
-            d.getFullYear() === 2026 &&
-            tx.status === "completed"
-          );
-        });
-        const point: Record<string, string | number> = { month: LABELS[i] };
-        topEmployees.forEach((short) => {
-          const tx = txs.find((t) => t.employeeName.startsWith(short));
-          point[short] = tx?.amount ?? 0;
-        });
-        return point;
-      }),
-    [allTransactions, topEmployees],
-  );
-
-  const treasuryHistory = useMemo(() => {
-    const initialBalance = 200_000;
-
-    return MONTHS.reduce<
-      Array<{ month: string; balance: number; payouts: number }>
-    >((history, _, i) => {
-      const payouts = allTransactions
-        .filter((tx) => {
-          const d = new Date(tx.date);
-          return (
-            d.getMonth() === i &&
-            d.getFullYear() === 2026 &&
-            tx.status === "completed"
-          );
-        })
-        .reduce((sum, tx) => sum + tx.amount, 0);
-
-      const previousBalance =
-        history[history.length - 1]?.balance ?? initialBalance;
-      const nextBalance = Math.max(previousBalance - payouts, 0);
-
-      history.push({
-        month: LABELS[i],
-        balance: nextBalance,
-        payouts,
-      });
-
-      return history;
-    }, []);
-  }, [allTransactions]);
-
-  const streamStatus = useMemo(
-    () => [
-      {
-        name: "Completed",
-        value: allTransactions.filter((t) => t.status === "completed").length,
-      },
-      {
-        name: "Pending",
-        value: allTransactions.filter((t) => t.status === "pending").length,
-      },
-      {
-        name: "Failed",
-        value: allTransactions.filter((t) => t.status === "failed").length,
-      },
-    ],
-    [allTransactions],
-  );
-
-  const kpis = useMemo(() => {
-    const totalDisbursed = allTransactions
-      .filter((t) => t.status === "completed")
-      .reduce((s, t) => s + t.amount, 0);
-    const workers = new Set(allTransactions.map((t) => t.employeeId)).size;
-    const avgMonthly =
-      payrollTrend.reduce((s, m) => s + m.completed, 0) / MONTHS.length;
-    const treasury = treasuryHistory[treasuryHistory.length - 1]?.balance ?? 0;
-    return { totalDisbursed, workers, avgMonthly, treasury };
-  }, [allTransactions, payrollTrend, treasuryHistory]);
+  // 60-second auto-refresh
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      void fetchAll();
+    }, REFRESH_MS);
+    return () => window.clearInterval(id);
+  }, [fetchAll]);
 
   return {
-    payrollTrend,
-    earningsTrend,
-    topEmployees,
-    treasuryHistory,
-    streamStatus,
-    kpis,
+    summary,
+    volumeOverTime,
+    topWorkers,
+    streamCreationRate,
+    withdrawalFrequency,
+    granularity,
+    setGranularity,
+    loading,
+    error,
     lastUpdatedAt,
-    refreshIntervalMs: 15_000,
+    refreshIntervalMs: REFRESH_MS,
+    refresh: fetchAll,
   };
 }

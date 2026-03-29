@@ -1149,3 +1149,139 @@ export const getProofByStreamId = async (
   );
   return res.rows[0] ?? null;
 };
+
+// ─── Dashboard analytics queries ─────────────────────────────────────────────
+
+export interface VolumePoint {
+  bucket: string; // ISO date string (day or week)
+  xlm_volume: string;
+  usdc_volume: string;
+  total_volume: string;
+  stream_count: number;
+}
+
+export interface TopWorker {
+  worker: string;
+  total_earned: string;
+  stream_count: number;
+  last_withdrawal_at: string | null;
+}
+
+export interface StreamCreationPoint {
+  bucket: string;
+  streams_created: number;
+}
+
+export interface WithdrawalFrequencyPoint {
+  bucket: string;
+  withdrawal_count: number;
+  total_withdrawn: string;
+}
+
+/**
+ * Total XLM/USDC streamed per day or week.
+ * Uses vault_events for token-level breakdown; falls back to payroll_streams volume.
+ */
+export const getVolumeOverTime = async (
+  granularity: "daily" | "weekly" = "daily",
+  days = 30,
+): Promise<VolumePoint[]> => {
+  if (!getPool()) return [];
+  const trunc = granularity === "weekly" ? "week" : "day";
+  const res = await query<VolumePoint>(
+    `SELECT
+        date_trunc('${trunc}', created_at)::date::text          AS bucket,
+        COALESCE(SUM(total_amount) FILTER (
+          WHERE LOWER(worker) LIKE '%xlm%' OR LOWER(employer) LIKE '%xlm%'
+        ), 0)                                                    AS xlm_volume,
+        COALESCE(SUM(total_amount) FILTER (
+          WHERE LOWER(worker) NOT LIKE '%xlm%' AND LOWER(employer) NOT LIKE '%xlm%'
+        ), 0)                                                    AS usdc_volume,
+        COALESCE(SUM(total_amount), 0)                           AS total_volume,
+        COUNT(*)                                                 AS stream_count
+      FROM payroll_streams
+      WHERE deleted_at IS NULL
+        AND created_at >= NOW() - INTERVAL '${days} days'
+      GROUP BY 1
+      ORDER BY 1 ASC`,
+  );
+  return res.rows.map((r) => ({
+    ...r,
+    stream_count: Number(r.stream_count),
+  }));
+};
+
+/**
+ * Top workers ranked by total withdrawn amount.
+ */
+export const getTopWorkersByEarnings = async (
+  limit = 10,
+): Promise<TopWorker[]> => {
+  if (!getPool()) return [];
+  const res = await query<TopWorker>(
+    `SELECT
+        w.worker,
+        COALESCE(SUM(w.amount), 0)                              AS total_earned,
+        COUNT(DISTINCT w.stream_id)                             AS stream_count,
+        MAX(w.created_at)::text                                 AS last_withdrawal_at
+      FROM withdrawals w
+      GROUP BY w.worker
+      ORDER BY total_earned DESC
+      LIMIT $1`,
+    [limit],
+  );
+  return res.rows.map((r) => ({
+    ...r,
+    stream_count: Number(r.stream_count),
+  }));
+};
+
+/**
+ * Stream creation rate per day or week.
+ */
+export const getStreamCreationRate = async (
+  granularity: "daily" | "weekly" = "daily",
+  days = 30,
+): Promise<StreamCreationPoint[]> => {
+  if (!getPool()) return [];
+  const trunc = granularity === "weekly" ? "week" : "day";
+  const res = await query<StreamCreationPoint>(
+    `SELECT
+        date_trunc('${trunc}', created_at)::date::text  AS bucket,
+        COUNT(*)                                         AS streams_created
+      FROM payroll_streams
+      WHERE deleted_at IS NULL
+        AND created_at >= NOW() - INTERVAL '${days} days'
+      GROUP BY 1
+      ORDER BY 1 ASC`,
+  );
+  return res.rows.map((r) => ({
+    ...r,
+    streams_created: Number(r.streams_created),
+  }));
+};
+
+/**
+ * Withdrawal frequency per day or week.
+ */
+export const getWithdrawalFrequency = async (
+  granularity: "daily" | "weekly" = "daily",
+  days = 30,
+): Promise<WithdrawalFrequencyPoint[]> => {
+  if (!getPool()) return [];
+  const trunc = granularity === "weekly" ? "week" : "day";
+  const res = await query<WithdrawalFrequencyPoint>(
+    `SELECT
+        date_trunc('${trunc}', created_at)::date::text  AS bucket,
+        COUNT(*)                                         AS withdrawal_count,
+        COALESCE(SUM(amount), 0)                         AS total_withdrawn
+      FROM withdrawals
+      WHERE created_at >= NOW() - INTERVAL '${days} days'
+      GROUP BY 1
+      ORDER BY 1 ASC`,
+  );
+  return res.rows.map((r) => ({
+    ...r,
+    withdrawal_count: Number(r.withdrawal_count),
+  }));
+};

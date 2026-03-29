@@ -9,6 +9,10 @@ import {
   getEmployerPayrollSummary,
   getEmployerPayrollMonthly,
   getEmployerPayrollByWorker,
+  getVolumeOverTime,
+  getTopWorkersByEarnings,
+  getStreamCreationRate,
+  getWithdrawalFrequency,
 } from "./db/queries";
 import { globalCache } from "./utils/cache";
 import {
@@ -336,6 +340,161 @@ analyticsRouter.get(
             recentWithdrawals: data.recentWithdrawals,
           },
         });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      res.status(500).json({ ok: false, error: msg });
+    }
+  },
+);
+
+/**
+ * GET /analytics/volume-over-time
+ * Total volume streamed per day/week, split by token type.
+ * Query params: granularity=daily|weekly, days=30
+ */
+analyticsRouter.get(
+  "/volume-over-time",
+  async (req: Request, res: Response) => {
+    try {
+      const { granularity = "daily", days = "30" } = req.query as Record<
+        string,
+        string
+      >;
+      const gran = granularity === "weekly" ? "weekly" : "daily";
+      const numDays = Math.min(Math.max(parseInt(days, 10) || 30, 1), 365);
+
+      const cacheKey = `analytics:volume:${gran}:${numDays}`;
+      const cached = globalCache.get(cacheKey);
+      if (cached) {
+        return res.set("X-Cache", "HIT").json({
+          ok: true,
+          data: cached,
+          meta: { granularity: gran, days: numDays },
+        });
+      }
+
+      const { data, ms } = await timed(() => getVolumeOverTime(gran, numDays));
+      globalCache.set(cacheKey, data, 60 * 1000); // 60s TTL matches frontend refresh
+
+      res
+        .set("X-Cache", "MISS")
+        .set("X-Query-Time-Ms", String(ms))
+        .json({ ok: true, data, meta: { granularity: gran, days: numDays } });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      res.status(500).json({ ok: false, error: msg });
+    }
+  },
+);
+
+/**
+ * GET /analytics/top-workers
+ * Top workers ranked by total earned (withdrawn) amount.
+ * Query params: limit=10
+ */
+analyticsRouter.get("/top-workers", async (req: Request, res: Response) => {
+  try {
+    const { limit = "10" } = req.query as Record<string, string>;
+    const lim = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 50);
+
+    const cacheKey = `analytics:top-workers:${lim}`;
+    const cached = globalCache.get(cacheKey);
+    if (cached) {
+      return res
+        .set("X-Cache", "HIT")
+        .json({ ok: true, data: cached, meta: { limit: lim } });
+    }
+
+    const { data, ms } = await timed(() => getTopWorkersByEarnings(lim));
+    globalCache.set(cacheKey, data, 60 * 1000);
+
+    res
+      .set("X-Cache", "MISS")
+      .set("X-Query-Time-Ms", String(ms))
+      .json({ ok: true, data, meta: { limit: lim } });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+/**
+ * GET /analytics/stream-creation-rate
+ * Number of streams created per day/week.
+ * Query params: granularity=daily|weekly, days=30
+ */
+analyticsRouter.get(
+  "/stream-creation-rate",
+  async (req: Request, res: Response) => {
+    try {
+      const { granularity = "daily", days = "30" } = req.query as Record<
+        string,
+        string
+      >;
+      const gran = granularity === "weekly" ? "weekly" : "daily";
+      const numDays = Math.min(Math.max(parseInt(days, 10) || 30, 1), 365);
+
+      const cacheKey = `analytics:creation-rate:${gran}:${numDays}`;
+      const cached = globalCache.get(cacheKey);
+      if (cached) {
+        return res.set("X-Cache", "HIT").json({
+          ok: true,
+          data: cached,
+          meta: { granularity: gran, days: numDays },
+        });
+      }
+
+      const { data, ms } = await timed(() =>
+        getStreamCreationRate(gran, numDays),
+      );
+      globalCache.set(cacheKey, data, 60 * 1000);
+
+      res
+        .set("X-Cache", "MISS")
+        .set("X-Query-Time-Ms", String(ms))
+        .json({ ok: true, data, meta: { granularity: gran, days: numDays } });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      res.status(500).json({ ok: false, error: msg });
+    }
+  },
+);
+
+/**
+ * GET /analytics/withdrawal-frequency
+ * Withdrawal count and volume per day/week.
+ * Query params: granularity=daily|weekly, days=30
+ */
+analyticsRouter.get(
+  "/withdrawal-frequency",
+  async (req: Request, res: Response) => {
+    try {
+      const { granularity = "daily", days = "30" } = req.query as Record<
+        string,
+        string
+      >;
+      const gran = granularity === "weekly" ? "weekly" : "daily";
+      const numDays = Math.min(Math.max(parseInt(days, 10) || 30, 1), 365);
+
+      const cacheKey = `analytics:withdrawals:${gran}:${numDays}`;
+      const cached = globalCache.get(cacheKey);
+      if (cached) {
+        return res.set("X-Cache", "HIT").json({
+          ok: true,
+          data: cached,
+          meta: { granularity: gran, days: numDays },
+        });
+      }
+
+      const { data, ms } = await timed(() =>
+        getWithdrawalFrequency(gran, numDays),
+      );
+      globalCache.set(cacheKey, data, 60 * 1000);
+
+      res
+        .set("X-Cache", "MISS")
+        .set("X-Query-Time-Ms", String(ms))
+        .json({ ok: true, data, meta: { granularity: gran, days: numDays } });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       res.status(500).json({ ok: false, error: msg });
