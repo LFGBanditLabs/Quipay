@@ -17,7 +17,9 @@ import { SeoHelmet } from "../components/seo/SeoHelmet";
 import { Permission } from "../contracts/automation_gateway";
 import { useTheme } from "../providers/ThemeProvider";
 import { useStreamTemplates } from "../hooks/useStreamTemplates";
+import { useWallet } from "../hooks/useWallet";
 import NetworkHealthMonitor from "../components/NetworkHealthMonitor";
+import BrandingSettings from "../components/BrandingSettings";
 
 // Types for local state
 interface TeamMember {
@@ -52,7 +54,8 @@ type TabId =
   | "approvals"
   | "templates"
   | "notifications"
-  | "network";
+  | "network"
+  | "branding";
 
 const AVAILABLE_PERMISSIONS = [
   {
@@ -123,6 +126,7 @@ const ROLES: CustomRole[] = [
 const Settings: React.FC = () => {
   const { t } = useTranslation();
   const { theme, toggleTheme } = useTheme();
+  const { address } = useWallet();
   const { templates, deleteTemplate } = useStreamTemplates();
   const [activeTab, setActiveTab] = useState<TabId>("team");
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
@@ -962,6 +966,7 @@ const Settings: React.FC = () => {
   const tabs: { id: TabId; label: string; icon: string }[] = [
     { id: "team", label: t("settings.tab_team"), icon: "user" },
     { id: "roles", label: t("settings.tab_roles"), icon: "settings" },
+    { id: "branding", label: "Branding", icon: "image" },
     { id: "templates", label: t("settings.tab_templates"), icon: "fileText" },
     {
       id: "notifications",
@@ -1072,6 +1077,17 @@ const Settings: React.FC = () => {
         <div className="min-h-125">
           {activeTab === "team" && renderTeamPortal()}
           {activeTab === "roles" && renderRolesUI()}
+          {activeTab === "branding" && address && (
+            <div>
+              <Text as="h2" size="md" weight="bold" className="mb-2">
+                Payslip Branding
+              </Text>
+              <p className="mb-6 text-sm text-(--muted)">
+                Customize your company logo and colors for worker payslips
+              </p>
+              <BrandingSettings employerAddress={address} />
+            </div>
+          )}
           {activeTab === "templates" && renderTemplates()}
           {activeTab === "notifications" && renderNotifications()}
           {activeTab === "network" && (

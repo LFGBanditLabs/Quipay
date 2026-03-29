@@ -9,6 +9,11 @@ export interface Stream {
   status: "active" | "completed" | "cancelled";
 }
 
+export const fetchStreamById = async (id: string): Promise<Stream> => {
+  const { data } = await axios.get<Stream>(`/api/streams/${id}`);
+  return data;
+};
+
 export interface StreamsResponse {
   data: Stream[];
   nextCursor: string | null;

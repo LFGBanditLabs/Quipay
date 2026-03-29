@@ -10,12 +10,14 @@ import {
 } from "../hooks/useStreams";
 import { useNotification } from "../hooks/useNotification";
 import { EarningsDisplay } from "../components/EarningsDisplay";
+import { EarningsForecast } from "../components/EarningsForecast";
 import CopyButton from "../components/CopyButton";
 import { formatTokenAmount } from "../util/tokenDecimals";
 import { StreamTimeline } from "../components/StreamTimeline";
 import { StreamCardSkeleton } from "../components/dashboard/StreamCardSkeleton";
 import { EarningsSkeleton } from "../components/dashboard/EarningsSkeleton";
 import { Skeleton } from "../components/Loading/Skeleton";
+import PayslipDownloadButton from "../components/PayslipDownloadButton";
 
 const StreamCard: React.FC<{
   stream: WorkerStream;
@@ -262,7 +264,16 @@ const CompletedStreamCard: React.FC<{
   withdrawals: WithdrawalRecord[];
 }> = ({ stream, withdrawals }) => {
   const { t } = useTranslation();
+  const { address } = useWallet();
   const [showTimeline, setShowTimeline] = useState(false);
+
+  // Calculate the period (YYYY-MM) from the stream end date
+  const getPeriod = () => {
+    const endDate = new Date(stream.endTime * 1000);
+    const year = endDate.getFullYear();
+    const month = String(endDate.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}`;
+  };
 
   return (
     <div className="relative overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface-subtle)] p-6">
@@ -330,6 +341,17 @@ const CompletedStreamCard: React.FC<{
       {stream.proofCid && (
         <div className="mt-3 truncate text-center font-mono text-[10px] text-[var(--muted)]">
           {t("worker.proof_cid_label")}: {stream.proofCid}
+        </div>
+      )}
+
+      {/* Payslip Download Button */}
+      {address && (
+        <div className="mt-4">
+          <PayslipDownloadButton
+            workerAddress={address}
+            period={getPeriod()}
+            className="w-full"
+          />
         </div>
       )}
 
@@ -428,6 +450,10 @@ const WorkerDashboard: React.FC = () => {
 
           <section className="mb-12 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-6 max-[768px]:grid-cols-1">
             <EarningsDisplay streams={streams} />
+          </section>
+
+          <section className="mb-12">
+            <EarningsForecast streams={streams} />
           </section>
 
           <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-[var(--text)]">

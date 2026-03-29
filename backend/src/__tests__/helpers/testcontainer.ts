@@ -20,6 +20,27 @@ export class TestDatabase {
   async start(): Promise<{ connectionString: string; pool: Pool }> {
     console.log("[TestDB] Starting PostgreSQL container...");
 
+    const existingDbUrl = process.env.DATABASE_URL;
+    if (existingDbUrl) {
+      console.log(
+        "[TestDB] Using existing DATABASE_URL from environment:",
+        existingDbUrl,
+      );
+      // Set DATABASE_URL before init
+      process.env.DATABASE_URL = existingDbUrl;
+      await this.initializeDbPool();
+
+      const { getPool } = require("../../db/pool");
+      this.pool = getPool();
+      if (!this.pool) {
+        throw new Error("Failed to initialize database pool");
+      }
+
+      await this.createSchema();
+
+      return { connectionString: existingDbUrl, pool: this.pool };
+    }
+
     // Start PostgreSQL container
     this.container = await new PostgreSqlContainer("postgres:16-alpine")
       .withExposedPorts(5432)

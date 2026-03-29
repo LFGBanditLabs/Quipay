@@ -37,6 +37,7 @@ export const payrollStreams = pgTable(
     status: text("status").notNull().default("active"), // active | completed | cancelled
     closedAt: bigint("closed_at", { mode: "number" }),
     ledgerCreated: bigint("ledger_created", { mode: "number" }).notNull(),
+    metadata: jsonb("metadata"),
     // ── Soft-delete fields (issue #614) ──────────────────────────────────────
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     deletedBy: text("deleted_by"),

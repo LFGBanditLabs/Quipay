@@ -14,6 +14,8 @@ import { stellarRouter } from "./routes/stellar";
 import { reportsRouter } from "./routes/reports";
 import { employersRouter } from "./routes/employers";
 import { streamsRouter } from "./routes/streams";
+import { payslipsRouter } from "./routes/payslips";
+import { brandingRouter } from "./routes/branding";
 import { startStellarListener } from "./stellarListener";
 import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
 import { startMonitor, runMonitorCycle } from "./monitor/monitor";
@@ -38,6 +40,7 @@ import { secretsBootstrap } from "./services/secretsBootstrap";
 import { requestIdMiddleware } from "./middleware/requestId";
 import { httpLoggerMiddleware } from "./middleware/httpLogger";
 import { requireMonitorStatusAdminToken } from "./middleware/monitorStatusAuth";
+import { inputSanitizationMiddleware } from "./middleware/inputSanitization";
 import { getHealthResponse } from "./health";
 
 dotenv.config();
@@ -77,16 +80,17 @@ app.use(
 );
 app.use(
   express.json({
-    limit: "1mb",
+    limit: "64kb",
     verify: (req: any, res: any, buf: Buffer) => {
       req.rawBody = buf;
     },
   }),
 ); // Limit payload size to prevent memory exhaustion
+app.use(inputSanitizationMiddleware);
 app.use(
   express.urlencoded({
     extended: true,
-    limit: "1mb",
+    limit: "64kb",
     verify: (req: any, res: any, buf: Buffer) => {
       req.rawBody = buf;
     },
@@ -116,6 +120,12 @@ app.use("/api-docs", docsRouter);
 // Backwards-compatible alias
 app.use("/docs", docsRouter);
 
+// CSP violation reporting endpoint
+app.post("/csp-report", (req, res) => {
+  console.error("CSP Violation:", JSON.stringify(req.body, null, 2));
+  res.status(204).end();
+});
+
 app.use("/webhooks", webhookRouter);
 app.use("/slack", slackRouter);
 // Note: discordRouter utilizes native express payloads natively bypassing body buffers mapping local examples
@@ -131,6 +141,9 @@ app.use("/stellar", stellarRouter);
 app.use("/reports", reportsRouter);
 app.use("/streams", streamsRouter);
 app.use("/api/streams", streamsRouter);
+app.use("/api/workers", payslipsRouter);
+app.use("/api", payslipsRouter); // For /api/verify-signature
+app.use("/api/employers", brandingRouter);
 
 // Start time for uptime calculation
 const startTime = Date.now();
