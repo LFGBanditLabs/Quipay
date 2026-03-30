@@ -786,6 +786,42 @@ fn test_index_get_streams_by_employer() {
 }
 
 #[test]
+fn test_get_stream_count() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let vault_id = env.register_contract(None, dummy_vault::DummyVault);
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    client.init(&admin);
+    client.set_min_stream_duration(&0u64);
+    client.set_vault(&vault_id);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    // No streams yet — count should be zero
+    assert_eq!(client.get_stream_count(&employer), 0);
+
+    client.create_stream(
+        &employer, &worker, &token, &10, &0u64, &0u64, &100u64, &None, &None,
+    );
+    assert_eq!(client.get_stream_count(&employer), 1);
+
+    client.create_stream(
+        &employer, &worker, &token, &20, &0u64, &0u64, &200u64, &None, &None,
+    );
+    assert_eq!(client.get_stream_count(&employer), 2);
+}
+
+#[test]
 fn test_index_get_streams_by_worker() {
     let env = Env::default();
     env.mock_all_auths();

@@ -2271,6 +2271,14 @@ impl PayrollStream {
         Self::paginate(&env, ids, offset, limit)
     }
 
+    pub fn get_stream_count(env: Env, employer: Address) -> u32 {
+        env.storage()
+            .persistent()
+            .get::<_, Vec<u64>>(&StreamKey::EmployerStreams(employer))
+            .map(|ids| ids.len())
+            .unwrap_or(0)
+    }
+
     pub fn get_streams_by_worker(
         env: Env,
         worker: Address,
