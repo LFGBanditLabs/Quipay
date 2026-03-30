@@ -113,23 +113,32 @@ export class TestDatabase {
   async clean(): Promise<void> {
     if (!this.pool) return;
 
-    await this.pool.query(`
-      TRUNCATE TABLE 
-        audit_logs,
-        dead_letter_queue,
-        employers,
-        treasury_monitor_log,
-        treasury_balances,
-        webhook_outbound_attempts,
-        webhook_outbound_events,
-        scheduler_logs,
-        payroll_schedules,
-        vault_events,
-        withdrawals,
-        payroll_streams,
-        sync_cursors
-      CASCADE
-    `);
+    await this.pool.query("SET session_replication_role = 'replica'");
+
+    try {
+      await this.pool.query(`
+        TRUNCATE TABLE
+          audit_logs,
+          dead_letter_queue,
+          employers,
+          idempotency_keys,
+          metric_snapshots,
+          treasury_monitor_log,
+          treasury_balances,
+          webhook_outbound_attempts,
+          webhook_outbound_events,
+          scheduler_logs,
+          payroll_schedules,
+          vault_events,
+          withdrawals,
+          payroll_streams,
+          sync_cursors,
+          stream_audit_log
+        CASCADE
+      `);
+    } finally {
+      await this.pool.query("SET session_replication_role = 'origin'");
+    }
   }
 
   /**

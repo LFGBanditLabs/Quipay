@@ -34,7 +34,7 @@ const STROOPS = 10_000_000n; // 1 token unit = 10^7 stroops
 
 const SUPPORTED_TOKENS: Record<string, string> = {
   XLM: "native",
-  USDC: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+  USDC: import.meta.env.PUBLIC_USDC_ISSUER || "",
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────

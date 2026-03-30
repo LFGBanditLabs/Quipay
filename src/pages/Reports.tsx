@@ -9,6 +9,7 @@ import {
   exportPayrollStreamsCSV,
 } from "../services/reportService";
 import type { PayrollTransaction } from "../types/reports";
+import { useWallet } from "../hooks/useWallet";
 import { useAnalytics } from "../hooks/useAnalytics";
 import {
   Area,
@@ -149,11 +150,10 @@ const Reports: React.FC = () => {
     availableMonths,
   } = useTransactionData();
 
-  // For payroll streams CSV export - using a dummy address for now
-  // In a real implementation, this would come from user authentication/context
-  const { streams } = usePayroll(
-    "GDUKJHGJAJJLFQEVKZJD5CEN5FXKSTZUPQ4L2N4QDQI2M7MF4WJ4WB2Y",
-  );
+  const { address: walletAddress } = useWallet();
+
+  // Use connected wallet address for payroll stream queries
+  const { streams } = usePayroll(walletAddress);
 
   const {
     trends,

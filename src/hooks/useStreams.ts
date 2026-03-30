@@ -24,6 +24,8 @@ export interface WorkerStream {
   tokenSymbol: string;
   /** Stream start time as a Unix timestamp in seconds. */
   startTime: number;
+  /** Stream end time as a Unix timestamp in seconds. */
+  endTime: number;
   /** Cliff unlock time as a Unix timestamp in seconds. No withdrawals before this point. */
   cliffTime: number;
   /** Total allocated amount in token units (= on-chain `total_amount` / 10^7). */
@@ -150,6 +152,7 @@ export const useStreams = (workerAddress: string | undefined) => {
                 flowRate: Number(s.rate) / STROOPS_PER_UNIT,
                 tokenSymbol,
                 startTime: Number(s.start_ts),
+                endTime: Number(s.end_ts),
                 cliffTime: Number(s.cliff_ts),
                 totalAmount: Number(s.total_amount) / STROOPS_PER_UNIT,
                 claimedAmount: Number(s.withdrawn_amount) / STROOPS_PER_UNIT,

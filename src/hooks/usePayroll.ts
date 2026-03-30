@@ -46,6 +46,8 @@ export interface TokenBalance {
 }
 
 // Default tokens to monitor (XLM and USDC)
+const USDC_ISSUER = import.meta.env.PUBLIC_USDC_ISSUER || "";
+
 const DEFAULT_TOKENS: Array<{
   token: string;
   tokenSymbol: string;
@@ -53,7 +55,7 @@ const DEFAULT_TOKENS: Array<{
 }> = [
   { token: "", tokenSymbol: "XLM", monthlyBurnRate: BigInt(0) },
   {
-    token: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN", // USDC testnet
+    token: USDC_ISSUER,
     tokenSymbol: "USDC",
     monthlyBurnRate: BigInt(0),
   },

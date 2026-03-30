@@ -18,6 +18,7 @@ export default tseslint.config(
       "backend/**",
       "developer-hub/**",
       "scripts/**",
+      "src/stories/**",
       "*.mjs",
       "*.cjs",
       "*.js",
