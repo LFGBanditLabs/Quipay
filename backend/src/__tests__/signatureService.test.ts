@@ -207,9 +207,7 @@ describe("SignatureService", () => {
     });
 
     it("should throw error if data URL generation fails", async () => {
-      mockToDataURL.mockRejectedValue(
-        new Error("Data URL generation failed"),
-      );
+      mockToDataURL.mockRejectedValue(new Error("Data URL generation failed"));
 
       await expect(generateQRCodeDataURL("test-signature")).rejects.toThrow(
         "Failed to generate QR code data URL",

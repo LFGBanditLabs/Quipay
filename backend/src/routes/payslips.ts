@@ -1,21 +1,21 @@
-import { Router, Response } from 'express';
-import { validateRequest } from '../middleware/validation';
+import { Router, Response } from "express";
+import { validateRequest } from "../middleware/validation";
 import {
   authenticateRequest,
   requireUser,
   AuthenticatedRequest,
-} from '../middleware/rbac';
-import { z } from 'zod';
+} from "../middleware/rbac";
+import { z } from "zod";
 import {
   getPayslipByWorkerAndPeriod,
   insertPayslipRecord,
   getPayslipBySignature,
   getEmployerBranding,
-} from '../db/queries';
-import { generatePayslip } from '../services/pdfGeneratorService';
-import { signPayslip } from '../services/signatureService';
-import { query } from '../db/pool';
-import { logServiceInfo, logServiceError } from '../audit/serviceLogger';
+} from "../db/queries";
+import { generatePayslip } from "../services/pdfGeneratorService";
+import { signPayslip } from "../services/signatureService";
+import { query } from "../db/pool";
+import { logServiceInfo, logServiceError } from "../audit/serviceLogger";
 
 export const payslipsRouter = Router();
 
@@ -23,12 +23,12 @@ export const payslipsRouter = Router();
 const periodSchema = z.object({
   period: z
     .string()
-    .regex(/^\d{4}-\d{2}$/, 'Period must be in YYYY-MM format (e.g., 2025-01)'),
+    .regex(/^\d{4}-\d{2}$/, "Period must be in YYYY-MM format (e.g., 2025-01)"),
 });
 
 // Schema for signature verification
 const verifySignatureSchema = z.object({
-  signature: z.string().min(1, 'Signature is required'),
+  signature: z.string().min(1, "Signature is required"),
 });
 
 /**
@@ -36,7 +36,7 @@ const verifySignatureSchema = z.object({
  * Generate or retrieve a PDF payslip for a worker for a given period
  */
 payslipsRouter.get(
-  '/:address/payslip',
+  "/:address/payslip",
   authenticateRequest,
   requireUser,
   validateRequest({ query: periodSchema }),
@@ -48,20 +48,23 @@ payslipsRouter.get(
       // Authorization: verify authenticated user matches worker address
       if (!req.user || req.user.id !== address) {
         return res.status(403).json({
-          error: 'Forbidden',
-          message: 'You can only access your own payslips',
+          error: "Forbidden",
+          message: "You can only access your own payslips",
         });
       }
 
-      logServiceInfo('payslipRouter', 'Payslip requested', {
+      logServiceInfo("payslipRouter", "Payslip requested", {
         workerAddress: address,
         period,
       });
 
       // Check if payslip already exists (idempotency)
-      const existingPayslip = await getPayslipByWorkerAndPeriod(address, period);
+      const existingPayslip = await getPayslipByWorkerAndPeriod(
+        address,
+        period,
+      );
       if (existingPayslip) {
-        logServiceInfo('payslipRouter', 'Returning cached payslip', {
+        logServiceInfo("payslipRouter", "Returning cached payslip", {
           payslipId: existingPayslip.payslip_id,
           workerAddress: address,
           period,
@@ -84,7 +87,7 @@ payslipsRouter.get(
         0,
       )
         .toISOString()
-        .split('T')[0];
+        .split("T")[0];
 
       const streamsResult = await query<any>(
         `SELECT 
@@ -110,12 +113,12 @@ payslipsRouter.get(
             (ps.start_ts < extract(epoch from $2::timestamp)::bigint 
              AND ps.end_ts >= extract(epoch from $3::timestamp)::bigint)
           )`,
-        [address, periodStart, periodEnd + ' 23:59:59'],
+        [address, periodStart, periodEnd + " 23:59:59"],
       );
 
       if (!streamsResult.rows || streamsResult.rows.length === 0) {
         return res.status(404).json({
-          error: 'Not Found',
+          error: "Not Found",
           message: `No payment streams found for period ${period}`,
         });
       }
@@ -129,7 +132,8 @@ payslipsRouter.get(
 
       // Calculate total gross amount across all streams
       const totalGrossAmount = streams.reduce(
-        (sum: bigint, stream: any) => sum + BigInt(stream.withdrawn_amount || '0'),
+        (sum: bigint, stream: any) =>
+          sum + BigInt(stream.withdrawn_amount || "0"),
         0n,
       );
 
@@ -148,7 +152,7 @@ payslipsRouter.get(
           AND ledger_ts >= extract(epoch from $2::timestamp)::bigint
           AND ledger_ts < extract(epoch from $3::timestamp)::bigint
         ORDER BY ledger_ts ASC`,
-        [streamIds, periodStart, periodEnd + ' 23:59:59'],
+        [streamIds, periodStart, periodEnd + " 23:59:59"],
       );
 
       const withdrawals = withdrawalsResult.rows || [];
@@ -157,8 +161,8 @@ payslipsRouter.get(
       const brandingRecord = await getEmployerBranding(employerAddress);
       const branding = {
         logoUrl: brandingRecord?.logo_url || null,
-        primaryColor: brandingRecord?.primary_color || '#2563eb',
-        secondaryColor: brandingRecord?.secondary_color || '#64748b',
+        primaryColor: brandingRecord?.primary_color || "#2563eb",
+        secondaryColor: brandingRecord?.secondary_color || "#64748b",
       };
 
       // Generate payslip ID
@@ -199,7 +203,7 @@ payslipsRouter.get(
         });
       }
 
-      logServiceInfo('payslipRouter', 'Payslip generated successfully', {
+      logServiceInfo("payslipRouter", "Payslip generated successfully", {
         payslipId,
         workerAddress: address,
         period,
@@ -207,25 +211,25 @@ payslipsRouter.get(
       });
 
       // Set response headers
-      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader("Content-Type", "application/pdf");
       res.setHeader(
-        'Content-Disposition',
+        "Content-Disposition",
         `attachment; filename="payslip-${period}-${Date.now()}.pdf"`,
       );
-      res.setHeader('X-Payslip-ID', payslipId);
-      res.setHeader('X-Signature', signature);
+      res.setHeader("X-Payslip-ID", payslipId);
+      res.setHeader("X-Signature", signature);
 
       return res.send(pdfBuffer);
     } catch (error) {
-      logServiceError('payslipRouter', 'Payslip generation failed', {
+      logServiceError("payslipRouter", "Payslip generation failed", {
         error: error instanceof Error ? error.message : String(error),
         workerAddress: req.params.address,
         period: req.query.period as string,
       });
 
       return res.status(500).json({
-        error: 'Internal Server Error',
-        message: 'Failed to generate payslip',
+        error: "Internal Server Error",
+        message: "Failed to generate payslip",
         details: error instanceof Error ? error.message : String(error),
       });
     }
@@ -237,14 +241,14 @@ payslipsRouter.get(
  * Verify the authenticity of a payslip signature
  */
 payslipsRouter.post(
-  '/verify-signature',
+  "/verify-signature",
   validateRequest({ body: verifySignatureSchema }),
   async (req, res: Response) => {
     try {
       const { signature } = req.body;
 
-      logServiceInfo('payslipRouter', 'Signature verification requested', {
-        signature: signature.substring(0, 20) + '...',
+      logServiceInfo("payslipRouter", "Signature verification requested", {
+        signature: signature.substring(0, 20) + "...",
       });
 
       // Look up payslip by signature
@@ -253,7 +257,8 @@ payslipsRouter.post(
       if (!payslip) {
         return res.status(404).json({
           valid: false,
-          message: 'Signature not found in system. This payslip may be from an older system or invalid.',
+          message:
+            "Signature not found in system. This payslip may be from an older system or invalid.",
         });
       }
 
@@ -261,7 +266,7 @@ payslipsRouter.post(
       // For now, we trust that if the signature exists in the database, it's valid
       // TODO: Implement actual signature verification using verifySignature from SignatureService
 
-      logServiceInfo('payslipRouter', 'Signature verified successfully', {
+      logServiceInfo("payslipRouter", "Signature verified successfully", {
         payslipId: payslip.payslip_id,
         workerAddress: payslip.worker_address,
         period: payslip.period,
@@ -279,13 +284,13 @@ payslipsRouter.post(
         },
       });
     } catch (error) {
-      logServiceError('payslipRouter', 'Signature verification failed', {
+      logServiceError("payslipRouter", "Signature verification failed", {
         error: error instanceof Error ? error.message : String(error),
       });
 
       return res.status(500).json({
-        error: 'Internal Server Error',
-        message: 'Failed to verify signature',
+        error: "Internal Server Error",
+        message: "Failed to verify signature",
       });
     }
   },

@@ -1483,7 +1483,8 @@ export const queryPayslipRecords = async (
     values.push(params.endDate);
   }
 
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const whereClause =
+    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const limit = params.limit || 50;
   const offset = params.offset || 0;
 

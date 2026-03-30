@@ -99,7 +99,10 @@ export const TokensReference = () => {
           }}
         >
           {colorTokens.map((token) => (
-            <div key={token} style={{ display: "grid", gap: "var(--token-space-2)" }}>
+            <div
+              key={token}
+              style={{ display: "grid", gap: "var(--token-space-2)" }}
+            >
               <div
                 style={{
                   height: "3rem",
@@ -108,7 +111,9 @@ export const TokensReference = () => {
                   background: `var(${token})`,
                 }}
               />
-              <code style={{ fontSize: "var(--token-font-size-xs)" }}>{token}</code>
+              <code style={{ fontSize: "var(--token-font-size-xs)" }}>
+                {token}
+              </code>
             </div>
           ))}
         </div>
@@ -118,7 +123,14 @@ export const TokensReference = () => {
         <h2 style={titleStyle}>Spacing Tokens (4px Grid)</h2>
         <div style={{ display: "grid", gap: "var(--token-space-3)" }}>
           {spacingTokens.map((token) => (
-            <div key={token} style={{ display: "flex", alignItems: "center", gap: "var(--token-space-3)" }}>
+            <div
+              key={token}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--token-space-3)",
+              }}
+            >
               <div
                 style={{
                   height: "0.75rem",
@@ -127,7 +139,9 @@ export const TokensReference = () => {
                   borderRadius: "var(--token-radius-pill)",
                 }}
               />
-              <code style={{ fontSize: "var(--token-font-size-xs)" }}>{token}</code>
+              <code style={{ fontSize: "var(--token-font-size-xs)" }}>
+                {token}
+              </code>
             </div>
           ))}
         </div>
@@ -152,7 +166,9 @@ export const TokensReference = () => {
                 background: "var(--token-color-bg-surface-subtle)",
               }}
             >
-              <code style={{ fontSize: "var(--token-font-size-xs)" }}>{token}</code>
+              <code style={{ fontSize: "var(--token-font-size-xs)" }}>
+                {token}
+              </code>
             </div>
           ))}
 
@@ -167,7 +183,9 @@ export const TokensReference = () => {
                 background: "var(--token-color-bg-surface)",
               }}
             >
-              <code style={{ fontSize: "var(--token-font-size-xs)" }}>{token}</code>
+              <code style={{ fontSize: "var(--token-font-size-xs)" }}>
+                {token}
+              </code>
             </div>
           ))}
         </div>
@@ -177,8 +195,22 @@ export const TokensReference = () => {
         <h2 style={titleStyle}>Typography Tokens</h2>
         <div style={{ display: "grid", gap: "var(--token-space-2)" }}>
           {typographyTokens.map((token) => (
-            <div key={token} style={{ display: "flex", alignItems: "center", gap: "var(--token-space-3)" }}>
-              <code style={{ minWidth: "15rem", fontSize: "var(--token-font-size-xs)" }}>{token}</code>
+            <div
+              key={token}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--token-space-3)",
+              }}
+            >
+              <code
+                style={{
+                  minWidth: "15rem",
+                  fontSize: "var(--token-font-size-xs)",
+                }}
+              >
+                {token}
+              </code>
               <span
                 style={
                   token.includes("font-size")

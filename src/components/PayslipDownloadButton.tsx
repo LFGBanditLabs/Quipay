@@ -106,13 +106,13 @@ export default function PayslipDownloadButton({
     try {
       // Call the payslip API endpoint
       const apiBase =
-        (import.meta.env?.VITE_API_BASE_URL as string | undefined) || "";
+        (import.meta.env?.VITE_API_BASE_URL) || "";
       const response = await fetch(
         `${apiBase}/api/workers/${workerAddress}/payslip?period=${period}`,
         {
           method: "GET",
           credentials: "include", // Include cookies for authentication
-        }
+        },
       );
 
       if (!response.ok) {
@@ -123,7 +123,8 @@ export default function PayslipDownloadButton({
         } else {
           const errorData = await response.json().catch(() => ({}));
           throw new Error(
-            errorData.error || `Failed to generate payslip (${response.status})`
+            errorData.error ||
+              `Failed to generate payslip (${response.status})`,
           );
         }
       }

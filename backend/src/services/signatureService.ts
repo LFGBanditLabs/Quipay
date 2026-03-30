@@ -1,6 +1,10 @@
 import crypto from "crypto";
 import QRCode from "qrcode";
-import { logServiceInfo, logServiceWarn, logServiceError } from "../audit/serviceLogger";
+import {
+  logServiceInfo,
+  logServiceWarn,
+  logServiceError,
+} from "../audit/serviceLogger";
 
 const SERVICE_NAME = "SignatureService";
 
@@ -201,7 +205,10 @@ export const verifySignature = async (
 export const generateQRCode = async (signature: string): Promise<Buffer> => {
   try {
     // Generate QR code as PNG buffer
-    const qrCodeBuffer = await QRCode.toBuffer(signature, QR_CODE_BUFFER_OPTIONS);
+    const qrCodeBuffer = await QRCode.toBuffer(
+      signature,
+      QR_CODE_BUFFER_OPTIONS,
+    );
 
     await logServiceInfo(SERVICE_NAME, "QR code generated successfully", {
       signatureLength: signature.length.toString(),
@@ -227,7 +234,11 @@ export const generateQRCodeDataURL = async (
   try {
     const dataUrl = await QRCode.toDataURL(signature, QR_CODE_DATA_URL_OPTIONS);
 
-    await logServiceInfo(SERVICE_NAME, "QR code data URL generated successfully", {});
+    await logServiceInfo(
+      SERVICE_NAME,
+      "QR code data URL generated successfully",
+      {},
+    );
 
     return dataUrl;
   } catch (error) {

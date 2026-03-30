@@ -73,13 +73,15 @@
 }
 
 .stream-countdown--locked {
-  border: var(--token-size-hairline) solid var(--token-color-warning-soft-strong);
+  border: var(--token-size-hairline) solid
+    var(--token-color-warning-soft-strong);
   background: var(--token-color-warning-soft);
   color: var(--token-color-warning-500);
 }
 
 .stream-countdown--available {
-  border: var(--token-size-hairline) solid var(--token-color-success-soft-strong);
+  border: var(--token-size-hairline) solid
+    var(--token-color-success-soft-strong);
   background: var(--token-color-success-soft);
   color: var(--token-color-success-500);
 }
