@@ -295,11 +295,10 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
   onSuccess,
 }: StreamCreatorProps) => {
   const { address, signTransaction, networkPassphrase } = useWallet();
-  const { addNotification } = useNotification();
+  const { addNotification, addStreamNotification } = useNotification();
   const { contacts } = useAddressBook();
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const autocompleteRef = useRef<HTMLDivElement>(null);
-
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
@@ -526,6 +525,10 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
           phase: { kind: "success", hash: String(hash) },
         });
         addNotification("Stream created successfully!", "success");
+        addStreamNotification("stream_created", {
+          message: `A payroll stream was created (tx ${String(hash).slice(0, 12)}...).`,
+          dedupeKey: `stream-created-${String(hash)}`,
+        });
         onSuccess?.(String(hash));
 
         setTimeout(() => dispatch({ type: "RESET" }), 3500);
@@ -575,6 +578,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
     [
       address,
       addNotification,
+      addStreamNotification,
       createParamsFromValues,
       networkPassphrase,
       onSuccess,

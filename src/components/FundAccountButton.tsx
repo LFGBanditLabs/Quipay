@@ -7,7 +7,7 @@ import { getFriendbotUrl } from "../util/friendbot";
 
 const FundAccountButton: React.FC = () => {
   const { t } = useTranslation();
-  const { addNotification } = useNotification();
+  const { addNotification, addStreamNotification } = useNotification();
   const [isPending, startTransition] = useTransition();
   const [isTooltipVisible, setIsTooltipVisible] = useState(false);
   const { address } = useWallet();
@@ -21,6 +21,9 @@ const FundAccountButton: React.FC = () => {
 
         if (response.ok) {
           addNotification(t("fund.success"), "success");
+          addStreamNotification("stream_funded", {
+            message: "Treasury funding succeeded and streams can stay solvent.",
+          });
         } else {
           const body: unknown = await response.json();
           if (

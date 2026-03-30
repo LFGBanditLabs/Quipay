@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Layout, Text } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
@@ -23,7 +23,7 @@ const StreamCard: React.FC<{
   stream: WorkerStream;
   withdrawals: WithdrawalRecord[];
 }> = ({ stream, withdrawals }) => {
-  const { addNotification } = useNotification();
+  const { addNotification, addStreamNotification } = useNotification();
   const { t } = useTranslation();
   const [currentEarnings, setCurrentEarnings] = useState(0);
   const [timeUntilCliff, setTimeUntilCliff] = useState<string>("");
@@ -37,6 +37,7 @@ const StreamCard: React.FC<{
       setLastEventAmount(update.amount);
     }
   });
+  const previousAvailableRef = useRef<number | null>(null);
 
   useEffect(() => {
     const calculate = () => {
@@ -60,22 +61,39 @@ const StreamCard: React.FC<{
       // Calculate earnings (only start accruing after cliff)
       if (timeToCliff > 0) {
         setCurrentEarnings(0);
+        previousAvailableRef.current = 0;
         return;
       }
 
       const elapsedAfterCliff = now - stream.cliffTime;
       if (elapsedAfterCliff < 0) {
         setCurrentEarnings(0);
+        previousAvailableRef.current = 0;
         return;
       }
       const earned = elapsedAfterCliff * stream.flowRate;
-      setCurrentEarnings(Math.min(earned, stream.totalAmount));
+      const boundedEarnings = Math.min(earned, stream.totalAmount);
+      const nextAvailable = Math.max(0, boundedEarnings - stream.claimedAmount);
+
+      if (
+        previousAvailableRef.current !== null &&
+        previousAvailableRef.current <= 0 &&
+        nextAvailable > 0
+      ) {
+        addStreamNotification("withdrawal_available", {
+          message: `Funds are now available for stream ${stream.id}.`,
+          dedupeKey: `withdrawal-available-${stream.id}`,
+        });
+      }
+
+      previousAvailableRef.current = nextAvailable;
+      setCurrentEarnings(boundedEarnings);
     };
 
     calculate();
     const interval = setInterval(calculate, 1000);
     return () => clearInterval(interval);
-  }, [stream]);
+  }, [addStreamNotification, stream]);
 
   const percentage =
     stream.totalAmount > 0 ? (currentEarnings / stream.totalAmount) * 100 : 0;
@@ -374,6 +392,40 @@ const WorkerDashboard: React.FC = () => {
   const { address } = useWallet();
   const { streams, withdrawalHistory, isLoading, error, refetch } =
     useStreams(address);
+  const { addStreamNotification } = useNotification();
+  const previousStreamStatusesRef = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const previousStatuses = previousStreamStatusesRef.current;
+    streams.forEach((stream) => {
+      const previousStatus = previousStatuses[stream.id];
+      if (previousStatus === undefined) return;
+
+      if (previousStatus !== 2 && stream.status === 2) {
+        addStreamNotification("stream_completed", {
+          message: `Stream ${stream.id} is now completed.`,
+          dedupeKey: `stream-completed-${stream.id}`,
+        });
+      }
+
+      if (previousStatus !== 1 && stream.status === 1) {
+        addStreamNotification("stream_cancelled", {
+          message: `Stream ${stream.id} was cancelled.`,
+          dedupeKey: `stream-cancelled-${stream.id}`,
+        });
+      }
+    });
+
+    previousStreamStatusesRef.current = streams.reduce<Record<string, number>>(
+      (acc, stream) => {
+        acc[stream.id] = stream.status;
+        return acc;
+      },
+      {},
+    );
+  }, [addStreamNotification, isLoading, streams]);
 
   if (isLoading) {
     return (

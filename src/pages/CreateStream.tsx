@@ -24,7 +24,7 @@ const CreateStream: React.FC = () => {
   };
 
   const navigate = useNavigate();
-  const { addNotification } = useNotification();
+  const { addNotification, addStreamNotification } = useNotification();
   const { templates, addTemplate } = useStreamTemplates();
   const location = useLocation();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
@@ -372,6 +372,9 @@ const CreateStream: React.FC = () => {
       handleSaveAsTemplate();
     }
     addNotification("Payment stream created successfully!", "success");
+    addStreamNotification("stream_created", {
+      message: `Created stream for ${formData.workerName || "worker"}.`,
+    });
     void navigate("/dashboard");
   };
 

@@ -5,6 +5,7 @@ import ConnectAccount from "../ConnectAccount";
 import ThemeToggle from "../ThemeToggle";
 import LanguageSwitcher from "../LanguageSwitcher";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui";
+import NotificationCenter from "./NotificationCenter";
 
 const Navbar: React.FC = () => {
   const { t } = useTranslation();
@@ -135,11 +136,13 @@ const Navbar: React.FC = () => {
               <div className="hidden md:flex items-center gap-2">
                 <LanguageSwitcher />
                 <ThemeToggle />
+                <NotificationCenter />
                 <ConnectAccount />
               </div>
 
               <div className="flex md:hidden items-center gap-2">
                 <ConnectAccount />
+                <NotificationCenter />
                 <button
                   type="button"
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
