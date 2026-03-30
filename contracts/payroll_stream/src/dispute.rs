@@ -18,6 +18,24 @@ use crate::{DataKey, DisputeOutcome, PayrollStream, Stream, StreamKey, StreamSta
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+/// Persistent on-chain dispute record.
+/// Stored at `DataKey::Dispute(stream_id)` in persistent storage.
+// #[contracttype]
+// #[derive(Clone, Debug)]
+// pub struct Dispute {
+//     pub stream_id: u64,
+//     /// Employer or worker that raised the dispute.
+//     pub raised_by: Address,
+//     /// 32-byte commitment hash pointing to the off-chain reason document.
+//     pub reason_hash: BytesN<32>,
+//     /// Ledger timestamp when the dispute was raised.
+//     pub raised_at: u64,
+//     /// True once the arbitrator has resolved the dispute.
+//     pub resolved: bool,
+//     /// Arbitrator's chosen outcome (None until resolved).
+//     pub outcome: Option<DisputeOutcome>,
+// }
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MaybeOutcome {
@@ -277,7 +295,7 @@ pub fn resolve_dispute(
 
     // Mark dispute resolved
     dispute.resolved = true;
-    dispute.outcome = MaybeOutcome::Some(outcome);
+    dispute.outcome = MaybeOutcome::Some(outcome.clone());
     env.storage()
         .persistent()
         .set(&DataKey::Dispute(stream_id), &dispute);

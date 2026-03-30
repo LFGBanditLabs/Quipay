@@ -38,7 +38,7 @@ fn test_upgrade_proposal_and_state_preservation() {
     let employer = Address::generate(&env);
     let worker = Address::generate(&env);
     let token = Address::generate(&env);
-    
+
     let stream_id = client.create_stream(
         &employer, 
         &worker, 
@@ -81,18 +81,20 @@ fn test_upgrade_timelock_enforcement() {
     assert_eq!(result, Err(Ok(QuipayError::Custom)));
 
     // Wait 24 hours (halfway)
-    env.ledger().set_timestamp(env.ledger().timestamp() + 24 * 60 * 60);
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp() + 24 * 60 * 60);
     let result = client.try_execute_upgrade();
     assert_eq!(result, Err(Ok(QuipayError::Custom)));
 
     // Wait remaining 48 hours total
-    env.ledger().set_timestamp(env.ledger().timestamp() + 24 * 60 * 60);
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp() + 24 * 60 * 60);
     let result = client.try_execute_upgrade();
-    
-    // Now it should have passed the timelock check. 
+
+    // Now it should have passed the timelock check.
     match result {
         Err(Ok(err)) => assert_ne!(err, QuipayError::Custom),
-        _ => {} 
+        _ => {}
     }
 }
 

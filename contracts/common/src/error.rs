@@ -15,28 +15,24 @@ pub type QuipayResult<T> = Result<T, QuipayError>;
 #[repr(u32)]
 pub enum QuipayError {
     // ── Initialisation ────────────────────────────────────────────────────────
-
     /// `initialize()` was called on a contract that is already initialised.
     AlreadyInitialized = 1001,
     /// An operation was attempted before `initialize()` was called.
     NotInitialized = 1002,
 
     // ── Authorization ─────────────────────────────────────────────────────────
-
     /// The transaction signer did not pass `require_auth` for the required account.
     Unauthorized = 1003,
     /// The caller is authenticated but does not have the required role (e.g. not an admin).
     InsufficientPermissions = 1004,
 
     // ── Funds & Balances ──────────────────────────────────────────────────────
-
     /// Amount was zero or negative; all amounts must be strictly positive.
     InvalidAmount = 1005,
     /// Requested amount exceeds available funds in the vault.
     InsufficientBalance = 1006,
 
     // ── Protocol State ────────────────────────────────────────────────────────
-
     /// The protocol is paused by an admin; no state-changing operations are allowed.
     ProtocolPaused = 1007,
     /// The contract version storage entry is missing; the contract needs to be (re-)deployed.
@@ -45,7 +41,6 @@ pub enum QuipayError {
     StorageError = 1009,
 
     // ── Input Validation ──────────────────────────────────────────────────────
-
     /// A provided address is not a valid Stellar account or contract ID.
     InvalidAddress = 1010,
     /// No stream exists for the given stream ID.
@@ -58,7 +53,6 @@ pub enum QuipayError {
     InvalidToken = 1014,
 
     // ── Operations ────────────────────────────────────────────────────────────
-
     /// An underlying Stellar asset transfer failed.
     TransferFailed = 1015,
     /// A WASM upgrade invocation failed.
@@ -81,7 +75,6 @@ pub enum QuipayError {
     Overflow = 1024,
 
     // ── Compliance ────────────────────────────────────────────────────────────
-
     /// The minimum retention period for funds has not elapsed.
     RetentionNotMet = 1025,
     /// The calculated protocol fee exceeds the configured cap.
@@ -90,21 +83,18 @@ pub enum QuipayError {
     AddressBlacklisted = 1027,
 
     // ── Registry ─────────────────────────────────────────────────────────────
-
     /// Worker address is not registered in the workforce registry.
     WorkerNotFound = 1028,
     /// Batch operation exceeds the maximum allowed batch size.
     BatchTooLarge = 1029,
 
     // ── Admin & Governance ────────────────────────────────────────────────────
-
     /// `accept_admin` was called but no admin transfer is in progress.
     NoPendingAdmin = 1030,
     /// The caller is not the address that was proposed as new admin.
     NotPendingAdmin = 1031,
 
     // ── Multi-sig ─────────────────────────────────────────────────────────────
-
     /// The signer key is not in the multi-sig set.
     SignerNotFound = 1032,
     /// The key is already registered as a signer.
@@ -117,7 +107,6 @@ pub enum QuipayError {
     NoSigners = 1036,
 
     // ── Timelocks & Cooldowns ─────────────────────────────────────────────────
-
     /// Withdrawal was attempted before the cooldown period elapsed.
     WithdrawalCooldown = 1037,
     /// A grace-period timelock is still active (e.g. for upgrades or drains).
@@ -139,7 +128,6 @@ pub enum QuipayError {
     ReceiptNotFound = 1044,
 
     // ── Catch-all ─────────────────────────────────────────────────────────────
-
     /// A custom error condition not covered by the above codes.
     Custom = 1999,
 }

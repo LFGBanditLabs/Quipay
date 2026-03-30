@@ -2588,40 +2588,7 @@ impl PayrollStream {
         );
     }
 
-    /// If a PayrollReceipt contract is registered, mint a receipt for the closed stream.
-    /// Failures are silently ignored so they never block stream closure.
-    pub(crate) fn try_mint_receipt(
-        env: &Env,
-        stream: &Stream,
-        stream_id: u64,
-        reason: u32, // 0 = Completed, 1 = Cancelled
-    ) {
-        use soroban_sdk::{IntoVal, Symbol, vec};
-        let Some(receipt_addr): Option<Address> =
-            env.storage().instance().get(&DataKey::Receipt)
-        else {
-            return;
-        };
-        // ClosureReason enum discriminant is passed as u32 to avoid a cross-crate
-        // contracttype dependency at the call site.
-        let _ = env.try_invoke_contract::<u64, soroban_sdk::Error>(
-            &receipt_addr,
-            &Symbol::new(env, "mint"),
-            vec![
-                env,
-                stream_id.into_val(env),
-                stream.employer.clone().into_val(env),
-                stream.worker.clone().into_val(env),
-                stream.token.clone().into_val(env),
-                stream.withdrawn_amount.into_val(env),
-                stream.start_ts.into_val(env),
-                stream.end_ts.into_val(env),
-                stream.closed_at.into_val(env),
-                reason.into_val(env),
-            ],
-        );
-    }
-
+    // pub (crate) fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {}
     /// Calculate the vested amount at a specific timestamp, accounting for pauses.
     ///
     /// Subtracts `total_paused_duration` from elapsed time so workers are only
@@ -2706,6 +2673,35 @@ impl PayrollStream {
     pub fn has_open_dispute(env: Env, stream_id: u64) -> bool {
         dispute::has_open_dispute(&env, stream_id)
     }
+
+    pub fn raise_dispute(
+        env: Env,
+        stream_id: u64,
+        caller: Address,
+        reason_hash: soroban_sdk::BytesN<32>,
+    ) -> Result<(), QuipayError> {
+        Self::require_not_paused(&env)?;
+        dispute::raise_dispute(&env, stream_id, &caller, reason_hash)
+    }
+
+    pub fn resolve_dispute(
+        env: Env,
+        stream_id: u64,
+        arbitrator: Address,
+        outcome: DisputeOutcome,
+    ) -> Result<(), QuipayError> {
+        Self::require_not_paused(&env)?;
+        dispute::resolve_dispute(&env, stream_id, &arbitrator, outcome)
+    }
+
+    pub fn get_dispute(env: Env, stream_id: u64) -> Option<dispute::Dispute> {
+        dispute::get_dispute(&env, stream_id)
+    }
+
+    pub fn has_open_dispute(env: Env, stream_id: u64) -> bool {
+        dispute::has_open_dispute(&env, stream_id)
+    }
+    // Contract methods implemented here
 }
 
 mod dispute;
