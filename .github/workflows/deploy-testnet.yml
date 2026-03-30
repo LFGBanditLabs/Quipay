@@ -21,6 +21,7 @@ jobs:
     env:
       TESTNET_DEPLOYER_SECRET: ${{ secrets.TESTNET_DEPLOYER_SECRET }}
     outputs:
+      has_secret: ${{ steps.check_secret.outputs.has_secret }}
       payroll_vault_id: ${{ steps.deploy.outputs.payroll_vault_id }}
       payroll_stream_id: ${{ steps.deploy.outputs.payroll_stream_id }}
       automation_gateway_id: ${{ steps.deploy.outputs.automation_gateway_id }}
@@ -142,3 +143,73 @@ jobs:
             echo "- PayrollStream: \`${PAYROLL_STREAM_ID}\`"
             echo "- AutomationGateway: \`${AUTOMATION_GATEWAY_ID}\`"
           } >> "${GITHUB_STEP_SUMMARY}"
+
+  smoke-testnet-staging:
+    name: Post-deploy smoke test on Stellar testnet
+    needs: deploy-testnet
+    if: needs.deploy-testnet.outputs.has_secret == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PAYROLL_VAULT_ID: ${{ needs.deploy-testnet.outputs.payroll_vault_id }}
+      PAYROLL_STREAM_ID: ${{ needs.deploy-testnet.outputs.payroll_stream_id }}
+      TESTNET_DEPLOYER_SECRET: ${{ secrets.TESTNET_DEPLOYER_SECRET }}
+      TESTNET_TOKEN_CONTRACT_ID: ${{ secrets.TESTNET_TOKEN_CONTRACT_ID }}
+      STAGING_BACKEND_URL: ${{ secrets.STAGING_BACKEND_URL }}
+      STELLAR_RPC_URL: https://soroban-testnet.stellar.org
+      STELLAR_NETWORK_PASSPHRASE: Test SDF Network ; September 2015
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install smoke test dependencies
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund @stellar/stellar-sdk@14.5.0
+
+      - name: Run end-to-end testnet smoke test
+        run: timeout 180s node scripts/staging_testnet_smoke.mjs
+
+      - name: Notify Slack on smoke failure
+        if: failure() && secrets.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          payload=$(jq -nc --arg text \
+            "🚨 Quipay staging smoke test failed for ${GITHUB_REPOSITORY}@${GITHUB_SHA}. Workflow: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            '{text: $text}')
+
+          curl -fsS -X POST \
+            -H 'Content-Type: application/json' \
+            --data "$payload" \
+            "$SLACK_WEBHOOK_URL"
+
+      - name: Notify Discord on smoke failure
+        if: failure() && secrets.DISCORD_WEBHOOK_URL != ''
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          payload=$(jq -nc --arg content \
+            "🚨 Quipay staging smoke test failed for ${GITHUB_REPOSITORY}@${GITHUB_SHA}. Workflow: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            '{content: $content}')
+
+          curl -fsS -X POST \
+            -H 'Content-Type: application/json' \
+            --data "$payload" \
+            "$DISCORD_WEBHOOK_URL"
+
+      - name: Optionally dispatch rollback workflow
+        if: failure() && secrets.ROLLBACK_WORKFLOW_TOKEN != '' && secrets.STAGING_ROLLBACK_WORKFLOW_FILE != ''
+        continue-on-error: true
+        env:
+          ROLLBACK_WORKFLOW_TOKEN: ${{ secrets.ROLLBACK_WORKFLOW_TOKEN }}
+          STAGING_ROLLBACK_WORKFLOW_FILE: ${{ secrets.STAGING_ROLLBACK_WORKFLOW_FILE }}
+        run: |
+          curl -fsS -X POST \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer ${ROLLBACK_WORKFLOW_TOKEN}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/${STAGING_ROLLBACK_WORKFLOW_FILE}/dispatches" \
+            -d '{"ref":"main"}'
