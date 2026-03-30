@@ -13,6 +13,17 @@ import { proofsRouter } from "./routes/proofs";
 import { stellarRouter } from "./routes/stellar";
 import { reportsRouter } from "./routes/reports";
 import { employersRouter } from "./routes/employers";
+import { startStellarListener, stopStellarListener } from "./stellarListener";
+import {
+  startScheduler,
+  getSchedulerStatus,
+  stopScheduler,
+} from "./scheduler/scheduler";
+import { startMonitor, runMonitorCycle, stopMonitor } from "./monitor/monitor";
+import {
+  startPayrollReportScheduler,
+  stopPayrollReportScheduler,
+} from "./scheduler/reportScheduler";
 import { streamsRouter } from "./routes/streams";
 import { payslipsRouter } from "./routes/payslips";
 import { brandingRouter } from "./routes/branding";
@@ -30,24 +41,24 @@ import {
   createLoggingMiddleware,
   createErrorLoggingMiddleware,
 } from "./audit/middleware";
-import { initDb } from "./db/pool";
+import { initDb, closeDb } from "./db/pool";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { strictRateLimiter } from "./middleware/rateLimiter";
-import { getPool } from "./db/pool";
-import Redis from "ioredis";
-import { rpc } from "@stellar/stellar-sdk";
 import { secretsBootstrap } from "./services/secretsBootstrap";
 import { requestIdMiddleware } from "./middleware/requestId";
 import { httpLoggerMiddleware } from "./middleware/httpLogger";
 import { requireMonitorStatusAdminToken } from "./middleware/monitorStatusAuth";
 import { inputSanitizationMiddleware } from "./middleware/inputSanitization";
 import { getHealthResponse } from "./health";
+import { stopSyncer } from "./syncer";
 import { createCorsOptions, getAllowedOrigins } from "./config/cors";
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3001;
+
+let shuttingDown = false;
 
 // CORS configuration with origin whitelist
 const ALLOWED_ORIGINS = getAllowedOrigins();
@@ -83,6 +94,13 @@ app.use(
 // Add X-Request-ID / X-Correlation-ID generation/forwarding via AsyncLocalStorage
 app.use(requestIdMiddleware);
 
+app.use((req, res, next) => {
+  if (shuttingDown) {
+    res.set("Connection", "close");
+    return res.status(503).json({ error: "Server is shutting down" });
+  }
+  next();
+});
 // Emit one structured JSON log line per request (correlationId, method, path, statusCode, durationMs)
 app.use(httpLoggerMiddleware);
 
@@ -330,6 +348,86 @@ async function main() {
     startMonitor();
     startPayrollReportScheduler();
 
+    const shutdown = async (signal: string) => {
+      if (shuttingDown) {
+        console.log(`[Backend] Shutdown already in progress (${signal})`);
+        return;
+      }
+
+      shuttingDown = true;
+      console.log(`[Backend] ${signal} received. Shutting down gracefully...`);
+
+      await new Promise<void>((resolve) => {
+        server.close(() => {
+          console.log("[Backend] HTTP server closed");
+          resolve();
+        });
+      });
+
+      try {
+        stopScheduler();
+        console.log("[Backend] Scheduler stopped");
+      } catch (err) {
+        console.error("[Backend] Failed to stop scheduler:", err);
+      }
+
+      try {
+        stopPayrollReportScheduler();
+        console.log("[Backend] Payroll report scheduler stopped");
+      } catch (err) {
+        console.error(
+          "[Backend] Failed to stop payroll report scheduler:",
+          err,
+        );
+      }
+
+      try {
+        stopStellarListener();
+        console.log("[Backend] Stellar listener stopped");
+      } catch (err) {
+        console.error("[Backend] Failed to stop stellar listener:", err);
+      }
+
+      try {
+        await stopMonitor();
+        console.log("[Backend] Monitor stopped");
+      } catch (err) {
+        console.error("[Backend] Failed to stop monitor:", err);
+      }
+
+      try {
+        await stopSyncer();
+        console.log("[Backend] Syncer stopped");
+      } catch (err) {
+        console.error("[Backend] Failed to stop syncer:", err);
+      }
+
+      try {
+        await shutdownWebSocketServer();
+        console.log("[Backend] WebSocket server closed");
+      } catch (err) {
+        console.error("[Backend] Failed to stop websocket server:", err);
+      }
+
+      try {
+        await closeDb();
+        console.log("[Backend] Database pool closed");
+      } catch (err) {
+        console.error("[Backend] Failed to close database pool:", err);
+      }
+
+      try {
+        if (auditLogger) {
+          await auditLogger.shutdown();
+          console.log("[Backend] Audit logger closed");
+        }
+      } catch (err) {
+        console.error("[Backend] Failed to shutdown audit logger:", err);
+      }
+
+      process.exit(0);
+    };
+
     // Handle server errors
     server.on("error", (err: any) => {
       if (err.code === "EADDRINUSE") {
@@ -366,23 +464,12 @@ async function main() {
       }
     });
 
-    // Graceful shutdown
     process.on("SIGTERM", () => {
-      console.log("[Backend] SIGTERM received. Shutting down gracefully...");
-      server.close(() => {
-        console.log("[Backend] HTTP server closed");
-        shutdownWebSocketServer().then(() => {
-          console.log("[Backend] WebSocket server closed");
-          if (auditLogger) {
-            auditLogger.shutdown().then(() => {
-              console.log("[Backend] Audit logger closed");
-              process.exit(0);
-            });
-          } else {
-            process.exit(0);
-          }
-        });
-      });
+      void shutdown("SIGTERM");
+    });
+
+    process.on("SIGINT", () => {
+      void shutdown("SIGINT");
     });
   } catch (err) {
     console.error("[Backend] Failed to initialize services:", err);

@@ -23,6 +23,10 @@ const BATCH_SIZE = 200; // max events per RPC call
 
 const server = new rpc.Server(SOROBAN_RPC_URL);
 
+let syncerStopping = false;
+let syncerTimeoutId: NodeJS.Timeout | null = null;
+let inFlightSyncCycle: Promise<number> | null = null;
+
 // ─── Event parsers ────────────────────────────────────────────────────────────
 
 /**
@@ -306,6 +310,8 @@ export const startSyncer = async (): Promise<void> => {
     return;
   }
 
+  syncerStopping = false;
+
   await serviceLogger.info("Syncer", "Starting historical backfill", {
     event_type: "syncer_startup",
     ledger_number: null,
@@ -313,7 +319,8 @@ export const startSyncer = async (): Promise<void> => {
 
   const poll = async () => {
     try {
-      await runSync();
+      inFlightSyncCycle = runSync();
+      await inFlightSyncCycle;
     } catch (err: unknown) {
       await serviceLogger.error(
         "Syncer",
@@ -324,9 +331,27 @@ export const startSyncer = async (): Promise<void> => {
           ledger_number: null,
         },
       );
+    } finally {
+      inFlightSyncCycle = null;
     }
-    setTimeout(poll, POLL_INTERVAL_MS);
+
+    if (syncerStopping) return;
+
+    syncerTimeoutId = setTimeout(poll, POLL_INTERVAL_MS);
   };
 
   await poll();
+};
+
+export const stopSyncer = async (): Promise<void> => {
+  syncerStopping = true;
+
+  if (syncerTimeoutId) {
+    clearTimeout(syncerTimeoutId);
+    syncerTimeoutId = null;
+  }
+
+  if (inFlightSyncCycle) {
+    await inFlightSyncCycle;
+  }
 };

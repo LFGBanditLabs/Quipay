@@ -108,3 +108,55 @@ export const verifySlackSignature = (
     return res.status(401).json({ error: "Signature verification failed" });
   }
 };
+
+export const verifyQuipaySignature = (
+  req: SecureRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  const signingSecret = secretsBootstrap.getSecret(
+    "QUIPAY_WEBHOOK_SIGNING_SECRET",
+  );
+
+  if (!signingSecret) {
+    console.error("[Security] ❌ QUIPAY_WEBHOOK_SIGNING_SECRET not configured");
+    return res.status(500).json({ error: "Security configuration missing" });
+  }
+
+  const signatureHex = req.get("X-Quipay-Signature");
+
+  if (!signatureHex || !req.rawBody) {
+    return res
+      .status(401)
+      .json({ error: "Missing signature header or body" });
+  }
+
+  let theirSig: Buffer;
+  try {
+    theirSig = Buffer.from(signatureHex, "hex");
+  } catch {
+    return res.status(401).json({ error: "Invalid signature format" });
+  }
+
+  try {
+    const mySig = crypto
+      .createHmac("sha256", signingSecret)
+      .update(req.rawBody)
+      .digest();
+
+    if (theirSig.length !== mySig.length) {
+      return res.status(401).json({ error: "Invalid request signature" });
+    }
+
+    if (crypto.timingSafeEqual(mySig, theirSig)) {
+      next();
+      return;
+    }
+
+    console.warn("[Security] ⚠️ Invalid Quipay signature");
+    return res.status(401).json({ error: "Invalid request signature" });
+  } catch (error) {
+    console.error("[Security] Error verifying Quipay signature:", error);
+    return res.status(401).json({ error: "Signature verification failed" });
+  }
+};

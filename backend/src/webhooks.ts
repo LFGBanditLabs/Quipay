@@ -22,6 +22,7 @@ import {
   listWebhookOutboundEventsByOwner,
 } from "./db/queries";
 import { retryWebhookEvent } from "./delivery";
+import { verifyQuipaySignature } from "./middleware/security";
 
 export interface WebhookSubscription {
   id: string;
@@ -35,6 +36,15 @@ export interface WebhookSubscription {
 export const webhookStore = new Map<string, WebhookSubscription>();
 
 export const webhookRouter = Router();
+
+webhookRouter.post(
+  "/inbound",
+  standardRateLimiter,
+  verifyQuipaySignature,
+  (req: Request, res: Response) => {
+    res.status(200).json({ received: true });
+  },
+);
 
 /**
  * @api {post} /webhooks Register a new webhook

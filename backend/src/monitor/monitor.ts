@@ -13,6 +13,10 @@ import { sendTreasuryAlert } from "../notifier/notifier";
 import { getAuditLogger, isAuditLoggerInitialized } from "../audit/init";
 import { serviceLogger } from "../audit/serviceLogger";
 
+let monitorStopping = false;
+let monitorTimeoutId: NodeJS.Timeout | null = null;
+let inFlightMonitorCycle: Promise<EmployerTreasuryStatus[]> | null = null;
+
 // ─── Config ─────────────────────────────────────────────────────────────────
 
 /**
@@ -317,6 +321,8 @@ export const startMonitor = async (): Promise<void> => {
     return;
   }
 
+  monitorStopping = false;
+
   await serviceLogger.info("Monitor", "Treasury monitor started", {
     poll_interval_ms: POLL_INTERVAL_MS,
     runway_alert_days: RUNWAY_ALERT_DAYS,
@@ -324,16 +330,35 @@ export const startMonitor = async (): Promise<void> => {
 
   const tick = async () => {
     try {
-      await runMonitorCycle();
+      inFlightMonitorCycle = runMonitorCycle();
+      await inFlightMonitorCycle;
     } catch (err: unknown) {
       await serviceLogger.error(
         "Monitor",
         "Unhandled error in monitor cycle",
         err,
       );
+    } finally {
+      inFlightMonitorCycle = null;
     }
-    setTimeout(tick, POLL_INTERVAL_MS);
+
+    if (monitorStopping) return;
+
+    monitorTimeoutId = setTimeout(tick, POLL_INTERVAL_MS);
   };
 
   await tick();
+};
+
+export const stopMonitor = async (): Promise<void> => {
+  monitorStopping = true;
+
+  if (monitorTimeoutId) {
+    clearTimeout(monitorTimeoutId);
+    monitorTimeoutId = null;
+  }
+
+  if (inFlightMonitorCycle) {
+    await inFlightMonitorCycle;
+  }
 };

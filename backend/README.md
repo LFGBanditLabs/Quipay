@@ -193,6 +193,28 @@ npm run migration:generate
 npm run migration:push
 ```
 
+## Webhook Signatures
+
+When Quipay sends outbound webhooks, it signs the raw request body using **HMAC-SHA256** and includes the resulting hex digest in the `X-Quipay-Signature` header.
+
+Configure the signing secret via `QUIPAY_WEBHOOK_SIGNING_SECRET`.
+
+To verify a webhook on your side:
+
+```ts
+import crypto from "crypto";
+
+const secret = process.env.QUIPAY_WEBHOOK_SIGNING_SECRET!;
+const rawBody = getRawRequestBodyAsBufferSomehow();
+const signature = req.headers["x-quipay-signature"] as string;
+
+const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+
+if (expected !== signature) {
+  throw new Error("Invalid webhook signature");
+}
+```
+
 ## Development
 
 ```bash
