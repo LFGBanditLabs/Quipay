@@ -137,7 +137,7 @@ export class TestDatabase {
         CASCADE
       `);
     } finally {
-      await this.pool.query("SET session_replication_role = 'default'");
+      await this.pool.query("SET session_replication_role = 'origin'");
     }
   }
 
