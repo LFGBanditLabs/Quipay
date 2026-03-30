@@ -706,6 +706,51 @@ fn test_batch_withdraw_atomic_reverts_all_when_any_payout_fails() {
 }
 
 #[test]
+fn test_large_duration_does_not_produce_negative_total_amount() {
+    // Regression test for #752: u64-to-i64 cast silently wraps when
+    // duration > i64::MAX, producing a negative total_amount.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let vault_id = env.register_contract(None, dummy_vault::DummyVault);
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(&env, &contract_id);
+
+    client.init(&admin);
+    client.set_min_stream_duration(&0u64);
+    client.set_max_stream_duration(&u64::MAX);
+    client.set_vault(&vault_id);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    // duration = i64::MAX + 1 is the first value that silently wraps to
+    // i64::MIN when cast as i64, making the old code store a huge negative
+    // total_amount.
+    let duration: u64 = i64::MAX as u64 + 1;
+    let rate: i128 = 1;
+    let expected_total = rate * duration as i128;
+
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &rate, &0u64, &0u64, &duration, &None, &None,
+    );
+
+    let stream = client.get_stream(&stream_id).unwrap();
+    assert!(
+        stream.total_amount > 0,
+        "total_amount must be positive, got {}",
+        stream.total_amount
+    );
+    assert_eq!(stream.total_amount, expected_total);
+}
+
+#[test]
 fn test_index_get_streams_by_employer() {
     let env = Env::default();
     env.mock_all_auths();

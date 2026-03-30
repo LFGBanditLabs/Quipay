@@ -742,8 +742,9 @@ impl PayrollStream {
             }
 
             let duration = param.end_ts.saturating_sub(param.start_ts);
+            let duration_i = i128::try_from(duration).map_err(|_| QuipayError::Overflow)?;
             let stream_total = param.rate
-                .checked_mul(i128::from(duration as i64))
+                .checked_mul(duration_i)
                 .ok_or(QuipayError::Overflow)?;
             
             total_liability = total_liability.checked_add(stream_total).ok_or(QuipayError::Overflow)?;
@@ -784,6 +785,12 @@ impl PayrollStream {
             let stream_id = next_id;
             next_id += 1;
 
+            let duration_i = i128::try_from(param.end_ts - param.start_ts)
+                .map_err(|_| QuipayError::Overflow)?;
+            let total_amount = param.rate
+                .checked_mul(duration_i)
+                .ok_or(QuipayError::Overflow)?;
+
             let stream = Stream {
                 employer: authorized_employer.clone(),
                 worker: param.worker.clone(),
@@ -792,7 +799,7 @@ impl PayrollStream {
                 cliff_ts: if param.cliff_ts <= param.start_ts { param.start_ts } else { param.cliff_ts },
                 start_ts: param.start_ts,
                 end_ts: param.end_ts,
-                total_amount: param.rate.checked_mul(i128::from((param.end_ts - param.start_ts) as i64)).unwrap(),
+                total_amount,
                 withdrawn_amount: 0,
                 last_withdrawal_ts: 0,
                 status: StreamStatus::Active,
@@ -1951,8 +1958,9 @@ impl PayrollStream {
         }
 
         let duration = end_ts - start_ts;
+        let duration_i = i128::try_from(duration).map_err(|_| QuipayError::Overflow)?;
         let total_amount = rate
-            .checked_mul(i128::from(duration as i64))
+            .checked_mul(duration_i)
             .ok_or(QuipayError::Overflow)?;
 
         let vault: Address = env
