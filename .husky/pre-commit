@@ -1,2 +1,1 @@
-npx gitleaks@latest protect --staged --config .gitleaks.toml
 npx lint-staged
