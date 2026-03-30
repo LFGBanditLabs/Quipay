@@ -117,7 +117,7 @@ export class TestDatabase {
 
     try {
       await this.pool.query(`
-        TRUNCATE TABLE IF EXISTS
+        TRUNCATE TABLE
           audit_logs,
           dead_letter_queue,
           employers,

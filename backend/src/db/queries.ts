@@ -187,19 +187,17 @@ export const upsertStream = async (params: {
   status: "active" | "completed" | "cancelled";
   closedAt?: number;
   ledger: number;
-  metadata?: Record<string, string>;
 }): Promise<void> => {
   if (!getPool()) return; // DB not configured
   await query(
     `INSERT INTO payroll_streams
            (stream_id, employer, worker, total_amount, withdrawn_amount,
-            start_ts, end_ts, status, closed_at, ledger_created, metadata, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, NOW())
+            start_ts, end_ts, status, closed_at, ledger_created, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, NOW())
          ON CONFLICT (stream_id) DO UPDATE
            SET withdrawn_amount = EXCLUDED.withdrawn_amount,
                status           = EXCLUDED.status,
                closed_at        = EXCLUDED.closed_at,
-               metadata         = EXCLUDED.metadata,
                updated_at       = NOW()`,
     [
       params.streamId,
@@ -212,7 +210,6 @@ export const upsertStream = async (params: {
       params.status,
       params.closedAt ?? null,
       params.ledger,
-      params.metadata ?? null,
     ],
   );
 
