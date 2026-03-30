@@ -40,8 +40,7 @@ export default function BrandingSettings({
   const fetchBranding = useCallback(async () => {
     setIsLoading(true);
     try {
-      const apiBase =
-        (import.meta.env?.VITE_API_BASE_URL) || "";
+      const apiBase = import.meta.env?.VITE_API_BASE_URL || "";
       const response = await fetch(
         `${apiBase}/api/employers/${employerAddress}/branding`,
         {
@@ -115,8 +114,7 @@ export default function BrandingSettings({
     setErrorMsg("");
 
     try {
-      const apiBase =
-        (import.meta.env?.VITE_API_BASE_URL) || "";
+      const apiBase = import.meta.env?.VITE_API_BASE_URL || "";
 
       // Upload logo if changed
       if (logoFile) {
@@ -179,8 +177,7 @@ export default function BrandingSettings({
 
   const handleDeleteLogo = async () => {
     try {
-      const apiBase =
-        (import.meta.env?.VITE_API_BASE_URL) || "";
+      const apiBase = import.meta.env?.VITE_API_BASE_URL || "";
       const response = await fetch(
         `${apiBase}/api/employers/${employerAddress}/branding/logo`,
         {
@@ -372,7 +369,7 @@ export default function BrandingSettings({
             {logoPreview && (
               <button
                 className="bs-btn bs-btn-danger"
-                onClick={handleDeleteLogo}
+                onClick={() => void handleDeleteLogo()}
               >
                 Remove Logo
               </button>
@@ -434,7 +431,7 @@ export default function BrandingSettings({
           className={`bs-btn ${
             saveStatus === "success" ? "bs-btn-success" : "bs-btn-primary"
           }`}
-          onClick={handleSave}
+          onClick={() => void handleSave()}
           disabled={saveStatus === "loading"}
         >
           {saveStatus === "loading"

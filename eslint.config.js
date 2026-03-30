@@ -6,7 +6,6 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import reactX from "eslint-plugin-react-x";
 import tseslint from "typescript-eslint";
 import prettier from "eslint-config-prettier";
-import { globalIgnores } from "eslint/config";
 
 export default tseslint.config(
   {
@@ -23,6 +22,8 @@ export default tseslint.config(
       "*.mjs",
       "*.cjs",
       "*.js",
+      "**/*.js",
+      "src/stories/**",
     ],
   },
   js.configs.recommended,

@@ -105,8 +105,7 @@ export default function PayslipDownloadButton({
 
     try {
       // Call the payslip API endpoint
-      const apiBase =
-        (import.meta.env?.VITE_API_BASE_URL) || "";
+      const apiBase = import.meta.env?.VITE_API_BASE_URL || "";
       const response = await fetch(
         `${apiBase}/api/workers/${workerAddress}/payslip?period=${period}`,
         {
@@ -272,7 +271,7 @@ export default function PayslipDownloadButton({
                   ? "pd-btn-error"
                   : "pd-btn-idle"
           } ${className}`}
-          onClick={downloadPayslip}
+          onClick={() => void downloadPayslip()}
           disabled={isDisabled}
           aria-label={buttonLabel()}
           aria-busy={isLoading}
