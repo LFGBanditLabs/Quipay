@@ -2116,6 +2116,32 @@ impl PayrollStream {
         Some(core::cmp::min(streamed_claimable, vault_balance))
     }
 
+    /// Returns the accrued (vested) balance of a stream at a specific historical timestamp.
+    ///
+    /// Read-only; does not modify state. Useful for point-in-time accounting and
+    /// month-end close queries without requiring an external indexer.
+    ///
+    /// Returns `Err(QuipayError::StreamNotFound)` when no stream exists for `stream_id`.
+    /// Returns `Err(QuipayError::InvalidTimeRange)` when `timestamp` is outside
+    /// `[stream.start_ts, stream.end_ts]`.
+    pub fn simulate_balance_at(
+        env: Env,
+        stream_id: u64,
+        timestamp: u64,
+    ) -> Result<i128, QuipayError> {
+        let stream: Stream = env
+            .storage()
+            .persistent()
+            .get(&StreamKey::Stream(stream_id))
+            .ok_or(QuipayError::StreamNotFound)?;
+
+        if timestamp < stream.start_ts || timestamp > stream.end_ts {
+            return Err(QuipayError::InvalidTimeRange);
+        }
+
+        Ok(Self::vested_amount_at(&stream, timestamp))
+    }
+
     /// Check if a stream is currently solvent (vault has enough funds to cover remaining liability)
     pub fn is_stream_solvent(env: Env, stream_id: u64) -> Option<bool> {
         let key = StreamKey::Stream(stream_id);

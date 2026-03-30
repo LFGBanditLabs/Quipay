@@ -1811,6 +1811,98 @@ fn test_get_claimable() {
 }
 
 #[test]
+fn test_simulate_balance_at() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    // rate=1, start=0, end=100 → 1 token/second, 100 tokens total (linear)
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None,
+    );
+
+    // At start: no time elapsed, 0 tokens accrued
+    assert_eq!(client.simulate_balance_at(&stream_id, &0u64), 0);
+
+    // Mid-stream: 50 seconds elapsed, 50 tokens accrued
+    assert_eq!(client.simulate_balance_at(&stream_id, &50u64), 50);
+
+    // At end: 100 tokens accrued
+    assert_eq!(client.simulate_balance_at(&stream_id, &100u64), 100);
+
+    // Matches get_withdrawable at current timestamp when no withdrawals have been made
+    env.ledger().with_mut(|li| {
+        li.timestamp = 75;
+    });
+    assert_eq!(
+        client.simulate_balance_at(&stream_id, &75u64),
+        client.get_withdrawable(&stream_id).unwrap(),
+    );
+}
+
+#[test]
+fn test_simulate_balance_at_out_of_range_after_end() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None,
+    );
+
+    // timestamp > end_ts must be rejected
+    let result = client.try_simulate_balance_at(&stream_id, &101u64);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_simulate_balance_at_out_of_range_before_start() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    // Create stream starting in the future so there is a valid "before start" timestamp
+    env.ledger().with_mut(|li| {
+        li.timestamp = 10;
+    });
+
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &1, &0u64, &20u64, &120u64, &None, &None,
+    );
+
+    // timestamp < start_ts must be rejected
+    let result = client.try_simulate_balance_at(&stream_id, &15u64);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_simulate_balance_at_stream_not_found() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    env.ledger().with_mut(|li| {
+        li.timestamp = 0;
+    });
+
+    // Create a real stream so the contract is initialised, then query a non-existent ID
+    client.create_stream(
+        &employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None,
+    );
+
+    let result = client.try_simulate_balance_at(&999u64, &50u64);
+    assert!(result.is_err());
+}
+
+#[test]
 fn test_pagination() {
     let env = Env::default();
     env.mock_all_auths();
