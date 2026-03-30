@@ -4,13 +4,14 @@
  * Express middleware for automatic logging of contract interactions and API requests.
  */
 
-import { Request, Response, NextFunction } from "express";
+import { Response, NextFunction } from "express";
 import { AuditLogger } from "./auditLogger";
+import { AuthenticatedRequest } from "../middleware/rbac";
 
 /**
  * Extract contract interaction context from request
  */
-function extractContractContext(req: Request): {
+function extractContractContext(req: AuthenticatedRequest): {
   contractAddress?: string;
   functionName?: string;
   parameters?: Record<string, unknown>;
@@ -24,10 +25,7 @@ function extractContractContext(req: Request): {
     functionName:
       body.functionName || body.function_name || body.function || body.method,
     parameters: body.parameters || body.params || body.args || {},
-    employer:
-      body.employer ||
-      body.employerId ||
-      (req.headers["x-employer-id"] as string),
+    employer: req.user?.id,
   };
 }
 
@@ -35,7 +33,7 @@ function extractContractContext(req: Request): {
  * Create logging middleware for Express
  */
 export function createLoggingMiddleware(auditLogger: AuditLogger) {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     const startTime = Date.now();
     const context = extractContractContext(req);
 
@@ -158,7 +156,7 @@ export function createLoggingMiddleware(auditLogger: AuditLogger) {
 export function createErrorLoggingMiddleware(auditLogger: AuditLogger) {
   return async (
     err: Error,
-    req: Request,
+    req: AuthenticatedRequest,
     res: Response,
     next: NextFunction,
   ) => {
