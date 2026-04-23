@@ -42,6 +42,7 @@ pub enum StateKey {
     // Multi-sig storage
     Signers,             // Vec<Address> - list of authorized signers
     Threshold,           // u32 - M of N required
+    PendingUpgradeApprovals,// Map::<Address, bool>
     WithdrawalThreshold, // i128 - amount above which multisig is required
 }
 
@@ -186,6 +187,9 @@ impl PayrollVault {
             .persistent()
             .set(&StateKey::PendingUpgrade, &pending_upgrade);
 
+        // Reset approvals for new upgrade
+        e.storage().persistent().remove(&StateKey::PendingUpgradeApprovals);
+
         // Emit upgrade proposed event
         #[allow(deprecated)]
         e.events().publish(
@@ -202,11 +206,38 @@ impl PayrollVault {
         Ok(())
     }
 
+    pub fn approve_upgrade(e: Env, signer: Address, wasm_hash: BytesN<32>) -> Result<(), QuipayError> {
+        signer.require_auth();
+        
+        let signers: Vec<Address> = e.storage().persistent().get(&StateKey::Signers).ok_or(QuipayError::NoSigners)?;
+        if !signers.contains(signer.clone()) {
+            return Err(QuipayError::SignerNotFound);
+        }
+        
+        let pending_upgrade: PendingUpgrade = e
+            .storage()
+            .persistent()
+            .get(&StateKey::PendingUpgrade)
+            .ok_or(QuipayError::Custom)?;
+            
+        if pending_upgrade.wasm_hash != wasm_hash {
+            return Err(QuipayError::Custom);
+        }
+        
+        let mut approvals: Vec<Address> = e.storage().persistent().get(&StateKey::PendingUpgradeApprovals).unwrap_or(Vec::new(&e));
+        if !approvals.contains(signer.clone()) {
+            approvals.push_back(signer);
+            e.storage().persistent().set(&StateKey::PendingUpgradeApprovals, &approvals);
+        }
+        
+        Ok(())
+    }
+
     /// Execute a proposed upgrade after the timelock period
     /// Only the admin can call this function
     pub fn execute_upgrade(e: Env, new_version: (u32, u32, u32)) -> Result<(), QuipayError> {
         let admin = Self::get_admin(e.clone())?;
-        Self::require_multisig_auth(&e)?;
+        admin.require_auth();
 
         let pending_upgrade: PendingUpgrade = e
             .storage()
@@ -217,6 +248,21 @@ impl PayrollVault {
         let now = e.ledger().timestamp();
         if now < pending_upgrade.execute_after {
             return Err(QuipayError::Custom);
+        }
+
+        let threshold: u32 = e.storage().persistent().get(&StateKey::Threshold).unwrap_or(1);
+        let approvals: Vec<Address> = e.storage().persistent().get(&StateKey::PendingUpgradeApprovals).unwrap_or(Vec::new(&e));
+        let signers: Vec<Address> = e.storage().persistent().get(&StateKey::Signers).ok_or(QuipayError::NoSigners)?;
+        
+        let mut valid_approvals = 0;
+        for approval in approvals.iter() {
+            if signers.contains(approval) {
+                valid_approvals += 1;
+            }
+        }
+        
+        if valid_approvals < threshold {
+            return Err(QuipayError::InsufficientSignatures);
         }
 
         // Get current version for event
@@ -240,6 +286,7 @@ impl PayrollVault {
 
         // Clear pending upgrade
         e.storage().persistent().remove(&StateKey::PendingUpgrade);
+        e.storage().persistent().remove(&StateKey::PendingUpgradeApprovals);
 
         // Emit upgrade executed event
         #[allow(deprecated)]
@@ -273,6 +320,7 @@ impl PayrollVault {
 
         // Clear pending upgrade
         e.storage().persistent().remove(&StateKey::PendingUpgrade);
+        e.storage().persistent().remove(&StateKey::PendingUpgradeApprovals);
 
         // Emit upgrade canceled event
         #[allow(deprecated)]

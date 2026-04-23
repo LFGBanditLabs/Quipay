@@ -68,12 +68,12 @@ pub enum StreamStatus {
 #[repr(u32)]
 
 pub enum DisputeOutcome {
-    /// Dispute dismissed — stream unfreezes and resumes from current position.
-    Resume = 0,
-    /// Stream cancelled; full remaining balance refunded to employer.
-    CancelWithRefund = 1,
-    /// Stream cancelled; worker gets earned amount, employer gets remainder.
-    CancelWithPartialPayout = 2,
+    /// Full remaining amount to worker
+    FullWorker = 0,
+    /// Full remaining amount to employer
+    FullEmployer = 1,
+    /// Split remaining amount. The u32 is the percentage to the worker (0-10000 where 10000 = 100%)
+    Split(u32) = 2,
 }
 
 #[contracttype]
