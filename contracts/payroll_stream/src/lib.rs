@@ -39,6 +39,7 @@ pub enum DataKey {
     ScheduledPause,          // u64 effective timestamp
     EmergencyMultisig,       // Vec<Address> (3 authorized keys)
     EmergencyPauseVotes,     // Vec<Address> (keys that voted for current pause)
+    BlacklistedAddress(Address), // Compliance blacklist shared across stream participants
 }
 
 #[contracttype]
@@ -121,6 +122,7 @@ pub struct Stream {
     pub metadata_hash: Option<BytesN<32>>,
     pub cancel_effective_at: u64, // 0 means no pending cancellation; >0 means grace period active
     pub speed_curve: stream_curve::SpeedCurve, // New field for customizable speed curves
+    pub clawback_authority: Option<Address>, // Optional authority allowed to claw back vested funds
 }
 
 #[contracttype]
@@ -142,6 +144,7 @@ pub struct StreamParams {
     pub end_ts: u64,
     pub metadata_hash: Option<BytesN<32>>,
     pub speed_curve: MaybeSpeedCurve,
+    pub clawback_authority: Option<Address>,
 }
 
 #[contracttype]
@@ -689,6 +692,50 @@ impl PayrollStream {
             end_ts,
             metadata_hash,
             speed_curve,
+            None,
+        )?;
+
+        env.events().publish(
+            (
+                Symbol::new(&env, "stream"),
+                Symbol::new(&env, "created"),
+                worker,
+                employer,
+            ),
+            (stream_id, token, rate, start_ts, end_ts),
+        );
+
+        Ok(stream_id)
+    }
+
+    pub fn create_stream_with_clawback(
+        env: Env,
+        employer: Address,
+        worker: Address,
+        token: Address,
+        rate: i128,
+        cliff_ts: u64,
+        start_ts: u64,
+        end_ts: u64,
+        metadata_hash: Option<BytesN<32>>,
+        speed_curve: Option<stream_curve::SpeedCurve>,
+        clawback_authority: Option<Address>,
+    ) -> Result<u64, QuipayError> {
+        Self::require_not_paused(&env)?;
+        employer.require_auth();
+
+        let stream_id = Self::create_stream_internal(
+            env.clone(),
+            employer.clone(),
+            worker.clone(),
+            token.clone(),
+            rate,
+            cliff_ts,
+            start_ts,
+            end_ts,
+            metadata_hash,
+            speed_curve,
+            clawback_authority,
         )?;
 
         env.events().publish(
@@ -815,6 +862,7 @@ impl PayrollStream {
                 metadata_hash: param.metadata_hash.clone(),
                 cancel_effective_at: 0,
                 speed_curve: match param.speed_curve { MaybeSpeedCurve::Some(c) => c, _ => stream_curve::SpeedCurve::Linear },
+                clawback_authority: param.clawback_authority.clone(),
             };
 
             env.storage().persistent().set(&StreamKey::Stream(stream_id), &stream);
@@ -1753,6 +1801,7 @@ impl PayrollStream {
             end_ts,
             metadata_hash,
             core::option::Option::<stream_curve::SpeedCurve>::None, // speed_curve not supported via gateway yet
+            None,
         )
     }
 
@@ -1808,6 +1857,7 @@ impl PayrollStream {
             end_ts,
             metadata_hash,
             core::option::Option::<stream_curve::SpeedCurve>::None,
+            None,
         )?;
 
         env.events().publish(
@@ -1903,7 +1953,14 @@ impl PayrollStream {
         end_ts: u64,
         metadata_hash: Option<BytesN<32>>,
         speed_curve: Option<stream_curve::SpeedCurve>,
+        clawback_authority: Option<Address>,
     ) -> Result<u64, QuipayError> {
+        require!(
+            !Self::is_blacklisted(env.clone(), employer.clone())
+                && !Self::is_blacklisted(env.clone(), worker.clone()),
+            QuipayError::AddressBlacklisted
+        );
+
         if rate <= 0 {
             return Err(QuipayError::InvalidAmount);
         }
@@ -2028,6 +2085,7 @@ impl PayrollStream {
             metadata_hash,
             cancel_effective_at: 0,
             speed_curve: speed_curve.unwrap_or(stream_curve::SpeedCurve::Linear),
+            clawback_authority,
         };
 
         env.storage()
@@ -2669,6 +2727,99 @@ impl PayrollStream {
     ) -> Result<(), QuipayError> {
         Self::require_not_paused(&env)?;
         dispute::resolve_dispute(&env, stream_id, &arbitrator, outcome)
+    }
+
+    pub fn blacklist_address(env: Env, address: Address) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+
+        env.storage()
+            .instance()
+            .set(&DataKey::BlacklistedAddress(address.clone()), &true);
+        env.events().publish(
+            (
+                Symbol::new(&env, "compliance"),
+                Symbol::new(&env, "blacklisted"),
+                address,
+            ),
+            (),
+        );
+        Ok(())
+    }
+
+    pub fn unblacklist_address(env: Env, address: Address) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+
+        env.storage()
+            .instance()
+            .remove(&DataKey::BlacklistedAddress(address.clone()));
+        env.events().publish(
+            (
+                Symbol::new(&env, "compliance"),
+                Symbol::new(&env, "unblacklisted"),
+                address,
+            ),
+            (),
+        );
+        Ok(())
+    }
+
+    pub fn is_blacklisted(env: Env, address: Address) -> bool {
+        env.storage()
+            .instance()
+            .get(&DataKey::BlacklistedAddress(address))
+            .unwrap_or(false)
+    }
+
+    pub fn clawback(
+        env: Env,
+        stream_id: u64,
+        amount: i128,
+        reason: Symbol,
+    ) -> Result<(), QuipayError> {
+        Self::require_not_paused(&env)?;
+        require!(amount > 0, QuipayError::InvalidAmount);
+
+        let key = StreamKey::Stream(stream_id);
+        let mut stream: Stream = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .ok_or(QuipayError::StreamNotFound)?;
+        require!(!Self::is_closed(&stream), QuipayError::StreamClosed);
+
+        let authority = stream
+            .clawback_authority
+            .clone()
+            .ok_or(QuipayError::Unauthorized)?;
+        authority.require_auth();
+
+        let now = env.ledger().timestamp();
+        let vested = Self::vested_amount(&stream, now);
+        let currently_accrued = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
+        require!(amount <= currently_accrued, QuipayError::InsufficientBalance);
+
+        stream.withdrawn_amount = stream
+            .withdrawn_amount
+            .checked_add(amount)
+            .ok_or(QuipayError::Overflow)?;
+        env.storage().persistent().set(&key, &stream);
+        Self::bump_stream_storage_ttl(&env, stream_id, &stream.worker);
+
+        env.events().publish(
+            (Symbol::new(&env, "stream"), Symbol::new(&env, "stream_clawback"), stream_id),
+            (amount, authority, reason),
+        );
+        Ok(())
     }
 
     }

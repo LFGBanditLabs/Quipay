@@ -128,9 +128,9 @@ proptest! {
         let cliff_ts = start_ts.saturating_add(cliff_padding);
         
         let cliff = if cliff_ts <= end_ts && cliff_ts >= start_ts {
-            Some(cliff_ts)
+            cliff_ts
         } else {
-            None
+            start_ts
         };
 
         let contract_id = env.register_contract(None, PayrollStream);
@@ -152,10 +152,10 @@ proptest! {
             &worker,
             &token,
             &rate,
-            &0u64,
+            &cliff,
             &start_ts,
             &end_ts,
-            &cliff,
+            &None,
             &None,
         );
 

@@ -379,3 +379,27 @@ fn test_set_blacklisted_requires_admin() {
     client.set_blacklisted(&worker, &false);
     assert_eq!(client.is_blacklisted(&worker), false);
 }
+
+#[test]
+fn test_blacklist_address_and_unblacklist_address_flow() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+    let hash = String::from_str(&env, "QmHash");
+
+    client.initialize(&admin);
+    client.blacklist_address(&worker);
+    assert_eq!(client.is_blacklisted(&worker), true);
+
+    let blocked = client.try_register_worker(&worker, &token, &hash);
+    assert_eq!(blocked, Err(Ok(QuipayError::AddressBlacklisted)));
+
+    client.unblacklist_address(&worker);
+    assert_eq!(client.is_blacklisted(&worker), false);
+    client.register_worker(&worker, &token, &hash);
+}
