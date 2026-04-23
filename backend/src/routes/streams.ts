@@ -152,7 +152,7 @@ streamsRouter.delete(
 
     const deleted = await softDeleteStream({
       streamId,
-      deletedBy: req.user.id,
+      deletedBy: req.user.stellarAddress ?? req.user.id,
       cancelReason: req.body.cancelReason,
     });
 
@@ -166,7 +166,7 @@ streamsRouter.delete(
       streamId,
       status: "cancelled",
       cancelledAt: new Date().toISOString(),
-      cancelledBy: req.user.id,
+      cancelledBy: req.user.stellarAddress ?? req.user.id,
     });
   },
 );

@@ -126,9 +126,7 @@ export const verifyQuipaySignature = (
   const signatureHex = req.get("X-Quipay-Signature");
 
   if (!signatureHex || !req.rawBody) {
-    return res
-      .status(401)
-      .json({ error: "Missing signature header or body" });
+    return res.status(401).json({ error: "Missing signature header or body" });
   }
 
   let theirSig: Buffer;
