@@ -62,48 +62,47 @@ fn setup_stream(rate: i128, duration: u64, start_padding: u64) -> (Env, Address,
     (env, contract_id, stream_id, worker)
 }
 
-fn setup_stream_custom(
-    env: &Env,
-    admin: &Address,
-    employer: &Address,
-    worker: &Address,
-    token: &Address,
-    rate: i128,
-    duration: u64,
-    start_padding: u64,
-    cliff: Option<u64>,
-) -> (Address, u64) {
-    let contract_id = env.register_contract(None, PayrollStream);
-    let client = PayrollStreamClient::new(env, &contract_id);
-    let vault_id = env.register_contract(None, dummy_vault::DummyVault);
+    fn setup_stream_custom(
+        env: &Env,
+        admin: &Address,
+        employer: &Address,
+        worker: &Address,
+        token: &Address,
+        rate: i128,
+        duration: u64,
+        start_padding: u64,
+        cliff_val: u64,
+    ) -> (Address, u64) {
+        let contract_id = env.register_contract(None, PayrollStream);
+        let client = PayrollStreamClient::new(env, &contract_id);
+        let vault_id = env.register_contract(None, dummy_vault::DummyVault);
 
-    client.init(admin);
-    client.set_vault(&vault_id);
-    client.set_cancellation_grace_period(&0u64);
-    client.set_withdrawal_cooldown(&0u64);
-    client.set_min_stream_duration(&0u64);
+        client.init(admin);
+        client.set_vault(&vault_id);
+        client.set_cancellation_grace_period(&0u64);
+        client.set_withdrawal_cooldown(&0u64);
+        client.set_min_stream_duration(&0u64);
 
-    let initial_time = 1_000_000_000u64;
-    env.ledger().set_timestamp(initial_time);
+        let initial_time = 1_000_000_000u64;
+        env.ledger().set_timestamp(initial_time);
 
-    let start_ts = initial_time.saturating_add(start_padding);
-    let end_ts = start_ts.saturating_add(duration);
-    
-    // We just return stream_id since the test needs to test create stream too
-    let stream_id = client.create_stream(
-        employer,
-        worker,
-        token,
-        &rate,
-        &0u64,
-        &start_ts,
-        &end_ts,
-        &cliff,
-        &None,
-    );
+        let start_ts = initial_time.saturating_add(start_padding);
+        let end_ts = start_ts.saturating_add(duration);
+        
+        let stream_id = client.create_stream(
+            employer,
+            worker,
+            token,
+            &rate,
+            &cliff_val,
+            &start_ts,
+            &end_ts,
+            &None,
+            &None,
+        );
 
-    (contract_id, stream_id)
-}
+        (contract_id, stream_id)
+    }
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(10_000))]
