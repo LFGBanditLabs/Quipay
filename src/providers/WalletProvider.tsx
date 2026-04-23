@@ -49,7 +49,7 @@ export interface WalletContextType {
   clearError: () => void;
   disconnect: () => Promise<void>;
   accounts: string[];
-  switchAccount: (address: string) => Promise<void>;
+  switchAccount: (address: string) => void;
 }
 
 const POLL_INTERVAL = 1000;
@@ -63,7 +63,7 @@ export const WalletContext = // eslint-disable-line react-refresh/only-export-co
     clearError: () => {},
     disconnect: async () => {},
     accounts: [],
-    switchAccount: async () => {},
+    switchAccount: () => {},
   });
 
 export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
@@ -89,11 +89,8 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
   });
   const [accounts, setAccounts] = useState<string[]>(() => {
     const stored = storage.getItem("walletAccounts");
-    try {
-      return stored ? JSON.parse(stored) : address ? [address] : [];
-    } catch {
-      return address ? [address] : [];
-    }
+    if (stored && Array.isArray(stored)) return stored;
+    return address ? [address] : [];
   });
 
   const [isPending, startTransition] = useTransition();
@@ -114,7 +111,7 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       setAccounts((prev) => {
         if (prev.includes(newAddr)) return prev;
         const next = [...prev, newAddr];
-        storage.setItem("walletAccounts", JSON.stringify(next));
+        storage.setItem("walletAccounts", next);
         return next;
       });
     }

@@ -25,6 +25,7 @@ type Schema = {
   walletNetwork: string;
   networkPassphrase: string;
   addressBook: Contact[];
+  walletAccounts: string[];
 };
 
 /**

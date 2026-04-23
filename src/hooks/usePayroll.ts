@@ -230,7 +230,7 @@ export const usePayroll = (
       if (employerAddress) socket.emit("subscribe:stream", employerAddress);
     });
 
-    socket.on("stream:event", (event) => {
+    socket.on("stream:event", (event: unknown) => {
       console.log("[Payroll WS] Received real-time event:", event);
       refetch(); // Automatically update all streams
     });

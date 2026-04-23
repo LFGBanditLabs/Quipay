@@ -37,10 +37,11 @@ export const fetchStreams = async (
 
 export function calculateStreamProgress(stream: Stream, now: number): number {
   if (now < stream.startTime) return 0;
-  
-  const effectiveNow = stream.status === "paused" && stream.paused_at
-    ? Math.min(stream.paused_at, now)
-    : now;
+
+  const effectiveNow =
+    stream.status === "paused" && stream.paused_at
+      ? Math.min(stream.paused_at, now)
+      : now;
 
   if (effectiveNow >= stream.endTime) return 1;
 
@@ -65,13 +66,19 @@ export function calculateStreamProgress(stream: Stream, now: number): number {
 }
 
 export function useStreamProgress(stream: Stream) {
-  const [progress, setProgress] = useState(() => 
-    calculateStreamProgress(stream, Date.now() / 1000)
+  const [progress, setProgress] = useState(() =>
+    calculateStreamProgress(stream, Date.now() / 1000),
   );
 
   useEffect(() => {
-    if (stream.status === "completed" || stream.status === "cancelled" || stream.status === "paused") {
-      setProgress(calculateStreamProgress(stream, Date.now() / 1000));
+    if (
+      stream.status === "completed" ||
+      stream.status === "cancelled" ||
+      stream.status === "paused"
+    ) {
+      requestAnimationFrame(() =>
+        setProgress(calculateStreamProgress(stream, Date.now() / 1000)),
+      );
       return;
     }
 

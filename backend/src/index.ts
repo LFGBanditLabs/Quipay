@@ -27,9 +27,6 @@ import {
 import { streamsRouter } from "./routes/streams";
 import { payslipsRouter } from "./routes/payslips";
 import { brandingRouter } from "./routes/branding";
-import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
-import { startMonitor, runMonitorCycle } from "./monitor/monitor";
-import { startPayrollReportScheduler } from "./scheduler/reportScheduler";
 import {
   initWebSocketServer,
   shutdownWebSocketServer,
@@ -324,7 +321,12 @@ async function main() {
         next: express.NextFunction,
       ) => {
         if (auditLogger) {
-          createErrorLoggingMiddleware(auditLogger)(err, req, res, next);
+          createErrorLoggingMiddleware(auditLogger)(
+            err,
+            req as any,
+            res as any,
+            next,
+          );
         } else {
           next(err);
         }
