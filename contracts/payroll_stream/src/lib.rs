@@ -214,6 +214,9 @@ const DEFAULT_MAX_STREAMS_PER_EMPLOYER: u32 = 500;
 
 const DEFAULT_MIN_STREAM_DURATION: u64 = 3600;
 
+// Maximum absolute duration a stream can be set to: 10 years
+const MAX_STREAM_DURATION_SECS: u64 = 10 * 365 * 24 * 60 * 60;
+
 // Storage entries (persistent) are automatically archived after their TTL runs out
 // unless we explicitly extend TTL. Long-running streams can be left untouched for
 // longer than the default TTL, so we bump TTL on each mutation path.
@@ -476,7 +479,7 @@ impl PayrollStream {
             .ok_or(QuipayError::NotInitialized)?;
         admin.require_auth();
 
-        require!(seconds > 0, QuipayError::InvalidTimeRange);
+        require!(seconds > 0 && seconds <= MAX_STREAM_DURATION_SECS, QuipayError::InvalidTimeRange);
 
         env.storage()
             .instance()
@@ -1968,7 +1971,7 @@ impl PayrollStream {
         }
 
         let duration = end_ts.saturating_sub(start_ts);
-        if duration > Self::get_max_stream_duration(env.clone()) {
+        if duration > Self::get_max_stream_duration(env.clone()) || duration > MAX_STREAM_DURATION_SECS {
             return Err(QuipayError::InvalidTimeRange);
         }
         if duration < Self::get_min_stream_duration(env.clone()) {

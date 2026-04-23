@@ -13,7 +13,7 @@ import { proofsRouter } from "./routes/proofs";
 import { stellarRouter } from "./routes/stellar";
 import { reportsRouter } from "./routes/reports";
 import { employersRouter } from "./routes/employers";
-import { startStellarListener, stopStellarListener } from "./stellarListener";
+import { startEventIndexer, stopEventIndexer } from "./services/eventIndexer";
 import {
   startScheduler,
   getSchedulerStatus,
@@ -27,7 +27,6 @@ import {
 import { streamsRouter } from "./routes/streams";
 import { payslipsRouter } from "./routes/payslips";
 import { brandingRouter } from "./routes/branding";
-import { startStellarListener } from "./stellarListener";
 import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
 import { startMonitor, runMonitorCycle } from "./monitor/monitor";
 import { startPayrollReportScheduler } from "./scheduler/reportScheduler";
@@ -343,7 +342,7 @@ async function main() {
     initWebSocketServer(server);
 
     // Start background services after server is listening
-    startStellarListener();
+    void startEventIndexer();
     startScheduler();
     startMonitor();
     startPayrollReportScheduler();
@@ -382,10 +381,9 @@ async function main() {
       }
 
       try {
-        stopStellarListener();
-        console.log("[Backend] Stellar listener stopped");
+        stopEventIndexer();
       } catch (err) {
-        console.error("[Backend] Failed to stop stellar listener:", err);
+        console.error("[Backend] Failed to stop event indexer:", err);
       }
 
       try {

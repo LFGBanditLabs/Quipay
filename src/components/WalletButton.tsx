@@ -30,6 +30,8 @@ export const WalletButton = () => {
     connectionError,
     clearError,
     disconnect,
+    accounts = [],
+    switchAccount,
   } = useWallet();
 
   const xlmBalance = useMemo(
@@ -147,24 +149,54 @@ export const WalletButton = () => {
             className="w-full max-w-sm rounded-2xl border border-slate-200/20 bg-slate-900/75 p-5 text-slate-100 shadow-[0_24px_80px_rgba(2,6,23,0.75)] backdrop-blur-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400/85 to-indigo-500/85 text-xs font-bold text-white">
-                {address.slice(1, 3).toUpperCase()}
+            <div className="mb-4">
+              <h3
+                id="disconnect-wallet-title"
+                className="text-base font-semibold text-slate-100 mb-2"
+              >
+                Connected Accounts
+              </h3>
+              <div className="max-h-40 overflow-y-auto space-y-2 mb-4 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+                {accounts.map((acc) => (
+                  <button
+                    key={acc}
+                    type="button"
+                    onClick={() => {
+                      if (acc !== address) {
+                        void switchAccount(acc);
+                        setShowDisconnectModal(false);
+                      }
+                    }}
+                    className={`w-full items-center text-left flex gap-3 p-2 rounded-xl border transition ${acc === address ? "border-cyan-400/50 bg-cyan-900/30" : "border-slate-700/50 hover:bg-slate-800"}`}
+                  >
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400/85 to-indigo-500/85 text-xs font-bold text-white shrink-0">
+                      {acc.slice(1, 3).toUpperCase()}
+                    </div>
+                    <div className="flex flex-col flex-1 overflow-hidden">
+                      <span className="text-sm font-medium text-slate-200 truncate">
+                        {truncateAddress(acc)}
+                      </span>
+                      {acc === address && (
+                        <span className="text-xs text-cyan-300">Active</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
               </div>
-              <div>
-                <p
-                  id="disconnect-wallet-title"
-                  className="text-sm font-semibold text-slate-100"
-                >
-                  {t("wallet.disconnect_confirm_title")}
-                </p>
-                <p className="text-xs text-slate-300">{address}</p>
-              </div>
-            </div>
 
-            <p className="mb-5 text-sm text-slate-300">
-              {t("wallet.disconnect_confirm_body")}
-            </p>
+              <button
+                type="button"
+                onClick={() => {
+                  clearError();
+                  setIsConnecting(true);
+                  setShowDisconnectModal(false);
+                  void connectWallet().finally(() => setIsConnecting(false));
+                }}
+                className="w-full text-sm text-cyan-400 hover:text-cyan-300 text-center font-medium transition"
+              >
+                + Add another account
+              </button>
+            </div>
 
             <div className="flex gap-2">
               <button
