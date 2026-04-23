@@ -111,6 +111,7 @@ fn make_stream_params(
         end_ts,
         metadata_hash: None,
         speed_curve: MaybeSpeedCurve::Some(stream_curve::SpeedCurve::Linear),
+        clawback_authority: None,
     }
 }
 
@@ -144,6 +145,10 @@ fn test_pause_mechanism() {
     );
 
     client.set_paused(&true);
+    assert!(!client.is_paused());
+    env.ledger().with_mut(|li| {
+        li.timestamp = 24 * 60 * 60;
+    });
     assert!(client.is_paused());
 }
 
@@ -166,7 +171,7 @@ fn test_create_stream_paused() {
     client.set_paused(&true);
 
     env.ledger().with_mut(|li| {
-        li.timestamp = 0;
+        li.timestamp = 24 * 60 * 60;
     });
     let res = client.try_create_stream(
         &employer, &worker, &token, &100, &0u64, &0u64, &10u64, &None, &None
@@ -225,6 +230,10 @@ fn test_unpause_resumes_operations() {
     client.set_min_stream_duration(&0u64);
     client.set_vault(&vault_id);
     client.set_paused(&true);
+    assert!(!client.is_paused());
+    env.ledger().with_mut(|li| {
+        li.timestamp = 24 * 60 * 60;
+    });
     assert!(client.is_paused());
 
     client.set_paused(&false);
@@ -251,6 +260,10 @@ fn test_upgrade_functions_exempt_from_pause() {
     client.set_min_stream_duration(&0u64);
 
     client.set_paused(&true);
+    assert!(!client.is_paused());
+    env.ledger().with_mut(|li| {
+        li.timestamp = 24 * 60 * 60;
+    });
     assert!(client.is_paused());
 
     let wasm_hash: soroban_sdk::BytesN<32> = [0u8; 32].into_val(&env);
@@ -2119,6 +2132,7 @@ fn test_batch_create_with_mixed_cliff_times() {
             end_ts: 100,
             metadata_hash: None,
             speed_curve: MaybeSpeedCurve::Some(stream_curve::SpeedCurve::Linear),
+            clawback_authority: None,
         },
         StreamParams {
             employer: employer.clone(),
@@ -2130,6 +2144,7 @@ fn test_batch_create_with_mixed_cliff_times() {
             end_ts: 100,
             metadata_hash: None,
             speed_curve: MaybeSpeedCurve::Some(stream_curve::SpeedCurve::Linear),
+            clawback_authority: None,
         },
         StreamParams {
             employer: employer.clone(),
@@ -2141,6 +2156,7 @@ fn test_batch_create_with_mixed_cliff_times() {
             end_ts: 100,
             metadata_hash: None,
             speed_curve: MaybeSpeedCurve::Some(stream_curve::SpeedCurve::Linear),
+            clawback_authority: None,
         },
     ];
 
@@ -2853,4 +2869,100 @@ fn test_extend_stream_min_duration_enforced() {
     
     // Extending to 11100 is fine
     client.extend_stream(&s2, &0i128, &10100u64);
+}
+
+#[test]
+fn test_blacklist_blocks_stream_creation_until_unblacklisted() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_timestamp(100);
+    let (client, employer, worker, token, _) = setup(&env);
+
+    client.blacklist_address(&worker);
+
+    let blocked = client.try_create_stream(
+        &employer,
+        &worker,
+        &token,
+        &100,
+        &100,
+        &100,
+        &200,
+        &None,
+        &None,
+    );
+    assert_eq!(blocked, Err(Ok(QuipayError::AddressBlacklisted)));
+
+    client.unblacklist_address(&worker);
+    client.create_stream(
+        &employer,
+        &worker,
+        &token,
+        &100,
+        &100,
+        &100,
+        &200,
+        &None,
+        &None,
+    );
+}
+
+#[test]
+fn test_clawback_requires_opt_in_authority_and_reduces_accrued_balance() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_timestamp(100);
+    let (client, employer, worker, token, _) = setup(&env);
+    let authority = Address::generate(&env);
+
+    let stream_id = client.create_stream_with_clawback(
+        &employer,
+        &worker,
+        &token,
+        &100,
+        &100,
+        &100,
+        &200,
+        &None,
+        &None,
+        &Some(authority.clone()),
+    );
+
+    env.ledger().set_timestamp(150);
+    assert_eq!(client.get_withdrawable(&stream_id), Some(5000));
+
+    client.clawback(
+        &stream_id,
+        &1000,
+        &soroban_sdk::Symbol::new(&env, "compliance"),
+    );
+    assert_eq!(client.get_withdrawable(&stream_id), Some(4000));
+}
+
+#[test]
+fn test_clawback_rejects_when_not_opted_in() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_timestamp(100);
+    let (client, employer, worker, token, _) = setup(&env);
+
+    let stream_id = client.create_stream(
+        &employer,
+        &worker,
+        &token,
+        &100,
+        &100,
+        &100,
+        &200,
+        &None,
+        &None,
+    );
+
+    env.ledger().set_timestamp(150);
+    let res = client.try_clawback(
+        &stream_id,
+        &1000,
+        &soroban_sdk::Symbol::new(&env, "compliance"),
+    );
+    assert_eq!(res, Err(Ok(QuipayError::Unauthorized)));
 }

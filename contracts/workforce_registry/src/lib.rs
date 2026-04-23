@@ -402,13 +402,7 @@ impl WorkforceRegistryContract {
         Ok(())
     }
 
-    /// Sets blacklist status for a worker (admin only)
-    ///
-    /// # Arguments
-    /// * `e` - The environment.
-    /// * `worker` - The worker address to blacklist/unblacklist.
-    /// * `blacklisted` - True to blacklist, false to unblacklist.
-    pub fn set_blacklisted(e: Env, worker: Address, blacklisted: bool) -> Result<(), QuipayError> {
+    fn set_blacklist_state(e: Env, worker: Address, blacklisted: bool) -> Result<(), QuipayError> {
         let admin = Self::get_admin(e.clone())?;
         admin.require_auth();
 
@@ -431,6 +425,21 @@ impl WorkforceRegistryContract {
         );
 
         Ok(())
+    }
+
+    /// Backward-compatible admin toggle for worker blacklist status.
+    pub fn set_blacklisted(e: Env, worker: Address, blacklisted: bool) -> Result<(), QuipayError> {
+        Self::set_blacklist_state(e, worker, blacklisted)
+    }
+
+    /// Blacklists an address (admin only).
+    pub fn blacklist_address(e: Env, worker: Address) -> Result<(), QuipayError> {
+        Self::set_blacklist_state(e, worker, true)
+    }
+
+    /// Removes an address from blacklist (admin only).
+    pub fn unblacklist_address(e: Env, worker: Address) -> Result<(), QuipayError> {
+        Self::set_blacklist_state(e, worker, false)
     }
 
     /// Checks if a worker is blacklisted
