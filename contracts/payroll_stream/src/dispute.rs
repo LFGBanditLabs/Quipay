@@ -201,30 +201,46 @@ pub fn resolve_dispute(
     let now = env.ledger().timestamp();
 
     match &outcome {
-        // ── Resume: unfreeze, no token movement ──────────────────────────────
-        DisputeOutcome::Resume => {
-            // Restore Active — employer can re-initiate cancel if they still want to.
-            // We don't store pre-dispute status so we default to Active.
-            stream.status = StreamStatus::Active;
-        }
-
-        // ── CancelWithRefund: full remaining balance → employer ───────────────
-        DisputeOutcome::CancelWithRefund => {
+        DisputeOutcome::FullWorker => {
             let remaining = stream
                 .total_amount
                 .checked_sub(stream.withdrawn_amount)
                 .ok_or(QuipayError::Overflow)?;
 
             if remaining > 0 {
-                // Remove liability from vault then pay employer
+                PayrollStream::call_vault_payout(
+                    env,
+                    &vault,
+                    stream.worker.clone(),
+                    stream.token.clone(),
+                    remaining,
+                );
+                stream.withdrawn_amount = stream
+                    .withdrawn_amount
+                    .checked_add(remaining)
+                    .ok_or(QuipayError::Overflow)?;
+                stream.last_withdrawal_ts = now;
+            }
+
+            stream.status = StreamStatus::Completed;
+            stream.closed_at = now;
+        }
+
+        DisputeOutcome::FullEmployer => {
+            let remaining = stream
+                .total_amount
+                .checked_sub(stream.withdrawn_amount)
+                .ok_or(QuipayError::Overflow)?;
+
+            if remaining > 0 {
                 PayrollStream::call_vault_remove_liability(
-                    &env,
+                    env,
                     &vault,
                     stream.token.clone(),
                     remaining,
                 );
                 PayrollStream::call_vault_payout(
-                    &env,
+                    env,
                     &vault,
                     stream.employer.clone(),
                     stream.token.clone(),
@@ -236,25 +252,18 @@ pub fn resolve_dispute(
             stream.closed_at = now;
         }
 
-        // ── CancelWithPartialPayout: earned → worker, remainder → employer ───
-        DisputeOutcome::CancelWithPartialPayout => {
-            // Vested up to the dispute freeze point (now, since stream is frozen)
-            let vested = PayrollStream::vested_amount_at(&stream, now);
-            let earned = vested
-                .checked_sub(stream.withdrawn_amount)
-                .unwrap_or(0)
-                .max(0);
-
+        DisputeOutcome::Split(ratio) => {
+            if *ratio > 10000 {
+                return Err(QuipayError::Custom); // Invalid ratio
+            }
+            
             let remaining = stream
                 .total_amount
                 .checked_sub(stream.withdrawn_amount)
                 .ok_or(QuipayError::Overflow)?;
 
-            // Clamp earned to remaining in case of any rounding discrepancy
-            let worker_payout = earned.min(remaining);
-            let employer_refund = remaining
-                .checked_sub(worker_payout)
-                .ok_or(QuipayError::Overflow)?;
+            let worker_payout = (remaining.checked_mul(*ratio as i128).ok_or(QuipayError::Overflow)? / 10000);
+            let employer_refund = remaining.checked_sub(worker_payout).ok_or(QuipayError::Overflow)?;
 
             if worker_payout > 0 {
                 PayrollStream::call_vault_payout(
@@ -272,7 +281,6 @@ pub fn resolve_dispute(
             }
 
             if employer_refund > 0 {
-                // Remaining liability that isn't paid to worker — remove then refund
                 PayrollStream::call_vault_remove_liability(
                     env,
                     &vault,
@@ -288,7 +296,7 @@ pub fn resolve_dispute(
                 );
             }
 
-            stream.status = StreamStatus::Canceled;
+            stream.status = StreamStatus::Canceled; // Or completed based on business logic, canceled makes sense
             stream.closed_at = now;
         }
     }
