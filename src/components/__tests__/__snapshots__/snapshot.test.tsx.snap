@@ -379,6 +379,7 @@ exports[`frontend component snapshots renders SkeletonCard 1`] = `
 
 exports[`frontend component snapshots renders SkeletonRow 1`] = `
 <div
+  aria-busy="true"
   className="flex items-center justify-between gap-4 rounded-md border border-[var(--border)] bg-[var(--bg)] p-[15px] "
 >
   <div

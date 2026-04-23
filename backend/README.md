@@ -208,7 +208,10 @@ const secret = process.env.QUIPAY_WEBHOOK_SIGNING_SECRET!;
 const rawBody = getRawRequestBodyAsBufferSomehow();
 const signature = req.headers["x-quipay-signature"] as string;
 
-const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+const expected = crypto
+  .createHmac("sha256", secret)
+  .update(rawBody)
+  .digest("hex");
 
 if (expected !== signature) {
   throw new Error("Invalid webhook signature");

@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { io } from "socket.io-client";
 import {
   getAllVaultData,
   type TokenVaultData,
@@ -213,6 +214,33 @@ export const usePayroll = (
   }, [fetchVaultData, fetchStreams, employerAddress]);
 
   useEffect(() => {
+    if (!employerAddress) return;
+
+    const WS_URL =
+      import.meta.env.PUBLIC_BACKEND_URL || "http://localhost:3001";
+    // Connect to WebSocket server using a dummy token or from localStorage if available
+    const token = localStorage.getItem("auth_token") || "dummy";
+    const socket = io(WS_URL, {
+      path: "/socket.io",
+      query: { token },
+    });
+
+    socket.on("connect", () => {
+      console.log("[Payroll WS] Connected for real-time updates");
+      if (employerAddress) socket.emit("subscribe:stream", employerAddress);
+    });
+
+    socket.on("stream:event", (event: unknown) => {
+      console.log("[Payroll WS] Received real-time event:", event);
+      refetch(); // Automatically update all streams
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [employerAddress, refetch]);
+
+  useEffect(() => {
     if (!employerAddress) {
       setStreams([]);
       setIsLoading(false);
@@ -243,11 +271,20 @@ export const usePayroll = (
     void fetchData();
   }, [employerAddress, fetchTick, fetchVaultData, fetchStreams]);
 
-  const activeStreams = streams.filter(
-    (stream) =>
-      stream.status === "active" ||
-      stream.status === "paused" ||
-      stream.pendingAction !== undefined,
+  const activeStreams = useMemo(
+    () =>
+      streams.filter(
+        (stream) =>
+          stream.status === "active" ||
+          stream.status === "paused" ||
+          stream.pendingAction !== undefined,
+      ),
+    [streams],
+  );
+
+  const activeStreamsCount = useMemo(
+    () => streams.filter((stream) => stream.status === "active").length,
+    [streams],
   );
 
   const applyOptimisticStreamStatus = useCallback(
@@ -286,8 +323,7 @@ export const usePayroll = (
   return {
     treasuryBalances,
     totalLiabilities,
-    activeStreamsCount: streams.filter((stream) => stream.status === "active")
-      .length,
+    activeStreamsCount,
     streams,
     activeStreams,
     vaultData,

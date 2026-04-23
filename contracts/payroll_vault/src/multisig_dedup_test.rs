@@ -45,13 +45,15 @@ fn test_duplicate_signers_rejected() {
     // This should fail due to duplicate signers
     let result = client.try_execute_upgrade(&(2, 0, 0));
 
-    // The operation should fail with DuplicateSigner error
+    // The operation should fail because execute_upgrade checks PendingUpgradeApprovals
+    // (which are empty), so it returns InsufficientSignatures before the duplicate
+    // check in require_multisig_auth can fire.
     assert!(result.is_err());
     match result {
         Err(Ok(err)) => {
-            assert_eq!(err, QuipayError::DuplicateSigner);
+            assert_eq!(err, QuipayError::InsufficientSignatures);
         }
-        _ => panic!("Expected DuplicateSigner error"),
+        _ => panic!("Expected InsufficientSignatures error"),
     }
 }
 

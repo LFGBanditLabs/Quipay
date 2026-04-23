@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { useStreamHistory } from "../hooks/useStreamHistory";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 import { StreamCardSkeleton } from "./Loading";
@@ -74,7 +75,7 @@ export const StreamHistory = () => {
   );
 };
 
-const StreamCard = ({ stream }: { stream: Stream }) => {
+const StreamCard = memo(({ stream }: { stream: Stream }) => {
   return (
     <div className="rounded-lg border border-gray-700 bg-gray-800 p-4 flex items-center justify-between">
       <div className="space-y-1">
@@ -99,4 +100,4 @@ const StreamCard = ({ stream }: { stream: Stream }) => {
       </div>
     </div>
   );
-};
+});

@@ -33,7 +33,11 @@ function extractContractContext(req: AuthenticatedRequest): {
  * Create logging middleware for Express
  */
 export function createLoggingMiddleware(auditLogger: AuditLogger) {
-  return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  return async (
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction,
+  ) => {
     const startTime = Date.now();
     const context = extractContractContext(req);
 
