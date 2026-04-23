@@ -345,6 +345,7 @@ fn construct_stream(
         metadata_hash: None,
         cancel_effective_at: 0,
         speed_curve: SpeedCurve::Linear,
+        clawback_authority: None,
     }
 }
 
