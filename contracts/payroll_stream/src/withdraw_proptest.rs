@@ -152,10 +152,10 @@ proptest! {
             &worker,
             &token,
             &rate,
-            &0u64,
+            &cliff.unwrap_or(start_ts),
             &start_ts,
             &end_ts,
-            &cliff,
+            &None,
             &None,
         );
 

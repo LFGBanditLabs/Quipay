@@ -8,12 +8,20 @@ import WithdrawButton from "../components/WithdrawButton";
 import EmptyState from "../components/EmptyState";
 import StreamVisualizer from "../components/StreamVisualizer";
 import { CancelStreamModal } from "../components/CancelStreamModal";
-import { buildCancelStreamTx } from "../contracts/payroll_stream";
+import {
+  buildCancelStreamTx,
+  buildPauseStreamTx,
+  buildResumeStreamTx,
+} from "../contracts/payroll_stream";
 import { useWallet } from "../hooks/useWallet";
 import { useNotification } from "../hooks/useNotification";
-import { SkeletonCard, SkeletonRow } from "../components/Loading";
+import { SkeletonRow, StatTileSkeleton } from "../components/Loading";
 import type { SimulationResult } from "../util/simulationUtils";
 import CopyButton from "../components/CopyButton";
+import {
+  type StreamAction,
+  useStreamActionMutation,
+} from "../hooks/useStreamActions";
 
 const EmployerDashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -41,26 +49,71 @@ const EmployerDashboard: React.FC = () => {
     activeStreams,
     isLoading,
     refreshData,
+    applyOptimisticStreamStatus,
+    restoreStream,
+    clearStreamPending,
   } = usePayroll(address);
 
   const [streamToCancel, setStreamToCancel] = React.useState<Stream | null>(
     null,
   );
 
-  const handleConfirmCancel = async () => {
-    if (!streamToCancel || !address) return;
-    try {
-      const streamIdBigInt = BigInt(streamToCancel.id);
-      await buildCancelStreamTx(streamIdBigInt, address);
-      addNotification(
-        `Successfully requested cancellation for stream ${streamToCancel.id}`,
-        "success",
-      );
-      await refreshData();
-    } catch (e) {
-      console.error(e);
-      addNotification("Failed to cancel stream", "error");
+  const streamAction = useStreamActionMutation({
+    employerAddress: address,
+    runAction: async (stream, action) => {
+      if (!address) {
+        throw new Error("Connect your wallet before updating a stream.");
+      }
+
+      const streamIdBigInt = BigInt(stream.id);
+      if (action === "pause") {
+        await buildPauseStreamTx(streamIdBigInt, address);
+      } else if (action === "resume") {
+        await buildResumeStreamTx(streamIdBigInt, address);
+      } else {
+        await buildCancelStreamTx(streamIdBigInt, address);
+      }
+    },
+    onLocalOptimisticUpdate: applyOptimisticStreamStatus,
+    onLocalRollback: restoreStream,
+    onLocalSettled: clearStreamPending,
+  });
+
+  const queueStreamAction = (stream: Stream, action: StreamAction) => {
+    streamAction.mutate(
+      { stream, action },
+      {
+        onSuccess: () => {
+          addNotification(
+            `Successfully requested ${action} for stream ${stream.id}`,
+            "success",
+          );
+          void refreshData();
+        },
+      },
+    );
+  };
+
+  const handleConfirmCancel = () => {
+    if (streamToCancel) {
+      queueStreamAction(streamToCancel, "cancel");
     }
+    return Promise.resolve();
+  };
+
+  const getActionLabel = (stream: Stream, action: StreamAction) => {
+    if (stream.pendingAction === action) {
+      return action === "cancel"
+        ? "Cancelling..."
+        : action === "pause"
+          ? "Pausing..."
+          : "Resuming...";
+    }
+    return action === "cancel"
+      ? "Cancel Stream"
+      : action === "pause"
+        ? "Pause"
+        : "Resume";
   };
 
   const seoDescription = isLoading
@@ -82,10 +135,10 @@ const EmployerDashboard: React.FC = () => {
             <Text as="h1" size="xl" weight="medium">
               {t("dashboard.title")}
             </Text>
-            <div className={tw.dashboardGrid}>
-              <SkeletonCard lines={3} />
-              <SkeletonCard lines={2} />
-              <SkeletonCard lines={2} />
+            <div className={tw.dashboardGrid} aria-busy="true">
+              <StatTileSkeleton />
+              <StatTileSkeleton />
+              <StatTileSkeleton />
             </div>
             <div className={tw.streamsSection}>
               <div className={tw.streamsHeader}>
@@ -384,15 +437,39 @@ const EmployerDashboard: React.FC = () => {
                     <Text as="div" size="md" weight="bold">
                       Total: {stream.totalStreamed} {stream.tokenSymbol}
                     </Text>
+                    {stream.pendingAction && (
+                      <span className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-600">
+                        <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
+                        Pending {stream.pendingAction}
+                      </span>
+                    )}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={!!stream.pendingAction}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        queueStreamAction(
+                          stream,
+                          stream.status === "paused" ? "resume" : "pause",
+                        );
+                      }}
+                    >
+                      {getActionLabel(
+                        stream,
+                        stream.status === "paused" ? "resume" : "pause",
+                      )}
+                    </Button>
                     <Button
                       variant="destructive"
                       size="sm"
+                      disabled={!!stream.pendingAction}
                       onClick={(e) => {
                         e.stopPropagation();
                         setStreamToCancel(stream);
                       }}
                     >
-                      Cancel Stream
+                      {getActionLabel(stream, "cancel")}
                     </Button>
                   </div>
                 </div>
