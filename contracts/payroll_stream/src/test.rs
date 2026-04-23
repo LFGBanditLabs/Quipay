@@ -792,10 +792,13 @@ fn test_index_get_streams_by_employer() {
         &employer, &worker, &token, &20, &0u64, &0u64, &200u64, &None, &None
     );
 
-    let ids = client.get_streams_by_employer(&employer, &None, &None);
-    assert_eq!(ids.len(), 2);
-    assert_eq!(ids.get(0).unwrap(), id1);
-    assert_eq!(ids.get(1).unwrap(), id2);
+    let (streams, total) = client.get_streams_by_employer(&employer, &0, &50);
+    assert_eq!(total, 2);
+    assert_eq!(streams.len(), 2);
+    assert_eq!(streams.get(0).unwrap().rate, 10);
+    assert_eq!(streams.get(1).unwrap().rate, 20);
+    assert_eq!(id1, 1);
+    assert_eq!(id2, 2);
 }
 
 #[test]
@@ -940,12 +943,7 @@ fn test_cleanup_removes_from_indexes() {
         &employer, &worker, &token, &100, &0u64, &0u64, &20u64, &None, &None
     );
 
-    assert_eq!(
-        client
-            .get_streams_by_employer(&employer, &None, &None)
-            .len(),
-        2
-    );
+    assert_eq!(client.get_streams_by_employer(&employer, &0, &50).0.len(), 2);
     assert_eq!(client.get_streams_by_worker(&worker, &None, &None).len(), 2);
 
     env.ledger().with_mut(|li| {
@@ -955,9 +953,11 @@ fn test_cleanup_removes_from_indexes() {
 
     client.cleanup_stream(&id1);
 
-    let emp_ids = client.get_streams_by_employer(&employer, &None, &None);
-    assert_eq!(emp_ids.len(), 1);
-    assert_eq!(emp_ids.get(0).unwrap(), id2);
+    let (emp_streams, total) = client.get_streams_by_employer(&employer, &0, &50);
+    assert_eq!(total, 1);
+    assert_eq!(emp_streams.len(), 1);
+    assert_eq!(emp_streams.get(0).unwrap().rate, 100);
+    assert_eq!(id2, 2);
 
     let wrk_ids = client.get_streams_by_worker(&worker, &None, &None);
     assert_eq!(wrk_ids.len(), 1);
@@ -1637,12 +1637,7 @@ fn test_empty_index_for_unknown_address() {
     env.mock_all_auths();
     let (client, _, _, _, _) = setup(&env);
     let stranger = Address::generate(&env);
-    assert_eq!(
-        client
-            .get_streams_by_employer(&stranger, &None, &None)
-            .len(),
-        0
-    );
+    assert_eq!(client.get_streams_by_employer(&stranger, &0, &50).0.len(), 0);
     assert_eq!(
         client.get_streams_by_worker(&stranger, &None, &None).len(),
         0
@@ -1823,12 +1818,12 @@ fn test_different_employers_have_independent_indexes() {
     let id2 = client.create_stream(
         &employer2, &worker2, &token, &10, &0u64, &0u64, &100u64, &None, &None
     );
-    let emp1_ids = client.get_streams_by_employer(&employer1, &None, &None);
-    let emp2_ids = client.get_streams_by_employer(&employer2, &None, &None);
-    assert_eq!(emp1_ids.len(), 1);
-    assert_eq!(emp1_ids.get(0).unwrap(), id1);
-    assert_eq!(emp2_ids.len(), 1);
-    assert_eq!(emp2_ids.get(0).unwrap(), id2);
+    let emp1_streams = client.get_streams_by_employer(&employer1, &0, &50).0;
+    let emp2_streams = client.get_streams_by_employer(&employer2, &0, &50).0;
+    assert_eq!(emp1_streams.len(), 1);
+    assert_eq!(emp1_streams.get(0).unwrap().worker, worker1);
+    assert_eq!(emp2_streams.len(), 1);
+    assert_eq!(emp2_streams.get(0).unwrap().worker, worker2);
     assert_eq!(
         client
             .get_streams_by_worker(&worker1, &None, &None)
@@ -2009,20 +2004,31 @@ fn test_pagination() {
     let id2 = client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None);
     let id3 = client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None);
 
-    let all = client.get_streams_by_employer(&employer, &None, &None);
+    let (all, total) = client.get_streams_by_employer(&employer, &0, &50);
+    assert_eq!(total, 3);
     assert_eq!(all.len(), 3);
 
-    let page1 = client.get_streams_by_employer(&employer, &Some(0), &Some(2));
+    let (page1, total) = client.get_streams_by_employer(&employer, &0, &2);
+    assert_eq!(total, 3);
     assert_eq!(page1.len(), 2);
-    assert_eq!(page1.get(0).unwrap(), id1);
-    assert_eq!(page1.get(1).unwrap(), id2);
+    assert_eq!(page1.get(0).unwrap().rate, 1);
+    assert_eq!(page1.get(1).unwrap().rate, 1);
 
-    let page2 = client.get_streams_by_employer(&employer, &Some(2), &Some(2));
+    let (page2, total) = client.get_streams_by_employer(&employer, &2, &2);
+    assert_eq!(total, 3);
     assert_eq!(page2.len(), 1);
-    assert_eq!(page2.get(0).unwrap(), id3);
+    assert_eq!(page2.get(0).unwrap().rate, 1);
 
-    let empty = client.get_streams_by_employer(&employer, &Some(5), &Some(1));
+    let (empty, total) = client.get_streams_by_employer(&employer, &5, &1);
+    assert_eq!(total, 3);
     assert_eq!(empty.len(), 0);
+
+    let too_large = client.try_get_streams_by_employer(&employer, &0, &51);
+    assert_eq!(too_large.unwrap_err().unwrap(), QuipayError::BatchTooLarge);
+
+    assert_eq!(id1, 1);
+    assert_eq!(id2, 2);
+    assert_eq!(id3, 3);
 }
 
 #[test]

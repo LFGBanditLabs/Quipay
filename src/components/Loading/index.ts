@@ -1,7 +1,15 @@
 export { Spinner } from "./Spinner";
 export type { SpinnerProps } from "./Spinner";
 
-export { Skeleton, SkeletonCard, SkeletonRow } from "./Skeleton";
+export {
+  Skeleton,
+  SkeletonCard,
+  SkeletonRow,
+  StreamCardSkeleton,
+  StatTileSkeleton,
+  ChartPanelSkeleton,
+  TransactionRowSkeleton,
+} from "./Skeleton";
 export type {
   SkeletonProps,
   SkeletonCardProps,

@@ -10,9 +10,8 @@ const MAX_BATCH_CREATE_STREAMS: u32 = 20;
 const MAX_BATCH_CLAIM_STREAMS: u32 = 50; // max active streams processed in one batch_claim call
 const MAX_BATCH_CANCEL_STREAMS: u32 = 20;
 const DEFAULT_MAX_STREAM_DURATION: u64 = 365 * 24 * 60 * 60; // 365 days in seconds
-/// Maximum page size for pagination to prevent DoS attacks.
-/// Requests exceeding this limit will be capped to this value.
-const MAX_PAGE_SIZE: u32 = 1000;
+/// Maximum page size for employer stream pagination.
+const MAX_EMPLOYER_STREAM_PAGE_SIZE: u32 = 50;
 
 #[contracttype]
 #[derive(Clone)]
@@ -2322,16 +2321,36 @@ impl PayrollStream {
     pub fn get_streams_by_employer(
         env: Env,
         employer: Address,
-        offset: Option<u32>,
-        limit: Option<u32>,
-    ) -> Vec<u64> {
+        offset: u32,
+        limit: u32,
+    ) -> Result<(Vec<Stream>, u32), QuipayError> {
+        if limit > MAX_EMPLOYER_STREAM_PAGE_SIZE {
+            return Err(QuipayError::BatchTooLarge);
+        }
+
         let ids: Vec<u64> = env
             .storage()
             .persistent()
             .get(&StreamKey::EmployerStreams(employer))
             .unwrap_or_else(|| Vec::new(&env));
 
-        Self::paginate(&env, ids, offset, limit)
+        let total = ids.len();
+        let mut result = Vec::new(&env);
+        if offset >= total || limit == 0 {
+            return Ok((result, total));
+        }
+
+        let end = offset.saturating_add(limit).min(total);
+        for i in offset..end {
+            if let Some(id) = ids.get(i) {
+                let stream_key = StreamKey::Stream(id);
+                if let Some(stream) = env.storage().persistent().get::<_, Stream>(&stream_key) {
+                    result.push_back(stream);
+                }
+            }
+        }
+
+        Ok((result, total))
     }
 
     pub fn get_stream_count(env: Env, employer: Address) -> u32 {
@@ -2360,7 +2379,7 @@ impl PayrollStream {
     /// Paginate a list of stream IDs with bounds checking.
     ///
     /// ### DoS Protection
-    /// The `limit` parameter is capped at `MAX_PAGE_SIZE` (1000) to prevent
+    /// The `limit` parameter is capped at `MAX_EMPLOYER_STREAM_PAGE_SIZE` to prevent
     /// performance issues from excessively large page requests.
     ///
     /// ### Parameters
@@ -2373,9 +2392,9 @@ impl PayrollStream {
     fn paginate(env: &Env, ids: Vec<u64>, offset: Option<u32>, limit: Option<u32>) -> Vec<u64> {
         let offset = offset.unwrap_or(0);
         let ids_len = ids.len();
-        // Cap limit at MAX_PAGE_SIZE to prevent DoS
+        // Cap limit at MAX_EMPLOYER_STREAM_PAGE_SIZE to prevent DoS
         let requested_limit = limit.unwrap_or(ids_len);
-        let limit = requested_limit.min(MAX_PAGE_SIZE).min(ids_len);
+        let limit = requested_limit.min(MAX_EMPLOYER_STREAM_PAGE_SIZE).min(ids_len);
 
         let mut result = Vec::new(env);
         if offset >= ids_len {

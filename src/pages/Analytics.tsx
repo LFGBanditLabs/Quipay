@@ -14,6 +14,7 @@ import {
   LineChart,
   Line,
 } from "recharts";
+import { ChartPanelSkeleton } from "../components/Loading";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -244,7 +245,7 @@ const Analytics: React.FC = () => {
           cardCls={cardCls}
         >
           {loading && volumeOverTime.length === 0 ? (
-            <Skeleton />
+            <ChartPanelSkeleton className="border-0 bg-transparent p-0" />
           ) : (
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart
@@ -320,7 +321,7 @@ const Analytics: React.FC = () => {
           cardCls={cardCls}
         >
           {loading && topWorkers.length === 0 ? (
-            <Skeleton />
+            <ChartPanelSkeleton className="border-0 bg-transparent p-0" />
           ) : topWorkers.length === 0 ? (
             <EmptyState />
           ) : (
@@ -376,7 +377,7 @@ const Analytics: React.FC = () => {
           cardCls={cardCls}
         >
           {loading && streamCreationRate.length === 0 ? (
-            <Skeleton />
+            <ChartPanelSkeleton className="border-0 bg-transparent p-0" />
           ) : (
             <ResponsiveContainer width="100%" height={240}>
               <BarChart
@@ -426,7 +427,7 @@ const Analytics: React.FC = () => {
           cardCls={cardCls}
         >
           {loading && withdrawalFrequency.length === 0 ? (
-            <Skeleton />
+            <ChartPanelSkeleton className="border-0 bg-transparent p-0" />
           ) : (
             <ResponsiveContainer width="100%" height={240}>
               <LineChart
@@ -504,16 +505,6 @@ const Analytics: React.FC = () => {
 };
 
 // ── Micro-components ──────────────────────────────────────────────────────────
-
-function Skeleton() {
-  return (
-    <div
-      className="h-[240px] w-full animate-pulse rounded-xl bg-slate-700/30"
-      aria-busy="true"
-      aria-label="Loading chart"
-    />
-  );
-}
 
 function EmptyState() {
   return (

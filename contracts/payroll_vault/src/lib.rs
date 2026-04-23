@@ -1032,14 +1032,14 @@ impl PayrollVault {
 
     /// Propose an emergency drain of all vault funds to `recipient`.
     ///
-    /// Starts a 24-hour timelock. Only the admin can call this function.
+    /// Starts a 24-hour timelock. Requires the configured multisig threshold.
     /// Off-chain monitors should observe the `DRAIN_PROPOSED` event and alert
     /// token holders so they can exit before the drain executes.
     ///
     /// Emits: `(DRAIN_PROPOSED, admin)` → `(recipient, execute_after)`
     pub fn propose_emergency_drain(e: Env, recipient: Address) -> Result<(), QuipayError> {
         let admin = Self::get_admin(e.clone())?;
-        admin.require_auth();
+        Self::require_multisig_auth(&e)?;
 
         // Disallow stacking proposals – cancel first, then re-propose.
         if e.storage().persistent().has(&StateKey::PendingDrain) {
