@@ -12,6 +12,7 @@ import {
 import { sendTreasuryAlert } from "../notifier/notifier";
 import { getAuditLogger, isAuditLoggerInitialized } from "../audit/init";
 import { serviceLogger } from "../audit/serviceLogger";
+import { employerRunwayGauge } from "../metrics";
 
 let monitorStopping = false;
 let monitorTimeoutId: NodeJS.Timeout | null = null;
@@ -213,6 +214,12 @@ export const runMonitorCycle = async (): Promise<EmployerTreasuryStatus[]> => {
       }
 
       for (const status of statuses) {
+        // Update Prometheus gauge: -1 signals unlimited runway (no active streams).
+        employerRunwayGauge.set(
+          { employer_address: status.employer },
+          status.runway_days ?? -1,
+        );
+
         // Alert when runway is less than threshold (default 7 days)
         const alertNeeded =
           status.runway_days !== null && status.runway_days < RUNWAY_ALERT_DAYS;
