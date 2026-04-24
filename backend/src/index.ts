@@ -27,7 +27,7 @@ import {
 import { streamsRouter } from "./routes/streams";
 import { payslipsRouter } from "./routes/payslips";
 import { brandingRouter } from "./routes/branding";
-
+import { keyRotationScheduler } from "./services/keyRotationScheduler";
 import {
   initWebSocketServer,
   shutdownWebSocketServer,
@@ -371,6 +371,15 @@ async function main() {
     startMonitor();
     startPayrollReportScheduler();
 
+    const rotationEnabled = process.env.KEY_ROTATION_ENABLED === "true";
+    if (rotationEnabled) {
+      void keyRotationScheduler.start();
+    } else if (process.env.NODE_ENV === "production") {
+      console.warn(
+        "[Backend] ⚠️  WARNING: Key rotation is disabled in production. This is NOT recommended for security.",
+      );
+    }
+
     const shutdown = async (signal: string) => {
       if (shuttingDown) {
         console.log(`[Backend] Shutdown already in progress (${signal})`);
@@ -415,6 +424,13 @@ async function main() {
         console.log("[Backend] Monitor stopped");
       } catch (err) {
         console.error("[Backend] Failed to stop monitor:", err);
+      }
+
+      try {
+        await keyRotationScheduler.stop();
+        console.log("[Backend] Key rotation scheduler stopped");
+      } catch (err) {
+        console.error("[Backend] Failed to stop key rotation scheduler:", err);
       }
 
       try {
