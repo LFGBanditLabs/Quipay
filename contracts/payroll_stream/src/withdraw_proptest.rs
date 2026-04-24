@@ -17,6 +17,9 @@ mod dummy_vault {
             true
         }
         pub fn add_liability(_env: Env, _token: Address, _amount: i128) {}
+        pub fn is_token_allowed(_env: Env, _token: Address) -> bool {
+            true
+        }
         pub fn remove_liability(_env: Env, _token: Address, _amount: i128) {}
         pub fn payout_liability(_env: Env, _to: Address, _token: Address, _amount: i128) {}
     }
@@ -48,61 +51,45 @@ fn setup_stream(rate: i128, duration: u64, start_padding: u64) -> (Env, Address,
     let start_ts = initial_time.saturating_add(start_padding);
     let end_ts = start_ts.saturating_add(duration);
     let stream_id = client.create_stream(
-        &employer,
-        &worker,
-        &token,
-        &rate,
-        &0u64,
-        &start_ts,
-        &end_ts,
-        &None,
-        &None,
+        &employer, &worker, &token, &rate, &0u64, &start_ts, &end_ts, &None, &None,
     );
 
     (env, contract_id, stream_id, worker)
 }
 
-    fn setup_stream_custom(
-        env: &Env,
-        admin: &Address,
-        employer: &Address,
-        worker: &Address,
-        token: &Address,
-        rate: i128,
-        duration: u64,
-        start_padding: u64,
-        cliff_val: u64,
-    ) -> (Address, u64) {
-        let contract_id = env.register_contract(None, PayrollStream);
-        let client = PayrollStreamClient::new(env, &contract_id);
-        let vault_id = env.register_contract(None, dummy_vault::DummyVault);
+fn setup_stream_custom(
+    env: &Env,
+    admin: &Address,
+    employer: &Address,
+    worker: &Address,
+    token: &Address,
+    rate: i128,
+    duration: u64,
+    start_padding: u64,
+    cliff_val: u64,
+) -> (Address, u64) {
+    let contract_id = env.register_contract(None, PayrollStream);
+    let client = PayrollStreamClient::new(env, &contract_id);
+    let vault_id = env.register_contract(None, dummy_vault::DummyVault);
 
-        client.init(admin);
-        client.set_vault(&vault_id);
-        client.set_cancellation_grace_period(&0u64);
-        client.set_withdrawal_cooldown(&0u64);
-        client.set_min_stream_duration(&0u64);
+    client.init(admin);
+    client.set_vault(&vault_id);
+    client.set_cancellation_grace_period(&0u64);
+    client.set_withdrawal_cooldown(&0u64);
+    client.set_min_stream_duration(&0u64);
 
-        let initial_time = 1_000_000_000u64;
-        env.ledger().set_timestamp(initial_time);
+    let initial_time = 1_000_000_000u64;
+    env.ledger().set_timestamp(initial_time);
 
-        let start_ts = initial_time.saturating_add(start_padding);
-        let end_ts = start_ts.saturating_add(duration);
-        
-        let stream_id = client.create_stream(
-            employer,
-            worker,
-            token,
-            &rate,
-            &cliff_val,
-            &start_ts,
-            &end_ts,
-            &None,
-            &None,
-        );
+    let start_ts = initial_time.saturating_add(start_padding);
+    let end_ts = start_ts.saturating_add(duration);
 
-        (contract_id, stream_id)
-    }
+    let stream_id = client.create_stream(
+        employer, worker, token, &rate, &cliff_val, &start_ts, &end_ts, &None, &None,
+    );
+
+    (contract_id, stream_id)
+}
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(10_000))]
@@ -126,7 +113,7 @@ proptest! {
         let start_ts = initial_time.saturating_add(10);
         let end_ts = start_ts.saturating_add(duration);
         let cliff_ts = start_ts.saturating_add(cliff_padding);
-        
+
         let cliff = if cliff_ts <= end_ts && cliff_ts >= start_ts {
             cliff_ts
         } else {
@@ -172,7 +159,7 @@ proptest! {
 
             // Withdraw must not panic
             let try_withdraw = client.try_withdraw(&stream_id, &worker);
-            
+
             // Assert that if withdraw succeeded, the withdrawn amount is valid
             if let Ok(Ok(amount)) = try_withdraw {
                 prop_assert!(amount >= 0);

@@ -136,14 +136,7 @@ fuzz_target!(|actions: Vec<StreamAction>| {
                 };
 
                 let result = client.try_create_stream(
-                    &employer,
-                    &worker,
-                    &token,
-                    &rate,
-                    &cliff_ts,
-                    &start_ts,
-                    &end_ts,
-                    &None,
+                    &employer, &worker, &token, &rate, &cliff_ts, &start_ts, &end_ts, &None,
                 );
 
                 let expected_valid =
@@ -225,7 +218,9 @@ fuzz_target!(|actions: Vec<StreamAction>| {
                     let new_end_time = if end_delta >= 0 {
                         stream.end_ts.saturating_add(end_delta as u64)
                     } else {
-                        stream.end_ts.saturating_sub(end_delta.unsigned_abs() as u64)
+                        stream
+                            .end_ts
+                            .saturating_sub(end_delta.unsigned_abs() as u64)
                     };
 
                     let result =

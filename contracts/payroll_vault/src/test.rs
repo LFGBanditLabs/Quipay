@@ -5,8 +5,8 @@ use super::*;
 use quipay_common::QuipayError;
 use soroban_sdk::xdr::{ReadXdr, ToXdr};
 use soroban_sdk::{
-    testutils::Address as _, testutils::Events as _, testutils::Ledger as _, Address, BytesN, Env,
-    Symbol, TryFromVal, TryIntoVal, token, xdr,
+    Address, BytesN, Env, Symbol, TryFromVal, TryIntoVal, testutils::Address as _,
+    testutils::Events as _, testutils::Ledger as _, token, xdr,
 };
 
 fn register_native_token_contract(env: &Env, admin: Address) -> Address {
@@ -70,6 +70,16 @@ fn fund_account_with_xlm(env: &Env, account: &Address, balance: i64) {
     }
 }
 
+fn allow_token(client: &PayrollVaultClient<'_>, token: &Address) {
+    client.allowlist_token(token);
+}
+
+fn allow_tokens(client: &PayrollVaultClient<'_>, tokens: &[Address]) {
+    for token in tokens {
+        client.allowlist_token(token);
+    }
+}
+
 #[test]
 fn test_xlm_deposit_withdraw_and_payout() {
     let env = Env::default();
@@ -86,6 +96,7 @@ fn test_xlm_deposit_withdraw_and_payout() {
 
     let xlm_token_id = register_native_token_contract(&env, admin);
     let xlm_token_client = token::Client::new(&env, &xlm_token_id);
+    allow_token(&client, &xlm_token_id);
 
     fund_account_with_xlm(&env, &user, 10_000);
     fund_account_with_xlm(&env, &recipient, 0);
@@ -122,6 +133,7 @@ fn test_solvency_enforcement() {
     let token_id = token_contract.address();
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
     let user = Address::generate(&env);
+    allow_token(&client, &token_id);
 
     // Deposit 1000
     token_admin_client.mint(&user, &1000);
@@ -156,6 +168,7 @@ fn test_release_funds() {
     let token_id = token_contract.address();
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
     let user = Address::generate(&env);
+    allow_token(&client, &token_id);
 
     // Deposit 1000
     token_admin_client.mint(&user, &1000);
@@ -196,6 +209,7 @@ fn test_multi_token_tracking() {
     let token_b = env.register_stellar_asset_contract_v2(token_b_admin.clone());
     let token_b_id = token_b.address();
     let token_b_client = token::StellarAssetClient::new(&env, &token_b_id);
+    allow_tokens(&client, &[token_a_id.clone(), token_b_id.clone()]);
 
     let user = Address::generate(&env);
     token_a_client.mint(&user, &1000);
@@ -244,6 +258,7 @@ fn test_supported_tokens_and_treasury_summary() {
     let token_b = env.register_stellar_asset_contract_v2(token_b_admin.clone());
     let token_b_id = token_b.address();
     let token_b_client = token::StellarAssetClient::new(&env, &token_b_id);
+    allow_tokens(&client, &[token_a_id.clone(), token_b_id.clone()]);
 
     let user = Address::generate(&env);
     token_a_client.mint(&user, &1000);
@@ -290,6 +305,7 @@ fn test_payout_without_allocation() {
     let token_id = token_contract.address();
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
     let user = Address::generate(&env);
+    allow_token(&client, &token_id);
     let recipient = Address::generate(&env);
 
     token_admin_client.mint(&user, &1000);
@@ -318,6 +334,7 @@ fn test_complex_scenario_multiple_streams() {
     let user_a = Address::generate(&env);
     let user_b = Address::generate(&env);
     let recipient = Address::generate(&env);
+    allow_token(&client, &token_id);
 
     // 1. Initial funding
     token_admin_client.mint(&user_a, &1000);
@@ -413,6 +430,7 @@ fn test_liability_tracking() {
 
     // Initialize
     client.initialize(&admin);
+    allow_tokens(&client, &[token.clone(), another_token.clone()]);
 
     // Set authorized contract
     client.set_authorized_contract(&authorized_contract);
@@ -467,6 +485,7 @@ fn test_available_balance_and_withdraw_enforcement() {
     let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
     let token_id = token_contract.address();
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+    allow_token(&client, &token_id);
 
     token_admin_client.mint(&employer, &1000);
     client.deposit(&employer, &token_id, &1000);
@@ -500,6 +519,7 @@ fn test_check_solvency_prevents_unfunded_liability() {
     let token_id = token_contract.address();
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
     let depositor = Address::generate(&env);
+    allow_token(&client, &token_id);
 
     // Configure authorized contract and fund vault with 500
     let authorized_contract = Address::generate(&env);
@@ -551,6 +571,7 @@ fn test_remove_more_liability_than_exists_returns_error() {
     // Initialize and set authorized contract
     client.initialize(&admin);
     client.set_authorized_contract(&authorized_contract);
+    allow_token(&client, &token);
 
     // Fund vault so solvency checks pass
     token_admin_client.mint(&depositor, &1_000);
@@ -580,6 +601,7 @@ fn test_add_zero_liability_returns_error() {
     // Initialize and set authorized contract
     client.initialize(&admin);
     client.set_authorized_contract(&authorized_contract);
+    allow_token(&client, &token);
 
     // Should return error - zero amount
     let result = client.try_add_liability(&token, &0);
@@ -606,6 +628,7 @@ fn test_remove_zero_liability_returns_error() {
     // Initialize and set authorized contract
     client.initialize(&admin);
     client.set_authorized_contract(&authorized_contract);
+    allow_token(&client, &token);
 
     // Fund vault so solvency checks pass
     token_admin_client.mint(&depositor, &1_000);
@@ -673,6 +696,7 @@ fn test_require_auth_enforces_admin_authorization() {
 
     // With mock_all_auths, operations succeed (simulates multisig threshold met)
     env.mock_all_auths();
+    allow_token(&client, &token);
     token_admin_client.mint(&depositor, &1000);
     client.deposit(&depositor, &token, &1000);
     client.allocate_funds(&token, &100);
@@ -758,6 +782,7 @@ fn test_require_auth_for_payout_with_multisig() {
     let token_id = token_contract.address();
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
     let user = Address::generate(&env);
+    allow_token(&client, &token_id);
 
     token_admin_client.mint(&user, &1000);
     client.deposit(&user, &token_id, &1000);
@@ -832,6 +857,7 @@ fn test_multisig_admin_can_perform_all_operations() {
     let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
     let token_id = token_contract.address();
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+    allow_token(&client, &token_id);
 
     token_admin_client.mint(&user, &1000);
     client.deposit(&user, &token_id, &1000);
@@ -1010,6 +1036,7 @@ fn test_high_value_withdraw_requires_multisig_signers() {
     let token_id = token_contract.address();
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
     let employer = Address::generate(&env);
+    allow_token(&client, &token_id);
 
     token_admin_client.mint(&employer, &2_000);
     client.deposit(&employer, &token_id, &2_000);
@@ -1065,6 +1092,42 @@ fn test_get_withdrawal_threshold_reflects_update() {
     assert_eq!(client.get_withdrawal_threshold(), 9999);
 }
 
+#[test]
+fn test_allowlist_rejects_non_allowed_token_and_tracks_updates() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_id = token_contract.address();
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+    token_admin_client.mint(&user, &1_000);
+
+    let blocked = client.try_deposit(&user, &token_id, &100);
+    assert_eq!(blocked, Err(Ok(QuipayError::InvalidToken)));
+
+    client.allowlist_token(&token_id);
+    let allowed = client.get_allowed_tokens();
+    assert_eq!(allowed.len(), 1);
+    assert_eq!(allowed.get(0).unwrap(), token_id);
+
+    client.deposit(&user, &token_id, &100);
+    assert_eq!(client.get_treasury_balance(&token_id), 100);
+
+    client.denylist_token(&token_id);
+    assert!(client.get_allowed_tokens().is_empty());
+
+    let blocked_again = client.try_deposit(&user, &token_id, &50);
+    assert_eq!(blocked_again, Err(Ok(QuipayError::InvalidToken)));
+}
+
 // ============================================================================
 // Emergency Drain Timelock Tests
 // ============================================================================
@@ -1087,6 +1150,7 @@ fn setup_vault_with_token(
     let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
     let token_id = token_contract.address();
     let token_client = token::StellarAssetClient::new(env, &token_id);
+    allow_token(&client, &token_id);
 
     let user = Address::generate(env);
     (client, admin, token_id, token_client, user)
@@ -1269,6 +1333,7 @@ fn test_drain_clears_multiple_tokens() {
     let tb_contract = env.register_stellar_asset_contract_v2(tb_admin.clone());
     let tb_id = tb_contract.address();
     let tb_client = token::StellarAssetClient::new(&env, &tb_id);
+    allow_tokens(&client, &[ta_id.clone(), tb_id.clone()]);
 
     let user = Address::generate(&env);
     ta_client.mint(&user, &3_000);
@@ -1310,6 +1375,7 @@ fn test_vault_tvl_tracking_events() {
     let token_id = token_contract.address();
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
     let user = Address::generate(&env);
+    allow_token(&client, &token_id);
 
     token_admin_client.mint(&user, &2000);
 
@@ -1318,12 +1384,24 @@ fn test_vault_tvl_tracking_events() {
     let events = env.events().all();
     let last_event = events.last().unwrap();
     assert_eq!(last_event.0, contract_id);
-    
+
     let topics = last_event.1.clone();
-    assert_eq!(Symbol::try_from_val(&env, &topics.get(0).unwrap()).unwrap(), symbol_short!("vault"));
-    assert_eq!(Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap(), symbol_short!("deposited"));
-    assert_eq!(Address::try_from_val(&env, &topics.get(2).unwrap()).unwrap(), user);
-    assert_eq!(Address::try_from_val(&env, &topics.get(3).unwrap()).unwrap(), token_id);
+    assert_eq!(
+        Symbol::try_from_val(&env, &topics.get(0).unwrap()).unwrap(),
+        symbol_short!("vault")
+    );
+    assert_eq!(
+        Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap(),
+        symbol_short!("deposited")
+    );
+    assert_eq!(
+        Address::try_from_val(&env, &topics.get(2).unwrap()).unwrap(),
+        user
+    );
+    assert_eq!(
+        Address::try_from_val(&env, &topics.get(3).unwrap()).unwrap(),
+        token_id
+    );
 
     let data: (i128, i128) = last_event.2.clone().try_into_val(&env).unwrap();
     assert_eq!(data, (1000i128, 1000i128));
@@ -1334,7 +1412,10 @@ fn test_vault_tvl_tracking_events() {
     let last_event = events.last().unwrap();
     assert_eq!(last_event.0, contract_id);
     let topics = last_event.1.clone();
-    assert_eq!(Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap(), symbol_short!("deposited"));
+    assert_eq!(
+        Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap(),
+        symbol_short!("deposited")
+    );
     let data: (i128, i128) = last_event.2.clone().try_into_val(&env).unwrap();
     assert_eq!(data, (500i128, 1500i128));
 
@@ -1344,7 +1425,10 @@ fn test_vault_tvl_tracking_events() {
     let last_event = events.last().unwrap();
     assert_eq!(last_event.0, contract_id);
     let topics = last_event.1.clone();
-    assert_eq!(Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap(), symbol_short!("withdrawn"));
+    assert_eq!(
+        Symbol::try_from_val(&env, &topics.get(1).unwrap()).unwrap(),
+        symbol_short!("withdrawn")
+    );
     let data: (i128, i128) = last_event.2.clone().try_into_val(&env).unwrap();
     assert_eq!(data, (300i128, 1200i128));
 }

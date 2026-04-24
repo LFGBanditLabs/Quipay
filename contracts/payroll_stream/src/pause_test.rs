@@ -14,8 +14,9 @@ fn test_pause_and_resume_stream_vesting() {
     });
 
     // Create a 100s stream with rate 1 (total 100)
-    let stream_id =
-        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None);
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None,
+    );
 
     // Fast forward to t=10
     env.ledger().with_mut(|li| li.timestamp = 10);
@@ -55,8 +56,9 @@ fn test_pause_stream_wrong_auth() {
     let malicious = Address::generate(&env);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
-    let stream_id =
-        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None);
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None,
+    );
 
     // Malicious user tries to pause
     let result = client.try_pause_stream(&stream_id, &malicious);
@@ -70,7 +72,8 @@ fn test_admin_pause_and_resume_stream() {
     let (client, employer, worker, token, admin) = setup(&env);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
-    let stream_id = client.create_stream(&employer, &worker, &token, &1, &0, &0, &100, &None, &None);
+    let stream_id =
+        client.create_stream(&employer, &worker, &token, &1, &0, &0, &100, &None, &None);
 
     // Admin pauses
     client.admin_pause_stream(&stream_id);
@@ -92,7 +95,8 @@ fn test_withdraw_from_paused_stream() {
     let (client, employer, worker, token, _admin) = setup(&env);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
-    let stream_id = client.create_stream(&employer, &worker, &token, &1, &0, &0, &100, &None, &None);
+    let stream_id =
+        client.create_stream(&employer, &worker, &token, &1, &0, &0, &100, &None, &None);
 
     // Fast forward to t=25
     env.ledger().with_mut(|li| li.timestamp = 25);
@@ -125,7 +129,8 @@ fn test_cliff_ts_equals_start_ts() {
     env.ledger().with_mut(|li| li.timestamp = 0);
 
     // Create stream with cliff_ts == start_ts
-    let stream_id = client.create_stream(&employer, &worker, &token, &1, &10, &10, &100, &None, &None);
+    let stream_id =
+        client.create_stream(&employer, &worker, &token, &1, &10, &10, &100, &None, &None);
 
     let stream = client.get_stream(&stream_id).unwrap();
     // Should be normalized to effective_cliff = start_ts = 10
@@ -144,8 +149,9 @@ fn test_resume_event_fields() {
     let (client, employer, worker, token, _admin) = setup(&env);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
-    let stream_id =
-        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None);
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None,
+    );
 
     // Pause at t=10
     env.ledger().with_mut(|li| li.timestamp = 10);
@@ -180,8 +186,9 @@ fn test_admin_resume_event_fields() {
     let (client, employer, worker, token, _admin) = setup(&env);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
-    let stream_id =
-        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None);
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None,
+    );
 
     // Admin Pause at t=10
     env.ledger().with_mut(|li| li.timestamp = 10);
@@ -215,8 +222,9 @@ fn test_is_stream_paused() {
     let (client, employer, worker, token, _admin) = setup(&env);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
-    let stream_id =
-        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None);
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None,
+    );
 
     // Active stream should not be paused
     assert_eq!(client.is_stream_paused(&stream_id), false);
@@ -249,8 +257,9 @@ fn test_get_stream_paused_at() {
     let (client, employer, worker, token, _admin) = setup(&env);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
-    let stream_id =
-        client.create_stream(&employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None);
+    let stream_id = client.create_stream(
+        &employer, &worker, &token, &1, &0u64, &0u64, &100u64, &None, &None,
+    );
 
     // Not paused — should return None
     assert_eq!(client.get_stream_paused_at(&stream_id), None);

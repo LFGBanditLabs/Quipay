@@ -10,6 +10,7 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import QRCode from "qrcode";
+import { getTokenSymbol, type ContractPaymentReceipt } from "../contracts/payroll_stream";
 import type {
   PayrollTransaction,
   MonthlySummary,
@@ -49,6 +50,10 @@ function triggerDownload(blob: Blob, filename: string) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+function amountToDisplayUnits(amount: bigint): number {
+  return Number(amount) / 1e7;
 }
 
 /* ------------------------------------------------------------------ */
@@ -476,6 +481,11 @@ export async function exportPaycheckPDF(
 
   // Attempt to generate a QR code linking to a Stellar explorer for quick verification.
   try {
+    const looksLikeTxHash = /^[0-9a-f]{64}$/i.test(tx.txHash);
+    if (!looksLikeTxHash) {
+      throw new Error("Skipping QR for non-transaction receipt reference");
+    }
+
     const explorerUrl = `https://stellar.expert/explorer/public/tx/${tx.txHash}`;
     const dataUrl = await QRCode.toDataURL(explorerUrl);
 
@@ -507,6 +517,44 @@ export async function exportPaycheckPDF(
     filename ??
     `quipay-paycheck-${tx.employeeName.replace(/\s+/g, "-").toLowerCase()}-${tx.date.slice(0, 10)}.pdf`;
   doc.save(fname);
+}
+
+export async function exportOnChainReceiptPDF(
+  receipt: ContractPaymentReceipt,
+  options?: {
+    employeeName?: string;
+    employeeId?: string;
+    tokenSymbol?: string;
+    sourceAddress?: string;
+    filename?: string;
+  },
+) {
+  const sourceAddress = options?.sourceAddress ?? receipt.worker;
+  const tokenSymbol =
+    options?.tokenSymbol ??
+    (await getTokenSymbol(sourceAddress, receipt.token).catch(() =>
+      receipt.token.slice(0, 6),
+    ));
+
+  const payrollTransaction: PayrollTransaction = {
+    id: `RECEIPT-${receipt.receipt_id.toString()}`,
+    date: new Date(Number(receipt.finalized_at) * 1000).toISOString(),
+    employeeName:
+      options?.employeeName ?? `Worker ${receipt.worker.slice(0, 8)}`,
+    employeeId:
+      options?.employeeId ?? `STREAM-${receipt.stream_id.toString()}`,
+    walletAddress: receipt.worker,
+    amount: amountToDisplayUnits(receipt.total_paid),
+    currency: tokenSymbol,
+    txHash: `receipt:${receipt.receipt_id.toString()}`,
+    status: receipt.status === 0 ? "completed" : "failed",
+    description:
+      receipt.status === 0
+        ? `On-chain payroll receipt for completed stream #${receipt.stream_id.toString()}`
+        : `On-chain payroll receipt for cancelled stream #${receipt.stream_id.toString()}`,
+  };
+
+  await exportPaycheckPDF(payrollTransaction, options?.filename);
 }
 
 /* ------------------------------------------------------------------ */

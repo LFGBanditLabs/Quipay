@@ -51,7 +51,7 @@ impl PayrollStream {
         if duration < Self::get_min_stream_duration(env.clone()) {
             return Err(QuipayError::DurationTooShort);
         }
-        
+
         // Validation: Maximum duration check
         if duration > Self::get_max_stream_duration(env.clone()) {
             return Err(QuipayError::InvalidTimeRange);
