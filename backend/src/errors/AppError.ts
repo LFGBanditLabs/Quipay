@@ -103,6 +103,14 @@ export class InternalError extends AppError {
   }
 }
 
+// ─── 500 Configuration Error ───────────────────────────────────────────────────
+
+export class ConfigError extends AppError {
+  constructor(message: string) {
+    super(message, 500, "CONFIGURATION_ERROR", undefined, false);
+  }
+}
+
 // ─── 502/503 Upstream Errors ─────────────────────────────────────────────────
 
 export class StellarNetworkError extends AppError {

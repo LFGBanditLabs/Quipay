@@ -1,4 +1,5 @@
 import { vaultService, VaultService } from "./vaultService";
+import { ServiceUnavailableError, InternalError } from "../errors/AppError";
 import { Keypair, TransactionBuilder } from "@stellar/stellar-sdk";
 import { logServiceError, logServiceWarn } from "../audit/serviceLogger";
 
@@ -55,7 +56,7 @@ export class SecureKeyManager {
         );
 
         if (new Date() > gracePeriodEnd) {
-          throw new Error(`Key ${keyName} has exceeded rotation grace period`);
+          throw new ServiceUnavailableError(`Key ${keyName} has exceeded rotation grace period`);
         }
       }
     }
@@ -90,7 +91,7 @@ export class SecureKeyManager {
   ): Promise<string> {
     const keypair = await this.getSigningKeypair(keyName);
     if (!keypair) {
-      throw new Error(`Failed to get signing keypair for ${keyName}`);
+      throw new InternalError(`Failed to get signing keypair for ${keyName}`);
     }
 
     const transaction = TransactionBuilder.fromXDR(

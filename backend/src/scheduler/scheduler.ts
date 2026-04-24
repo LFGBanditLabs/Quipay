@@ -4,6 +4,7 @@ import { getAuditLogger, isAuditLoggerInitialized } from "../audit/init";
 import { withAdvisoryLock } from "../utils/lock";
 import { listDueWebhookOutboundEvents } from "../db/queries";
 import { retryWebhookEvent } from "../delivery";
+import { InternalError } from "../errors/AppError";
 
 interface SchedulerScheduledTask {
   start: () => void;
@@ -136,7 +137,7 @@ const triggerStreamCreation = async (
     return Math.floor(Math.random() * 1000000) + 1;
   }
 
-  throw new Error(
+  throw new InternalError(
     "Contract integration not yet implemented. Configure AUTOMATION_GATEWAY_ADDRESS and PAYROLL_STREAM_ADDRESS.",
   );
 };
