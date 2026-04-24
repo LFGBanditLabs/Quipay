@@ -1,4 +1,5 @@
 import { getPool } from "./pool";
+import { DatabaseError } from "../errors/AppError";
 
 export interface DLQItem {
   id: string; // BIGINT in Postgres, comes back as a string using node-pg
@@ -21,7 +22,7 @@ export const pushToDLQ = async (
   context: Record<string, unknown> = {},
 ): Promise<string> => {
   const pool = getPool();
-  if (!pool) throw new Error("Database pool not initialized");
+  if (!pool) throw new DatabaseError("Database pool not initialized");
 
   const query = `
     INSERT INTO dead_letter_queue (job_type, payload, error_stack, context)
@@ -47,7 +48,7 @@ export const getPendingDLQItems = async (
   offset: number = 0,
 ): Promise<DLQItem[]> => {
   const pool = getPool();
-  if (!pool) throw new Error("Database pool not initialized");
+  if (!pool) throw new DatabaseError("Database pool not initialized");
 
   const query = `
     SELECT id, job_type, payload, error_stack, context, status, created_at, updated_at
@@ -66,7 +67,7 @@ export const getPendingDLQItemsByJobType = async (
   offset: number = 0,
 ): Promise<DLQItem[]> => {
   const pool = getPool();
-  if (!pool) throw new Error("Database pool not initialized");
+  if (!pool) throw new DatabaseError("Database pool not initialized");
 
   const query = `
     SELECT id, job_type, payload, error_stack, context, status, created_at, updated_at
@@ -84,7 +85,7 @@ export const getPendingDLQItemsByJobType = async (
  */
 export const getDLQItemById = async (id: string): Promise<DLQItem | null> => {
   const pool = getPool();
-  if (!pool) throw new Error("Database pool not initialized");
+  if (!pool) throw new DatabaseError("Database pool not initialized");
 
   const query = `
     SELECT id, job_type, payload, error_stack, context, status, created_at, updated_at
@@ -103,7 +104,7 @@ export const updateDLQItemStatus = async (
   status: "replayed" | "discarded",
 ): Promise<void> => {
   const pool = getPool();
-  if (!pool) throw new Error("Database pool not initialized");
+  if (!pool) throw new DatabaseError("Database pool not initialized");
 
   const query = `
     UPDATE dead_letter_queue
@@ -119,7 +120,7 @@ export const updateDLQItemStatus = async (
  */
 export const deleteDLQItem = async (id: string): Promise<void> => {
   const pool = getPool();
-  if (!pool) throw new Error("Database pool not initialized");
+  if (!pool) throw new DatabaseError("Database pool not initialized");
 
   const query = `
     DELETE FROM dead_letter_queue

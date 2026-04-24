@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import sanitizeHtml from "sanitize-html";
+import { ValidationError } from "../errors/AppError";
 
 const MAX_DEPTH = 5;
 
@@ -8,7 +9,7 @@ const MAX_DEPTH = 5;
  */
 function sanitizeObject(obj: any, depth = 0): any {
   if (depth > MAX_DEPTH) {
-    throw new Error("Request body exceeds maximum nesting depth");
+    throw new ValidationError("Request body exceeds maximum nesting depth");
   }
 
   if (typeof obj === "string") {

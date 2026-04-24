@@ -5,6 +5,7 @@ import { serviceLogger } from "../audit/serviceLogger";
 import { DbPoolMetricSnapshot, setDbPoolMetricsProvider } from "../metrics";
 import { MigrationRunner } from "./migrationRunner";
 import * as schema from "./schema";
+import { DatabaseError } from "../errors/AppError";
 
 let pool: Pool | null = null;
 let db: NodePgDatabase<typeof schema> | null = null;
@@ -358,6 +359,6 @@ export const query = async <T extends QueryResultRow = QueryResultRow>(
   text: string,
   params?: unknown[],
 ): Promise<QueryResult<T>> => {
-  if (!pool) throw new Error("Database pool is not initialized");
+  if (!pool) throw new DatabaseError("Database pool is not initialized");
   return pool.query<T>(text, params);
 };

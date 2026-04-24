@@ -1,5 +1,6 @@
 import { query, getPool } from "./pool";
 import { globalCache } from "../utils/cache";
+import { DatabaseError } from "../errors/AppError";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -544,7 +545,7 @@ export const createPayrollSchedule = async (params: {
   durationDays: number;
   nextRunAt?: Date;
 }): Promise<number> => {
-  if (!getPool()) throw new Error("Database not configured");
+  if (!getPool()) throw new DatabaseError("Database not configured");
   const res = await query<{ id: string }>(
     `INSERT INTO payroll_schedules
             (employer, worker, token, rate, cron_expression, duration_days, next_run_at)
@@ -726,7 +727,7 @@ export const upsertEmployerVerification = async (params: {
   verificationMetadata: Record<string, unknown>;
 }): Promise<EmployerRecord> => {
   if (!getPool()) {
-    throw new Error("Database not configured");
+    throw new DatabaseError("Database not configured");
   }
 
   const res = await query<EmployerRecord>(
@@ -1065,7 +1066,7 @@ export const softDeleteStream = async (params: {
   deletedBy: string;
   cancelReason?: string;
 }): Promise<boolean> => {
-  if (!getPool()) throw new Error("Database pool is not initialized");
+  if (!getPool()) throw new DatabaseError("Database pool is not initialized");
 
   const existing = await query<{ status: string; stream_id: string }>(
     `SELECT stream_id, status FROM payroll_streams
@@ -1364,7 +1365,7 @@ export const insertPayslipRecord = async (
   params: InsertPayslipRecordParams,
 ): Promise<PayslipRecord> => {
   const pool = getPool();
-  if (!pool) throw new Error("Database pool not initialized");
+  if (!pool) throw new DatabaseError("Database pool not initialized");
 
   const res = await query<PayslipRecord>(
     `INSERT INTO payslip_records (
@@ -1537,7 +1538,7 @@ export const upsertEmployerBranding = async (
   params: UpsertEmployerBrandingParams,
 ): Promise<EmployerBrandingRecord> => {
   const pool = getPool();
-  if (!pool) throw new Error("Database pool not initialized");
+  if (!pool) throw new DatabaseError("Database pool not initialized");
 
   const updates: string[] = [];
   const values: any[] = [params.employerAddress];
@@ -1615,7 +1616,7 @@ export const deleteEmployerLogo = async (
   employerAddress: string,
 ): Promise<void> => {
   const pool = getPool();
-  if (!pool) throw new Error("Database pool not initialized");
+  if (!pool) throw new DatabaseError("Database pool not initialized");
 
   await query(
     `UPDATE employer_branding

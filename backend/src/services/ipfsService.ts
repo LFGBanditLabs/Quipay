@@ -1,4 +1,5 @@
 import axios from "axios";
+import { ConfigError } from "../errors/AppError";
 
 const PINATA_JWT = process.env.PINATA_JWT || "";
 const PINATA_GATEWAY_URL =
@@ -52,8 +53,8 @@ export const pinProofToIPFS = async (
   proof: PayrollProof,
 ): Promise<PinResult> => {
   if (!PINATA_JWT) {
-    throw new Error(
-      "[IPFSService] PINATA_JWT is not configured. Set it in your environment.",
+    throw new ConfigError(
+      "PINATA_JWT is not configured. Set it in your environment.",
     );
   }
 
