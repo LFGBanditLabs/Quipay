@@ -33,43 +33,51 @@ export default function BurnRateChart() {
         >
           <defs>
             <linearGradient id="burnGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#f87171" stopOpacity={0.35} />
-              <stop offset="95%" stopColor="#f87171" stopOpacity={0} />
+              <stop
+                offset="5%"
+                stopColor="var(--token-color-error-500)"
+                stopOpacity={0.35}
+              />
+              <stop
+                offset="95%"
+                stopColor="var(--token-color-error-500)"
+                stopOpacity={0}
+              />
             </linearGradient>
           </defs>
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="rgba(255,255,255,0.05)"
+            stroke="var(--token-color-border-muted)"
           />
           <XAxis
             dataKey="month"
-            tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 11 }}
+            tick={{ fill: "var(--token-color-text-muted)", fontSize: 11 }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
-            tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 11 }}
+            tick={{ fill: "var(--token-color-text-muted)", fontSize: 11 }}
             axisLine={false}
             tickLine={false}
-            tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
+            tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
           />
           <Tooltip
             contentStyle={{
-              background: "rgba(17,17,27,0.9)",
-              border: "1px solid rgba(255,255,255,0.1)",
+              background: "var(--token-color-bg-canvas)",
+              border: "1px solid var(--token-color-border-default)",
               borderRadius: 8,
-              color: "#fff",
+              color: "var(--token-color-text-primary)",
               fontSize: 12,
             }}
             formatter={(v: number | undefined) => [
-              `$${(v ?? 0).toLocaleString()}`,
+              `${(v ?? 0).toLocaleString()}`,
               "Burn",
             ]}
           />
           <Area
             type="monotone"
             dataKey="burn"
-            stroke="#f87171"
+            stroke="var(--token-color-error-500)"
             strokeWidth={2}
             fill="url(#burnGrad)"
           />

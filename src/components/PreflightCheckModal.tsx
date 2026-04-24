@@ -20,24 +20,24 @@ const SEVERITY_CONFIG: Record<
   { bg: string; border: string; icon: string; color: string; label: string }
 > = {
   blocker: {
-    bg: "rgba(239, 68, 68, 0.08)",
-    border: "rgba(239, 68, 68, 0.25)",
+    bg: "var(--token-color-error-soft)",
+    border: "var(--token-color-error-soft-strong)",
     icon: "🚫",
-    color: "#ef4444",
+    color: "var(--token-color-error-500)",
     label: "Blocker",
   },
   warning: {
-    bg: "rgba(245, 166, 35, 0.08)",
-    border: "rgba(245, 166, 35, 0.25)",
+    bg: "var(--token-color-warning-soft)",
+    border: "var(--token-color-warning-soft-strong)",
     icon: "⚠️",
-    color: "#f5a623",
+    color: "var(--token-color-warning-500)",
     label: "Warning",
   },
   info: {
-    bg: "rgba(99, 102, 241, 0.08)",
-    border: "rgba(99, 102, 241, 0.25)",
+    bg: "var(--token-color-accent-soft)",
+    border: "var(--token-color-accent-soft-strong)",
     icon: "ℹ️",
-    color: "#6366f1",
+    color: "var(--token-color-accent)",
     label: "Info",
   },
 };
@@ -145,7 +145,7 @@ const PreflightCheckModal: React.FC<PreflightCheckModalProps> = ({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "rgba(0,0,0,0.5)",
+        background: "var(--token-color-bg-overlay)",
         backdropFilter: "blur(4px)",
       }}
       onClick={onCancel}
@@ -159,7 +159,7 @@ const PreflightCheckModal: React.FC<PreflightCheckModalProps> = ({
           borderRadius: "16px",
           background: "var(--surface)",
           border: "1px solid var(--border)",
-          boxShadow: "0 20px 60px -15px var(--shadow-color, rgba(0,0,0,0.4))",
+          boxShadow: "0 20px 60px -15px var(--shadow-color)",
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
@@ -233,7 +233,7 @@ const PreflightCheckModal: React.FC<PreflightCheckModalProps> = ({
                   height: 28,
                   borderRadius: "50%",
                   border: "3px solid var(--border)",
-                  borderTopColor: "var(--accent, #6366f1)",
+                  borderTopColor: "var(--accent)",
                   animation: "spin 0.8s linear infinite",
                 }}
               />
@@ -246,7 +246,7 @@ const PreflightCheckModal: React.FC<PreflightCheckModalProps> = ({
               style={{
                 padding: "24px 16px",
                 textAlign: "center",
-                color: "#10b981",
+                color: "var(--token-color-success-500)",
                 fontSize: "14px",
                 fontWeight: 600,
               }}
@@ -299,10 +299,10 @@ const PreflightCheckModal: React.FC<PreflightCheckModalProps> = ({
                 borderRadius: "8px",
                 border: "none",
                 background: hasBlockers
-                  ? "var(--border)"
+                  ? "var(--token-color-border-default)"
                   : hasWarnings
-                    ? "#f5a623"
-                    : "var(--accent, #6366f1)",
+                    ? "var(--token-color-warning-500)"
+                    : "var(--accent)",
                 color: "white",
                 fontSize: "13px",
                 fontWeight: 600,
