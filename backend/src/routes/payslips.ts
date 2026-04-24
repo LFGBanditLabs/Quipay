@@ -11,6 +11,8 @@ import {
   insertPayslipRecord,
   getPayslipBySignature,
   getEmployerBranding,
+  getWorkerNotificationSettings,
+  upsertWorkerNotificationSettings,
 } from "../db/queries";
 import { generatePayslip } from "../services/pdfGeneratorService";
 import { signPayslip } from "../services/signatureService";
@@ -29,6 +31,15 @@ const periodSchema = z.object({
 // Schema for signature verification
 const verifySignatureSchema = z.object({
   signature: z.string().min(1, "Signature is required"),
+});
+
+// Schema for worker notification preferences
+const workerNotificationPreferencesSchema = z.object({
+  emailEnabled: z.boolean().optional(),
+  inAppEnabled: z.boolean().optional(),
+  cliffUnlockAlerts: z.boolean().optional(),
+  streamEndingAlerts: z.boolean().optional(),
+  lowRunwayAlerts: z.boolean().optional(),
 });
 
 /**
@@ -291,6 +302,130 @@ payslipsRouter.post(
       return res.status(500).json({
         error: "Internal Server Error",
         message: "Failed to verify signature",
+      });
+    }
+  },
+);
+
+
+/**
+ * GET /api/workers/:address/notifications
+ * Retrieve worker notification preferences
+ */
+payslipsRouter.get(
+  "/:address/notifications",
+  authenticateRequest,
+  requireUser,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { address } = req.params;
+
+      // Authorization: verify authenticated user matches worker address
+      if (!req.user || req.user.id !== address) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "You can only access your own notification preferences",
+        });
+      }
+
+      logServiceInfo("payslipRouter", "Notification preferences requested", {
+        workerAddress: address,
+      });
+
+      const preferences = await getWorkerNotificationSettings(address);
+
+      // Return default preferences if not found
+      const response = preferences || {
+        worker: address,
+        emailEnabled: true,
+        inAppEnabled: true,
+        cliffUnlockAlerts: true,
+        streamEndingAlerts: true,
+        lowRunwayAlerts: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      return res.json(response);
+    } catch (error) {
+      logServiceError("payslipRouter", "Failed to retrieve notification preferences", {
+        error: error instanceof Error ? error.message : String(error),
+        workerAddress: req.params.address,
+      });
+
+      return res.status(500).json({
+        error: "Internal Server Error",
+        message: "Failed to retrieve notification preferences",
+      });
+    }
+  },
+);
+
+/**
+ * PATCH /api/workers/:address/notifications
+ * Update worker notification preferences
+ */
+payslipsRouter.patch(
+  "/:address/notifications",
+  authenticateRequest,
+  requireUser,
+  validateRequest({ body: workerNotificationPreferencesSchema }),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { address } = req.params;
+
+      // Authorization: verify authenticated user matches worker address
+      if (!req.user || req.user.id !== address) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "You can only update your own notification preferences",
+        });
+      }
+
+      logServiceInfo("payslipRouter", "Notification preferences update requested", {
+        workerAddress: address,
+        updates: req.body,
+      });
+
+      // Get current preferences to merge with updates
+      const current = await getWorkerNotificationSettings(address);
+      const defaults = {
+        emailEnabled: true,
+        inAppEnabled: true,
+        cliffUnlockAlerts: true,
+        streamEndingAlerts: true,
+        lowRunwayAlerts: true,
+      };
+
+      const merged = {
+        worker: address,
+        emailEnabled: req.body.emailEnabled ?? current?.email_enabled ?? defaults.emailEnabled,
+        inAppEnabled: req.body.inAppEnabled ?? current?.in_app_enabled ?? defaults.inAppEnabled,
+        cliffUnlockAlerts: req.body.cliffUnlockAlerts ?? current?.cliff_unlock_alerts ?? defaults.cliffUnlockAlerts,
+        streamEndingAlerts: req.body.streamEndingAlerts ?? current?.stream_ending_alerts ?? defaults.streamEndingAlerts,
+        lowRunwayAlerts: req.body.lowRunwayAlerts ?? current?.low_runway_alerts ?? defaults.lowRunwayAlerts,
+      };
+
+      await upsertWorkerNotificationSettings(merged);
+
+      logServiceInfo("payslipRouter", "Notification preferences updated successfully", {
+        workerAddress: address,
+      });
+
+      return res.json({
+        message: "Notification preferences updated",
+        preferences: merged,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      logServiceError("payslipRouter", "Failed to update notification preferences", {
+        error: error instanceof Error ? error.message : String(error),
+        workerAddress: req.params.address,
+      });
+
+      return res.status(500).json({
+        error: "Internal Server Error",
+        message: "Failed to update notification preferences",
       });
     }
   },

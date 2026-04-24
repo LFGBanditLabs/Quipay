@@ -195,8 +195,22 @@ export const nonceManager = new NonceManager(
   "https://horizon-testnet.stellar.org",
 );
 
-// We intentionally do not await initialization here so as not to block express startup,
-// the nonceManager natively awaits itself inside getNonce if not initialized.
+// Initialize nonce manager with timeout, but don't block startup
+// Log warning if initialization fails
+void (async () => {
+  try {
+    await nonceManager.initialize(10000);
+    console.log("[Backend] ✅ Nonce manager initialized successfully");
+  } catch (error) {
+    console.warn(
+      "[Backend] ⚠️  Nonce manager initialization failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+    console.warn(
+      "[Backend] ⚠️  First getNonce() call will attempt initialization again",
+    );
+  }
+})();
 
 /**
  * @api {get} /health Health check endpoint
