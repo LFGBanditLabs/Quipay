@@ -1027,6 +1027,17 @@ export const listWebhookOutboundEventsByOwner = async (params: {
   return res.rows;
 };
 
+export const countWebhookOutboundEventsByOwner = async (
+  ownerId: string,
+): Promise<number> => {
+  if (!getPool()) return 0;
+  const res = await query<{ count: string }>(
+    `SELECT COUNT(*) as count FROM webhook_outbound_events WHERE owner_id = $1`,
+    [ownerId],
+  );
+  return parseInt(res.rows[0]?.count || "0", 10);
+};
+
 // ─── Stream read by ID ────────────────────────────────────────────────────────
 
 export const getStreamById = async (
