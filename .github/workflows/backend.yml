@@ -27,6 +27,11 @@ jobs:
         working-directory: backend
       - run: npm test
         working-directory: backend
+      - name: Verify migrations are up-to-date
+        run: npx drizzle-kit check
+        working-directory: backend
+        env:
+          DATABASE_URL: "postgres://dummy:dummy@localhost:5432/dummy"
 
   query-performance:
     runs-on: ubuntu-latest
