@@ -89,6 +89,18 @@ if (
   process.exit(1);
 }
 
+// MONITOR_STATUS_ADMIN_TOKEN must be set in production to protect the monitor
+// status endpoint from unauthorized access.
+if (
+  process.env.NODE_ENV === "production" &&
+  !process.env.MONITOR_STATUS_ADMIN_TOKEN
+) {
+  console.error(
+    "FATAL: MONITOR_STATUS_ADMIN_TOKEN environment variable must be set in production",
+  );
+  process.exit(1);
+}
+
 app.use(cors(createCorsOptions(ALLOWED_ORIGINS)));
 app.use(
   express.json({

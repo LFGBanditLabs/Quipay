@@ -17,6 +17,12 @@ import { enqueueJob } from "./queue/asyncQueue";
 import { sendWebhookNotification, retryWebhookEvent } from "./delivery"; // used for replay examples
 import { startSyncer } from "./syncer"; // used for replay examples
 import { logAdminAction, getAdminAuditLogs } from "./db/adminAuditLog";
+import {
+  getPlatformAnalytics,
+  enqueueOverride,
+  getSchedulerOverrides,
+} from "./db/queries";
+import { globalCache } from "./utils/cache";
 
 export const adminRouter = Router();
 
@@ -41,16 +47,41 @@ adminRouter.get(
 /**
  * GET /admin/analytics
  * Admin-only: view aggregated analytics for all employers.
+ * Results are cached for 60 seconds to avoid expensive queries.
  */
 adminRouter.get(
   "/analytics",
   requireAdmin,
-  (req: AuthenticatedRequest, res: Response) => {
-    res.json({
-      message:
-        "Aggregated analytics (stub) – replace with real analytics query",
-      requestedBy: req.user,
-    });
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const cacheKey = "admin:platform-analytics";
+      const cached = globalCache.get<any>(cacheKey);
+
+      if (cached) {
+        res.json({
+          ...cached,
+          cached: true,
+          requestedBy: req.user,
+        });
+        return;
+      }
+
+      const analytics = await getPlatformAnalytics();
+
+      // Cache for 60 seconds
+      globalCache.set(cacheKey, analytics, 60_000);
+
+      res.json({
+        ...analytics,
+        cached: false,
+        requestedBy: req.user,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        error: "Failed to fetch platform analytics",
+        details: err.message,
+      });
+    }
   },
 );
 
@@ -93,11 +124,25 @@ adminRouter.delete(
 adminRouter.get(
   "/scheduler/override",
   requireAdmin,
-  (req: AuthenticatedRequest, res: Response) => {
-    res.json({
-      message: "Scheduler override queue (stub)",
-      requestedBy: req.user,
-    });
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const status = (req.query.status as string) || undefined;
+      const limit = parseInt((req.query.limit as string) || "50", 10);
+      const offset = parseInt((req.query.offset as string) || "0", 10);
+
+      const overrides = await getSchedulerOverrides({ status, limit, offset });
+
+      res.json({
+        overrides,
+        count: overrides.length,
+        requestedBy: req.user,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        error: "Failed to fetch scheduler overrides",
+        details: err.message,
+      });
+    }
   },
 );
 
@@ -108,12 +153,47 @@ adminRouter.get(
 adminRouter.post(
   "/scheduler/override",
   requireSuperAdmin,
-  (req: AuthenticatedRequest, res: Response) => {
-    res.json({
-      message: "Manual payroll override applied (stub)",
-      requestedBy: req.user,
-      body: req.body,
-    });
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { employerAddress, workerAddress, action, params } = req.body;
+
+      // Validate required fields
+      if (!employerAddress || !workerAddress || !action) {
+        res.status(400).json({
+          error:
+            "Missing required fields: employerAddress, workerAddress, action",
+        });
+        return;
+      }
+
+      // Validate action type
+      const validActions = ["create_stream", "cancel_stream", "pause_stream"];
+      if (!validActions.includes(action)) {
+        res.status(400).json({
+          error: `Invalid action. Must be one of: ${validActions.join(", ")}`,
+        });
+        return;
+      }
+
+      const overrideId = await enqueueOverride({
+        employerAddress,
+        workerAddress,
+        action,
+        params: params || {},
+        createdBy: req.user?.id || "unknown",
+      });
+
+      res.json({
+        message: "Manual payroll override queued successfully",
+        overrideId,
+        requestedBy: req.user,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        error: "Failed to create scheduler override",
+        details: err.message,
+      });
+    }
   },
 );
 
