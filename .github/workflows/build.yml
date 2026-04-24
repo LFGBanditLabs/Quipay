@@ -41,45 +41,24 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Log cache status
         run: echo "Cargo cache hit:" ${{ steps.cargo-cache.outputs.cache-hit }}
-      # Add the wasm32v1-none target for building contracts
       - run: rustup target add wasm32v1-none
       - run: sudo apt-get update && sudo apt-get install -y libudev-dev libdbus-1-dev pkg-config
-      # Install binstall to quickly install stellar-scaffold-cli
       - name: Install cargo-binstall
         uses: cargo-bins/cargo-binstall@main
-      # Check for stellar-scaffold-cli binary and install if not present
-      - name: Check for stellar-scaffold binary
+      - name: Install stellar-scaffold-cli
         run: |
           if ! command -v stellar-scaffold &> /dev/null; then
-            echo "stellar-scaffold not found, installing..."
             cargo binstall stellar-scaffold-cli
           else
-            echo "stellar-scaffold already installed. Clear cache to force reinstall."
+            echo "stellar-scaffold already installed."
           fi
       - run: npm ci --legacy-peer-deps
-      # Pre-pull the stellar-quickstart image to reduce startup time/timeouts
       - name: Pull stellar-quickstart image
         run: docker pull stellar/quickstart:testing
-      - run: npm ci --legacy-peer-deps
-      # - name: Build with Scaffold and build client packages
-      #   run: STELLAR_SCAFFOLD_ENV=development stellar-scaffold build --build-clients 2>&1 | tee build_clients.log
-      # - name: Check client generation summary
-      #   run: |
-      #     # Extract the number after "Failed: "
-      #     FAILED=$(grep -Eo "Failed: [0-9]+" build_clients.log | awk '{print $2}')
-      #     if [ -z "$FAILED" ]; then
-      #       echo "Could not find 'Failed: N' in build_clients.log, all clients succeeded."
-      #       exit 0
-      #     fi
-      #     if [ "$FAILED" -gt 0 ]; then
-      #       echo "Client generation summary check failed: Failed: $FAILED"
-      #       echo "Check the \"Build with Scaffold\" step logs."
-      #       exit 1
-      #     fi
-      - run: npm run install:contracts
       - name: Security audit
-        run: npm audit --audit-level=high
-        continue-on-error: true
+        # --audit-level=critical: the one remaining high is xlsx (SheetJS, no upstream fix).
+        # All critical vulnerabilities have been resolved via package.json overrides.
+        run: npm audit --audit-level=critical
       - run: npm run lint
       - name: Check formatting
         run: npx prettier . --check --ignore-unknown

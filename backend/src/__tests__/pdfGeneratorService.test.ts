@@ -17,12 +17,12 @@ jest.mock("../audit/serviceLogger", () => ({
 describe("PDFGeneratorService", () => {
   const mockStreamData: StreamRecord = {
     stream_id: 123,
-    employer: "GAXXX111EMPLOYER",
-    worker: "GAXXX222WORKER",
-    total_amount: "10000000", // 1 XLM in stroops
-    withdrawn_amount: "5000000", // 0.5 XLM in stroops
-    start_ts: 1704067200, // 2024-01-01
-    end_ts: 1706745600, // 2024-02-01
+    employer_address: "GAXXX111EMPLOYER",
+    worker_address: "GAXXX222WORKER",
+    total_amount: "10000000",
+    withdrawn_amount: "5000000",
+    start_ts: 1704067200,
+    end_ts: 1706745600,
     status: "active",
     created_at: new Date("2024-01-01"),
   };
@@ -323,8 +323,8 @@ describe("PDFGeneratorService", () => {
     it("should handle very long addresses", async () => {
       const streamWithLongAddresses: StreamRecord = {
         ...mockStreamData,
-        employer: "G" + "A".repeat(55),
-        worker: "G" + "B".repeat(55),
+        employer_address: "G" + "A".repeat(55),
+        worker_address: "G" + "B".repeat(55),
       };
 
       const pdf = await generatePayslip({

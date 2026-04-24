@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from "react";
 import { useTransactionData } from "../hooks/useTransactionData";
-import { usePayroll } from "../hooks/usePayroll";
+import { usePayroll, type Stream } from "../hooks/usePayroll";
 import { getReceiptForStream } from "../contracts/payroll_stream";
 import {
   exportOnChainReceiptPDF,

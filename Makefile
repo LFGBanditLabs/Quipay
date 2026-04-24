@@ -1,27 +1,32 @@
 # Quipay Development Makefile
 
-.PHONY: dev build stop clean seed migrate
+.PHONY: help dev build stop clean seed migrate
 
-# Start the full stack development environment
-dev:
+## Show this help message
+help:
+	@echo ""
+	@echo "  Quipay — Makefile commands"
+	@echo "  ──────────────────────────────────────"
+	@grep -E '^## ' Makefile | sed 's/## /  /'
+	@echo ""
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+
+dev: ## Start the full-stack development environment (with hot-reload)
 	docker compose up --build
 
-# Build the system
-build:
+build: ## Build all Docker images
 	docker compose build
 
-# Stop the system
-stop:
+stop: ## Stop all running containers
 	docker compose down
 
-# Clean volumes and orphans
-clean:
+clean: ## Remove containers, volumes, and orphan images
 	docker compose down -v --remove-orphans
 
-# Manually trigger migrations
-migrate:
+migrate: ## Run pending database migrations
 	docker compose exec backend npm run migration:run
 
-# Manually trigger seeding
-seed:
+seed: ## Seed the database with development fixtures
 	docker compose exec backend npm run seed

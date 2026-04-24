@@ -1,3 +1,11 @@
+# docker-compose.override.yml — LOCAL DEVELOPMENT ONLY
+#
+# This file is automatically merged with docker-compose.yml when you run
+# `docker compose up` locally. It enables hot-reload by mounting the source
+# tree into the containers and runs DB migrations + seed on backend boot.
+#
+# Do NOT commit secrets or production values here.
+
 version: "3.8"
 
 services:
@@ -5,7 +13,7 @@ services:
     volumes:
       - ./backend:/app
       - /app/node_modules
-    # Ensure migrations and seed run on dev boot, then start dev server
+    # Run migrations and seed data, then start the dev server with hot-reload
     entrypoint: >
       sh -c "npm run migration:run && npm run seed && npm run dev"
 
@@ -13,5 +21,5 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
-    # Vite dev server binding to 0.0.0.0 for container access
+    # Bind Vite dev server to 0.0.0.0 so it is reachable from the host browser
     command: ["npm", "run", "dev", "--", "--host"]
