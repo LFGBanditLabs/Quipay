@@ -60,7 +60,7 @@ function amountToDisplayUnits(amount: bigint): number {
 }
 
 /* ------------------------------------------------------------------ */
-/*  CSV Export                                                        */
+/*  CSV Exportt                                                 */
 /* ------------------------------------------------------------------ */
 
 export function exportTransactionsCSV(
