@@ -1,6 +1,7 @@
 import { rpc } from "@stellar/stellar-sdk";
 import { getPool } from "./db/pool";
 import { vaultService } from "./services/vaultService";
+import { nonceManager } from "./index";
 
 export type DependencyState = "healthy" | "unhealthy";
 
@@ -20,6 +21,7 @@ export interface HealthResponseBody {
     database: DependencyHealth;
     stellarRpc: DependencyHealth;
     vault: DependencyHealth;
+    nonceManager: DependencyHealth;
   };
 }
 
@@ -69,9 +71,8 @@ async function checkDatabase(): Promise<DependencyHealth> {
     return {
       status: "healthy",
       latencyMs: Date.now() - startedAt,
-      details: `pool(total=${total}, idle=${idle}, waiting=${waiting}, max=${
-        max ?? "unknown"
-      })`,
+      details: `pool(total=${total}, idle=${idle}, waiting=${waiting}, max=${max ?? "unknown"
+        })`,
     };
   } catch (error) {
     const total = pool.totalCount;
@@ -84,12 +85,10 @@ async function checkDatabase(): Promise<DependencyHealth> {
       latencyMs: Date.now() - startedAt,
       details:
         error instanceof Error
-          ? `${error.message}; pool(total=${total}, idle=${idle}, waiting=${waiting}, max=${
-              max ?? "unknown"
-            })`
-          : `Database query failed; pool(total=${total}, idle=${idle}, waiting=${waiting}, max=${
-              max ?? "unknown"
-            })`,
+          ? `${error.message}; pool(total=${total}, idle=${idle}, waiting=${waiting}, max=${max ?? "unknown"
+          })`
+          : `Database query failed; pool(total=${total}, idle=${idle}, waiting=${waiting}, max=${max ?? "unknown"
+          })`,
     };
   }
 }
@@ -184,19 +183,51 @@ async function checkVault(): Promise<DependencyHealth> {
   }
 }
 
+async function checkNonceManager(): Promise<DependencyHealth> {
+  const startedAt = Date.now();
+
+  try {
+    const isHealthy = nonceManager.isHealthy();
+    const state = nonceManager.getCurrentState();
+
+    if (!isHealthy) {
+      const error = nonceManager.getInitializationError();
+      return {
+        status: "unhealthy",
+        latencyMs: Date.now() - startedAt,
+        details: error?.message || "Nonce manager not initialized",
+      };
+    }
+
+    return {
+      status: "healthy",
+      latencyMs: Date.now() - startedAt,
+      details: `sequence=${state.currentSequence}, poolSize=${state.availableNonces.length}`,
+    };
+  } catch (error) {
+    return {
+      status: "unhealthy",
+      latencyMs: Date.now() - startedAt,
+      details: error instanceof Error ? error.message : "Nonce manager check failed",
+    };
+  }
+}
+
 export async function getHealthResponse(
   startTimeMs: number,
 ): Promise<{ httpStatus: 200 | 503; body: HealthResponseBody }> {
-  const [database, stellarRpc, vault] = await Promise.all([
+  const [database, stellarRpc, vault, nonceManagerHealth] = await Promise.all([
     checkDatabase(),
     checkStellarRpc(),
     checkVault(),
+    checkNonceManager(),
   ]);
 
   const allHealthy =
     database.status === "healthy" &&
     stellarRpc.status === "healthy" &&
-    vault.status === "healthy";
+    vault.status === "healthy" &&
+    nonceManagerHealth.status === "healthy";
 
   const body: HealthResponseBody = {
     status: allHealthy ? "ok" : "degraded",
@@ -208,6 +239,7 @@ export async function getHealthResponse(
       database,
       stellarRpc,
       vault,
+      nonceManager: nonceManagerHealth,
     },
   };
 
