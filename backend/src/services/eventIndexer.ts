@@ -1,119 +1,244 @@
 import { rpc } from "@stellar/stellar-sdk";
-import { query } from "../db/pool";
+import { getPool } from "../db/pool";
+import {
+  getLastSyncedLedger,
+  updateSyncCursor,
+  upsertStream,
+  recordWithdrawal,
+} from "../db/queries";
 import { emitStreamEvent } from "../websocket/server";
+import { serviceLogger } from "../audit/serviceLogger";
 
 const SOROBAN_RPC_URL =
   process.env.PUBLIC_STELLAR_RPC_URL || "https://soroban-testnet.stellar.org";
 const QUIPAY_CONTRACT_ID = process.env.QUIPAY_CONTRACT_ID || "";
+const SYNC_START_LEDGER = parseInt(process.env.SYNC_START_LEDGER || "0", 10);
+const POLL_INTERVAL_MS = parseInt(process.env.SYNCER_POLL_MS || "10000", 10);
+const BATCH_SIZE = 100;
 
 let isIndexing = false;
-let intervalId: NodeJS.Timeout | null = null;
+let indexerStopping = false;
+let indexerTimeoutId: NodeJS.Timeout | null = null;
+let inFlightCycle: Promise<void> | null = null;
+
 const server = new rpc.Server(SOROBAN_RPC_URL);
 
-/**
- * Starts the event indexer which polls Soroban RPC for contract events,
- * persists them to the database, and emits real-time WebSocket updates.
- */
-export const startEventIndexer = async () => {
-  if (isIndexing || !QUIPAY_CONTRACT_ID) {
-    if (!QUIPAY_CONTRACT_ID)
-      console.warn("[Event Indexer] QUIPAY_CONTRACT_ID not set.");
+// ─── Event parser ─────────────────────────────────────────────────────────────
+
+type EventKind =
+  | "stream_created"
+  | "withdrawal"
+  | "stream_cancelled"
+  | "stream_completed";
+
+const parseEvent = (
+  event: rpc.Api.EventResponse,
+): { kind: EventKind } | null => {
+  try {
+    const topics = event.topic;
+    if (!topics || topics.length === 0) return null;
+
+    const topicBase64 = topics[0].toXDR("base64");
+
+    const isCreate =
+      topicBase64.includes("create") || topicBase64.includes("stream");
+    const isWithdraw = topicBase64.includes("withdraw");
+    const isCancel = topicBase64.includes("cancel");
+    const isComplete = topicBase64.includes("complete");
+
+    if (isComplete) return { kind: "stream_completed" };
+    if (isCreate && !isWithdraw && !isCancel) return { kind: "stream_created" };
+    if (isWithdraw) return { kind: "withdrawal" };
+    if (isCancel) return { kind: "stream_cancelled" };
+  } catch {
+    // silently ignore malformed events
+  }
+  return null;
+};
+
+// ─── Batch ingest ─────────────────────────────────────────────────────────────
+
+const ingestEvents = async (events: rpc.Api.EventResponse[]): Promise<void> => {
+  for (const event of events) {
+    const parsed = parseEvent(event);
+    if (!parsed) continue;
+
+    try {
+      const contractIdStr = String(event.contractId);
+
+      if (parsed.kind === "stream_created") {
+        await upsertStream({
+          streamId: event.ledger,
+          employer: contractIdStr,
+          worker: contractIdStr,
+          totalAmount: 0n,
+          withdrawnAmount: 0n,
+          startTs: 0,
+          endTs: 0,
+          status: "active",
+          ledger: event.ledger,
+        });
+        emitStreamEvent(
+          "stream_created",
+          event.ledger.toString(),
+          { ledger: event.ledger },
+          contractIdStr,
+          contractIdStr,
+        );
+      } else if (parsed.kind === "withdrawal") {
+        await recordWithdrawal({
+          streamId: event.ledger,
+          worker: contractIdStr,
+          amount: 0n,
+          ledger: event.ledger,
+          ledgerTs: event.ledger,
+        });
+        emitStreamEvent(
+          "withdrawal",
+          event.ledger.toString(),
+          { ledger: event.ledger, worker: contractIdStr },
+          undefined,
+          contractIdStr,
+        );
+      } else {
+        await upsertStream({
+          streamId: event.ledger,
+          employer: contractIdStr,
+          worker: contractIdStr,
+          totalAmount: 0n,
+          withdrawnAmount: 0n,
+          startTs: 0,
+          endTs: 0,
+          status:
+            parsed.kind === "stream_cancelled" ? "cancelled" : "completed",
+          closedAt: event.ledger,
+          ledger: event.ledger,
+        });
+        emitStreamEvent(
+          parsed.kind,
+          event.ledger.toString(),
+          { ledger: event.ledger },
+          contractIdStr,
+          contractIdStr,
+        );
+      }
+    } catch (err: unknown) {
+      await serviceLogger.error("EventIndexer", "Failed to ingest event", err, {
+        event_type: parsed.kind,
+        ledger: event.ledger,
+        event_id: event.id,
+      });
+    }
+  }
+};
+
+// ─── Poll cycle ───────────────────────────────────────────────────────────────
+
+const runCycle = async (): Promise<void> => {
+  if (!QUIPAY_CONTRACT_ID) return;
+
+  const lastSynced = await getLastSyncedLedger(QUIPAY_CONTRACT_ID);
+  const startLedger = Math.max(lastSynced + 1, SYNC_START_LEDGER + 1);
+
+  const latestRes = await server.getLatestLedger();
+  const latestLedger = latestRes.sequence;
+
+  if (startLedger > latestLedger) return;
+
+  let cursor = startLedger;
+  let totalIngested = 0;
+
+  while (cursor <= latestLedger) {
+    const eventsRes = await server.getEvents({
+      startLedger: cursor,
+      filters: [{ type: "contract", contractIds: [QUIPAY_CONTRACT_ID] }],
+      limit: BATCH_SIZE,
+    });
+
+    await ingestEvents(eventsRes.events);
+    totalIngested += eventsRes.events.length;
+
+    if (eventsRes.events.length > 0) {
+      cursor = eventsRes.events[eventsRes.events.length - 1].ledger + 1;
+    } else {
+      break;
+    }
+  }
+
+  await updateSyncCursor(QUIPAY_CONTRACT_ID, latestLedger);
+
+  if (totalIngested > 0) {
+    await serviceLogger.info("EventIndexer", "Ingested events batch", {
+      total_ingested: totalIngested,
+      latest_ledger: latestLedger,
+    });
+  }
+};
+
+// ─── Public entry point ───────────────────────────────────────────────────────
+
+export const startEventIndexer = async (): Promise<void> => {
+  if (isIndexing) return;
+
+  if (!QUIPAY_CONTRACT_ID) {
+    await serviceLogger.warn(
+      "EventIndexer",
+      "QUIPAY_CONTRACT_ID not set — event indexer disabled",
+    );
+    return;
+  }
+
+  if (!getPool()) {
+    await serviceLogger.warn(
+      "EventIndexer",
+      "Database not configured — event indexer disabled",
+    );
     return;
   }
 
   isIndexing = true;
-  console.log(`[Event Indexer] Started indexing ${QUIPAY_CONTRACT_ID}`);
+  indexerStopping = false;
 
-  let lastLedger = 0;
-  try {
-    const res = await query(
-      "SELECT last_ledger FROM sync_cursors WHERE contract_id = $1",
-      [QUIPAY_CONTRACT_ID],
-    );
-    if (res.rows.length > 0) {
-      lastLedger = parseInt(res.rows[0].last_ledger, 10);
-    } else {
-      const health = await server.getLatestLedger();
-      lastLedger = health.sequence;
-      await query(
-        "INSERT INTO sync_cursors (contract_id, last_ledger) VALUES ($1, $2)",
-        [QUIPAY_CONTRACT_ID, lastLedger],
-      );
-    }
-  } catch (err: any) {
-    console.error(`[Event Indexer] init error: ${err.message}`);
-    return;
-  }
+  await serviceLogger.info("EventIndexer", "Event indexer started", {
+    contract_id: QUIPAY_CONTRACT_ID,
+    sync_start_ledger: SYNC_START_LEDGER,
+    poll_interval_ms: POLL_INTERVAL_MS,
+  });
 
-  intervalId = setInterval(async () => {
+  const poll = async () => {
     try {
-      const health = await server.getLatestLedger();
-      if (health.sequence <= lastLedger) return;
-
-      const eventsRes: any = await server.getEvents({
-        startLedger: lastLedger + 1,
-        filters: [{ type: "contract", contractIds: [QUIPAY_CONTRACT_ID] }],
-        limit: 100,
-      });
-
-      if (eventsRes && eventsRes.events) {
-        for (const event of eventsRes.events) {
-          await persistAndEmitEvent(event);
-        }
-      }
-
-      lastLedger = health.sequence;
-      await query(
-        "UPDATE sync_cursors SET last_ledger = $1, updated_at = NOW() WHERE contract_id = $2",
-        [lastLedger, QUIPAY_CONTRACT_ID],
+      inFlightCycle = runCycle();
+      await inFlightCycle;
+    } catch (err: unknown) {
+      await serviceLogger.error(
+        "EventIndexer",
+        "Unhandled error in indexer cycle",
+        err,
       );
-    } catch (e: any) {
-      console.error(`[Event Indexer] loop error: ${e.message}`);
+    } finally {
+      inFlightCycle = null;
     }
-  }, 3000);
+
+    if (indexerStopping) return;
+
+    indexerTimeoutId = setTimeout(poll, POLL_INTERVAL_MS);
+  };
+
+  await poll();
 };
 
-export const stopEventIndexer = () => {
-  if (intervalId) {
-    clearInterval(intervalId);
-    intervalId = null;
+export const stopEventIndexer = async (): Promise<void> => {
+  indexerStopping = true;
+
+  if (indexerTimeoutId) {
+    clearTimeout(indexerTimeoutId);
+    indexerTimeoutId = null;
   }
+
+  if (inFlightCycle) {
+    await inFlightCycle;
+  }
+
   isIndexing = false;
-  console.log("[Event Indexer] Stopped");
+  await serviceLogger.info("EventIndexer", "Event indexer stopped");
 };
-
-async function persistAndEmitEvent(event: any) {
-  try {
-    const topics = event.topic;
-    if (!topics || topics.length === 0) return;
-    const topicString = topics[0].toXDR("base64");
-
-    let eventType: any = null;
-    if (topicString.includes("stream") || topicString.includes("Stream")) {
-      eventType = "stream_created";
-    } else if (
-      topicString.includes("withdrawal") ||
-      topicString.includes("Withdraw")
-    ) {
-      eventType = "withdrawal";
-    } else if (
-      topicString.includes("cancel") ||
-      topicString.includes("Cancel")
-    ) {
-      eventType = "stream_cancelled";
-    }
-
-    if (!eventType) return;
-
-    // Simulate extracting data
-    const streamId = event.id; // placeholder
-
-    // In a real app we'd insert into payroll_streams / withdrawals here
-    // await query("INSERT INTO withdrawals (stream_id, worker, amount, ledger, ledger_ts) VALUES ($1, $2, $3, $4, $5)", [...]);
-
-    // Emit via WebSocket for frontend real-time dashboard update
-    emitStreamEvent(eventType, streamId, event);
-  } catch (e) {
-    console.error("[Event Indexer] Failed to parse event topic", e);
-  }
-}

@@ -1,5 +1,9 @@
 import { query } from "../db/pool";
-import { ValidationError } from "../errors/AppError";
+import {
+  ValidationError,
+  StorageError,
+  UpstreamStorageError,
+} from "../errors/AppError";
 import { globalCache } from "../utils/cache";
 import {
   logServiceInfo,
@@ -104,17 +108,44 @@ const storeLogoFile = async (
   filename: string,
   mimeType: string,
 ): Promise<string> => {
-  // Ensure storage directory exists
-  await fs.mkdir(LOGO_STORAGE_PATH, { recursive: true });
+  try {
+    await fs.mkdir(LOGO_STORAGE_PATH, { recursive: true });
+  } catch (err: unknown) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOSPC") {
+      throw new StorageError(
+        "Disk full — cannot create logo storage directory",
+      );
+    }
+    throw new UpstreamStorageError(
+      "Failed to initialise logo storage directory",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
 
-  // Generate unique filename
   const ext = path.extname(filename);
   const hash = crypto.createHash("md5").update(file).digest("hex").slice(0, 8);
   const storedFilename = `${employerAddress}-${hash}${ext}`;
   const filePath = path.join(LOGO_STORAGE_PATH, storedFilename);
 
-  // Write file
-  await fs.writeFile(filePath, file);
+  try {
+    await fs.writeFile(filePath, file);
+  } catch (err: unknown) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOSPC") {
+      throw new StorageError("Disk full — insufficient storage to save logo");
+    }
+    if (code === "EACCES" || code === "EPERM") {
+      throw new UpstreamStorageError(
+        "Storage permission denied — cannot write logo file",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+    throw new UpstreamStorageError(
+      "Failed to write logo file to storage",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
 
   // Return URL (in production, this would be an S3 URL)
   const baseUrl = process.env.API_BASE_URL || "http://localhost:3001";
