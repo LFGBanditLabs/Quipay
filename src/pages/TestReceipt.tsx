@@ -39,7 +39,9 @@ const TestReceipt: React.FC = () => {
 
     const receipt = await getReceiptById(sourceAddress, BigInt(receiptId));
     if (!receipt) {
-      setStatusText(`Receipt ${receiptId} was not found on chain, using demo data`);
+      setStatusText(
+        `Receipt ${receiptId} was not found on chain, using demo data`,
+      );
       await exportPaycheckPDF(DemoTransaction);
       return;
     }

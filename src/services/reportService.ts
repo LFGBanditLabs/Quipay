@@ -10,7 +10,10 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import QRCode from "qrcode";
-import { getTokenSymbol, type ContractPaymentReceipt } from "../contracts/payroll_stream";
+import {
+  getTokenSymbol,
+  type ContractPaymentReceipt,
+} from "../contracts/payroll_stream";
 import type {
   PayrollTransaction,
   MonthlySummary,
@@ -541,8 +544,7 @@ export async function exportOnChainReceiptPDF(
     date: new Date(Number(receipt.finalized_at) * 1000).toISOString(),
     employeeName:
       options?.employeeName ?? `Worker ${receipt.worker.slice(0, 8)}`,
-    employeeId:
-      options?.employeeId ?? `STREAM-${receipt.stream_id.toString()}`,
+    employeeId: options?.employeeId ?? `STREAM-${receipt.stream_id.toString()}`,
     walletAddress: receipt.worker,
     amount: amountToDisplayUnits(receipt.total_paid),
     currency: tokenSymbol,
