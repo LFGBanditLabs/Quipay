@@ -18,7 +18,9 @@ fn make_stream(
     rate: i128,
     end: u64,
 ) -> u64 {
-    client.create_stream(employer, worker, token, &rate, &0u64, &0u64, &end, &None, &None)
+    client.create_stream(
+        employer, worker, token, &rate, &0u64, &0u64, &end, &None, &None,
+    )
 }
 
 // ── basic functionality ───────────────────────────────────────────────────────
@@ -263,8 +265,11 @@ fn test_batch_cancel_emits_cancel_scheduled_event() {
 
     // Verify cancel_scheduled was emitted via stream status
     let stream = client.get_stream(&stream_id).unwrap();
-    assert_eq!(stream.status, StreamStatus::PendingCancel,
-        "cancel_scheduled event not emitted — stream should be PendingCancel");
+    assert_eq!(
+        stream.status,
+        StreamStatus::PendingCancel,
+        "cancel_scheduled event not emitted — stream should be PendingCancel"
+    );
 }
 
 #[test]
@@ -284,6 +289,9 @@ fn test_batch_cancel_emits_canceled_event_when_no_grace() {
 
     // Verify canceled event was emitted via stream status
     let stream = client.get_stream(&stream_id).unwrap();
-    assert_eq!(stream.status, StreamStatus::Canceled,
-        "canceled event not emitted — stream should be Canceled");
+    assert_eq!(
+        stream.status,
+        StreamStatus::Canceled,
+        "canceled event not emitted — stream should be Canceled"
+    );
 }

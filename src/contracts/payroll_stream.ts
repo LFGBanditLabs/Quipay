@@ -412,6 +412,21 @@ export interface ContractWithdrawalEvent {
   txHash: string;
 }
 
+export interface ContractPaymentReceipt {
+  receipt_id: bigint;
+  stream_id: bigint;
+  employer: string;
+  worker: string;
+  token: string;
+  total_amount: bigint;
+  total_paid: bigint;
+  created_at: bigint;
+  start_ts: bigint;
+  end_ts: bigint;
+  finalized_at: bigint;
+  status: number;
+}
+
 // ─── simulateContractRead ─────────────────────────────────────────────────────
 
 async function simulateContractRead<T>(
@@ -514,6 +529,35 @@ export async function getStreamById(
   return simulateContractRead<ContractStream>(
     sourceAddress,
     contract.call("get_stream", nativeToScVal(streamId, { type: "u64" })),
+  );
+}
+
+export async function getReceiptById(
+  sourceAddress: string,
+  receiptId: bigint,
+): Promise<ContractPaymentReceipt | null> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) return null;
+
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+  return simulateContractRead<ContractPaymentReceipt>(
+    sourceAddress,
+    contract.call("get_receipt", nativeToScVal(receiptId, { type: "u64" })),
+  );
+}
+
+export async function getReceiptForStream(
+  sourceAddress: string,
+  streamId: bigint,
+): Promise<ContractPaymentReceipt | null> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) return null;
+
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+  return simulateContractRead<ContractPaymentReceipt>(
+    sourceAddress,
+    contract.call(
+      "get_receipt_for_stream",
+      nativeToScVal(streamId, { type: "u64" }),
+    ),
   );
 }
 

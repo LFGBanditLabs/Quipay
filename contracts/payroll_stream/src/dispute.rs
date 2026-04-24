@@ -256,14 +256,19 @@ pub fn resolve_dispute(
             if *ratio > 10000 {
                 return Err(QuipayError::Custom); // Invalid ratio
             }
-            
+
             let remaining = stream
                 .total_amount
                 .checked_sub(stream.withdrawn_amount)
                 .ok_or(QuipayError::Overflow)?;
 
-            let worker_payout = (remaining.checked_mul(*ratio as i128).ok_or(QuipayError::Overflow)? / 10000);
-            let employer_refund = remaining.checked_sub(worker_payout).ok_or(QuipayError::Overflow)?;
+            let worker_payout = (remaining
+                .checked_mul(*ratio as i128)
+                .ok_or(QuipayError::Overflow)?
+                / 10000);
+            let employer_refund = remaining
+                .checked_sub(worker_payout)
+                .ok_or(QuipayError::Overflow)?;
 
             if worker_payout > 0 {
                 PayrollStream::call_vault_payout(

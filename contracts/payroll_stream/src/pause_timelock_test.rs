@@ -1,8 +1,12 @@
 #![cfg(test)]
 extern crate std;
 use super::*;
-use soroban_sdk::{testutils::{Address as _, Ledger}, Address, Env, vec};
 use crate::test::setup;
+use soroban_sdk::{
+    Address, Env,
+    testutils::{Address as _, Ledger},
+    vec,
+};
 
 #[test]
 fn test_scheduled_pause() {

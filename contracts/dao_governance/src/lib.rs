@@ -17,7 +17,7 @@
 #![no_std]
 use quipay_common::{QuipayError, require};
 use soroban_sdk::{
-    Address, BytesN, Env, IntoVal, Symbol, contract, contractimpl, contracttype,
+    Address, Bytes, BytesN, Env, IntoVal, Symbol, contract, contractimpl, contracttype,
     symbol_short, token,
 };
 
@@ -27,11 +27,12 @@ use soroban_sdk::{
 #[derive(Clone)]
 pub enum DataKey {
     Admin,
-    GovernanceToken,  // Token used for voting weight
-    PayrollStream,    // PayrollStream contract address
-    VotingPeriod,     // Seconds a proposal is open for voting
-    QuorumBps,        // Minimum % of total supply that must vote (basis points)
-    ApprovalBps,      // Minimum % of votes that must be FOR (basis points)
+    GovernanceToken, // Token used for voting weight
+    PayrollStream,   // PayrollStream contract address
+    VotingPeriod,    // Seconds a proposal is open for voting
+    TimelockDelay,   // Seconds a passed proposal must wait before execution
+    QuorumBps,       // Minimum % of total supply that must vote (basis points)
+    ApprovalBps,     // Minimum % of votes that must be FOR (basis points)
     NextProposalId,
     Proposal(u64),
     VoteCast(u64, Address), // (proposal_id, voter) -> bool (true=for, false=against)
@@ -49,12 +50,13 @@ pub enum ProposalStatus {
     Rejected = 2,
     Executed = 3,
     Expired = 4,
+    Cancelled = 5,
 }
 
 /// Parameters for the payroll stream to be created upon execution.
 #[contracttype]
 #[derive(Clone, Debug)]
-pub struct StreamProposalParams {
+pub struct ProposalCallData {
     pub employer: Address,
     pub worker: Address,
     pub token: Address,
@@ -70,11 +72,12 @@ pub struct StreamProposalParams {
 pub struct Proposal {
     pub id: u64,
     pub proposer: Address,
-    pub title: soroban_sdk::String,
-    pub description: soroban_sdk::String,
-    pub stream_params: StreamProposalParams,
+    pub description_hash: BytesN<32>,
+    pub call_data: ProposalCallData,
+    pub raw_call_data: Bytes,
     pub created_at: u64,
     pub voting_ends_at: u64,
+    pub executable_after: u64,
     pub votes_for: i128,
     pub votes_against: i128,
     pub status: ProposalStatus,
@@ -87,6 +90,7 @@ pub struct Proposal {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const DEFAULT_VOTING_PERIOD: u64 = 3 * 24 * 60 * 60; // 3 days
+const DEFAULT_TIMELOCK_DELAY: u64 = 24 * 60 * 60; // 24 hours
 const DEFAULT_QUORUM_BPS: u32 = 1000; // 10%
 const DEFAULT_APPROVAL_BPS: u32 = 5001; // >50%
 const BPS_DENOMINATOR: i128 = 10_000;
@@ -100,6 +104,7 @@ const PROPOSAL_CREATED: Symbol = symbol_short!("prop_new");
 const VOTE_CAST: Symbol = symbol_short!("voted");
 const PROPOSAL_EXECUTED: Symbol = symbol_short!("prop_exec");
 const PROPOSAL_FINALIZED: Symbol = symbol_short!("prop_fin");
+const PROPOSAL_CANCELLED: Symbol = symbol_short!("prop_can");
 
 #[contract]
 pub struct DaoGovernance;
@@ -130,6 +135,9 @@ impl DaoGovernance {
             .set(&DataKey::VotingPeriod, &DEFAULT_VOTING_PERIOD);
         env.storage()
             .instance()
+            .set(&DataKey::TimelockDelay, &DEFAULT_TIMELOCK_DELAY);
+        env.storage()
+            .instance()
             .set(&DataKey::QuorumBps, &DEFAULT_QUORUM_BPS);
         env.storage()
             .instance()
@@ -148,6 +156,14 @@ impl DaoGovernance {
         env.storage()
             .instance()
             .set(&DataKey::VotingPeriod, &seconds);
+        Ok(())
+    }
+
+    pub fn set_timelock_delay(env: Env, seconds: u64) -> Result<(), QuipayError> {
+        Self::require_admin(&env)?;
+        env.storage()
+            .instance()
+            .set(&DataKey::TimelockDelay, &seconds);
         Ok(())
     }
 
@@ -175,7 +191,10 @@ impl DaoGovernance {
     }
 
     pub fn get_total_supply(env: Env) -> i128 {
-        env.storage().instance().get(&DataKey::TotalSupply).unwrap_or(0)
+        env.storage()
+            .instance()
+            .get(&DataKey::TotalSupply)
+            .unwrap_or(0)
     }
 
     pub fn set_payroll_stream(env: Env, payroll_stream: Address) -> Result<(), QuipayError> {
@@ -193,12 +212,17 @@ impl DaoGovernance {
             .ok_or(QuipayError::NotInitialized)
     }
 
-    pub fn get_config(env: Env) -> (u64, u32, u32) {
+    pub fn get_config(env: Env) -> (u64, u64, u32, u32) {
         let voting_period: u64 = env
             .storage()
             .instance()
             .get(&DataKey::VotingPeriod)
             .unwrap_or(DEFAULT_VOTING_PERIOD);
+        let timelock_delay: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TimelockDelay)
+            .unwrap_or(DEFAULT_TIMELOCK_DELAY);
         let quorum_bps: u32 = env
             .storage()
             .instance()
@@ -209,7 +233,7 @@ impl DaoGovernance {
             .instance()
             .get(&DataKey::ApprovalBps)
             .unwrap_or(DEFAULT_APPROVAL_BPS);
-        (voting_period, quorum_bps, approval_bps)
+        (voting_period, timelock_delay, quorum_bps, approval_bps)
     }
 
     // ─── Proposal lifecycle ───────────────────────────────────────────────────
@@ -219,9 +243,9 @@ impl DaoGovernance {
     pub fn create_proposal(
         env: Env,
         proposer: Address,
-        title: soroban_sdk::String,
-        description: soroban_sdk::String,
-        stream_params: StreamProposalParams,
+        description_hash: BytesN<32>,
+        call_data: ProposalCallData,
+        raw_call_data: Bytes,
     ) -> Result<u64, QuipayError> {
         proposer.require_auth();
 
@@ -236,16 +260,21 @@ impl DaoGovernance {
 
         // Validate stream params
         require!(
-            stream_params.end_ts > stream_params.start_ts,
+            call_data.end_ts > call_data.start_ts,
             QuipayError::InvalidTimeRange
         );
-        require!(stream_params.rate > 0, QuipayError::InvalidAmount);
+        require!(call_data.rate > 0, QuipayError::InvalidAmount);
 
         let voting_period: u64 = env
             .storage()
             .instance()
             .get(&DataKey::VotingPeriod)
             .unwrap_or(DEFAULT_VOTING_PERIOD);
+        let timelock_delay: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TimelockDelay)
+            .unwrap_or(DEFAULT_TIMELOCK_DELAY);
 
         let now = env.ledger().timestamp();
         let proposal_id: u64 = env
@@ -273,11 +302,12 @@ impl DaoGovernance {
         let proposal = Proposal {
             id: proposal_id,
             proposer: proposer.clone(),
-            title: title.clone(),
-            description,
-            stream_params,
+            description_hash,
+            call_data,
+            raw_call_data,
             created_at: now,
             voting_ends_at: now + voting_period,
+            executable_after: now + voting_period + timelock_delay,
             votes_for: 0,
             votes_against: 0,
             status: ProposalStatus::Active,
@@ -289,9 +319,11 @@ impl DaoGovernance {
         env.storage()
             .persistent()
             .set(&DataKey::Proposal(proposal_id), &proposal);
-        env.storage()
-            .persistent()
-            .extend_ttl(&DataKey::Proposal(proposal_id), STORAGE_TTL_THRESHOLD, STORAGE_TTL_EXTEND);
+        env.storage().persistent().extend_ttl(
+            &DataKey::Proposal(proposal_id),
+            STORAGE_TTL_THRESHOLD,
+            STORAGE_TTL_EXTEND,
+        );
 
         env.storage()
             .instance()
@@ -299,7 +331,7 @@ impl DaoGovernance {
 
         env.events().publish(
             (PROPOSAL_CREATED, proposer, proposal_id),
-            title,
+            proposal.executable_after,
         );
 
         Ok(proposal_id)
@@ -360,9 +392,11 @@ impl DaoGovernance {
         env.storage()
             .persistent()
             .set(&DataKey::Proposal(proposal_id), &proposal);
-        env.storage()
-            .persistent()
-            .extend_ttl(&DataKey::Proposal(proposal_id), STORAGE_TTL_THRESHOLD, STORAGE_TTL_EXTEND);
+        env.storage().persistent().extend_ttl(
+            &DataKey::Proposal(proposal_id),
+            STORAGE_TTL_THRESHOLD,
+            STORAGE_TTL_EXTEND,
+        );
 
         // Record vote to prevent double-voting
         env.storage().persistent().set(&vote_key, &support);
@@ -392,17 +426,30 @@ impl DaoGovernance {
         );
 
         let now = env.ledger().timestamp();
-        require!(now > proposal.voting_ends_at, QuipayError::GracePeriodActive);
+        require!(
+            now > proposal.voting_ends_at,
+            QuipayError::GracePeriodActive
+        );
 
         let status = Self::compute_status(&env, &proposal);
         proposal.status = status;
+        if status == ProposalStatus::Passed {
+            proposal.executable_after = now.saturating_add(
+                env.storage()
+                    .instance()
+                    .get(&DataKey::TimelockDelay)
+                    .unwrap_or(DEFAULT_TIMELOCK_DELAY),
+            );
+        }
 
         env.storage()
             .persistent()
             .set(&DataKey::Proposal(proposal_id), &proposal);
-        env.storage()
-            .persistent()
-            .extend_ttl(&DataKey::Proposal(proposal_id), STORAGE_TTL_THRESHOLD, STORAGE_TTL_EXTEND);
+        env.storage().persistent().extend_ttl(
+            &DataKey::Proposal(proposal_id),
+            STORAGE_TTL_THRESHOLD,
+            STORAGE_TTL_EXTEND,
+        );
 
         env.events()
             .publish((PROPOSAL_FINALIZED, proposal_id), status as u32);
@@ -437,6 +484,10 @@ impl DaoGovernance {
             proposal.status == ProposalStatus::Passed,
             QuipayError::InsufficientPermissions
         );
+        require!(
+            env.ledger().timestamp() >= proposal.executable_after,
+            QuipayError::GracePeriodActive
+        );
 
         let payroll_stream: Address = env
             .storage()
@@ -444,7 +495,7 @@ impl DaoGovernance {
             .get(&DataKey::PayrollStream)
             .ok_or(QuipayError::NotInitialized)?;
 
-        let p = &proposal.stream_params;
+        let p = &proposal.call_data;
 
         // Cross-contract call to PayrollStream.create_stream_via_governance
         let stream_id: u64 = env.invoke_contract(
@@ -470,16 +521,56 @@ impl DaoGovernance {
         env.storage()
             .persistent()
             .set(&DataKey::Proposal(proposal_id), &proposal);
-        env.storage()
-            .persistent()
-            .extend_ttl(&DataKey::Proposal(proposal_id), STORAGE_TTL_THRESHOLD, STORAGE_TTL_EXTEND);
-
-        env.events().publish(
-            (PROPOSAL_EXECUTED, executor, proposal_id),
-            stream_id,
+        env.storage().persistent().extend_ttl(
+            &DataKey::Proposal(proposal_id),
+            STORAGE_TTL_THRESHOLD,
+            STORAGE_TTL_EXTEND,
         );
 
+        env.events()
+            .publish((PROPOSAL_EXECUTED, executor, proposal_id), stream_id);
+
         Ok(stream_id)
+    }
+
+    pub fn cancel_proposal(env: Env, caller: Address, proposal_id: u64) -> Result<(), QuipayError> {
+        caller.require_auth();
+
+        let mut proposal: Proposal = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Proposal(proposal_id))
+            .ok_or(QuipayError::StreamNotFound)?;
+
+        require!(
+            proposal.status != ProposalStatus::Executed,
+            QuipayError::StreamClosed
+        );
+
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        require!(
+            caller == proposal.proposer || caller == admin,
+            QuipayError::Unauthorized
+        );
+
+        proposal.status = ProposalStatus::Cancelled;
+        env.storage()
+            .persistent()
+            .set(&DataKey::Proposal(proposal_id), &proposal);
+        env.storage().persistent().extend_ttl(
+            &DataKey::Proposal(proposal_id),
+            STORAGE_TTL_THRESHOLD,
+            STORAGE_TTL_EXTEND,
+        );
+
+        env.events()
+            .publish((PROPOSAL_CANCELLED, caller, proposal_id), ());
+
+        Ok(())
     }
 
     // ─── Queries ──────────────────────────────────────────────────────────────
@@ -516,20 +607,13 @@ impl DaoGovernance {
     }
 
     fn compute_status(env: &Env, proposal: &Proposal) -> ProposalStatus {
-        let quorum_bps: u32 = env
-            .storage()
-            .instance()
-            .get(&DataKey::QuorumBps)
-            .unwrap_or(DEFAULT_QUORUM_BPS);
         let approval_bps: u32 = env
             .storage()
             .instance()
             .get(&DataKey::ApprovalBps)
             .unwrap_or(DEFAULT_APPROVAL_BPS);
 
-        let total_votes = proposal
-            .votes_for
-            .saturating_add(proposal.votes_against);
+        let total_votes = proposal.votes_for.saturating_add(proposal.votes_against);
 
         // Quorum check: total_votes >= threshold snapshotted at proposal creation
         let quorum_met = total_votes >= proposal.quorum_threshold;

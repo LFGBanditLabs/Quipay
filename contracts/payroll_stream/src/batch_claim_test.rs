@@ -20,7 +20,9 @@ fn make_stream(
     start: u64,
     end: u64,
 ) -> u64 {
-    client.create_stream(employer, worker, token, &rate, &start, &start, &end, &None, &None)
+    client.create_stream(
+        employer, worker, token, &rate, &start, &start, &end, &None, &None,
+    )
 }
 
 // ── basic functionality ───────────────────────────────────────────────────────

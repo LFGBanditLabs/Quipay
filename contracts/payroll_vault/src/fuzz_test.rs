@@ -22,6 +22,7 @@ pub fn run_fuzz_iteration(
     let token_client = token::Client::new(env, token_id);
 
     // Initial setup
+    client.allowlist_token(token_id);
     token_admin_client.mint(user, &1000000);
 
     match action % 2 {

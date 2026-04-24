@@ -298,6 +298,7 @@ fn test_basic_flow() {
     let token_id = token_contract.address();
     let token_client = token::Client::new(&env, &token_id);
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+    client.allowlist_token(&token_id);
 
     // Mint tokens to user
     token_admin_client.mint(&user, &1000);
@@ -374,6 +375,7 @@ fn test_upgrade_structure_verification() {
     let token_id = token_contract.address();
     let _token_client = token::Client::new(&env, &token_id);
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+    v1_client.allowlist_token(&token_id);
 
     // Create state in v1
     token_admin_client.mint(&user, &1000);
@@ -431,6 +433,7 @@ fn test_state_persistence_across_contract_instances() {
     let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
     let token_id = token_contract.address();
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+    client.allowlist_token(&token_id);
 
     // Create initial state
     token_admin_client.mint(&user, &10000);

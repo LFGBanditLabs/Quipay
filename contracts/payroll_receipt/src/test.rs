@@ -55,8 +55,28 @@ fn test_worker_receipts_index() {
     let worker = Address::generate(&env);
     let token = Address::generate(&env);
 
-    client.mint(&1u64, &employer, &worker, &token, &500i128, &0u64, &100u64, &100u64, &ClosureReason::Completed);
-    client.mint(&2u64, &employer, &worker, &token, &300i128, &0u64, &100u64, &100u64, &ClosureReason::Cancelled);
+    client.mint(
+        &1u64,
+        &employer,
+        &worker,
+        &token,
+        &500i128,
+        &0u64,
+        &100u64,
+        &100u64,
+        &ClosureReason::Completed,
+    );
+    client.mint(
+        &2u64,
+        &employer,
+        &worker,
+        &token,
+        &300i128,
+        &0u64,
+        &100u64,
+        &100u64,
+        &ClosureReason::Cancelled,
+    );
 
     let ids = client.get_worker_receipts(&worker, &0u32, &10u32);
     assert_eq!(ids.len(), 2);
@@ -71,8 +91,28 @@ fn test_receipt_ids_increment() {
     let worker = Address::generate(&env);
     let token = Address::generate(&env);
 
-    let id1 = client.mint(&1u64, &employer, &worker, &token, &100i128, &0u64, &100u64, &100u64, &ClosureReason::Completed);
-    let id2 = client.mint(&2u64, &employer, &worker, &token, &200i128, &0u64, &100u64, &100u64, &ClosureReason::Cancelled);
+    let id1 = client.mint(
+        &1u64,
+        &employer,
+        &worker,
+        &token,
+        &100i128,
+        &0u64,
+        &100u64,
+        &100u64,
+        &ClosureReason::Completed,
+    );
+    let id2 = client.mint(
+        &2u64,
+        &employer,
+        &worker,
+        &token,
+        &200i128,
+        &0u64,
+        &100u64,
+        &100u64,
+        &ClosureReason::Cancelled,
+    );
 
     assert_eq!(id1, 1u64);
     assert_eq!(id2, 2u64);
