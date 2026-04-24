@@ -11,7 +11,6 @@
     "test:watch": "jest --watch",
     "test:integration": "jest --testPathPatterns=integration",
     "test:unit": "jest --testPathPatterns=__tests__ --testPathIgnorePatterns=integration",
-    "test:explain-analyze": "ts-node src/db/explain-analyze-tests.ts",
     "migrate": "ts-node src/db/migrate.ts",
     "migrate:status": "ts-node src/db/migrate.ts status",
     "migrate:rollback": "ts-node src/db/migrate.ts rollback",
@@ -19,8 +18,7 @@
     "migration:generate": "drizzle-kit generate",
     "migration:push": "drizzle-kit push",
     "migration:run": "ts-node src/db/migrate.ts",
-    "seed": "ts-node src/db/seed.ts",
-    "test:benchmark": "ts-node --transpile-only src/db/benchmark-streams.ts"
+    "seed": "ts-node src/db/seed.ts"
   },
   "keywords": [],
   "author": "",

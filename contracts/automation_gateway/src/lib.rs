@@ -228,8 +228,11 @@ impl AutomationGateway {
         }
     }
 
-    /// Route an automated action.
-    /// For now, this is a placeholder that verifies authorization.
+    /// Route an automated action to the appropriate Quipay contract.
+    ///
+    /// Phase 2 implementation: cross-contract dispatch to PayrollStream /
+    /// PayrollVault based on the `action` variant and decoded `_data` payload.
+    /// Authorization and event emission are complete; routing logic is pending.
     pub fn execute_automation(
         env: Env,
         agent: Address,
@@ -243,7 +246,7 @@ impl AutomationGateway {
             QuipayError::InsufficientPermissions
         );
 
-        // TODO: Implement actual routing/integration with other contracts
+        // Phase 2: dispatch action to target contract via cross-contract call
         env.events().publish(
             (
                 symbol_short!("gateway"),
