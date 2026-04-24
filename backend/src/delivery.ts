@@ -1,4 +1,5 @@
 import axios from "axios";
+import { DatabaseError, NotFoundError } from "./errors/AppError";
 import { webhookStore, WebhookSubscription } from "./webhooks";
 import { metricsManager } from "./metrics";
 import crypto from "crypto";
@@ -295,11 +296,11 @@ export const sendWebhookNotification = async (
 
 export const retryWebhookEvent = async (eventId: string): Promise<void> => {
   if (!getPool()) {
-    throw new Error("Database not configured");
+    throw new DatabaseError("Database not configured");
   }
   const ev = await getWebhookOutboundEventById(eventId);
   if (!ev) {
-    throw new Error("Webhook event not found");
+    throw new NotFoundError(`Webhook event ${eventId}`);
   }
 
   // Re-resolve subscription at runtime; if missing, mark failed.

@@ -1,4 +1,5 @@
 import { query } from "../db/pool";
+import { ValidationError } from "../errors/AppError";
 import { globalCache } from "../utils/cache";
 import {
   logServiceInfo,
@@ -267,7 +268,7 @@ export const uploadLogo = async (
   // Validate file
   const validation = await validateImageFile(file, mimeType);
   if (!validation.valid) {
-    throw new Error(validation.error);
+    throw new ValidationError(validation.error ?? "Invalid file");
   }
 
   // Get current branding to check if logo exists
@@ -325,12 +326,12 @@ export const updateColors = async (
 
   // Validate colors
   if (!validateHexColor(primaryColor)) {
-    throw new Error(
+    throw new ValidationError(
       `Invalid primary color format: ${primaryColor}. Must be hex format (#RRGGBB)`,
     );
   }
   if (!validateHexColor(secondaryColor)) {
-    throw new Error(
+    throw new ValidationError(
       `Invalid secondary color format: ${secondaryColor}. Must be hex format (#RRGGBB)`,
     );
   }
