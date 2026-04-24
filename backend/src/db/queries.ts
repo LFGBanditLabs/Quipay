@@ -246,7 +246,9 @@ export const recordWithdrawal = async (params: {
   globalCache.del("analytics:summary"); // total withdrawn changes
   const stream = await getStreamById(params.streamId);
   if (stream) {
-    globalCache.invalidateByPrefix(`analytics:payroll:${stream.employer_address}:`);
+    globalCache.invalidateByPrefix(
+      `analytics:payroll:${stream.employer_address}:`,
+    );
   }
 };
 

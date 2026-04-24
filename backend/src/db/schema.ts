@@ -55,7 +55,10 @@ export const payrollStreams = pgTable(
     index("idx_streams_status").on(table.status),
     index("idx_streams_created_at").on(table.createdAt.desc()),
     index("idx_streams_start_ts").on(table.startTs),
-    index("idx_streams_employer_status").on(table.employerAddress, table.status),
+    index("idx_streams_employer_status").on(
+      table.employerAddress,
+      table.status,
+    ),
     index("idx_streams_worker_status").on(table.workerAddress, table.status),
     index("idx_streams_employer_created").on(
       table.employerAddress,

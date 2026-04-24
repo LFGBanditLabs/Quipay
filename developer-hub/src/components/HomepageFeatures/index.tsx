@@ -13,9 +13,9 @@ const FeatureList: FeatureItem[] = [
     title: "Real-Time Payroll Streaming",
     description: (
       <>
-        Quipay streams salaries to workers continuously — every second —
-        settled on-chain via Soroban smart contracts. No more monthly payroll
-        cycles, no wire transfers, no delays.
+        Quipay streams salaries to workers continuously — every second — settled
+        on-chain via Soroban smart contracts. No more monthly payroll cycles, no
+        wire transfers, no delays.
       </>
     ),
   },

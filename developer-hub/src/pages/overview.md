@@ -8,13 +8,13 @@ Quipay is an autonomous payroll streaming protocol on Stellar Soroban. It enable
 
 ## Core Contracts
 
-| Contract | Purpose |
-|----------|---------|
-| **PayrollStream** | Streams salary from employer treasury to worker wallet in real time |
-| **PayrollVault** | Custodian for employer funds with on-chain solvency enforcement |
-| **WorkforceRegistry** | Decentralized worker profile and preferred-token registry |
-| **AutomationGateway** | Permissioned agent framework for AI-driven payroll automation *(Phase 2)* |
-| **DAOGovernance** | On-chain governance for protocol parameter updates *(Phase 3)* |
+| Contract              | Purpose                                                                   |
+| --------------------- | ------------------------------------------------------------------------- |
+| **PayrollStream**     | Streams salary from employer treasury to worker wallet in real time       |
+| **PayrollVault**      | Custodian for employer funds with on-chain solvency enforcement           |
+| **WorkforceRegistry** | Decentralized worker profile and preferred-token registry                 |
+| **AutomationGateway** | Permissioned agent framework for AI-driven payroll automation _(Phase 2)_ |
+| **DAOGovernance**     | On-chain governance for protocol parameter updates _(Phase 3)_            |
 
 ## How It Works
 
