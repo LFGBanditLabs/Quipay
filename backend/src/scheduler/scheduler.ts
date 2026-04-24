@@ -27,6 +27,9 @@ import {
   getTreasuryBalances,
   getActiveLiabilities,
   getStreamsByWorker,
+  dequeuePendingOverrides,
+  markOverrideCompleted,
+  markOverrideFailed,
 } from "../db/queries";
 import {
   sendCliffUnlockNotification,
@@ -328,6 +331,9 @@ const unscheduleJob = (scheduleId: number): boolean => {
 
 const refreshJobs = async (): Promise<void> => {
   try {
+    // First, check and execute any pending scheduler overrides
+    await executeSchedulerOverrides();
+
     const schedules = await getActivePayrollSchedules();
     log(`Found ${schedules.length} active schedules`);
 
@@ -507,6 +513,89 @@ const runStreamEndingChecker = async (): Promise<void> => {
       });
       notifiedStreamEndingKeys.add(key);
     }
+  }
+};
+
+/**
+ * Execute pending scheduler overrides from the admin queue.
+ * Dequeues up to 10 pending overrides and processes them.
+ */
+const executeSchedulerOverrides = async (): Promise<void> => {
+  if (!getPool()) return;
+
+  try {
+    const overrides = await dequeuePendingOverrides(10);
+
+    if (overrides.length === 0) return;
+
+    log(`Processing ${overrides.length} scheduler override(s)`);
+
+    for (const override of overrides) {
+      try {
+        log(
+          `Executing override ${override.id}: ${override.action} for ${override.employer_address} -> ${override.worker_address}`,
+        );
+
+        if (override.action === "create_stream") {
+          // Extract parameters from override.params
+          const {
+            token = "USDC",
+            rate,
+            durationDays = 30,
+          } = override.params as {
+            token?: string;
+            rate?: string;
+            durationDays?: number;
+          };
+
+          if (!rate) {
+            throw new Error("Missing required parameter: rate");
+          }
+
+          // Create a mock schedule for stream creation
+          const mockSchedule: PayrollSchedule = {
+            id: -override.id, // Negative ID to distinguish from real schedules
+            employer: override.employer_address,
+            worker: override.worker_address,
+            token,
+            rate,
+            cron_expression: "0 0 1 * *", // Dummy cron
+            duration_days: durationDays,
+            enabled: true,
+            last_run_at: null,
+            next_run_at: null,
+            created_at: new Date(),
+            updated_at: new Date(),
+          };
+
+          const streamId = await triggerStreamCreation(mockSchedule);
+
+          await markOverrideCompleted({
+            id: override.id,
+            streamId,
+          });
+
+          log(
+            `Override ${override.id} completed successfully. Stream ID: ${streamId}`,
+          );
+        } else {
+          // For cancel_stream and pause_stream, we'd need contract integration
+          throw new Error(
+            `Action ${override.action} not yet implemented. Contract integration required.`,
+          );
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        logError(`Override ${override.id} failed`, error);
+
+        await markOverrideFailed({
+          id: override.id,
+          errorMessage: errorMsg,
+        });
+      }
+    }
+  } catch (error) {
+    logError("Failed to execute scheduler overrides", error);
   }
 };
 
