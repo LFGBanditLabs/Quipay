@@ -371,7 +371,7 @@ export const getEmployerPayrollByWorker = async (
   );
 
   return res.rows.map((row) => ({
-    worker: row.worker_address,
+    worker: row.worker,
     stream_count: Number(row.stream_count),
     active_streams: Number(row.active_streams),
     completed_streams: Number(row.completed_streams),

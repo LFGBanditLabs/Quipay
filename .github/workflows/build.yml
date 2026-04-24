@@ -55,7 +55,6 @@ jobs:
       - run: npm ci --legacy-peer-deps
       - name: Pull stellar-quickstart image
         run: docker pull stellar/quickstart:testing
-      - run: npm run install:contracts
       - name: Security audit
         run: npm audit --audit-level=high
       - run: npm run lint
