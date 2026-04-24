@@ -10,6 +10,8 @@ name: "E2E & Visual Regression"
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 # Cancel in-flight runs for the same PR / branch
 concurrency:
