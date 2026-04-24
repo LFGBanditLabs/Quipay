@@ -18,17 +18,28 @@ interface Datapoint {
 
 export function TreasuryBalanceChart({ data }: { data: Datapoint[] }) {
   const { theme } = useTheme();
-  const axisColor = theme === "dark" ? "#94a3b8" : "#64748b";
+  const axisColor =
+    theme === "dark"
+      ? "var(--token-color-neutral-300)"
+      : "var(--token-color-neutral-700)";
   const gridColor =
-    theme === "dark" ? "rgba(99,102,241,0.1)" : "rgba(71,85,105,0.18)";
+    theme === "dark"
+      ? "var(--token-color-accent-soft)"
+      : "var(--token-color-border-default)";
   const tooltipStyle = {
-    backgroundColor: theme === "dark" ? "#0f172a" : "#ffffff",
+    backgroundColor:
+      theme === "dark"
+        ? "var(--token-color-neutral-0)"
+        : "var(--token-color-bg-surface)",
     border:
       theme === "dark"
-        ? "1px solid rgba(99,102,241,0.2)"
-        : "1px solid rgba(148,163,184,0.4)",
+        ? "1px solid var(--token-color-accent-soft-strong)"
+        : "1px solid var(--token-color-border-default)",
     borderRadius: "0.75rem",
-    color: theme === "dark" ? "#e2e8f0" : "#0f172a",
+    color:
+      theme === "dark"
+        ? "var(--token-color-neutral-900)"
+        : "var(--token-color-text-primary)",
     fontSize: "0.8rem",
   };
 
@@ -40,8 +51,16 @@ export function TreasuryBalanceChart({ data }: { data: Datapoint[] }) {
       >
         <defs>
           <linearGradient id="tbc-balance" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-            <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
+            <stop
+              offset="5%"
+              stopColor="var(--token-color-success-500)"
+              stopOpacity={0.3}
+            />
+            <stop
+              offset="95%"
+              stopColor="var(--token-color-success-500)"
+              stopOpacity={0.02}
+            />
           </linearGradient>
         </defs>
         <CartesianGrid
@@ -72,7 +91,7 @@ export function TreasuryBalanceChart({ data }: { data: Datapoint[] }) {
           type="monotone"
           dataKey="balance"
           name="Balance"
-          stroke="#10b981"
+          stroke="var(--token-color-success-500)"
           strokeWidth={2}
           fill="url(#tbc-balance)"
         />

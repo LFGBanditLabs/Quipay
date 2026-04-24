@@ -82,17 +82,27 @@ export default function SolvencyCard({
       {hasLowRunway && (
         <div className="rounded-xl border border-amber-500/50 bg-amber-500/10 p-4">
           <div className="flex items-start gap-3">
-            <Icon.AlertTriangle size="md" style={{ color: "#f59e0b" }} />
+            <Icon.AlertTriangle
+              size="md"
+              style={{ color: "var(--token-color-warning-500)" }}
+            />
             <div className="flex-1">
               <Text
                 as="h3"
                 size="md"
                 weight="medium"
-                style={{ color: "#f59e0b", marginBottom: "0.25rem" }}
+                style={{
+                  color: "var(--token-color-warning-500)",
+                  marginBottom: "0.25rem",
+                }}
               >
                 Low Runway Alert
               </Text>
-              <Text as="p" size="sm" style={{ color: "#f59e0b" }}>
+              <Text
+                as="p"
+                size="sm"
+                style={{ color: "var(--token-color-warning-500)" }}
+              >
                 One or more tokens have less than 7 days of runway remaining.
                 Consider depositing additional funds to prevent stream
                 interruptions.
@@ -106,17 +116,27 @@ export default function SolvencyCard({
       {hasInsolvency && (
         <div className="rounded-xl border border-red-500/50 bg-red-500/10 p-4">
           <div className="flex items-start gap-3">
-            <Icon.AlertCircle size="md" style={{ color: "#ef4444" }} />
+            <Icon.AlertCircle
+              size="md"
+              style={{ color: "var(--token-color-error-500)" }}
+            />
             <div className="flex-1">
               <Text
                 as="h3"
                 size="md"
                 weight="medium"
-                style={{ color: "#ef4444", marginBottom: "0.25rem" }}
+                style={{
+                  color: "var(--token-color-error-500)",
+                  marginBottom: "0.25rem",
+                }}
               >
                 Insolvency Detected
               </Text>
-              <Text as="p" size="sm" style={{ color: "#ef4444" }}>
+              <Text
+                as="p"
+                size="sm"
+                style={{ color: "var(--token-color-error-500)" }}
+              >
                 Liabilities exceed treasury balance for one or more tokens.
                 Immediate action required to prevent stream failures.
               </Text>
@@ -286,7 +306,7 @@ export default function SolvencyCard({
                         {isLowRunway && (
                           <Icon.AlertTriangle
                             size="sm"
-                            style={{ color: "#f59e0b" }}
+                            style={{ color: "var(--token-color-warning-500)" }}
                           />
                         )}
                       </>

@@ -61,10 +61,10 @@ function formatRunwayTime(days: number): string {
  * Get health color based on runway days
  */
 function getHealthColor(days: number): string {
-  if (days < 7) return "#ef4444"; // red
-  if (days < 30) return "#f97316"; // orange
-  if (days < 90) return "#eab308"; // yellow
-  return "#22c55e"; // green
+  if (days < 7) return "var(--token-color-error-500)";
+  if (days < 30) return "#f97316"; // orange (no token equivalent)
+  if (days < 90) return "var(--token-color-warning-500)";
+  return "var(--token-color-success-500)";
 }
 
 export const AdvancedBurnRateCalculator: React.FC<
@@ -163,15 +163,15 @@ export const AdvancedBurnRateCalculator: React.FC<
             <LineChart data={generateProjectionData(br, daysToShow)}>
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="rgba(255,255,255,0.05)"
+                stroke="var(--token-color-border-muted)"
               />
               <XAxis
                 dataKey="day"
-                tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 12 }}
+                tick={{ fill: "var(--token-color-text-muted)", fontSize: 12 }}
                 axisLine={false}
               />
               <YAxis
-                tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 12 }}
+                tick={{ fill: "var(--token-color-text-muted)", fontSize: 12 }}
                 axisLine={false}
                 tickFormatter={(value: number) =>
                   `${(value / 1000).toFixed(0)}k`
@@ -179,10 +179,10 @@ export const AdvancedBurnRateCalculator: React.FC<
               />
               <Tooltip
                 contentStyle={{
-                  background: "rgba(17,17,27,0.9)",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "var(--token-color-bg-canvas)",
+                  border: "1px solid var(--token-color-border-default)",
                   borderRadius: 8,
-                  color: "#fff",
+                  color: "var(--token-color-text-primary)",
                   fontSize: 12,
                 }}
                 formatter={(value: number | undefined) => [
@@ -237,28 +237,32 @@ export const AdvancedBurnRateCalculator: React.FC<
             >
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="rgba(255,255,255,0.05)"
+                stroke="var(--token-color-border-muted)"
               />
               <XAxis
                 dataKey="symbol"
-                tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 12 }}
+                tick={{ fill: "var(--token-color-text-muted)", fontSize: 12 }}
                 axisLine={false}
               />
               <YAxis
-                tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 12 }}
+                tick={{ fill: "var(--token-color-text-muted)", fontSize: 12 }}
                 axisLine={false}
               />
               <Tooltip
                 contentStyle={{
-                  background: "rgba(17,17,27,0.9)",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "var(--token-color-bg-canvas)",
+                  border: "1px solid var(--token-color-border-default)",
                   borderRadius: 8,
-                  color: "#fff",
+                  color: "var(--token-color-text-primary)",
                   fontSize: 12,
                 }}
               />
               <Legend wrapperStyle={{ paddingTop: "20px" }} iconType="square" />
-              <Bar dataKey="daily" fill="#f87171" name="Daily Burn" />
+              <Bar
+                dataKey="daily"
+                fill="var(--token-color-error-500)"
+                name="Daily Burn"
+              />
               <Bar dataKey="monthly" fill="#fb923c" name="Monthly Avg" />
             </BarChart>
           </ResponsiveContainer>

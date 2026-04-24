@@ -14,9 +14,9 @@ interface EarningsDisplayProps {
 
 const COLORS = [
   "#4f46e5",
-  "#10b981",
-  "#f59e0b",
-  "#ef4444",
+  "var(--token-color-success-500)",
+  "var(--token-color-warning-500)",
+  "var(--token-color-error-500)",
   "#8b5cf6",
   "#ec4899",
 ];
@@ -52,7 +52,7 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
               {activeToken}
             </span>
           </div>
-          <div className="mt-4 inline-flex w-fit items-center gap-2 rounded-[20px] bg-[rgba(16,185,129,0.1)] px-3 py-1 text-sm text-emerald-500">
+          <div className="mt-4 inline-flex w-fit items-center gap-2 rounded-[20px] bg-[var(--token-color-success-soft)] px-3 py-1 text-sm text-emerald-500">
             <div className="h-2 w-2 rounded-full bg-emerald-500 [animation:pulse_2s_infinite]"></div>
             {earnings.activeStreamsCount}{" "}
             {earnings.activeStreamsCount === 1
