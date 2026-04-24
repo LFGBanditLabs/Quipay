@@ -27,3 +27,24 @@ path = "fuzz_targets/payroll_stream_fuzz.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "arithmetic_fuzz"
+path = "fuzz_targets/arithmetic_fuzz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "batch_create_fuzz"
+path = "fuzz_targets/batch_create_fuzz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "claimable_fuzz"
+path = "fuzz_targets/claimable_fuzz.rs"
+test = false
+doc = false
+bench = false

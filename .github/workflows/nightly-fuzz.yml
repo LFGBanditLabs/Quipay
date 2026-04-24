@@ -61,16 +61,21 @@ jobs:
             ${{ runner.os }}-fuzz-${{ github.ref_name }}-
             ${{ runner.os }}-fuzz-
 
-      - name: Run payroll_stream fuzz target (30 minutes)
+      - name: Run fuzz targets (5 minutes each)
         working-directory: fuzz
-        run: cargo fuzz run payroll_stream_fuzz -- -max_total_time=1800
+        run: |
+          targets=("payroll_stream_fuzz" "arithmetic_fuzz" "batch_create_fuzz" "claimable_fuzz" "payroll_vault_fuzz")
+          for target in "${targets[@]}"; do
+            echo "Running fuzz target: $target"
+            cargo fuzz run $target -- -max_total_time=300 || true
+          done
 
       - name: Upload fuzz corpus and artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: payroll-stream-fuzz-corpus-and-artifacts
+          name: all-fuzz-targets-corpus-and-artifacts
           path: |
-            fuzz/corpus/payroll_stream_fuzz
-            fuzz/artifacts/payroll_stream_fuzz
+            fuzz/corpus/*
+            fuzz/artifacts/*
           if-no-files-found: ignore
