@@ -1,19 +1,19 @@
-import { Router, Response, Request } from 'express';
-import multer from 'multer';
-import { validateRequest } from '../middleware/validation';
+import { Router, Response, Request } from "express";
+import multer from "multer";
+import { validateRequest } from "../middleware/validation";
 import {
   authenticateRequest,
   requireUser,
   AuthenticatedRequest,
-} from '../middleware/rbac';
-import { z } from 'zod';
+} from "../middleware/rbac";
+import { z } from "zod";
 import {
   uploadLogo,
   updateColors,
   getBranding,
   deleteLogo,
-} from '../services/brandingService';
-import { logServiceInfo, logServiceError } from '../audit/serviceLogger';
+} from "../services/brandingService";
+import { logServiceInfo, logServiceError } from "../audit/serviceLogger";
 
 // Extend AuthenticatedRequest to include file from multer
 interface AuthenticatedRequestWithFile extends AuthenticatedRequest {
@@ -34,11 +34,17 @@ const upload = multer({
 const updateColorsSchema = z.object({
   primaryColor: z
     .string()
-    .regex(/^#[0-9A-Fa-f]{6}$/, 'Primary color must be valid hex format (#RRGGBB)')
+    .regex(
+      /^#[0-9A-Fa-f]{6}$/,
+      "Primary color must be valid hex format (#RRGGBB)",
+    )
     .optional(),
   secondaryColor: z
     .string()
-    .regex(/^#[0-9A-Fa-f]{6}$/, 'Secondary color must be valid hex format (#RRGGBB)')
+    .regex(
+      /^#[0-9A-Fa-f]{6}$/,
+      "Secondary color must be valid hex format (#RRGGBB)",
+    )
     .optional(),
 });
 
@@ -47,10 +53,10 @@ const updateColorsSchema = z.object({
  * Upload employer logo
  */
 brandingRouter.post(
-  '/:address/branding/logo',
+  "/:address/branding/logo",
   authenticateRequest,
   requireUser,
-  upload.single('logo'),
+  upload.single("logo"),
   async (req: AuthenticatedRequestWithFile, res: Response) => {
     try {
       const { address } = req.params;
@@ -58,19 +64,19 @@ brandingRouter.post(
       // Authorization: verify authenticated user matches employer address
       if (!req.user || req.user.id !== address) {
         return res.status(403).json({
-          error: 'Forbidden',
-          message: 'You can only manage your own branding',
+          error: "Forbidden",
+          message: "You can only manage your own branding",
         });
       }
 
       if (!req.file) {
         return res.status(400).json({
-          error: 'Bad Request',
-          message: 'Logo file is required',
+          error: "Bad Request",
+          message: "Logo file is required",
         });
       }
 
-      logServiceInfo('brandingRouter', 'Logo upload requested', {
+      logServiceInfo("brandingRouter", "Logo upload requested", {
         employerAddress: address,
         filename: req.file.originalname,
         size: req.file.size,
@@ -84,7 +90,7 @@ brandingRouter.post(
         mimeType: req.file.mimetype,
       });
 
-      logServiceInfo('brandingRouter', 'Logo uploaded successfully', {
+      logServiceInfo("brandingRouter", "Logo uploaded successfully", {
         employerAddress: address,
         logoUrl: result.logoUrl,
       });
@@ -94,21 +100,21 @@ brandingRouter.post(
         metadata: result.metadata,
       });
     } catch (error) {
-      logServiceError('brandingRouter', 'Logo upload failed', {
+      logServiceError("brandingRouter", "Logo upload failed", {
         error: error instanceof Error ? error.message : String(error),
         employerAddress: req.params.address,
       });
 
-      if (error instanceof Error && error.message.includes('Invalid file')) {
+      if (error instanceof Error && error.message.includes("Invalid file")) {
         return res.status(400).json({
-          error: 'Bad Request',
+          error: "Bad Request",
           message: error.message,
         });
       }
 
       return res.status(500).json({
-        error: 'Internal Server Error',
-        message: 'Failed to upload logo',
+        error: "Internal Server Error",
+        message: "Failed to upload logo",
         details: error instanceof Error ? error.message : String(error),
       });
     }
@@ -120,7 +126,7 @@ brandingRouter.post(
  * Update employer brand colors
  */
 brandingRouter.put(
-  '/:address/branding/colors',
+  "/:address/branding/colors",
   authenticateRequest,
   requireUser,
   validateRequest({ body: updateColorsSchema }),
@@ -132,19 +138,20 @@ brandingRouter.put(
       // Authorization: verify authenticated user matches employer address
       if (!req.user || req.user.id !== address) {
         return res.status(403).json({
-          error: 'Forbidden',
-          message: 'You can only manage your own branding',
+          error: "Forbidden",
+          message: "You can only manage your own branding",
         });
       }
 
       if (!primaryColor && !secondaryColor) {
         return res.status(400).json({
-          error: 'Bad Request',
-          message: 'At least one color (primaryColor or secondaryColor) is required',
+          error: "Bad Request",
+          message:
+            "At least one color (primaryColor or secondaryColor) is required",
         });
       }
 
-      logServiceInfo('brandingRouter', 'Color update requested', {
+      logServiceInfo("brandingRouter", "Color update requested", {
         employerAddress: address,
         primaryColor,
         secondaryColor,
@@ -156,7 +163,7 @@ brandingRouter.put(
         secondaryColor,
       });
 
-      logServiceInfo('brandingRouter', 'Colors updated successfully', {
+      logServiceInfo("brandingRouter", "Colors updated successfully", {
         employerAddress: address,
       });
 
@@ -166,21 +173,21 @@ brandingRouter.put(
         updatedAt: result.updatedAt,
       });
     } catch (error) {
-      logServiceError('brandingRouter', 'Color update failed', {
+      logServiceError("brandingRouter", "Color update failed", {
         error: error instanceof Error ? error.message : String(error),
         employerAddress: req.params.address,
       });
 
-      if (error instanceof Error && error.message.includes('Invalid hex')) {
+      if (error instanceof Error && error.message.includes("Invalid hex")) {
         return res.status(400).json({
-          error: 'Bad Request',
+          error: "Bad Request",
           message: error.message,
         });
       }
 
       return res.status(500).json({
-        error: 'Internal Server Error',
-        message: 'Failed to update colors',
+        error: "Internal Server Error",
+        message: "Failed to update colors",
         details: error instanceof Error ? error.message : String(error),
       });
     }
@@ -192,7 +199,7 @@ brandingRouter.put(
  * Get employer branding settings
  */
 brandingRouter.get(
-  '/:address/branding',
+  "/:address/branding",
   authenticateRequest,
   requireUser,
   async (req: AuthenticatedRequest, res: Response) => {
@@ -202,12 +209,12 @@ brandingRouter.get(
       // Authorization: verify authenticated user matches employer address
       if (!req.user || req.user.id !== address) {
         return res.status(403).json({
-          error: 'Forbidden',
-          message: 'You can only view your own branding',
+          error: "Forbidden",
+          message: "You can only view your own branding",
         });
       }
 
-      logServiceInfo('brandingRouter', 'Branding settings requested', {
+      logServiceInfo("brandingRouter", "Branding settings requested", {
         employerAddress: address,
       });
 
@@ -221,14 +228,14 @@ brandingRouter.get(
         updatedAt: branding.updatedAt,
       });
     } catch (error) {
-      logServiceError('brandingRouter', 'Failed to get branding settings', {
+      logServiceError("brandingRouter", "Failed to get branding settings", {
         error: error instanceof Error ? error.message : String(error),
         employerAddress: req.params.address,
       });
 
       return res.status(500).json({
-        error: 'Internal Server Error',
-        message: 'Failed to retrieve branding settings',
+        error: "Internal Server Error",
+        message: "Failed to retrieve branding settings",
       });
     }
   },
@@ -239,7 +246,7 @@ brandingRouter.get(
  * Delete employer logo
  */
 brandingRouter.delete(
-  '/:address/branding/logo',
+  "/:address/branding/logo",
   authenticateRequest,
   requireUser,
   async (req: AuthenticatedRequest, res: Response) => {
@@ -249,33 +256,33 @@ brandingRouter.delete(
       // Authorization: verify authenticated user matches employer address
       if (!req.user || req.user.id !== address) {
         return res.status(403).json({
-          error: 'Forbidden',
-          message: 'You can only manage your own branding',
+          error: "Forbidden",
+          message: "You can only manage your own branding",
         });
       }
 
-      logServiceInfo('brandingRouter', 'Logo deletion requested', {
+      logServiceInfo("brandingRouter", "Logo deletion requested", {
         employerAddress: address,
       });
 
       await deleteLogo(address);
 
-      logServiceInfo('brandingRouter', 'Logo deleted successfully', {
+      logServiceInfo("brandingRouter", "Logo deleted successfully", {
         employerAddress: address,
       });
 
       return res.status(200).json({
-        message: 'Logo deleted successfully',
+        message: "Logo deleted successfully",
       });
     } catch (error) {
-      logServiceError('brandingRouter', 'Logo deletion failed', {
+      logServiceError("brandingRouter", "Logo deletion failed", {
         error: error instanceof Error ? error.message : String(error),
         employerAddress: req.params.address,
       });
 
       return res.status(500).json({
-        error: 'Internal Server Error',
-        message: 'Failed to delete logo',
+        error: "Internal Server Error",
+        message: "Failed to delete logo",
       });
     }
   },

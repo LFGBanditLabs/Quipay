@@ -5,8 +5,8 @@ import { globalCache } from "../utils/cache";
 
 export interface StreamRecord {
   stream_id: number;
-  employer: string;
-  worker: string;
+  employer_address: string;
+  worker_address: string;
   total_amount: string;
   withdrawn_amount: string;
   start_ts: number;
@@ -187,19 +187,17 @@ export const upsertStream = async (params: {
   status: "active" | "completed" | "cancelled";
   closedAt?: number;
   ledger: number;
-  metadata?: Record<string, string>;
 }): Promise<void> => {
   if (!getPool()) return; // DB not configured
   await query(
     `INSERT INTO payroll_streams
-           (stream_id, employer, worker, total_amount, withdrawn_amount,
-            start_ts, end_ts, status, closed_at, ledger_created, metadata, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, NOW())
+           (stream_id, employer_address, worker_address, total_amount, withdrawn_amount,
+            start_ts, end_ts, status, closed_at, ledger_created, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, NOW())
          ON CONFLICT (stream_id) DO UPDATE
            SET withdrawn_amount = EXCLUDED.withdrawn_amount,
                status           = EXCLUDED.status,
                closed_at        = EXCLUDED.closed_at,
-               metadata         = EXCLUDED.metadata,
                updated_at       = NOW()`,
     [
       params.streamId,
@@ -212,7 +210,6 @@ export const upsertStream = async (params: {
       params.status,
       params.closedAt ?? null,
       params.ledger,
-      params.metadata ?? null,
     ],
   );
 
@@ -249,7 +246,9 @@ export const recordWithdrawal = async (params: {
   globalCache.del("analytics:summary"); // total withdrawn changes
   const stream = await getStreamById(params.streamId);
   if (stream) {
-    globalCache.invalidateByPrefix(`analytics:payroll:${stream.employer}:`);
+    globalCache.invalidateByPrefix(
+      `analytics:payroll:${stream.employer_address}:`,
+    );
   }
 };
 
@@ -312,7 +311,7 @@ export const getEmployerPayrollSummary = async (
         COUNT(*) FILTER (WHERE status = 'cancelled')  AS cancelled_streams,
         COALESCE(SUM(withdrawn_amount), 0)            AS total_disbursed
       FROM payroll_streams
-      WHERE employer = $1`,
+      WHERE employer_address = $1`,
     [employer],
   );
 
@@ -342,7 +341,7 @@ export const getEmployerPayrollMonthly = async (
         COALESCE(SUM(w.amount), 0)             AS payroll_volume
       FROM months
       LEFT JOIN payroll_streams s
-        ON s.employer = $1
+        ON s.employer_address = $1
       LEFT JOIN withdrawals w
         ON w.stream_id = s.stream_id
        AND date_trunc('month', to_timestamp(w.ledger_ts)) = months.month_start
@@ -367,7 +366,7 @@ export const getEmployerPayrollByWorker = async (
         COALESCE(SUM(total_amount), 0)               AS total_allocated,
         COALESCE(SUM(withdrawn_amount), 0)           AS total_disbursed
       FROM payroll_streams
-      WHERE employer = $1
+      WHERE employer_address = $1
       GROUP BY worker
       ORDER BY worker ASC`,
     [employer],
@@ -401,7 +400,7 @@ export const getStreamsByEmployer = async (
   const whereExtra = clauses.length ? `AND ${clauses.join(" AND ")}` : "";
   const res = await query<StreamRecord>(
     `SELECT * FROM payroll_streams
-         WHERE employer = $1 ${whereExtra}
+         WHERE employer_address = $1 ${whereExtra}
          ORDER BY created_at DESC
          LIMIT $2 OFFSET $3`,
     params,
@@ -426,7 +425,7 @@ export const getStreamsByWorker = async (
   const whereExtra = clauses.length ? `AND ${clauses.join(" AND ")}` : "";
   const res = await query<StreamRecord>(
     `SELECT * FROM payroll_streams
-         WHERE worker = $1 ${whereExtra}
+         WHERE worker_address = $1 ${whereExtra}
          ORDER BY created_at DESC
          LIMIT $2 OFFSET $3`,
     params,
@@ -443,7 +442,7 @@ export const getPayrollTrends = async (
   let addressFilter = "";
   if (address) {
     params.push(address);
-    addressFilter = `WHERE employer = $1 OR worker = $1`;
+    addressFilter = `WHERE employer_address = $1 OR worker_address = $1`;
   }
 
   const res = await query<TrendPoint>(
@@ -477,7 +476,7 @@ export const getAddressStats = async (
                 COUNT(*) FILTER (WHERE status = 'cancelled')   AS cancelled_streams,
                 COALESCE(SUM(total_amount),    0)              AS total_volume,
                 COALESCE(SUM(withdrawn_amount),0)              AS total_withdrawn
-             FROM payroll_streams WHERE employer = $1`,
+             FROM payroll_streams WHERE employer_address = $1`,
       [address],
     ),
     query<OverallStats>(
@@ -488,7 +487,7 @@ export const getAddressStats = async (
                 COUNT(*) FILTER (WHERE status = 'cancelled')   AS cancelled_streams,
                 COALESCE(SUM(total_amount),    0)              AS total_volume,
                 COALESCE(SUM(withdrawn_amount),0)              AS total_withdrawn
-             FROM payroll_streams WHERE worker = $1`,
+             FROM payroll_streams WHERE worker_address = $1`,
       [address],
     ),
     query<WithdrawalRecord>(
@@ -778,11 +777,11 @@ export const getActiveLiabilities = async (): Promise<TreasuryLiability[]> => {
   if (!getPool()) return [];
   const res = await query<TreasuryLiability>(
     `SELECT 
-            employer,
+            employer_address AS employer,
             SUM(total_amount - withdrawn_amount) AS liabilities
          FROM payroll_streams
          WHERE status = 'active'
-         GROUP BY employer`,
+         GROUP BY employer_address`,
   );
   return res.rows;
 };
@@ -1305,18 +1304,19 @@ export const getEmployerSpendBreakdown = async (
   }>
 > => {
   if (!getPool()) return [];
-  const interval = period === "monthly" ? "month" : period === "weekly" ? "week" : "day";
+  const interval =
+    period === "monthly" ? "month" : period === "weekly" ? "week" : "day";
   const res = await query(
     `SELECT
-       s.worker,
+       s.worker_address as worker,
        s.metadata->>'department' as department,
        s.metadata->>'project' as project,
        s.metadata->>'role' as role,
        DATE_TRUNC('${interval}', TO_TIMESTAMP(s.start_ts))::text as period_start,
        SUM(s.total_amount::numeric) as total_spend
      FROM payroll_streams s
-     WHERE s.employer = $1 AND s.status = 'active'
-     GROUP BY s.worker, s.metadata->>'department', s.metadata->>'project', s.metadata->>'role', DATE_TRUNC('${interval}', TO_TIMESTAMP(s.start_ts))
+     WHERE s.employer_address = $1 AND s.status = 'active'
+     GROUP BY s.worker_address, s.metadata->>'department', s.metadata->>'project', s.metadata->>'role', DATE_TRUNC('${interval}', TO_TIMESTAMP(s.start_ts))
      ORDER BY period_start DESC, total_spend DESC`,
     [employer],
   );
@@ -1482,7 +1482,8 @@ export const queryPayslipRecords = async (
     values.push(params.endDate);
   }
 
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const whereClause =
+    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const limit = params.limit || 50;
   const offset = params.offset || 0;
 

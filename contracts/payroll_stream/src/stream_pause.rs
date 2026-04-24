@@ -6,12 +6,8 @@ impl PayrollStream {
         Self::require_not_paused(&env)?;
         employer.require_auth();
 
-        let key = StreamKey::Stream(stream_id);
-        let mut stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+        let mut stream: Stream =
+            Self::get_stored_stream(&env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
         if stream.employer != employer {
             return Err(QuipayError::Unauthorized);
@@ -25,7 +21,7 @@ impl PayrollStream {
         stream.status = StreamStatus::Paused;
         stream.paused_at = now;
 
-        env.storage().persistent().set(&key, &stream);
+        Self::set_stored_stream(&env, stream_id, &stream);
         Self::bump_stream_storage_ttl(&env, stream_id, &stream.worker);
 
         env.events().publish(
@@ -45,12 +41,8 @@ impl PayrollStream {
         Self::require_not_paused(&env)?;
         employer.require_auth();
 
-        let key = StreamKey::Stream(stream_id);
-        let mut stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+        let mut stream: Stream =
+            Self::get_stored_stream(&env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
         if stream.employer != employer {
             return Err(QuipayError::Unauthorized);
@@ -67,7 +59,7 @@ impl PayrollStream {
         stream.total_paused_duration = stream.total_paused_duration.saturating_add(paused_duration);
         stream.paused_at = 0;
 
-        env.storage().persistent().set(&key, &stream);
+        Self::set_stored_stream(&env, stream_id, &stream);
         Self::bump_stream_storage_ttl(&env, stream_id, &stream.worker);
 
         env.events().publish(
@@ -87,12 +79,8 @@ impl PayrollStream {
         let admin = Self::get_admin(env.clone())?;
         admin.require_auth();
 
-        let key = StreamKey::Stream(stream_id);
-        let mut stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+        let mut stream: Stream =
+            Self::get_stored_stream(&env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
         if stream.status != StreamStatus::Active {
             return Err(QuipayError::StreamClosed);
@@ -102,7 +90,7 @@ impl PayrollStream {
         stream.status = StreamStatus::Paused;
         stream.paused_at = now;
 
-        env.storage().persistent().set(&key, &stream);
+        Self::set_stored_stream(&env, stream_id, &stream);
         Self::bump_stream_storage_ttl(&env, stream_id, &stream.worker);
 
         env.events().publish(
@@ -121,11 +109,8 @@ impl PayrollStream {
     /// Returns `true` if the stream is currently paused, `false` if active.
     /// Returns `StreamNotFound` if no stream with the given id exists.
     pub fn is_stream_paused(env: Env, stream_id: u64) -> Result<bool, QuipayError> {
-        let stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&StreamKey::Stream(stream_id))
-            .ok_or(QuipayError::StreamNotFound)?;
+        let stream: Stream =
+            Self::get_stored_stream(&env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
         Ok(stream.status == StreamStatus::Paused)
     }
@@ -133,11 +118,8 @@ impl PayrollStream {
     /// Returns `Some(timestamp)` of when the stream was paused, or `None` if it is not paused.
     /// Returns `StreamNotFound` if no stream with the given id exists.
     pub fn get_stream_paused_at(env: Env, stream_id: u64) -> Result<Option<u64>, QuipayError> {
-        let stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&StreamKey::Stream(stream_id))
-            .ok_or(QuipayError::StreamNotFound)?;
+        let stream: Stream =
+            Self::get_stored_stream(&env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
         if stream.status == StreamStatus::Paused {
             Ok(Some(stream.paused_at))
@@ -150,12 +132,8 @@ impl PayrollStream {
         let admin = Self::get_admin(env.clone())?;
         admin.require_auth();
 
-        let key = StreamKey::Stream(stream_id);
-        let mut stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+        let mut stream: Stream =
+            Self::get_stored_stream(&env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
         if stream.status != StreamStatus::Paused {
             return Err(QuipayError::Custom);
@@ -168,7 +146,7 @@ impl PayrollStream {
         stream.total_paused_duration = stream.total_paused_duration.saturating_add(paused_duration);
         stream.paused_at = 0;
 
-        env.storage().persistent().set(&key, &stream);
+        Self::set_stored_stream(&env, stream_id, &stream);
         Self::bump_stream_storage_ttl(&env, stream_id, &stream.worker);
 
         env.events().publish(

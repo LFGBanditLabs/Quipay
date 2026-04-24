@@ -116,6 +116,16 @@ const buildOutgoingPayload = (
   return outgoingPayload;
 };
 
+const computeQuipayWebhookSignatureHex = (
+  rawBody: Buffer,
+  signingSecret: string,
+): string => {
+  return crypto
+    .createHmac("sha256", signingSecret)
+    .update(rawBody)
+    .digest("hex");
+};
+
 const attemptDeliveryOnce = async (params: {
   eventId: string;
   url: string;
@@ -130,12 +140,27 @@ const attemptDeliveryOnce = async (params: {
   let rawError: any = null;
 
   try {
+    const signingSecret = process.env.QUIPAY_WEBHOOK_SIGNING_SECRET;
+
+    const requestBodyString = JSON.stringify(params.outgoingPayload);
+    const signatureHex = signingSecret
+      ? computeQuipayWebhookSignatureHex(
+          Buffer.from(requestBodyString, "utf8"),
+          signingSecret,
+        )
+      : null;
+
     const response: any = await webhookBreaker.fire(
       params.url,
       params.outgoingPayload,
       {
         timeout: 5000,
         validateStatus: () => true,
+        headers: signatureHex
+          ? {
+              "X-Quipay-Signature": signatureHex,
+            }
+          : undefined,
       },
     );
     statusCode = response.status;

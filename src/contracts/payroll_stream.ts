@@ -172,6 +172,53 @@ export async function buildCancelStreamTx(
   return { preparedXdr: prepared.toXDR() };
 }
 
+async function buildSimpleStreamActionTx(
+  functionName: "pause_stream" | "resume_stream",
+  streamId: bigint,
+  employer: string,
+): Promise<{ preparedXdr: string }> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) {
+    throw new Error(
+      "VITE_PAYROLL_STREAM_CONTRACT_ID is not set in environment variables.",
+    );
+  }
+
+  const server = getRpcServer();
+  const account = await server.getAccount(employer);
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+
+  const tx = new TransactionBuilder(account, {
+    fee: "1000000",
+    networkPassphrase,
+  })
+    .addOperation(
+      contract.call(
+        functionName,
+        nativeToScVal(streamId, { type: "u64" }),
+        new Address(employer).toScVal(),
+      ),
+    )
+    .setTimeout(30)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  return { preparedXdr: prepared.toXDR() };
+}
+
+export async function buildPauseStreamTx(
+  streamId: bigint,
+  employer: string,
+): Promise<{ preparedXdr: string }> {
+  return buildSimpleStreamActionTx("pause_stream", streamId, employer);
+}
+
+export async function buildResumeStreamTx(
+  streamId: bigint,
+  employer: string,
+): Promise<{ preparedXdr: string }> {
+  return buildSimpleStreamActionTx("resume_stream", streamId, employer);
+}
+
 // ─── checkTreasurySolvency ────────────────────────────────────────────────────
 
 /**
@@ -365,6 +412,21 @@ export interface ContractWithdrawalEvent {
   txHash: string;
 }
 
+export interface ContractPaymentReceipt {
+  receipt_id: bigint;
+  stream_id: bigint;
+  employer: string;
+  worker: string;
+  token: string;
+  total_amount: bigint;
+  total_paid: bigint;
+  created_at: bigint;
+  start_ts: bigint;
+  end_ts: bigint;
+  finalized_at: bigint;
+  status: number;
+}
+
 // ─── simulateContractRead ─────────────────────────────────────────────────────
 
 async function simulateContractRead<T>(
@@ -427,28 +489,28 @@ export async function getStreamsByWorker(
 // ─── getStreamsByEmployer ───────────────────────────────────────────────────────
 
 /**
- * Calls `get_streams_by_employer` on the PayrollStream contract and returns the
- * list of stream IDs created by `employerAddress`.
+ * Calls `get_streams_by_employer` on the PayrollStream contract and returns a
+ * paginated stream page plus total count.
  */
 export async function getStreamsByEmployer(
   employerAddress: string,
-  offset?: number,
-  limit?: number,
-): Promise<bigint[]> {
-  if (!PAYROLL_STREAM_CONTRACT_ID) return [];
+  offset = 0,
+  limit = 20,
+): Promise<{ streams: ContractStream[]; total: number }> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) return { streams: [], total: 0 };
 
   const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
-  const ids = await simulateContractRead<bigint[]>(
+  const page = await simulateContractRead<[ContractStream[], number]>(
     employerAddress,
     contract.call(
       "get_streams_by_employer",
       new Address(employerAddress).toScVal(),
-      nativeToScVal(offset !== undefined ? offset : null),
-      nativeToScVal(limit !== undefined ? limit : null),
+      nativeToScVal(offset, { type: "u32" }),
+      nativeToScVal(limit, { type: "u32" }),
     ),
   );
 
-  return ids ?? [];
+  return { streams: page?.[0] ?? [], total: page?.[1] ?? 0 };
 }
 
 // ─── getStreamById ────────────────────────────────────────────────────────────
@@ -467,6 +529,35 @@ export async function getStreamById(
   return simulateContractRead<ContractStream>(
     sourceAddress,
     contract.call("get_stream", nativeToScVal(streamId, { type: "u64" })),
+  );
+}
+
+export async function getReceiptById(
+  sourceAddress: string,
+  receiptId: bigint,
+): Promise<ContractPaymentReceipt | null> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) return null;
+
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+  return simulateContractRead<ContractPaymentReceipt>(
+    sourceAddress,
+    contract.call("get_receipt", nativeToScVal(receiptId, { type: "u64" })),
+  );
+}
+
+export async function getReceiptForStream(
+  sourceAddress: string,
+  streamId: bigint,
+): Promise<ContractPaymentReceipt | null> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) return null;
+
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+  return simulateContractRead<ContractPaymentReceipt>(
+    sourceAddress,
+    contract.call(
+      "get_receipt_for_stream",
+      nativeToScVal(streamId, { type: "u64" }),
+    ),
   );
 }
 

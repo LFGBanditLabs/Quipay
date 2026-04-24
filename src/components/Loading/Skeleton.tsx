@@ -93,6 +93,7 @@ export interface SkeletonRowProps {
  */
 export const SkeletonRow: React.FC<SkeletonRowProps> = ({ className }) => (
   <div
+    aria-busy="true"
     className={`flex items-center justify-between gap-4 rounded-md border border-[var(--border)] bg-[var(--bg)] p-[15px] ${className ?? ""}`}
   >
     <div className="flex flex-1 flex-col gap-[6px]">
@@ -104,5 +105,65 @@ export const SkeletonRow: React.FC<SkeletonRowProps> = ({ className }) => (
       <Skeleton variant="text" width="100px" height="12px" />
     </div>
     <Skeleton variant="rect" width="100px" height="20px" />
+  </div>
+);
+
+export const StreamCardSkeleton: React.FC<{ className?: string }> = ({
+  className,
+}) => (
+  <div
+    aria-busy="true"
+    className={`rounded-lg border border-gray-700 bg-gray-800 p-4 ${className ?? ""}`}
+  >
+    <div className="flex items-center justify-between gap-4">
+      <div className="min-w-0 flex-1">
+        <Skeleton variant="text" width="180px" height="14px" />
+        <Skeleton variant="text" width="120px" height="12px" />
+      </div>
+      <div className="flex min-w-[120px] flex-col items-end gap-2">
+        <Skeleton variant="text" width="88px" height="14px" />
+        <Skeleton variant="rect" width="72px" height="22px" />
+      </div>
+    </div>
+  </div>
+);
+
+export const StatTileSkeleton: React.FC<{ className?: string }> = ({
+  className,
+}) => (
+  <div
+    aria-busy="true"
+    className={`rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5 ${className ?? ""}`}
+  >
+    <Skeleton variant="text" width="42%" height="12px" />
+    <Skeleton variant="rect" width="68%" height="32px" />
+    <Skeleton variant="text" width="55%" height="12px" />
+  </div>
+);
+
+export const ChartPanelSkeleton: React.FC<{ className?: string }> = ({
+  className,
+}) => (
+  <div
+    aria-busy="true"
+    className={`rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5 ${className ?? ""}`}
+  >
+    <Skeleton variant="text" width="38%" height="14px" />
+    <Skeleton variant="text" width="55%" height="12px" />
+    <Skeleton variant="rect" width="100%" height="240px" className="mt-4" />
+  </div>
+);
+
+export const TransactionRowSkeleton: React.FC<{ className?: string }> = ({
+  className,
+}) => (
+  <div
+    aria-busy="true"
+    className={`grid grid-cols-[1.5fr_1fr_1fr_auto] items-center gap-4 rounded-md border border-[var(--border)] bg-[var(--bg)] p-3 ${className ?? ""}`}
+  >
+    <Skeleton variant="text" width="160px" height="13px" />
+    <Skeleton variant="text" width="96px" height="13px" />
+    <Skeleton variant="text" width="80px" height="13px" />
+    <Skeleton variant="rect" width="68px" height="22px" />
   </div>
 );

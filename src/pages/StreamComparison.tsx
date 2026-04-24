@@ -27,6 +27,12 @@ const STATUS_STYLES: Record<
     border: "border-emerald-500/25",
     text: "text-emerald-300",
   },
+  paused: {
+    badge: "bg-amber-500/15 text-amber-300",
+    border: "border-amber-500/25",
+    text: "text-amber-300",
+    strokeDasharray: "2 2",
+  },
   completed: {
     badge: "bg-sky-500/15 text-sky-300",
     border: "border-sky-500/25",

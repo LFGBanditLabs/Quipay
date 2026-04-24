@@ -1,5 +1,7 @@
+import { memo } from "react";
 import { useStreamHistory } from "../hooks/useStreamHistory";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
+import { StreamCardSkeleton } from "./Loading";
 import type { Stream, StreamsResponse } from "../lib/streams";
 
 export const StreamHistory = () => {
@@ -23,8 +25,10 @@ export const StreamHistory = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <span className="text-sm text-gray-400">Loading streams...</span>
+      <div className="space-y-3 py-2" aria-busy="true">
+        <StreamCardSkeleton />
+        <StreamCardSkeleton />
+        <StreamCardSkeleton />
       </div>
     );
   }
@@ -54,7 +58,7 @@ export const StreamHistory = () => {
 
           {isFetchingNextPage && (
             <div className="flex items-center justify-center py-4">
-              <span className="text-sm text-gray-400">Loading more...</span>
+              <StreamCardSkeleton className="w-full" />
             </div>
           )}
 
@@ -71,7 +75,7 @@ export const StreamHistory = () => {
   );
 };
 
-const StreamCard = ({ stream }: { stream: Stream }) => {
+const StreamCard = memo(({ stream }: { stream: Stream }) => {
   return (
     <div className="rounded-lg border border-gray-700 bg-gray-800 p-4 flex items-center justify-between">
       <div className="space-y-1">
@@ -96,4 +100,4 @@ const StreamCard = ({ stream }: { stream: Stream }) => {
       </div>
     </div>
   );
-};
+});

@@ -1,0 +1,67 @@
+# Gitleaks configuration for Quipay
+# https://github.com/gitleaks/gitleaks
+
+title = "Quipay Secret Scanning"
+
+# ── Custom rules ──────────────────────────────────────────────────────────────
+
+[[rules]]
+id = "stellar-private-key"
+description = "Stellar private key (starts with S, 56 chars)"
+regex = '''S[A-Z2-7]{55}'''
+tags = ["key", "stellar"]
+
+[[rules]]
+id = "generic-api-key-assignment"
+description = "Generic API key assignment"
+regex = '''(?i)(api[_-]?key|apikey|api[_-]?secret)\s*[:=]\s*['"][A-Za-z0-9/+=]{20,}['"]'''
+tags = ["key", "api"]
+
+[[rules]]
+id = "jwt-token"
+description = "JWT token"
+regex = '''eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'''
+tags = ["token", "jwt"]
+
+[[rules]]
+id = "slack-webhook"
+description = "Slack incoming webhook URL"
+regex = '''https://hooks\.slack\.com/services/T[A-Z0-9]{8,}/B[A-Z0-9]{8,}/[A-Za-z0-9]{20,}'''
+tags = ["webhook", "slack"]
+
+[[rules]]
+id = "sendgrid-api-key"
+description = "SendGrid API key"
+regex = '''SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}'''
+tags = ["key", "sendgrid"]
+
+[[rules]]
+id = "vault-token"
+description = "Hashicorp Vault token"
+regex = '''(?i)vault[_-]?token\s*[:=]\s*['"](?:hvs\.|s\.)[A-Za-z0-9]{20,}['"]'''
+tags = ["token", "vault"]
+
+# ── Allowlist ─────────────────────────────────────────────────────────────────
+
+[allowlist]
+description = "Global allowlist"
+paths = [
+  '''\.env\.example$''',
+  '''package-lock\.json$''',
+  '''Cargo\.lock$''',
+  '''\.git/''',
+]
+regexTarget = "match"
+regexes = [
+  # Placeholder / dummy addresses used in examples and test fixtures
+  '''GAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX''',
+  '''GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX''',
+  '''GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA''',
+  '''SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX''',
+  # sha512 integrity hashes in package-lock.json
+  '''sha512-[A-Za-z0-9+/=]{40,}''',
+  # Stellar well-known public USDC issuer (Circle)
+  '''GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5''',
+  # CAAAA... placeholder in test fixtures
+  '''CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM''',
+]

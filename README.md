@@ -230,8 +230,7 @@ Quipay/
 - **[Product Requirements (PRD)](docs/PRD.md)** - Complete product specification
 - **[Security Threat Model](docs/SECURITY_THREAT_MODEL.md)** - Formal analysis of protocol risks and mitigations
 - **[DAO Treasury Setup Guide](docs/DAO_TREASURY_SETUP.md)** - Multisig configuration for DAOs and enterprise clients
-- **[Implementation Plan](.gemini/antigravity/brain/2a2ff1d1-92c4-44ca-9e86-2bf558a85165/implementation_plan.md)** - Technical architecture & roadmap
-- **[Design Document](docs/design.md)** - System design overview
+- **[Design Document](docs/design.md)** - Technical architecture, roadmap & system design
 - **[GitHub Issues](https://github.com/LFGBanditLabs/Quipay/issues)** - Development tasks & progress
 
 ---

@@ -34,39 +34,13 @@ const StreamProgressCard: React.FC<StreamProgressCardProps> = ({
   const hourlyRate = flowRateToHourly(flowRate);
 
   return (
-    <div
-      style={{
-        padding: "1rem",
-        borderRadius: "0.75rem",
-        border: "1px solid var(--sds-color-neutral-border, #2d2d3d)",
-        background: "var(--sds-color-neutral-background, #1a1a2e)",
-        display: "flex",
-        flexDirection: "column",
-        gap: "0.5rem",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
+    <div className="stream-progress-card">
+      <div className="stream-progress-card-header">
+        <span className="stream-progress-card-title">{employerName}</span>
         <span
-          style={{
-            fontSize: "0.875rem",
-            fontWeight: 600,
-            color: "var(--text, #e2e8f0)",
-          }}
-        >
-          {employerName}
-        </span>
-        <span
-          style={{
-            fontSize: "0.75rem",
-            color: isComplete ? "#10b981" : "var(--muted, #94a3b8)",
-            fontWeight: isComplete ? 600 : 400,
-          }}
+          className={`stream-progress-card-status ${
+            isComplete ? "stream-progress-card-status--complete" : ""
+          }`}
         >
           {isComplete ? "Complete" : tokenSymbol}
         </span>
@@ -74,11 +48,12 @@ const StreamProgressCard: React.FC<StreamProgressCardProps> = ({
 
       <div className="stream-progress-bar">
         <div
-          className="stream-progress-fill"
+          className={`stream-progress-fill ${
+            isComplete ? "stream-progress-fill--complete" : ""
+          }`}
           style={{
             width: `${pct}%`,
             animation: isComplete ? "none" : undefined,
-            background: isComplete ? "#10b981" : undefined,
           }}
         />
       </div>

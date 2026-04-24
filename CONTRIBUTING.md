@@ -172,7 +172,7 @@ Snapshot tests fail automatically in CI when rendered output diverges from the c
 ### Backend
 
 ```bash
-cd backend
+  cd backend
 
 # Unit tests
 npm run test:unit

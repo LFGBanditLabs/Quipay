@@ -13,8 +13,8 @@ const PINATA_GATEWAY_URL =
 export interface PayrollProof {
   schemaVersion: "1.0";
   streamId: number;
-  employer: string;
-  worker: string;
+  employer_address: string;
+  worker_address: string;
   tokenAddress: string;
   tokenSymbol: string;
   /** Human-readable token units (stroops / 10^7) */
@@ -65,8 +65,8 @@ export const pinProofToIPFS = async (
         name: `quipay-proof-stream-${proof.streamId}.json`,
         keyvalues: {
           streamId: String(proof.streamId),
-          worker: proof.worker,
-          employer: proof.employer,
+          worker: proof.worker_address,
+          employer: proof.employer_address,
           network: proof.network,
         },
       },

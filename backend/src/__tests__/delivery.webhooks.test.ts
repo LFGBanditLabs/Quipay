@@ -38,6 +38,10 @@ describe("webhook delivery logging + retry scheduling", () => {
     webhookStore.clear();
   });
 
+  afterEach(() => {
+    delete process.env.QUIPAY_WEBHOOK_SIGNING_SECRET;
+  });
+
   it("logs outbound event + attempt and marks success on 2xx", async () => {
     webhookStore.set("sub-1", {
       id: "sub-1",
@@ -60,6 +64,32 @@ describe("webhook delivery logging + retry scheduling", () => {
         status: "success",
         attemptCount: 1,
         nextRetryAt: null,
+      }),
+    );
+  });
+
+  it("includes X-Quipay-Signature header when signing is configured", async () => {
+    process.env.QUIPAY_WEBHOOK_SIGNING_SECRET = "test-secret";
+
+    webhookStore.set("sub-1", {
+      id: "sub-1",
+      ownerId: "merchant-1",
+      url: "https://example.com/webhook",
+      events: ["withdrawal"],
+      createdAt: new Date(),
+    });
+
+    mockedPost.mockResolvedValueOnce({ status: 204, data: "" } as any);
+
+    await sendWebhookNotification("withdrawal", { hello: "world" });
+
+    expect(mockedPost).toHaveBeenCalledWith(
+      "https://example.com/webhook",
+      expect.anything(),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "X-Quipay-Signature": expect.any(String),
+        }),
       }),
     );
   });

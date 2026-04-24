@@ -1,4 +1,4 @@
-import { expect, test, describe } from "bun:test";
+import { describe, expect, test } from "@jest/globals";
 import { shortenAddress } from "./address";
 
 describe("shortenAddress", () => {

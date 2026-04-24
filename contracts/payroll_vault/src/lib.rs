@@ -32,7 +32,7 @@ pub enum StateKey {
     PendingAdmin, // Pending admin address (for two-step transfer)
     Version,
     AuthorizedContract, // Contract authorized to modify liabilities (e.g., PayrollStream)
-    TokenList,          // Tokens tracked by the vault
+    TokenList,          // Allowlisted tokens accepted by the vault
     // Additional state that should persist across upgrades
     TreasuryBalance(Address), // Funds held for payroll (Token -> Amount)
     TotalLiability(Address),  // Amount owed to recipients (Token -> Amount)
@@ -40,9 +40,10 @@ pub enum StateKey {
     PendingUpgrade, // (wasm_hash, execute_after_timestamp)
     PendingDrain,   // Emergency drain proposal with 24-hour timelock
     // Multi-sig storage
-    Signers,             // Vec<Address> - list of authorized signers
-    Threshold,           // u32 - M of N required
-    WithdrawalThreshold, // i128 - amount above which multisig is required
+    Signers,                 // Vec<Address> - list of authorized signers
+    Threshold,               // u32 - M of N required
+    PendingUpgradeApprovals, // Map::<Address, bool>
+    WithdrawalThreshold,     // i128 - amount above which multisig is required
 }
 
 #[contracttype]
@@ -94,6 +95,8 @@ const THRESHOLD_SET: Symbol = symbol_short!("thr_set");
 const DRAIN_PROPOSED: Symbol = symbol_short!("dr_prop");
 const DRAIN_EXECUTED: Symbol = symbol_short!("dr_exec");
 const DRAIN_CANCELED: Symbol = symbol_short!("dr_cncl");
+const TOKEN_ALLOWLISTED: Symbol = symbol_short!("tok_allow");
+const TOKEN_DENYLISTED: Symbol = symbol_short!("tok_deny");
 
 // 48 hours in seconds
 const TIMELOCK_DURATION: u64 = 48 * 60 * 60;
@@ -186,6 +189,11 @@ impl PayrollVault {
             .persistent()
             .set(&StateKey::PendingUpgrade, &pending_upgrade);
 
+        // Reset approvals for new upgrade
+        e.storage()
+            .persistent()
+            .remove(&StateKey::PendingUpgradeApprovals);
+
         // Emit upgrade proposed event
         #[allow(deprecated)]
         e.events().publish(
@@ -202,11 +210,52 @@ impl PayrollVault {
         Ok(())
     }
 
+    pub fn approve_upgrade(
+        e: Env,
+        signer: Address,
+        wasm_hash: BytesN<32>,
+    ) -> Result<(), QuipayError> {
+        signer.require_auth();
+
+        let signers: Vec<Address> = e
+            .storage()
+            .persistent()
+            .get(&StateKey::Signers)
+            .ok_or(QuipayError::NoSigners)?;
+        if !signers.contains(signer.clone()) {
+            return Err(QuipayError::SignerNotFound);
+        }
+
+        let pending_upgrade: PendingUpgrade = e
+            .storage()
+            .persistent()
+            .get(&StateKey::PendingUpgrade)
+            .ok_or(QuipayError::Custom)?;
+
+        if pending_upgrade.wasm_hash != wasm_hash {
+            return Err(QuipayError::Custom);
+        }
+
+        let mut approvals: Vec<Address> = e
+            .storage()
+            .persistent()
+            .get(&StateKey::PendingUpgradeApprovals)
+            .unwrap_or(Vec::new(&e));
+        if !approvals.contains(signer.clone()) {
+            approvals.push_back(signer);
+            e.storage()
+                .persistent()
+                .set(&StateKey::PendingUpgradeApprovals, &approvals);
+        }
+
+        Ok(())
+    }
+
     /// Execute a proposed upgrade after the timelock period
     /// Only the admin can call this function
     pub fn execute_upgrade(e: Env, new_version: (u32, u32, u32)) -> Result<(), QuipayError> {
         let admin = Self::get_admin(e.clone())?;
-        Self::require_multisig_auth(&e)?;
+        admin.require_auth();
 
         let pending_upgrade: PendingUpgrade = e
             .storage()
@@ -217,6 +266,33 @@ impl PayrollVault {
         let now = e.ledger().timestamp();
         if now < pending_upgrade.execute_after {
             return Err(QuipayError::Custom);
+        }
+
+        let threshold: u32 = e
+            .storage()
+            .persistent()
+            .get(&StateKey::Threshold)
+            .unwrap_or(1);
+        let approvals: Vec<Address> = e
+            .storage()
+            .persistent()
+            .get(&StateKey::PendingUpgradeApprovals)
+            .unwrap_or(Vec::new(&e));
+        let signers: Vec<Address> = e
+            .storage()
+            .persistent()
+            .get(&StateKey::Signers)
+            .ok_or(QuipayError::NoSigners)?;
+
+        let mut valid_approvals = 0;
+        for approval in approvals.iter() {
+            if signers.contains(approval) {
+                valid_approvals += 1;
+            }
+        }
+
+        if valid_approvals < threshold {
+            return Err(QuipayError::InsufficientSignatures);
         }
 
         // Get current version for event
@@ -240,6 +316,9 @@ impl PayrollVault {
 
         // Clear pending upgrade
         e.storage().persistent().remove(&StateKey::PendingUpgrade);
+        e.storage()
+            .persistent()
+            .remove(&StateKey::PendingUpgradeApprovals);
 
         // Emit upgrade executed event
         #[allow(deprecated)]
@@ -273,6 +352,9 @@ impl PayrollVault {
 
         // Clear pending upgrade
         e.storage().persistent().remove(&StateKey::PendingUpgrade);
+        e.storage()
+            .persistent()
+            .remove(&StateKey::PendingUpgradeApprovals);
 
         // Emit upgrade canceled event
         #[allow(deprecated)]
@@ -528,15 +610,15 @@ impl PayrollVault {
     pub fn deposit(e: Env, from: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
         from.require_auth();
         require_positive_amount!(amount);
+        if !Self::is_token_allowed(e.clone(), token.clone()) {
+            return Err(QuipayError::InvalidToken);
+        }
 
         // Update treasury balance
         let key = StateKey::TreasuryBalance(token.clone());
         let current_balance: i128 = e.storage().persistent().get(&key).unwrap_or(0);
         let new_total = current_balance + amount;
-        e.storage()
-            .persistent()
-            .set(&key, &new_total);
-        Self::track_supported_token(&e, token.clone());
+        e.storage().persistent().set(&key, &new_total);
 
         let token_client = token::Client::new(&e, &token);
         token_client.transfer(&from, e.current_contract_address(), &amount);
@@ -558,6 +640,10 @@ impl PayrollVault {
     /// Returns true if balance >= current_liability + additional_liability.
     pub fn check_solvency(e: Env, token: Address, additional_liability: i128) -> bool {
         if additional_liability < 0 {
+            return false;
+        }
+
+        if !Self::is_token_allowed(e.clone(), token.clone()) {
             return false;
         }
 
@@ -614,9 +700,7 @@ impl PayrollVault {
         let balance: i128 = e.storage().persistent().get(&balance_key).unwrap_or(0);
         let new_total = balance - amount;
         // If the invariant holds, this should never underflow.
-        e.storage()
-            .persistent()
-            .set(&balance_key, &new_total);
+        e.storage().persistent().set(&balance_key, &new_total);
 
         let token_client = token::Client::new(&e, &token);
         token_client.transfer(&e.current_contract_address(), &to, &amount);
@@ -866,6 +950,10 @@ impl PayrollVault {
             .ok_or(QuipayError::NotInitialized)?;
         authorized.require_auth();
 
+        if !Self::is_token_allowed(e.clone(), token.clone()) {
+            return Err(QuipayError::InvalidToken);
+        }
+
         if amount <= 0 {
             return Err(QuipayError::InvalidAmount);
         }
@@ -952,10 +1040,60 @@ impl PayrollVault {
 
     /// Get all supported tokens tracked by the vault.
     pub fn get_supported_tokens(e: Env) -> Vec<Address> {
+        Self::get_allowed_tokens(e)
+    }
+
+    /// Get all allowlisted tokens accepted by the vault.
+    pub fn get_allowed_tokens(e: Env) -> Vec<Address> {
         e.storage()
             .persistent()
             .get(&StateKey::TokenList)
             .unwrap_or_else(|| Vec::new(&e))
+    }
+
+    /// Returns true if the token is currently allowlisted.
+    pub fn is_token_allowed(e: Env, token: Address) -> bool {
+        Self::get_allowed_tokens(e).contains(token)
+    }
+
+    /// Admin-only function to allowlist a token for deposits and stream liabilities.
+    pub fn allowlist_token(e: Env, token: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        let mut tokens = Self::get_allowed_tokens(e.clone());
+        if !tokens.contains(token.clone()) {
+            tokens.push_back(token.clone());
+            e.storage().persistent().set(&StateKey::TokenList, &tokens);
+        }
+
+        #[allow(deprecated)]
+        e.events().publish((TOKEN_ALLOWLISTED, admin), token);
+        Ok(())
+    }
+
+    /// Admin-only function to remove a token from the allowlist.
+    pub fn denylist_token(e: Env, token: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        let tokens = Self::get_allowed_tokens(e.clone());
+        let mut filtered = Vec::new(&e);
+        let mut i = 0;
+        while i < tokens.len() {
+            let allowed = tokens.get(i).ok_or(QuipayError::StorageError)?;
+            if allowed != token {
+                filtered.push_back(allowed);
+            }
+            i += 1;
+        }
+        e.storage()
+            .persistent()
+            .set(&StateKey::TokenList, &filtered);
+
+        #[allow(deprecated)]
+        e.events().publish((TOKEN_DENYLISTED, admin), token);
+        Ok(())
     }
 
     /// Get a summary of treasury balances and liabilities for all tracked tokens.
@@ -984,14 +1122,14 @@ impl PayrollVault {
 
     /// Propose an emergency drain of all vault funds to `recipient`.
     ///
-    /// Starts a 24-hour timelock. Only the admin can call this function.
+    /// Starts a 24-hour timelock. Requires the configured multisig threshold.
     /// Off-chain monitors should observe the `DRAIN_PROPOSED` event and alert
     /// token holders so they can exit before the drain executes.
     ///
     /// Emits: `(DRAIN_PROPOSED, admin)` → `(recipient, execute_after)`
     pub fn propose_emergency_drain(e: Env, recipient: Address) -> Result<(), QuipayError> {
         let admin = Self::get_admin(e.clone())?;
-        admin.require_auth();
+        Self::require_multisig_auth(&e)?;
 
         // Disallow stacking proposals – cancel first, then re-propose.
         if e.storage().persistent().has(&StateKey::PendingDrain) {
@@ -1172,20 +1310,5 @@ impl PayrollVault {
         }
 
         Ok(())
-    }
-
-    fn track_supported_token(e: &Env, token: Address) {
-        let mut tokens = e
-            .storage()
-            .persistent()
-            .get(&StateKey::TokenList)
-            .unwrap_or_else(|| Vec::new(e));
-
-        if tokens.contains(token.clone()) {
-            return;
-        }
-
-        tokens.push_back(token);
-        e.storage().persistent().set(&StateKey::TokenList, &tokens);
     }
 }

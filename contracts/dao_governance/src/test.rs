@@ -1,10 +1,30 @@
 #![cfg(test)]
 use super::*;
 use soroban_sdk::{
+    Address, Bytes, BytesN, Env, contract, contractimpl,
     testutils::{Address as _, Ledger},
-    token::{Client as TokenClient, StellarAssetClient},
-    Env, String,
+    token::StellarAssetClient,
 };
+
+#[contract]
+struct MockPayrollStream;
+
+#[contractimpl]
+impl MockPayrollStream {
+    pub fn create_stream_via_governance(
+        _env: Env,
+        _employer: Address,
+        _worker: Address,
+        _token: Address,
+        _rate: i128,
+        _cliff_ts: u64,
+        _start_ts: u64,
+        _end_ts: u64,
+        _metadata_hash: Option<BytesN<32>>,
+    ) -> u64 {
+        777
+    }
+}
 
 fn setup_env() -> (Env, Address, Address, Address, Address) {
     let env = Env::default();
@@ -18,8 +38,7 @@ fn setup_env() -> (Env, Address, Address, Address, Address) {
     let asset_client = StellarAssetClient::new(&env, &gov_token);
     asset_client.mint(&admin, &1_000_000_i128);
 
-    // Register a dummy payroll stream contract (we use a plain address for unit tests)
-    let payroll_stream = Address::generate(&env);
+    let payroll_stream = env.register(MockPayrollStream, ());
 
     let contract_id = env.register(DaoGovernance, ());
     let client = DaoGovernanceClient::new(&env, &contract_id);
@@ -30,10 +49,18 @@ fn setup_env() -> (Env, Address, Address, Address, Address) {
     (env, contract_id, admin, gov_token, payroll_stream)
 }
 
-fn make_stream_params(env: &Env, employer: &Address) -> StreamProposalParams {
+fn make_description_hash(env: &Env, seed: u8) -> BytesN<32> {
+    BytesN::from_array(env, &[seed; 32])
+}
+
+fn make_raw_call_data(env: &Env, label: &str) -> Bytes {
+    Bytes::from_slice(env, label.as_bytes())
+}
+
+fn make_stream_params(env: &Env, employer: &Address) -> ProposalCallData {
     let worker = Address::generate(env);
     let token = Address::generate(env);
-    StreamProposalParams {
+    ProposalCallData {
         employer: employer.clone(),
         worker,
         token,
@@ -60,9 +87,9 @@ fn test_create_proposal() {
     let params = make_stream_params(&env, &admin);
     let proposal_id = client.create_proposal(
         &admin,
-        &String::from_str(&env, "Pay Alice"),
-        &String::from_str(&env, "Stream 100 XLM/s to Alice"),
+        &make_description_hash(&env, 1),
         &params,
+        &make_raw_call_data(&env, "alice-stream"),
     );
     assert_eq!(proposal_id, 1);
 
@@ -83,9 +110,9 @@ fn test_vote_for() {
     let params = make_stream_params(&env, &admin);
     let proposal_id = client.create_proposal(
         &admin,
-        &String::from_str(&env, "Pay Bob"),
-        &String::from_str(&env, "Stream to Bob"),
+        &make_description_hash(&env, 2),
         &params,
+        &make_raw_call_data(&env, "bob-stream"),
     );
 
     client.vote(&voter, &proposal_id, &true);
@@ -106,9 +133,9 @@ fn test_double_vote_rejected() {
     let params = make_stream_params(&env, &admin);
     let proposal_id = client.create_proposal(
         &admin,
-        &String::from_str(&env, "Test"),
-        &String::from_str(&env, "Test desc"),
+        &make_description_hash(&env, 3),
         &params,
+        &make_raw_call_data(&env, "double-vote"),
     );
 
     client.vote(&voter, &proposal_id, &true);
@@ -132,9 +159,9 @@ fn test_finalize_passed() {
     let params = make_stream_params(&env, &admin);
     let proposal_id = client.create_proposal(
         &admin,
-        &String::from_str(&env, "Hire Carol"),
-        &String::from_str(&env, "Stream to Carol"),
+        &make_description_hash(&env, 4),
         &params,
+        &make_raw_call_data(&env, "carol-stream"),
     );
 
     client.vote(&voter, &proposal_id, &true);
@@ -162,9 +189,9 @@ fn test_finalize_rejected_no_quorum() {
     let params = make_stream_params(&env, &admin);
     let proposal_id = client.create_proposal(
         &admin,
-        &String::from_str(&env, "Tiny vote"),
-        &String::from_str(&env, "desc"),
+        &make_description_hash(&env, 5),
         &params,
+        &make_raw_call_data(&env, "tiny-vote"),
     );
 
     client.vote(&voter, &proposal_id, &true);
@@ -188,9 +215,9 @@ fn test_cannot_vote_after_window() {
     let params = make_stream_params(&env, &admin);
     let proposal_id = client.create_proposal(
         &admin,
-        &String::from_str(&env, "Late vote"),
-        &String::from_str(&env, "desc"),
+        &make_description_hash(&env, 6),
         &params,
+        &make_raw_call_data(&env, "late-vote"),
     );
 
     env.ledger().with_mut(|l| {
@@ -205,8 +232,99 @@ fn test_cannot_vote_after_window() {
 fn test_get_config() {
     let (env, contract_id, _admin, _gov_token, _payroll_stream) = setup_env();
     let client = DaoGovernanceClient::new(&env, &contract_id);
-    let (voting_period, quorum_bps, approval_bps) = client.get_config();
+    let (voting_period, timelock_delay, quorum_bps, approval_bps) = client.get_config();
     assert_eq!(voting_period, 3 * 24 * 60 * 60);
+    assert_eq!(timelock_delay, 24 * 60 * 60);
     assert_eq!(quorum_bps, 1000);
     assert_eq!(approval_bps, 5001);
+}
+
+#[test]
+fn test_execute_proposal_enforces_timelock_then_executes() {
+    let (env, contract_id, admin, gov_token, _payroll_stream) = setup_env();
+    let client = DaoGovernanceClient::new(&env, &contract_id);
+
+    let voter = Address::generate(&env);
+    StellarAssetClient::new(&env, &gov_token).mint(&voter, &600_000_i128);
+    client.set_total_supply(&1_600_000_i128);
+
+    let params = make_stream_params(&env, &admin);
+    let proposal_id = client.create_proposal(
+        &admin,
+        &make_description_hash(&env, 7),
+        &params,
+        &make_raw_call_data(&env, "timelock"),
+    );
+
+    client.vote(&voter, &proposal_id, &true);
+
+    env.ledger().with_mut(|l| {
+        l.timestamp += 259_201;
+    });
+
+    let status = client.finalize_proposal(&proposal_id);
+    assert_eq!(status, ProposalStatus::Passed);
+
+    let early = client.try_execute_proposal(&admin, &proposal_id);
+    assert_eq!(early, Err(Ok(QuipayError::GracePeriodActive)));
+
+    env.ledger().with_mut(|l| {
+        l.timestamp += 24 * 60 * 60;
+    });
+
+    let stream_id = client.execute_proposal(&admin, &proposal_id);
+    assert_eq!(stream_id, 777);
+
+    let proposal = client.get_proposal(&proposal_id).unwrap();
+    assert_eq!(proposal.status, ProposalStatus::Executed);
+    assert_eq!(proposal.executed_by, Some(admin));
+}
+
+#[test]
+fn test_cancel_proposal_allows_proposer_and_blocks_execution() {
+    let (env, contract_id, admin, _gov_token, _payroll_stream) = setup_env();
+    let client = DaoGovernanceClient::new(&env, &contract_id);
+
+    let params = make_stream_params(&env, &admin);
+    let proposal_id = client.create_proposal(
+        &admin,
+        &make_description_hash(&env, 8),
+        &params,
+        &make_raw_call_data(&env, "cancel-me"),
+    );
+
+    client.cancel_proposal(&admin, &proposal_id);
+
+    let proposal = client.get_proposal(&proposal_id).unwrap();
+    assert_eq!(proposal.status, ProposalStatus::Cancelled);
+
+    let execute = client.try_execute_proposal(&admin, &proposal_id);
+    assert!(execute.is_err());
+}
+
+#[test]
+fn test_finalize_passed_at_exact_quorum_threshold() {
+    let (env, contract_id, admin, gov_token, _payroll_stream) = setup_env();
+    let client = DaoGovernanceClient::new(&env, &contract_id);
+
+    let voter = Address::generate(&env);
+    StellarAssetClient::new(&env, &gov_token).mint(&voter, &100_000_i128);
+    client.set_total_supply(&1_000_000_i128);
+
+    let params = make_stream_params(&env, &admin);
+    let proposal_id = client.create_proposal(
+        &admin,
+        &make_description_hash(&env, 9),
+        &params,
+        &make_raw_call_data(&env, "exact-quorum"),
+    );
+
+    client.vote(&voter, &proposal_id, &true);
+
+    env.ledger().with_mut(|l| {
+        l.timestamp += 259_201;
+    });
+
+    let status = client.finalize_proposal(&proposal_id);
+    assert_eq!(status, ProposalStatus::Passed);
 }

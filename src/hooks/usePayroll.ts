@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { io } from "socket.io-client";
 import {
   getAllVaultData,
   type TokenVaultData,
 } from "../contracts/payroll_vault";
 import {
   getStreamsByEmployer,
-  getStreamById,
   getTokenSymbol,
   ContractStream,
 } from "../contracts/payroll_stream";
@@ -34,7 +34,9 @@ export interface Stream {
   /** Amount already streamed (withdrawn) formatted to 2 decimal places in token units. */
   totalStreamed: string;
   /** Lifecycle status of the stream. */
-  status: "active" | "completed" | "cancelled";
+  status: "active" | "paused" | "completed" | "cancelled";
+  /** Client-side action currently waiting for confirmation. */
+  pendingAction?: "pause" | "resume" | "cancel";
 }
 
 /** Token balance as reported by the PayrollVault contract. */
@@ -46,6 +48,8 @@ export interface TokenBalance {
 }
 
 // Default tokens to monitor (XLM and USDC)
+const USDC_ISSUER = import.meta.env.PUBLIC_USDC_ISSUER || "";
+
 const DEFAULT_TOKENS: Array<{
   token: string;
   tokenSymbol: string;
@@ -53,7 +57,7 @@ const DEFAULT_TOKENS: Array<{
 }> = [
   { token: "", tokenSymbol: "XLM", monthlyBurnRate: BigInt(0) },
   {
-    token: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN", // USDC testnet
+    token: USDC_ISSUER,
     tokenSymbol: "USDC",
     monthlyBurnRate: BigInt(0),
   },
@@ -132,76 +136,63 @@ export const usePayroll = (
   const fetchStreams = useCallback(
     async (address: string) => {
       try {
-        const streamIds = await getStreamsByEmployer(
+        const streamPage = await getStreamsByEmployer(
           address,
           options?.offset,
           options?.limit,
         );
 
-        const streamResults = await Promise.all(
-          streamIds.map((id) => getStreamById(address, id)),
-        );
-
         const employerStreams: Stream[] = await Promise.all(
-          streamIds
-            .map((id, i) => ({
-              id,
-              stream: streamResults[i],
-            }))
-            .filter(
-              (x): x is { id: bigint; stream: ContractStream } =>
-                x.stream !== null,
-            )
-            .map(async ({ id, stream: s }) => {
-              const streamId = id.toString();
-              const tokenSymbol = await getTokenSymbol(address, s.token);
+          streamPage.streams.map(async (s: ContractStream, index: number) => {
+            const streamId = String((options?.offset ?? 0) + index + 1);
+            const tokenSymbol = await getTokenSymbol(address, s.token);
 
-              // Convert bigint values to strings for display
-              const flowRate = (Number(s.rate) / STROOPS_PER_UNIT).toFixed(7);
-              const totalAmount = (
-                Number(s.total_amount) / STROOPS_PER_UNIT
-              ).toFixed(2);
-              const totalStreamed = (
-                Number(s.withdrawn_amount) / STROOPS_PER_UNIT
-              ).toFixed(2);
+            const flowRate = (Number(s.rate) / STROOPS_PER_UNIT).toFixed(7);
+            const totalAmount = (
+              Number(s.total_amount) / STROOPS_PER_UNIT
+            ).toFixed(2);
+            const totalStreamed = (
+              Number(s.withdrawn_amount) / STROOPS_PER_UNIT
+            ).toFixed(2);
 
-              // Convert timestamps to date strings
-              const startDate = new Date(Number(s.start_ts) * 1000)
-                .toISOString()
-                .split("T")[0];
-              const endDate = new Date(Number(s.end_ts) * 1000)
-                .toISOString()
-                .split("T")[0];
+            const startDate = new Date(Number(s.start_ts) * 1000)
+              .toISOString()
+              .split("T")[0];
+            const endDate = new Date(Number(s.end_ts) * 1000)
+              .toISOString()
+              .split("T")[0];
 
-              // Map status numbers to strings
-              let status: "active" | "completed" | "cancelled";
-              switch (s.status) {
-                case 0:
-                  status = "active";
-                  break;
-                case 1:
-                  status = "cancelled";
-                  break;
-                case 2:
-                  status = "completed";
-                  break;
-                default:
-                  status = "active";
-              }
+            let status: Stream["status"];
+            switch (s.status) {
+              case 0:
+                status = "active";
+                break;
+              case 1:
+                status = "cancelled";
+                break;
+              case 2:
+                status = "completed";
+                break;
+              case 3:
+                status = "paused";
+                break;
+              default:
+                status = "active";
+            }
 
-              return {
-                id: streamId,
-                employeeName: `Worker ${streamId.slice(0, 8)}`, // Placeholder name
-                employeeAddress: s.worker,
-                flowRate,
-                tokenSymbol,
-                startDate,
-                endDate,
-                totalAmount,
-                totalStreamed,
-                status,
-              };
-            }),
+            return {
+              id: streamId,
+              employeeName: `Worker ${streamId.slice(0, 8)}`,
+              employeeAddress: s.worker,
+              flowRate,
+              tokenSymbol,
+              startDate,
+              endDate,
+              totalAmount,
+              totalStreamed,
+              status,
+            };
+          }),
         );
 
         setStreams(employerStreams);
@@ -221,6 +212,33 @@ export const usePayroll = (
       await fetchStreams(employerAddress);
     }
   }, [fetchVaultData, fetchStreams, employerAddress]);
+
+  useEffect(() => {
+    if (!employerAddress) return;
+
+    const WS_URL =
+      import.meta.env.PUBLIC_BACKEND_URL || "http://localhost:3001";
+    // Connect to WebSocket server using a dummy token or from localStorage if available
+    const token = localStorage.getItem("auth_token") || "dummy";
+    const socket = io(WS_URL, {
+      path: "/socket.io",
+      query: { token },
+    });
+
+    socket.on("connect", () => {
+      console.log("[Payroll WS] Connected for real-time updates");
+      if (employerAddress) socket.emit("subscribe:stream", employerAddress);
+    });
+
+    socket.on("stream:event", (event: unknown) => {
+      console.log("[Payroll WS] Received real-time event:", event);
+      refetch(); // Automatically update all streams
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [employerAddress, refetch]);
 
   useEffect(() => {
     if (!employerAddress) {
@@ -253,12 +271,59 @@ export const usePayroll = (
     void fetchData();
   }, [employerAddress, fetchTick, fetchVaultData, fetchStreams]);
 
-  const activeStreams = streams.filter((stream) => stream.status === "active");
+  const activeStreams = useMemo(
+    () =>
+      streams.filter(
+        (stream) =>
+          stream.status === "active" ||
+          stream.status === "paused" ||
+          stream.pendingAction !== undefined,
+      ),
+    [streams],
+  );
+
+  const activeStreamsCount = useMemo(
+    () => streams.filter((stream) => stream.status === "active").length,
+    [streams],
+  );
+
+  const applyOptimisticStreamStatus = useCallback(
+    (
+      streamId: string,
+      status: Stream["status"],
+      pendingAction: NonNullable<Stream["pendingAction"]>,
+    ) => {
+      setStreams((current) =>
+        current.map((stream) =>
+          stream.id === streamId
+            ? { ...stream, status, pendingAction }
+            : stream,
+        ),
+      );
+    },
+    [],
+  );
+
+  const restoreStream = useCallback((previous: Stream) => {
+    setStreams((current) =>
+      current.map((stream) => (stream.id === previous.id ? previous : stream)),
+    );
+  }, []);
+
+  const clearStreamPending = useCallback((streamId: string) => {
+    setStreams((current) =>
+      current.map((stream) =>
+        stream.id === streamId
+          ? { ...stream, pendingAction: undefined }
+          : stream,
+      ),
+    );
+  }, []);
 
   return {
     treasuryBalances,
     totalLiabilities,
-    activeStreamsCount: activeStreams.length,
+    activeStreamsCount,
     streams,
     activeStreams,
     vaultData,
@@ -268,5 +333,8 @@ export const usePayroll = (
     refreshData,
     refreshVaultData: fetchVaultData,
     refetch,
+    applyOptimisticStreamStatus,
+    restoreStream,
+    clearStreamPending,
   };
 };

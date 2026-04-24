@@ -1,13 +1,13 @@
 #![cfg(test)]
 extern crate std;
 
-use crate::{PayrollStream, PayrollStreamClient, Stream, StreamStatus, stream_curve::SpeedCurve};
-use proptest::prelude::*;
-use soroban_sdk::{Address, Env, testutils::Address as _, testutils::Ledger};
 use crate::stream_curve::SpeedCurve::Linear;
+use crate::{stream_curve::SpeedCurve, PayrollStream, PayrollStreamClient, Stream, StreamStatus};
+use proptest::prelude::*;
+use soroban_sdk::{testutils::Address as _, testutils::Ledger, Address, Env};
 
 mod dummy_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct DummyVault;
     #[contractimpl]
@@ -16,6 +16,9 @@ mod dummy_vault {
             true
         }
         pub fn add_liability(_env: Env, _token: Address, _amount: i128) {}
+        pub fn is_token_allowed(_env: Env, _token: Address) -> bool {
+            true
+        }
         pub fn remove_liability(_env: Env, _token: Address, _amount: i128) {}
         pub fn payout_liability(_env: Env, _to: Address, _token: Address, _amount: i128) {}
     }
@@ -345,6 +348,7 @@ fn construct_stream(
         metadata_hash: None,
         cancel_effective_at: 0,
         speed_curve: SpeedCurve::Linear,
+        clawback_authority: None,
     }
 }
 

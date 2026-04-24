@@ -13,20 +13,33 @@ interface Datapoint {
   value: number;
 }
 
-const COLORS = ["#10b981", "#f59e0b", "#ef4444"];
+const COLORS = [
+  "var(--token-color-success-500)",
+  "var(--token-color-warning-500)",
+  "var(--token-color-error-500)",
+];
 
 export function StreamStatusChart({ data }: { data: Datapoint[] }) {
   const { theme } = useTheme();
   const total = data.reduce((s, d) => s + d.value, 0);
-  const axisColor = theme === "dark" ? "#94a3b8" : "#64748b";
+  const axisColor =
+    theme === "dark"
+      ? "var(--token-color-neutral-300)"
+      : "var(--token-color-neutral-700)";
   const tooltipStyle = {
-    backgroundColor: theme === "dark" ? "#0f172a" : "#ffffff",
+    backgroundColor:
+      theme === "dark"
+        ? "var(--token-color-neutral-0)"
+        : "var(--token-color-bg-surface)",
     border:
       theme === "dark"
-        ? "1px solid rgba(99,102,241,0.2)"
-        : "1px solid rgba(148,163,184,0.4)",
+        ? "1px solid var(--token-color-accent-soft-strong)"
+        : "1px solid var(--token-color-border-default)",
     borderRadius: "0.75rem",
-    color: theme === "dark" ? "#e2e8f0" : "#0f172a",
+    color:
+      theme === "dark"
+        ? "var(--token-color-neutral-900)"
+        : "var(--token-color-text-primary)",
     fontSize: "0.8rem",
   };
   return (

@@ -12,11 +12,29 @@
 //!   - Token transfers go through existing `call_vault_payout` / `call_vault_remove_liability`
 
 use quipay_common::QuipayError;
-use soroban_sdk::{Address, BytesN, Env, Symbol, contracttype};
+use soroban_sdk::{contracttype, Address, BytesN, Env, Symbol};
 
 use crate::{DataKey, DisputeOutcome, PayrollStream, Stream, StreamKey, StreamStatus};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+/// Persistent on-chain dispute record.
+/// Stored at `DataKey::Dispute(stream_id)` in persistent storage.
+// #[contracttype]
+// #[derive(Clone, Debug)]
+// pub struct Dispute {
+//     pub stream_id: u64,
+//     /// Employer or worker that raised the dispute.
+//     pub raised_by: Address,
+//     /// 32-byte commitment hash pointing to the off-chain reason document.
+//     pub reason_hash: BytesN<32>,
+//     /// Ledger timestamp when the dispute was raised.
+//     pub raised_at: u64,
+//     /// True once the arbitrator has resolved the dispute.
+//     pub resolved: bool,
+//     /// Arbitrator's chosen outcome (None until resolved).
+//     pub outcome: Option<DisputeOutcome>,
+// }
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -65,12 +83,8 @@ pub fn raise_dispute(
 ) -> Result<(), QuipayError> {
     caller.require_auth();
 
-    let key = StreamKey::Stream(stream_id);
-    let mut stream: Stream = env
-        .storage()
-        .persistent()
-        .get(&key)
-        .ok_or(QuipayError::StreamNotFound)?;
+    let mut stream: Stream =
+        PayrollStream::get_stored_stream(env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
     // Auth: caller must be a participant
     if *caller != stream.employer && *caller != stream.worker {
@@ -96,8 +110,9 @@ pub fn raise_dispute(
 
     let now = env.ledger().timestamp();
 
-    env.storage().persistent().set(
-        &DataKey::Dispute(stream_id),
+    PayrollStream::set_stored_dispute(
+        env,
+        stream_id,
         &Dispute {
             stream_id,
             raised_by: caller.clone(),
@@ -110,7 +125,7 @@ pub fn raise_dispute(
 
     // Freeze stream by transitioning to Disputed status
     stream.status = StreamStatus::Disputed;
-    env.storage().persistent().set(&key, &stream);
+    PayrollStream::set_stored_stream(env, stream_id, &stream);
 
     env.events().publish(
         (
@@ -157,22 +172,15 @@ pub fn resolve_dispute(
     }
 
     // Load and validate dispute
-    let mut dispute: Dispute = env
-        .storage()
-        .persistent()
-        .get(&DataKey::Dispute(stream_id))
-        .ok_or(QuipayError::Custom)?; // NoOpenDispute
+    let mut dispute: Dispute =
+        PayrollStream::get_stored_dispute(env, stream_id).ok_or(QuipayError::Custom)?; // NoOpenDispute
 
     if dispute.resolved {
         return Err(QuipayError::Custom); // DisputeAlreadyResolved
     }
 
-    let key = StreamKey::Stream(stream_id);
-    let mut stream: Stream = env
-        .storage()
-        .persistent()
-        .get(&key)
-        .ok_or(QuipayError::StreamNotFound)?;
+    let mut stream: Stream =
+        PayrollStream::get_stored_stream(env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
     let vault: Address = env
         .storage()
@@ -183,30 +191,46 @@ pub fn resolve_dispute(
     let now = env.ledger().timestamp();
 
     match &outcome {
-        // ── Resume: unfreeze, no token movement ──────────────────────────────
-        DisputeOutcome::Resume => {
-            // Restore Active — employer can re-initiate cancel if they still want to.
-            // We don't store pre-dispute status so we default to Active.
-            stream.status = StreamStatus::Active;
-        }
-
-        // ── CancelWithRefund: full remaining balance → employer ───────────────
-        DisputeOutcome::CancelWithRefund => {
+        DisputeOutcome::FullWorker => {
             let remaining = stream
                 .total_amount
                 .checked_sub(stream.withdrawn_amount)
                 .ok_or(QuipayError::Overflow)?;
 
             if remaining > 0 {
-                // Remove liability from vault then pay employer
+                PayrollStream::call_vault_payout(
+                    env,
+                    &vault,
+                    stream.worker.clone(),
+                    stream.token.clone(),
+                    remaining,
+                );
+                stream.withdrawn_amount = stream
+                    .withdrawn_amount
+                    .checked_add(remaining)
+                    .ok_or(QuipayError::Overflow)?;
+                stream.last_withdrawal_ts = now;
+            }
+
+            stream.status = StreamStatus::Completed;
+            stream.closed_at = now;
+        }
+
+        DisputeOutcome::FullEmployer => {
+            let remaining = stream
+                .total_amount
+                .checked_sub(stream.withdrawn_amount)
+                .ok_or(QuipayError::Overflow)?;
+
+            if remaining > 0 {
                 PayrollStream::call_vault_remove_liability(
-                    &env,
+                    env,
                     &vault,
                     stream.token.clone(),
                     remaining,
                 );
                 PayrollStream::call_vault_payout(
-                    &env,
+                    env,
                     &vault,
                     stream.employer.clone(),
                     stream.token.clone(),
@@ -218,22 +242,20 @@ pub fn resolve_dispute(
             stream.closed_at = now;
         }
 
-        // ── CancelWithPartialPayout: earned → worker, remainder → employer ───
-        DisputeOutcome::CancelWithPartialPayout => {
-            // Vested up to the dispute freeze point (now, since stream is frozen)
-            let vested = PayrollStream::vested_amount_at(&stream, now);
-            let earned = vested
-                .checked_sub(stream.withdrawn_amount)
-                .unwrap_or(0)
-                .max(0);
+        DisputeOutcome::Split(ratio) => {
+            if *ratio > 10000 {
+                return Err(QuipayError::Custom); // Invalid ratio
+            }
 
             let remaining = stream
                 .total_amount
                 .checked_sub(stream.withdrawn_amount)
                 .ok_or(QuipayError::Overflow)?;
 
-            // Clamp earned to remaining in case of any rounding discrepancy
-            let worker_payout = earned.min(remaining);
+            let worker_payout = (remaining
+                .checked_mul(*ratio as i128)
+                .ok_or(QuipayError::Overflow)?
+                / 10000);
             let employer_refund = remaining
                 .checked_sub(worker_payout)
                 .ok_or(QuipayError::Overflow)?;
@@ -254,7 +276,6 @@ pub fn resolve_dispute(
             }
 
             if employer_refund > 0 {
-                // Remaining liability that isn't paid to worker — remove then refund
                 PayrollStream::call_vault_remove_liability(
                     env,
                     &vault,
@@ -270,19 +291,17 @@ pub fn resolve_dispute(
                 );
             }
 
-            stream.status = StreamStatus::Canceled;
+            stream.status = StreamStatus::Canceled; // Or completed based on business logic, canceled makes sense
             stream.closed_at = now;
         }
     }
 
     // Mark dispute resolved
     dispute.resolved = true;
-    dispute.outcome = MaybeOutcome::Some(outcome);
-    env.storage()
-        .persistent()
-        .set(&DataKey::Dispute(stream_id), &dispute);
+    dispute.outcome = MaybeOutcome::Some(outcome.clone());
+    PayrollStream::set_stored_dispute(env, stream_id, &dispute);
 
-    env.storage().persistent().set(&key, &stream);
+    PayrollStream::set_stored_stream(env, stream_id, &stream);
 
     env.events().publish(
         (
@@ -300,7 +319,7 @@ pub fn resolve_dispute(
 // ─── View helpers ─────────────────────────────────────────────────────────────
 
 pub fn get_dispute(env: &Env, stream_id: u64) -> Option<Dispute> {
-    env.storage().persistent().get(&DataKey::Dispute(stream_id))
+    PayrollStream::get_stored_dispute(env, stream_id)
 }
 
 pub fn has_open_dispute(env: &Env, stream_id: u64) -> bool {
