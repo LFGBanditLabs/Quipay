@@ -1,9 +1,7 @@
 #![no_std]
 
 use quipay_common::{QuipayError, require};
-use soroban_sdk::{
-    Address, Env, contract, contractimpl, contracttype, symbol_short,
-};
+use soroban_sdk::{Address, Env, contract, contractimpl, contracttype, symbol_short};
 
 #[cfg(test)]
 mod test;
@@ -73,9 +71,7 @@ impl PayrollReceiptContract {
         );
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Minter, &minter);
-        env.storage()
-            .instance()
-            .set(&DataKey::NextReceiptId, &1u64);
+        env.storage().instance().set(&DataKey::NextReceiptId, &1u64);
         Ok(())
     }
 

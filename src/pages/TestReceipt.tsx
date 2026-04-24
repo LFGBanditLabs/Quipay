@@ -1,5 +1,9 @@
-import React, { useEffect } from "react";
-import { exportPaycheckPDF } from "../services/reportService";
+import React, { useEffect, useMemo, useState } from "react";
+import { getReceiptById } from "../contracts/payroll_stream";
+import {
+  exportOnChainReceiptPDF,
+  exportPaycheckPDF,
+} from "../services/reportService";
 import type { PayrollTransaction } from "../types/reports";
 
 const DemoTransaction: PayrollTransaction = {
@@ -16,10 +20,40 @@ const DemoTransaction: PayrollTransaction = {
 };
 
 const TestReceipt: React.FC = () => {
+  const params = useMemo(() => new URLSearchParams(window.location.search), []);
+  const receiptId = params.get("receiptId");
+  const sourceAddress =
+    params.get("source") ??
+    "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+  const [statusText, setStatusText] = useState(
+    receiptId
+      ? `Attempting on-chain receipt export for receipt ${receiptId}`
+      : "Using demo paycheck data",
+  );
+
+  const downloadReceipt = async () => {
+    if (!receiptId) {
+      await exportPaycheckPDF(DemoTransaction);
+      return;
+    }
+
+    const receipt = await getReceiptById(sourceAddress, BigInt(receiptId));
+    if (!receipt) {
+      setStatusText(
+        `Receipt ${receiptId} was not found on chain, using demo data`,
+      );
+      await exportPaycheckPDF(DemoTransaction);
+      return;
+    }
+
+    setStatusText(`Exporting on-chain receipt ${receiptId}`);
+    await exportOnChainReceiptPDF(receipt, { sourceAddress });
+  };
+
   useEffect(() => {
     void (async () => {
       try {
-        await exportPaycheckPDF(DemoTransaction);
+        await downloadReceipt();
       } catch {
         // ignore
       }
@@ -29,8 +63,8 @@ const TestReceipt: React.FC = () => {
   return (
     <div style={{ padding: 24 }}>
       <h2>Test Paycheck Receipt</h2>
-      <p>This page triggers a paycheck PDF download for test purposes.</p>
-      <button onClick={() => void exportPaycheckPDF(DemoTransaction)}>
+      <p>{statusText}</p>
+      <button onClick={() => void downloadReceipt()}>
         Download Test Paycheck
       </button>
     </div>

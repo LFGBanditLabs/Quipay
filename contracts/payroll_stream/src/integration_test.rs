@@ -40,6 +40,7 @@ fn setup_integration(
     let stream_client = PayrollStreamClient::new(env, &stream_id);
 
     vault_client.initialize(&admin);
+    vault_client.allowlist_token(&token_id);
     stream_client.init(&admin);
     stream_client.set_min_stream_duration(&0u64);
 
@@ -72,7 +73,7 @@ fn test_integration_stream_creation_blocked_if_insolvent() {
     // Deposited 10_000. Try to create stream with total_amount 15_000 (rate 150, duration 100)
     env.ledger().with_mut(|li| li.timestamp = 0);
     let result = stream_client.try_create_stream(
-        &employer, &worker, &token_id, &150, &0u64, &0u64, &100u64, &None, &None
+        &employer, &worker, &token_id, &150, &0u64, &0u64, &100u64, &None, &None,
     );
     assert!(result.is_err());
 }
@@ -87,7 +88,7 @@ fn test_integration_liabilities_updated_on_create_and_withdraw() {
 
     env.ledger().with_mut(|li| li.timestamp = 0);
     let stream_id = stream_client.create_stream(
-        &employer, &worker, &token_id, &100, &0u64, &0u64, &100u64, &None, &None
+        &employer, &worker, &token_id, &100, &0u64, &0u64, &100u64, &None, &None,
     );
     // total_amount = 100 * 100 = 10_000
     assert_eq!(vault_client.get_total_liability(&token_id), 10_000);
@@ -112,7 +113,7 @@ fn test_integration_token_transfer_on_withdrawal() {
 
     env.ledger().with_mut(|li| li.timestamp = 0);
     let stream_id = stream_client.create_stream(
-        &employer, &worker, &token_id, &10, &0u64, &0u64, &10u64, &None, &None
+        &employer, &worker, &token_id, &10, &0u64, &0u64, &10u64, &None, &None,
     );
     let balance_before = token_client.balance(&worker);
 
@@ -155,7 +156,7 @@ fn test_integration_full_withdraw_completes_and_liability_zero() {
 
     env.ledger().with_mut(|li| li.timestamp = 0);
     let stream_id = stream_client.create_stream(
-        &employer, &worker, &token_id, &50, &0u64, &0u64, &100u64, &None, &None
+        &employer, &worker, &token_id, &50, &0u64, &0u64, &100u64, &None, &None,
     );
     assert_eq!(vault_client.get_total_liability(&token_id), 5_000);
 
@@ -209,7 +210,7 @@ fn test_integration_get_claimable_capped_by_vault_balance() {
 
     env.ledger().with_mut(|li| li.timestamp = 0);
     let stream_id = stream_client.create_stream(
-        &employer, &worker, &token_id, &100, &0u64, &0u64, &100u64, &None, &None
+        &employer, &worker, &token_id, &100, &0u64, &0u64, &100u64, &None, &None,
     );
 
     env.ledger().with_mut(|li| li.timestamp = 50);
@@ -237,7 +238,7 @@ fn test_integration_full_stream_lifecycle_create_withdraw_extend_full_withdraw_c
     let stream_id_1 = stream_client.create_stream(
         &employer, &worker1, &token_id, &50, // 50 per second
         &0u64, &0u64, &100u64, // end_time
-        &None, &None
+        &None, &None,
     );
     let stream_id_2 = stream_client.create_stream(
         &employer, &worker2, &token_id, &100, // 100 per second

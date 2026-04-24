@@ -123,7 +123,6 @@ pub enum QuipayError {
     DurationTooShort = 1043,
 
     // ── Receipts ──────────────────────────────────────────────────────────────
-
     /// No receipt exists for the given receipt ID.
     ReceiptNotFound = 1044,
 
