@@ -33,8 +33,8 @@ streamsRouter.use(authenticateRequest, requireUser);
 
 const createStreamSchema = z.object({
   streamId: z.number().int().positive(),
-  employer: z.string().min(1),
-  worker: z.string().min(1),
+  employerAddress: z.string().min(1),
+  workerAddress: z.string().min(1),
   totalAmount: z
     .string()
     .regex(/^\d+$/, "Must be a numeric string (stroops)")
@@ -90,8 +90,8 @@ streamsRouter.post(
 
     await upsertStream({
       streamId: body.streamId,
-      employer: body.employer,
-      worker: body.worker,
+      employer: body.employerAddress,
+      worker: body.workerAddress,
       totalAmount: body.totalAmount,
       withdrawnAmount: body.withdrawnAmount,
       startTs: body.startTs,

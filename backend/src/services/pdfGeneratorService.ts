@@ -8,8 +8,8 @@ import {
 
 export interface StreamRecord {
   stream_id: number;
-  employer: string;
-  worker: string;
+  employer_address: string;
+  worker_address: string;
   total_amount: string;
   withdrawn_amount: string;
   start_ts: number;
@@ -63,8 +63,8 @@ export async function generatePayslip(
   logServiceInfo("pdfGenerator", "Generating payslip", {
     streamId,
     payslipId,
-    workerAddress: streamData.worker,
-    employerAddress: streamData.employer,
+    workerAddress: streamData.worker_address,
+    employerAddress: streamData.employer_address,
   });
 
   return new Promise(async (resolve, reject) => {
@@ -197,7 +197,7 @@ function addPartyInformation(
     .text("Worker", 50, startY)
     .fontSize(10)
     .fillColor("#000000")
-    .text(streamData.worker, 50, startY + 20, { width: 200 });
+    .text(streamData.worker_address, 50, startY + 20, { width: 200 });
 
   // Employer information (right column)
   doc
@@ -206,7 +206,7 @@ function addPartyInformation(
     .text("Employer", 300, startY)
     .fontSize(10)
     .fillColor("#000000")
-    .text(streamData.employer, 300, startY + 20, { width: 200 });
+    .text(streamData.employer_address, 300, startY + 20, { width: 200 });
 
   doc.moveDown(3);
 }

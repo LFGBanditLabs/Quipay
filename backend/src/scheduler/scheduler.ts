@@ -417,9 +417,9 @@ const runCliffUnlockChecker = async (): Promise<void> => {
       if (notifiedCliffUnlockKeys.has(key)) continue;
 
       await sendCliffUnlockNotification({
-        worker: stream.worker,
+        worker: stream.worker_address,
         streamId: stream.stream_id,
-        employer: stream.employer,
+        employer: stream.employer_address,
         token: "USDC",
         cliffDate: new Date(stream.start_ts * 1000).toISOString(),
       });
@@ -452,14 +452,14 @@ const runLowRunwayAlerter = async (): Promise<void> => {
 
     const streams = await getStreamsByWorker(b.employer, "active", 20, 0);
     for (const stream of streams) {
-      const prefs = await getWorkerNotificationSettings(stream.worker);
+      const prefs = await getWorkerNotificationSettings(stream.worker_address);
       const shouldNotify = prefs?.low_runway_alerts ?? true;
       if (!shouldNotify) continue;
 
       await sendWorkerLowRunwayNotification({
-        worker: stream.worker,
+        worker: stream.worker_address,
         streamId: stream.stream_id,
-        employer: stream.employer,
+        employer: stream.employer_address,
         token: b.token,
         runwayDays,
         thresholdDays: LOW_RUNWAY_DAYS_THRESHOLD,
@@ -497,9 +497,9 @@ const runStreamEndingChecker = async (): Promise<void> => {
       if (notifiedStreamEndingKeys.has(key)) continue;
 
       await sendStreamEndingNotification({
-        worker: stream.worker,
+        worker: stream.worker_address,
         streamId: stream.stream_id,
-        employer: stream.employer,
+        employer: stream.employer_address,
         token: "USDC",
         streamEndDate: new Date(stream.end_ts * 1000).toISOString(),
         amount: Number(stream.total_amount),
