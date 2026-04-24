@@ -1627,3 +1627,249 @@ export const deleteEmployerLogo = async (
     [employerAddress],
   );
 };
+
+// ─── Platform-wide admin analytics (issue #859) ───────────────────────────────
+
+export interface PlatformAnalytics {
+  total_streams: number;
+  active_streams: number;
+  completed_streams: number;
+  cancelled_streams: number;
+  total_volume_by_token: Record<string, string>;
+  unique_employer_count: number;
+  unique_worker_count: number;
+  total_withdrawals: number;
+  total_withdrawn_amount: string;
+}
+
+/**
+ * Get platform-wide analytics aggregated across all employers.
+ * Used by super-admins to view overall platform metrics.
+ * Results should be cached to avoid expensive queries.
+ */
+export const getPlatformAnalytics = async (): Promise<PlatformAnalytics> => {
+  if (!getPool()) {
+    return {
+      total_streams: 0,
+      active_streams: 0,
+      completed_streams: 0,
+      cancelled_streams: 0,
+      total_volume_by_token: {},
+      unique_employer_count: 0,
+      unique_worker_count: 0,
+      total_withdrawals: 0,
+      total_withdrawn_amount: "0",
+    };
+  }
+
+  // Aggregate stream statistics
+  const streamStats = await query<{
+    total_streams: string;
+    active_streams: string;
+    completed_streams: string;
+    cancelled_streams: string;
+    unique_employers: string;
+    unique_workers: string;
+  }>(
+    `SELECT
+      COUNT(*)::text AS total_streams,
+      COUNT(*) FILTER (WHERE status = 'active')::text AS active_streams,
+      COUNT(*) FILTER (WHERE status = 'completed')::text AS completed_streams,
+      COUNT(*) FILTER (WHERE status = 'cancelled')::text AS cancelled_streams,
+      COUNT(DISTINCT employer_address)::text AS unique_employers,
+      COUNT(DISTINCT worker_address)::text AS unique_workers
+    FROM payroll_streams
+    WHERE deleted_at IS NULL`,
+  );
+
+  // Aggregate volume by token (using metadata or default to USDC)
+  const volumeByToken = await query<{
+    token: string;
+    total_volume: string;
+  }>(
+    `SELECT
+      COALESCE(metadata->>'token', 'USDC') AS token,
+      SUM(total_amount)::text AS total_volume
+    FROM payroll_streams
+    WHERE deleted_at IS NULL
+    GROUP BY COALESCE(metadata->>'token', 'USDC')`,
+  );
+
+  // Aggregate withdrawal statistics
+  const withdrawalStats = await query<{
+    total_withdrawals: string;
+    total_withdrawn: string;
+  }>(
+    `SELECT
+      COUNT(*)::text AS total_withdrawals,
+      COALESCE(SUM(amount), 0)::text AS total_withdrawn
+    FROM withdrawals`,
+  );
+
+  const stats = streamStats.rows[0];
+  const withdrawals = withdrawalStats.rows[0];
+
+  const volumeMap: Record<string, string> = {};
+  for (const row of volumeByToken.rows) {
+    volumeMap[row.token] = row.total_volume;
+  }
+
+  return {
+    total_streams: Number(stats.total_streams),
+    active_streams: Number(stats.active_streams),
+    completed_streams: Number(stats.completed_streams),
+    cancelled_streams: Number(stats.cancelled_streams),
+    total_volume_by_token: volumeMap,
+    unique_employer_count: Number(stats.unique_employers),
+    unique_worker_count: Number(stats.unique_workers),
+    total_withdrawals: Number(withdrawals.total_withdrawals),
+    total_withdrawn_amount: withdrawals.total_withdrawn,
+  };
+};
+
+// ─── Scheduler override queue (issue #858) ────────────────────────────────────
+
+export interface SchedulerOverride {
+  id: number;
+  employer_address: string;
+  worker_address: string;
+  action: "create_stream" | "cancel_stream" | "pause_stream";
+  params: Record<string, unknown>;
+  status: "pending" | "processing" | "completed" | "failed";
+  created_by: string;
+  error_message: string | null;
+  stream_id: number | null;
+  created_at: Date;
+  executed_at: Date | null;
+}
+
+/**
+ * Enqueue a new scheduler override for manual admin intervention.
+ */
+export const enqueueOverride = async (params: {
+  employerAddress: string;
+  workerAddress: string;
+  action: "create_stream" | "cancel_stream" | "pause_stream";
+  params: Record<string, unknown>;
+  createdBy: string;
+}): Promise<number> => {
+  if (!getPool()) throw new DatabaseError("Database not configured");
+
+  const res = await query<{ id: string }>(
+    `INSERT INTO scheduler_overrides
+      (employer_address, worker_address, action, params, created_by, status)
+    VALUES ($1, $2, $3, $4, $5, 'pending')
+    RETURNING id`,
+    [
+      params.employerAddress,
+      params.workerAddress,
+      params.action,
+      JSON.stringify(params.params),
+      params.createdBy,
+    ],
+  );
+
+  return parseInt(res.rows[0].id, 10);
+};
+
+/**
+ * Dequeue pending scheduler overrides for execution.
+ * Marks them as 'processing' to prevent duplicate execution.
+ */
+export const dequeuePendingOverrides = async (
+  limit = 10,
+): Promise<SchedulerOverride[]> => {
+  if (!getPool()) return [];
+
+  // Use FOR UPDATE SKIP LOCKED to prevent race conditions
+  const res = await query<SchedulerOverride>(
+    `UPDATE scheduler_overrides
+    SET status = 'processing'
+    WHERE id IN (
+      SELECT id FROM scheduler_overrides
+      WHERE status = 'pending'
+      ORDER BY created_at ASC
+      LIMIT $1
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING *`,
+    [limit],
+  );
+
+  return res.rows;
+};
+
+/**
+ * Mark an override as completed.
+ */
+export const markOverrideCompleted = async (params: {
+  id: number;
+  streamId?: number;
+}): Promise<void> => {
+  if (!getPool()) return;
+
+  await query(
+    `UPDATE scheduler_overrides
+    SET status = 'completed',
+        executed_at = NOW(),
+        stream_id = $2
+    WHERE id = $1`,
+    [params.id, params.streamId ?? null],
+  );
+};
+
+/**
+ * Mark an override as failed with error message.
+ */
+export const markOverrideFailed = async (params: {
+  id: number;
+  errorMessage: string;
+}): Promise<void> => {
+  if (!getPool()) return;
+
+  await query(
+    `UPDATE scheduler_overrides
+    SET status = 'failed',
+        executed_at = NOW(),
+        error_message = $2
+    WHERE id = $1`,
+    [params.id, params.errorMessage],
+  );
+};
+
+/**
+ * Get all scheduler overrides with optional filtering.
+ */
+export const getSchedulerOverrides = async (params: {
+  status?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<SchedulerOverride[]> => {
+  if (!getPool()) return [];
+
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+  let paramIdx = 1;
+
+  if (params.status) {
+    conditions.push(`status = $${paramIdx++}`);
+    values.push(params.status);
+  }
+
+  const whereClause =
+    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const limit = params.limit ?? 50;
+  const offset = params.offset ?? 0;
+
+  values.push(limit, offset);
+
+  const res = await query<SchedulerOverride>(
+    `SELECT * FROM scheduler_overrides
+    ${whereClause}
+    ORDER BY created_at DESC
+    LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
+    values,
+  );
+
+  return res.rows;
+};

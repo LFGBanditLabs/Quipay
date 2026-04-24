@@ -82,7 +82,10 @@ const resolvePoolConfig = (): ResolvedPoolConfig => {
     ),
     maxUses: parsePositiveInt(getEnvValue("PGPOOL_MAX_USES"), 7_500),
     statementTimeoutMillis: parsePositiveInt(
-      getEnvValue("PGPOOL_STATEMENT_TIMEOUT_MS"),
+      getEnvValue(
+        "PGPOOL_STATEMENT_TIMEOUT_MS",
+        "DB_POOL_STATEMENT_TIMEOUT_MS",
+      ),
       15_000,
     ),
     idleInTransactionSessionTimeoutMillis: parsePositiveInt(

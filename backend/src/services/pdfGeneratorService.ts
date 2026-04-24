@@ -1,10 +1,15 @@
 import PDFDocument from "pdfkit";
+import axios from "axios";
+import fs from "fs/promises";
 import { generateQRCode } from "./signatureService";
 import {
   logServiceInfo,
   logServiceWarn,
   logServiceError,
 } from "../audit/serviceLogger";
+
+const DEFAULT_PRIMARY_COLOR = "#2563eb";
+const DEFAULT_SECONDARY_COLOR = "#64748b";
 
 export interface StreamRecord {
   stream_id: number;
@@ -94,17 +99,28 @@ export async function generatePayslip(
         });
       }
 
-      // Fetch logo if available
+      // Fetch logo if available — try local filesystem first, then HTTP.
       let logoBuffer: Buffer | null = null;
       if (branding.logoUrl) {
         try {
-          // In a real implementation, fetch from S3
-          // For now, we'll handle graceful degradation
-          logServiceInfo("pdfGenerator", "Logo URL provided", {
+          if (
+            branding.logoUrl.startsWith("http://") ||
+            branding.logoUrl.startsWith("https://")
+          ) {
+            const response = await axios.get<ArrayBuffer>(branding.logoUrl, {
+              responseType: "arraybuffer",
+              timeout: 5000,
+            });
+            logoBuffer = Buffer.from(response.data);
+          } else {
+            logoBuffer = await fs.readFile(branding.logoUrl);
+          }
+          logServiceInfo("pdfGenerator", "Logo fetched successfully", {
             logoUrl: branding.logoUrl,
+            streamId,
           });
         } catch (err) {
-          logServiceWarn("pdfGenerator", "Logo retrieval failed", {
+          logServiceWarn("pdfGenerator", "Logo retrieval failed — using default branding", {
             error: err instanceof Error ? err.message : String(err),
             logoUrl: branding.logoUrl,
             streamId,
@@ -166,6 +182,9 @@ function addHeader(
   branding: BrandingSettings,
   logoBuffer: Buffer | null,
 ): void {
+  const effectivePrimary = branding.primaryColor || DEFAULT_PRIMARY_COLOR;
+  const effectiveSecondary = branding.secondaryColor || DEFAULT_SECONDARY_COLOR;
+
   if (logoBuffer) {
     try {
       doc.image(logoBuffer, 50, 45, { width: 100 });
@@ -173,13 +192,26 @@ function addHeader(
       logServiceWarn("pdfGenerator", "Failed to embed logo in PDF", {
         error: err instanceof Error ? err.message : String(err),
       });
+      // Fall back to text brand name when image embedding fails.
+      doc.fontSize(14).fillColor(effectivePrimary).text("Quipay", 50, 50);
     }
+  } else {
+    // No custom logo — render brand name in primary color.
+    doc.fontSize(14).fillColor(effectivePrimary).text("Quipay", 50, 50);
   }
 
   doc
     .fontSize(12)
-    .fillColor(branding.secondaryColor)
-    .text("Quipay Payment Stream", 200, 50, { align: "right" })
+    .fillColor(effectiveSecondary)
+    .text("Quipay Payment Stream", 200, 50, { align: "right" });
+
+  // Horizontal rule in primary brand color beneath the header.
+  doc
+    .moveTo(50, 80)
+    .lineTo(545, 80)
+    .strokeColor(effectivePrimary)
+    .lineWidth(1.5)
+    .stroke()
     .moveDown(2);
 }
 

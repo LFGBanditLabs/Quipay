@@ -2,16 +2,17 @@ import { memo } from "react";
 import { useStreamHistory } from "../hooks/useStreamHistory";
 import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 import { StreamCardSkeleton } from "./Loading";
-import type { Stream, StreamsResponse } from "../lib/streams";
+import { History } from "lucide-react";
+import type { Stream } from "../lib/streams";
 
 export const StreamHistory = () => {
   const {
-    data,
+    streams,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
     isLoading,
-    isError,
+    error,
   } = useStreamHistory();
 
   const { containerRef } = useInfiniteScroll(() => {
@@ -19,9 +20,6 @@ export const StreamHistory = () => {
       void fetchNextPage();
     }
   });
-
-  const streams =
-    data?.pages.flatMap((page: StreamsResponse) => page.data) ?? [];
 
   if (isLoading) {
     return (
@@ -33,7 +31,7 @@ export const StreamHistory = () => {
     );
   }
 
-  if (isError) {
+  if (error) {
     return (
       <div className="flex items-center justify-center py-12">
         <span className="text-sm text-red-400">Failed to load streams.</span>
@@ -47,8 +45,16 @@ export const StreamHistory = () => {
       className="h-[600px] overflow-y-auto space-y-3 pr-1"
     >
       {streams.length === 0 ? (
-        <div className="flex items-center justify-center py-12">
-          <span className="text-sm text-gray-400">No streams found.</span>
+        <div className="flex flex-col items-center justify-center py-20 space-y-4">
+          <History className="w-12 h-12 text-gray-600" />
+          <div className="text-center space-y-1">
+            <h3 className="text-sm font-medium text-gray-300">
+              No stream history yet
+            </h3>
+            <p className="text-xs text-gray-500">
+              When you start streaming, your history will appear here.
+            </p>
+          </div>
         </div>
       ) : (
         <>

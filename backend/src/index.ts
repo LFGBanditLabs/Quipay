@@ -27,7 +27,7 @@ import {
 import { streamsRouter } from "./routes/streams";
 import { payslipsRouter } from "./routes/payslips";
 import { brandingRouter } from "./routes/branding";
-
+import { keyRotationScheduler } from "./services/keyRotationScheduler";
 import {
   initWebSocketServer,
   shutdownWebSocketServer,
@@ -64,6 +64,39 @@ const ALLOWED_ORIGINS = getAllowedOrigins();
 if (process.env.NODE_ENV === "production" && !process.env.ALLOWED_ORIGINS) {
   console.error(
     "FATAL: ALLOWED_ORIGINS environment variable must be set in production",
+  );
+  process.exit(1);
+}
+
+// JWT_SECRET must be set in production — a missing or weak secret leaves WebSocket
+// connections unauthenticated.
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  console.error(
+    "FATAL: JWT_SECRET environment variable must be set in production",
+  );
+  process.exit(1);
+}
+
+// QUIPAY_WEBHOOK_SIGNING_SECRET must be set in production so that all outbound
+// webhooks carry a verifiable X-Quipay-Signature header.
+if (
+  process.env.NODE_ENV === "production" &&
+  !process.env.QUIPAY_WEBHOOK_SIGNING_SECRET
+) {
+  console.error(
+    "FATAL: QUIPAY_WEBHOOK_SIGNING_SECRET environment variable must be set in production",
+  );
+  process.exit(1);
+}
+
+// MONITOR_STATUS_ADMIN_TOKEN must be set in production to protect the monitor
+// status endpoint from unauthorized access.
+if (
+  process.env.NODE_ENV === "production" &&
+  !process.env.MONITOR_STATUS_ADMIN_TOKEN
+) {
+  console.error(
+    "FATAL: MONITOR_STATUS_ADMIN_TOKEN environment variable must be set in production",
   );
   process.exit(1);
 }
@@ -350,6 +383,15 @@ async function main() {
     startMonitor();
     startPayrollReportScheduler();
 
+    const rotationEnabled = process.env.KEY_ROTATION_ENABLED === "true";
+    if (rotationEnabled) {
+      void keyRotationScheduler.start();
+    } else if (process.env.NODE_ENV === "production") {
+      console.warn(
+        "[Backend] ⚠️  WARNING: Key rotation is disabled in production. This is NOT recommended for security.",
+      );
+    }
+
     const shutdown = async (signal: string) => {
       if (shuttingDown) {
         console.log(`[Backend] Shutdown already in progress (${signal})`);
@@ -394,6 +436,13 @@ async function main() {
         console.log("[Backend] Monitor stopped");
       } catch (err) {
         console.error("[Backend] Failed to stop monitor:", err);
+      }
+
+      try {
+        await keyRotationScheduler.stop();
+        console.log("[Backend] Key rotation scheduler stopped");
+      } catch (err) {
+        console.error("[Backend] Failed to stop key rotation scheduler:", err);
       }
 
       try {

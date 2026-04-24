@@ -1,5 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { fetchStreams } from "../lib/streams";
+import type { StreamsResponse } from "../lib/streams";
 
 /**
  * Fetches paginated stream history using infinite scrolling / cursor-based pagination.
@@ -19,7 +20,7 @@ import { fetchStreams } from "../lib/streams";
  * ```
  */
 export const useStreamHistory = () => {
-  return useInfiniteQuery({
+  const result = useInfiniteQuery({
     queryKey: ["streams"],
     queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
       fetchStreams(pageParam),
@@ -29,4 +30,14 @@ export const useStreamHistory = () => {
     staleTime: 30_000,
     refetchInterval: 30_000,
   });
+
+  const streams =
+    result.data?.pages.flatMap((page: StreamsResponse) => page.data) ?? [];
+
+  return {
+    ...result,
+    streams,
+    isLoading: result.isLoading,
+    error: result.error,
+  };
 };
