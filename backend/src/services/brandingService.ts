@@ -420,3 +420,9 @@ export const deleteLogo = async (employerAddress: string): Promise<void> => {
 
   await logServiceInfo(SERVICE_NAME, "Logo deleted", { employerAddress });
 };
+
+/**
+ * Returns branding settings for an employer, falling back to Quipay defaults.
+ * Convenience alias for {@link getBranding} — used by PDF generation and API routes.
+ */
+export const getBrandingForEmployer = getBranding;
