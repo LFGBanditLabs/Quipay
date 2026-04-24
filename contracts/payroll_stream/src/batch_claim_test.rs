@@ -3,14 +3,55 @@
 extern crate std;
 
 use super::*;
-use quipay_common::QuipayError;
-use soroban_sdk::{Address, Env, testutils::Address as _, testutils::Ledger as _};
-
 use crate::test::setup;
+use quipay_common::QuipayError;
+use soroban_sdk::{
+    contract, contractimpl, contracttype, testutils::Address as _, testutils::Ledger as _, Address,
+    Env, Vec,
+};
 
-// ── helpers ──────────────────────────────────────────────────────────────────
+#[contracttype]
+#[derive(Clone)]
+enum CountingVaultKey {
+    PayoutCalls,
+}
 
-/// Create a stream for `worker` starting and ending at explicit timestamps.
+#[contract]
+pub struct CountingVault;
+
+#[contractimpl]
+impl CountingVault {
+    pub fn is_token_allowed(_env: Env, _token: Address) -> bool {
+        true
+    }
+
+    pub fn check_solvency(_env: Env, _token: Address, _additional_liability: i128) -> bool {
+        true
+    }
+
+    pub fn add_liability(_env: Env, _token: Address, _amount: i128) {}
+
+    pub fn remove_liability(_env: Env, _token: Address, _amount: i128) {}
+
+    pub fn payout_liability(env: Env, _to: Address, _token: Address, _amount: i128) {
+        let count: u32 = env
+            .storage()
+            .instance()
+            .get(&CountingVaultKey::PayoutCalls)
+            .unwrap_or(0);
+        env.storage()
+            .instance()
+            .set(&CountingVaultKey::PayoutCalls, &(count + 1));
+    }
+
+    pub fn get_payout_calls(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&CountingVaultKey::PayoutCalls)
+            .unwrap_or(0)
+    }
+}
+
 fn make_stream(
     client: &PayrollStreamClient,
     employer: &Address,
@@ -25,7 +66,44 @@ fn make_stream(
     )
 }
 
-// ── basic functionality ───────────────────────────────────────────────────────
+fn sum_claims(results: &Vec<(u64, i128)>) -> i128 {
+    let mut total = 0i128;
+    let mut idx = 0u32;
+    while idx < results.len() {
+        let (_, amount) = results.get(idx).unwrap();
+        total += amount;
+        idx += 1;
+    }
+    total
+}
+
+fn setup_with_counting_vault(
+    env: &Env,
+) -> (
+    PayrollStreamClient,
+    CountingVaultClient,
+    Address,
+    Address,
+    Address,
+    Address,
+) {
+    let admin = Address::generate(env);
+    let employer = Address::generate(env);
+    let worker = Address::generate(env);
+    let token = Address::generate(env);
+    let vault_id = env.register(CountingVault, ());
+    let contract_id = env.register(PayrollStream, ());
+
+    let client = PayrollStreamClient::new(env, &contract_id);
+    let vault_client = CountingVaultClient::new(env, &vault_id);
+
+    client.init(&admin);
+    client.set_vault(&vault_id);
+    client.set_withdrawal_cooldown(&0u64);
+    client.set_min_stream_duration(&0u64);
+
+    (client, vault_client, employer, worker, token, admin)
+}
 
 #[test]
 fn test_batch_claim_single_stream() {
@@ -34,16 +112,13 @@ fn test_batch_claim_single_stream() {
     let (client, employer, worker, token, _admin) = setup(&env);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
-    make_stream(&client, &employer, &worker, &token, 10, 0, 100);
+    let stream_id = make_stream(&client, &employer, &worker, &token, 10, 0, 100);
 
     env.ledger().with_mut(|li| li.timestamp = 50);
-    let result = client.batch_claim(&worker);
+    let result = client.batch_claim(&soroban_sdk::vec![&env, stream_id]);
 
-    assert_eq!(result.total_claimed, 500); // 10 * 50
-    assert_eq!(result.streams.len(), 1);
-    let s = result.streams.get(0).unwrap();
-    assert_eq!(s.amount, 500);
-    assert_eq!(s.token, token);
+    assert_eq!(result.len(), 1);
+    assert_eq!(result.get(0).unwrap(), (stream_id, 500));
 }
 
 #[test]
@@ -53,179 +128,95 @@ fn test_batch_claim_multiple_streams_same_token() {
     let (client, employer, worker, token, _admin) = setup(&env);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
-    make_stream(&client, &employer, &worker, &token, 10, 0, 100); // vests 1000 total
-    make_stream(&client, &employer, &worker, &token, 20, 0, 100); // vests 2000 total
-    make_stream(&client, &employer, &worker, &token, 5, 0, 100); // vests 500 total
+    let s1 = make_stream(&client, &employer, &worker, &token, 10, 0, 100);
+    let s2 = make_stream(&client, &employer, &worker, &token, 20, 0, 100);
+    let s3 = make_stream(&client, &employer, &worker, &token, 5, 0, 100);
 
     env.ledger().with_mut(|li| li.timestamp = 100);
-    let result = client.batch_claim(&worker);
+    let result = client.batch_claim(&soroban_sdk::vec![&env, s1, s2, s3]);
 
-    // All three fully vested
-    assert_eq!(result.total_claimed, 3500);
-    assert_eq!(result.streams.len(), 3);
+    assert_eq!(result.len(), 3);
+    assert_eq!(sum_claims(&result), 3500);
+    assert_eq!(result.get(0).unwrap(), (s1, 1000));
+    assert_eq!(result.get(1).unwrap(), (s2, 2000));
+    assert_eq!(result.get(2).unwrap(), (s3, 500));
 }
 
 #[test]
-fn test_batch_claim_multiple_streams_different_tokens() {
+fn test_batch_claim_aggregates_same_token_payouts_into_one_vault_call() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, employer, worker, token_a, _admin) = setup(&env);
-    let token_b = Address::generate(&env);
+    let (client, vault_client, employer, worker, token, _admin) = setup_with_counting_vault(&env);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
-    make_stream(&client, &employer, &worker, &token_a, 10, 0, 100);
-    make_stream(&client, &employer, &worker, &token_b, 20, 0, 100);
+    let s1 = make_stream(&client, &employer, &worker, &token, 10, 0, 100);
+    let s2 = make_stream(&client, &employer, &worker, &token, 20, 0, 100);
+    let s3 = make_stream(&client, &employer, &worker, &token, 5, 0, 100);
 
     env.ledger().with_mut(|li| li.timestamp = 50);
-    let result = client.batch_claim(&worker);
+    let result = client.batch_claim(&soroban_sdk::vec![&env, s1, s2, s3]);
 
-    assert_eq!(result.total_claimed, 1500); // 500 + 1000
-    assert_eq!(result.streams.len(), 2);
-
-    // Verify both tokens appear in the breakdown.
-    let mut saw_a = false;
-    let mut saw_b = false;
-    let mut i = 0u32;
-    while i < result.streams.len() {
-        let s = result.streams.get(i).unwrap();
-        if s.token == token_a {
-            assert_eq!(s.amount, 500);
-            saw_a = true;
-        }
-        if s.token == token_b {
-            assert_eq!(s.amount, 1000);
-            saw_b = true;
-        }
-        i += 1;
-    }
-    assert!(saw_a && saw_b);
+    assert_eq!(sum_claims(&result), 1750);
+    assert_eq!(vault_client.get_payout_calls(), 1);
 }
 
-// ── zero-balance streams are skipped ─────────────────────────────────────────
-
 #[test]
-fn test_batch_claim_skips_zero_balance_streams() {
+fn test_batch_claim_returns_zero_for_zero_balance_duplicate_and_foreign_streams() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _admin) = setup(&env);
+    let other_worker = Address::generate(&env);
 
-    // Stream with cliff in the future — nothing vested yet.
     env.ledger().with_mut(|li| li.timestamp = 0);
-    let stream_id_cliff = client.create_stream(
+    let claimable = make_stream(&client, &employer, &worker, &token, 10, 0, 100);
+    let not_started = client.create_stream(
         &employer, &worker, &token, &10, &200u64, &0u64, &300u64, &None, &None,
     );
-    // Normal stream.
-    make_stream(&client, &employer, &worker, &token, 10, 0, 100);
+    let foreign = make_stream(&client, &employer, &other_worker, &token, 15, 0, 100);
 
     env.ledger().with_mut(|li| li.timestamp = 50);
-    let result = client.batch_claim(&worker);
+    let result = client.batch_claim(&soroban_sdk::vec![
+        &env,
+        claimable,
+        not_started,
+        claimable,
+        foreign,
+        999u64,
+    ]);
 
-    // Only the second stream should have been claimed.
-    assert_eq!(result.streams.len(), 1);
-    assert_eq!(result.total_claimed, 500);
-
-    // Cliffed stream is still active.
-    let cliffed = client.get_stream(&stream_id_cliff).unwrap();
-    assert_eq!(cliffed.status, StreamStatus::Active);
-    assert_eq!(cliffed.withdrawn_amount, 0);
+    assert_eq!(result.len(), 5);
+    assert_eq!(result.get(0).unwrap(), (claimable, 500));
+    assert_eq!(result.get(1).unwrap(), (not_started, 0));
+    assert_eq!(result.get(2).unwrap(), (claimable, 0));
+    assert_eq!(result.get(3).unwrap(), (foreign, 0));
+    assert_eq!(result.get(4).unwrap(), (999, 0));
 }
 
-// ── closed streams are skipped ────────────────────────────────────────────────
-
 #[test]
-fn test_batch_claim_skips_completed_streams() {
+fn test_batch_claim_partially_succeeds_when_one_stream_was_cancelled() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _admin) = setup(&env);
 
-    env.ledger().with_mut(|li| li.timestamp = 0);
-    let s1 = make_stream(&client, &employer, &worker, &token, 10, 0, 10);
-    make_stream(&client, &employer, &worker, &token, 10, 0, 100);
+    client.set_cancellation_grace_period(&0u64);
 
-    // Complete s1.
-    env.ledger().with_mut(|li| li.timestamp = 10);
-    client.withdraw(&s1, &worker);
+    env.ledger().with_mut(|li| li.timestamp = 0);
+    let cancelled = make_stream(&client, &employer, &worker, &token, 10, 0, 100);
+    let active = make_stream(&client, &employer, &worker, &token, 20, 0, 100);
+
+    env.ledger().with_mut(|li| li.timestamp = 25);
+    client.cancel_stream(&cancelled, &employer, &None);
 
     env.ledger().with_mut(|li| li.timestamp = 50);
-    let result = client.batch_claim(&worker);
+    let result = client.batch_claim(&soroban_sdk::vec![&env, cancelled, active]);
 
-    // Only the second stream contributes.
-    assert_eq!(result.streams.len(), 1);
-    assert_eq!(result.total_claimed, 500);
-}
-
-// #[test]
-// fn test_batch_claim_skips_canceled_streams() {
-//     let env = Env::default();
-//     env.mock_all_auths();
-//     let (client, employer, worker, token, _admin) = setup(&env);
-
-//     env.ledger().with_mut(|li| li.timestamp = 0);
-//     let s1 = make_stream(&client, &employer, &worker, &token, 10, 0, 100);
-//     make_stream(&client, &employer, &worker, &token, 20, 0, 100);
-
-//     client.cancel_stream(&s1, &employer, &None);
-
-//     env.ledger().with_mut(|li| li.timestamp = 50);
-//     let result = client.batch_claim(&worker);
-
-//     assert_eq!(result.streams.len(), 1);
-//     assert_eq!(result.total_claimed, 1000); // 20 * 50
-// }
-
-// ── empty result when nothing to claim ────────────────────────────────────────
-
-#[test]
-fn test_batch_claim_returns_empty_when_nothing_to_claim() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, employer, worker, token, _admin) = setup(&env);
-
-    // Stream hasn't started vesting yet (cliff far in future).
-    env.ledger().with_mut(|li| li.timestamp = 0);
-    client.create_stream(
-        &employer, &worker, &token, &10, &1000u64, &0u64, &2000u64, &None, &None,
-    );
-
-    env.ledger().with_mut(|li| li.timestamp = 5);
-    let result = client.batch_claim(&worker);
-
-    assert_eq!(result.total_claimed, 0);
-    assert_eq!(result.streams.len(), 0);
+    assert_eq!(result.len(), 2);
+    assert_eq!(result.get(0).unwrap(), (cancelled, 0));
+    assert_eq!(result.get(1).unwrap(), (active, 1000));
 }
 
 #[test]
-fn test_batch_claim_no_streams_returns_empty() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, _employer, worker, _token, _admin) = setup(&env);
-
-    let result = client.batch_claim(&worker);
-    assert_eq!(result.total_claimed, 0);
-    assert_eq!(result.streams.len(), 0);
-}
-
-// ── stream state is correctly updated ────────────────────────────────────────
-
-#[test]
-fn test_batch_claim_updates_withdrawn_amount() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, employer, worker, token, _admin) = setup(&env);
-
-    env.ledger().with_mut(|li| li.timestamp = 0);
-    let stream_id = make_stream(&client, &employer, &worker, &token, 10, 0, 100);
-
-    env.ledger().with_mut(|li| li.timestamp = 30);
-    client.batch_claim(&worker);
-
-    let stream = client.get_stream(&stream_id).unwrap();
-    assert_eq!(stream.withdrawn_amount, 300);
-    assert_eq!(stream.last_withdrawal_ts, 30);
-}
-
-#[test]
-fn test_batch_claim_auto_completes_fully_vested_stream() {
+fn test_batch_claim_marks_fully_vested_stream_completed() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _admin) = setup(&env);
@@ -234,17 +225,17 @@ fn test_batch_claim_auto_completes_fully_vested_stream() {
     let stream_id = make_stream(&client, &employer, &worker, &token, 10, 0, 10);
 
     env.ledger().with_mut(|li| li.timestamp = 10);
-    let result = client.batch_claim(&worker);
+    let result = client.batch_claim(&soroban_sdk::vec![&env, stream_id]);
 
-    assert_eq!(result.total_claimed, 100);
-    let stream = client.get_stream(&stream_id).unwrap();
-    assert_eq!(stream.status, StreamStatus::Completed);
+    assert_eq!(result.get(0).unwrap(), (stream_id, 100));
+    assert_eq!(
+        client.get_stream(&stream_id).unwrap().status,
+        StreamStatus::Completed
+    );
 }
 
-// ── idempotent: claiming twice yields correct incremental amounts ─────────────
-
 #[test]
-fn test_batch_claim_twice_accumulates_incrementally() {
+fn test_batch_claim_accumulates_incrementally() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _admin) = setup(&env);
@@ -253,97 +244,56 @@ fn test_batch_claim_twice_accumulates_incrementally() {
     let stream_id = make_stream(&client, &employer, &worker, &token, 10, 0, 100);
 
     env.ledger().with_mut(|li| li.timestamp = 40);
-    let r1 = client.batch_claim(&worker);
-    assert_eq!(r1.total_claimed, 400);
+    let first = client.batch_claim(&soroban_sdk::vec![&env, stream_id]);
+    assert_eq!(first.get(0).unwrap(), (stream_id, 400));
 
     env.ledger().with_mut(|li| li.timestamp = 70);
-    let r2 = client.batch_claim(&worker);
-    assert_eq!(r2.total_claimed, 300); // 700 - 400
+    let second = client.batch_claim(&soroban_sdk::vec![&env, stream_id]);
+    assert_eq!(second.get(0).unwrap(), (stream_id, 300));
 
     let stream = client.get_stream(&stream_id).unwrap();
     assert_eq!(stream.withdrawn_amount, 700);
 }
 
-// ── cooldown enforcement ──────────────────────────────────────────────────────
-
 #[test]
 fn test_batch_claim_respects_withdrawal_cooldown() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, employer, worker, token, admin) = setup(&env);
+    let (client, employer, worker, token, _admin) = setup(&env);
 
-    // Re-enable a 100-second cooldown.
     client.set_withdrawal_cooldown(&100u64);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
-    make_stream(&client, &employer, &worker, &token, 10, 0, 1000);
+    let stream_id = make_stream(&client, &employer, &worker, &token, 10, 0, 1000);
 
     env.ledger().with_mut(|li| li.timestamp = 200);
-    client.batch_claim(&worker); // first claim — OK
+    client.batch_claim(&soroban_sdk::vec![&env, stream_id]);
 
-    env.ledger().with_mut(|li| li.timestamp = 250); // only 50 s later
-    let result = client.try_batch_claim(&worker);
+    env.ledger().with_mut(|li| li.timestamp = 250);
+    let result = client.try_batch_claim(&soroban_sdk::vec![&env, stream_id]);
     assert_eq!(result, Err(Ok(QuipayError::WithdrawalCooldown)));
 
-    env.ledger().with_mut(|li| li.timestamp = 301); // past cooldown
-    let result2 = client.batch_claim(&worker);
-    assert!(result2.total_claimed > 0);
+    env.ledger().with_mut(|li| li.timestamp = 301);
+    let result = client.batch_claim(&soroban_sdk::vec![&env, stream_id]);
+    assert!(result.get(0).unwrap().1 > 0);
 }
 
-// ── only the caller's streams are processed ───────────────────────────────────
-
 #[test]
-fn test_batch_claim_only_processes_callers_own_streams() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (client, employer, worker1, token, _admin) = setup(&env);
-    let worker2 = Address::generate(&env);
-
-    env.ledger().with_mut(|li| li.timestamp = 0);
-    make_stream(&client, &employer, &worker1, &token, 10, 0, 100);
-    make_stream(&client, &employer, &worker2, &token, 20, 0, 100);
-
-    env.ledger().with_mut(|li| li.timestamp = 50);
-
-    // worker1 claims — should only get their own stream.
-    let r1 = client.batch_claim(&worker1);
-    assert_eq!(r1.total_claimed, 500); // 10 * 50
-
-    // worker2 claims — should only get their own stream.
-    let r2 = client.batch_claim(&worker2);
-    assert_eq!(r2.total_claimed, 1000); // 20 * 50
-}
-
-// ── grace-period interaction ──────────────────────────────────────────────────
-
-#[test]
-fn test_batch_claim_respects_cancel_effective_at_vesting_cap() {
+fn test_batch_claim_rejects_oversized_batches() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _admin) = setup(&env);
 
-    // Re-enable grace period (20 s) just for this test.
-    client.set_cancellation_grace_period(&20u64);
-
     env.ledger().with_mut(|li| li.timestamp = 0);
-    // rate 10, end 100 → total 1000
-    make_stream(&client, &employer, &worker, &token, 10, 0, 100);
+    let stream_id = make_stream(&client, &employer, &worker, &token, 10, 0, 100);
 
-    // At t=10, employer schedules cancellation → cancel_effective_at = 30.
-    env.ledger().with_mut(|li| li.timestamp = 10);
-    client.cancel_stream(
-        &client
-            .get_streams_by_worker(&worker, &None, &None)
-            .get(0)
-            .unwrap(),
-        &employer,
-        &None,
-    );
+    let mut oversized = soroban_sdk::Vec::new(&env);
+    let mut i = 0u32;
+    while i < 51 {
+        oversized.push_back(stream_id + i as u64);
+        i += 1;
+    }
 
-    // At t=60, worker batch_claims — vesting must be capped at t=30.
-    env.ledger().with_mut(|li| li.timestamp = 60);
-    let result = client.batch_claim(&worker);
-
-    // Elapsed to cap = 30 s → 30 * 10 = 300.
-    assert_eq!(result.total_claimed, 300);
+    let result = client.try_batch_claim(&oversized);
+    assert_eq!(result, Err(Ok(QuipayError::BatchTooLarge)));
 }

@@ -1,8 +1,8 @@
 #![no_std]
 use core::convert::TryFrom;
-use quipay_common::{QuipayError, require};
+use quipay_common::{require, QuipayError};
 use soroban_sdk::{
-    Address, BytesN, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype,
+    contract, contractimpl, contracttype, Address, BytesN, Env, IntoVal, Symbol, Vec,
 };
 
 const MAX_BATCH_CREATE_STREAMS: u32 = 20;
@@ -18,6 +18,7 @@ pub enum DataKey {
     Admin,
     PendingAdmin,
     Paused,
+    StorageVersion,
     NextStreamId,
     RetentionSecs,
     Vault,
@@ -41,6 +42,16 @@ pub enum DataKey {
     NextReceiptId,
     ReceiptById(u64),
     ReceiptByStream(u64),
+}
+
+#[contracttype]
+#[derive(Clone)]
+enum PersistentDataKey {
+    StreamV2(StreamKey),
+    LastWithdrawalV2(Address),
+    DisputeV2(u64),
+    ReceiptByIdV2(u64),
+    ReceiptByStreamV2(u64),
 }
 
 #[contracttype]
@@ -181,24 +192,6 @@ pub struct WithdrawResult {
     pub success: bool,
 }
 
-/// Per-stream breakdown emitted inside a BatchClaimed event and returned to callers.
-#[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub struct StreamClaimResult {
-    pub stream_id: u64,
-    pub token: Address,
-    pub amount: i128,
-}
-
-/// Return value of `batch_claim`: the per-stream breakdown and the total aggregated
-/// per-token payouts that were transferred in this transaction.
-#[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub struct BatchClaimResult {
-    pub streams: Vec<StreamClaimResult>,
-    pub total_claimed: i128, // sum across all tokens (informational)
-}
-
 /// Per-stream result returned by `batch_cancel_streams`.
 #[contracttype]
 #[derive(Clone, Debug)]
@@ -230,6 +223,8 @@ enum BatchWithdrawalPlan {
 }
 
 const DEFAULT_RETENTION_SECS: u64 = 30 * 24 * 60 * 60;
+const LEGACY_STORAGE_VERSION: u32 = 1;
+const CURRENT_STORAGE_VERSION: u32 = 2;
 
 // Default withdrawal cooldown: 1 hour in seconds
 const DEFAULT_WITHDRAWAL_COOLDOWN: u64 = 60 * 60;
@@ -273,11 +268,7 @@ pub struct PayrollStream;
 #[contractimpl]
 impl PayrollStream {
     fn try_mint_receipt(env: &Env, stream: &Stream, stream_id: u64, status_code: u32) {
-        if env
-            .storage()
-            .persistent()
-            .has(&DataKey::ReceiptByStream(stream_id))
-        {
+        if Self::has_stored_receipt_for_stream(env, stream_id) {
             return;
         }
 
@@ -308,12 +299,8 @@ impl PayrollStream {
             status,
         };
 
-        env.storage()
-            .persistent()
-            .set(&DataKey::ReceiptById(receipt_id), &receipt);
-        env.storage()
-            .persistent()
-            .set(&DataKey::ReceiptByStream(stream_id), &receipt_id);
+        Self::set_stored_receipt(env, receipt_id, &receipt);
+        Self::set_stored_receipt_id_for_stream(env, stream_id, &receipt_id);
         env.storage()
             .instance()
             .set(&DataKey::NextReceiptId, &(receipt_id + 1));
@@ -350,6 +337,9 @@ impl PayrollStream {
         );
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Paused, &false);
+        env.storage()
+            .instance()
+            .set(&DataKey::StorageVersion, &CURRENT_STORAGE_VERSION);
         env.storage().instance().set(&DataKey::NextStreamId, &1u64);
         env.storage().instance().set(&DataKey::NextReceiptId, &1u64);
         env.storage()
@@ -1008,30 +998,20 @@ impl PayrollStream {
                 clawback_authority: param.clawback_authority.clone(),
             };
 
-            env.storage()
-                .persistent()
-                .set(&StreamKey::Stream(stream_id), &stream);
+            Self::set_stored_stream(&env, stream_id, &stream);
             created_ids.push_back(stream_id);
 
             // Update employer index
             let emp_key = StreamKey::EmployerStreams(authorized_employer.clone());
-            let mut emp_ids: Vec<u64> = env
-                .storage()
-                .persistent()
-                .get(&emp_key)
-                .unwrap_or_else(|| Vec::new(&env));
+            let mut emp_ids: Vec<u64> = Self::get_stored_stream_ids(&env, emp_key.clone());
             emp_ids.push_back(stream_id);
-            env.storage().persistent().set(&emp_key, &emp_ids);
+            Self::set_stored_stream_ids(&env, emp_key, &emp_ids);
 
             // Update worker index
             let wrk_key = StreamKey::WorkerStreams(param.worker.clone());
-            let mut wrk_ids: Vec<u64> = env
-                .storage()
-                .persistent()
-                .get(&wrk_key)
-                .unwrap_or_else(|| Vec::new(&env));
+            let mut wrk_ids: Vec<u64> = Self::get_stored_stream_ids(&env, wrk_key.clone());
             wrk_ids.push_back(stream_id);
-            env.storage().persistent().set(&wrk_key, &wrk_ids);
+            Self::set_stored_stream_ids(&env, wrk_key, &wrk_ids);
 
             // Emit individual events for downstream indexers
             env.events().publish(
@@ -1067,12 +1047,8 @@ impl PayrollStream {
         Self::require_not_paused(&env)?;
         worker.require_auth();
 
-        let key = StreamKey::Stream(stream_id);
-        let mut stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+        let mut stream: Stream =
+            Self::get_stored_stream(&env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
         if stream.worker != worker {
             return Err(QuipayError::Unauthorized);
@@ -1094,11 +1070,7 @@ impl PayrollStream {
             .get(&DataKey::WithdrawalCooldown)
             .unwrap_or(DEFAULT_WITHDRAWAL_COOLDOWN);
         if cooldown > 0 {
-            let last_ts: u64 = env
-                .storage()
-                .persistent()
-                .get(&DataKey::LastWithdrawal(worker.clone()))
-                .unwrap_or(0);
+            let last_ts = Self::get_last_withdrawal_timestamp(&env, &worker);
             if now < last_ts.saturating_add(cooldown) {
                 return Err(QuipayError::WithdrawalCooldown);
             }
@@ -1139,12 +1111,10 @@ impl PayrollStream {
             Self::close_stream_internal(&mut stream, now, StreamStatus::Completed);
         }
 
-        env.storage().persistent().set(&key, &stream);
+        Self::set_stored_stream(&env, stream_id, &stream);
 
         // Record this withdrawal timestamp for cooldown enforcement
-        env.storage()
-            .persistent()
-            .set(&DataKey::LastWithdrawal(worker.clone()), &now);
+        Self::set_last_withdrawal_timestamp(&env, &worker, now);
 
         env.events().publish(
             (
@@ -1188,11 +1158,7 @@ impl PayrollStream {
             .get(&DataKey::WithdrawalCooldown)
             .unwrap_or(DEFAULT_WITHDRAWAL_COOLDOWN);
         if cooldown > 0 {
-            let last_ts: u64 = env
-                .storage()
-                .persistent()
-                .get(&DataKey::LastWithdrawal(caller.clone()))
-                .unwrap_or(0);
+            let last_ts = Self::get_last_withdrawal_timestamp(&env, &caller);
             if now < last_ts.saturating_add(cooldown) {
                 return Err(QuipayError::WithdrawalCooldown);
             }
@@ -1212,9 +1178,7 @@ impl PayrollStream {
                 idx += 1;
                 continue;
             };
-            let key = StreamKey::Stream(stream_id);
-
-            let plan = match env.storage().persistent().get::<StreamKey, Stream>(&key) {
+            let plan = match Self::get_stored_stream(&env, stream_id) {
                 Some(stream) => {
                     if stream.worker != caller {
                         BatchWithdrawalPlan::Result(WithdrawResult {
@@ -1275,7 +1239,6 @@ impl PayrollStream {
             let result = match plan {
                 BatchWithdrawalPlan::Result(result) => result,
                 BatchWithdrawalPlan::Payout(candidate) => {
-                    let key = StreamKey::Stream(candidate.stream_id);
                     let mut stream = candidate.stream;
                     let available = candidate.amount;
 
@@ -1297,14 +1260,12 @@ impl PayrollStream {
                         Self::close_stream_internal(&mut stream, now, StreamStatus::Completed);
                     }
 
-                    env.storage().persistent().set(&key, &stream);
+                    Self::set_stored_stream(&env, candidate.stream_id, &stream);
                     // Keep both the stream state and the worker index entry alive.
                     Self::bump_stream_storage_ttl(&env, candidate.stream_id, &caller);
 
                     // Record this withdrawal timestamp for cooldown enforcement
-                    env.storage()
-                        .persistent()
-                        .set(&DataKey::LastWithdrawal(caller.clone()), &now);
+                    Self::set_last_withdrawal_timestamp(&env, &caller, now);
 
                     env.events().publish(
                         (
@@ -1336,30 +1297,46 @@ impl PayrollStream {
         Ok(results)
     }
 
-    /// Claim all available funds across **every active stream** belonging to `worker`
-    /// in a single transaction.
+    /// Claim all available funds across the supplied stream IDs in a single transaction.
     ///
-    /// Unlike `batch_withdraw` (which requires the caller to supply stream IDs),
-    /// `batch_claim` automatically discovers all streams indexed under the worker's
-    /// address, filters to those with a positive withdrawable balance, groups the
-    /// amounts by token, and issues **one vault payout call per distinct token**.
+    /// The worker is inferred from the first stream found in `stream_ids` and must
+    /// authorize the call. Every additional stream must belong to that same worker
+    /// to be claimable; mismatched, closed, disputed, duplicate, or zero-balance
+    /// streams are returned with a claimed amount of `0` without aborting the batch.
     ///
     /// ### Returns
-    /// A [`BatchClaimResult`] containing:
-    /// - `streams`: per-stream breakdown (stream_id, token, amount claimed).
-    /// - `total_claimed`: sum of all amounts across all tokens (informational).
-    ///
-    /// ### Limits
-    /// At most `MAX_BATCH_CLAIM_STREAMS` streams are processed per call. Workers
-    /// with more streams should use `batch_withdraw` with explicit IDs.
+    /// A per-stream breakdown in the same order as `stream_ids`, where each entry is
+    /// `(stream_id, amount_claimed)`.
     ///
     /// ### Events
-    /// Emits a single `stream / batch_claimed` event carrying the worker address
-    /// and the per-stream breakdown, plus individual `stream / withdrawn` events
-    /// for each stream that had a positive balance (matching single-`withdraw`
-    /// semantics so downstream indexers don't need special-casing).
-    pub fn batch_claim(env: Env, worker: Address) -> Result<BatchClaimResult, QuipayError> {
+    /// Emits a single `stream / batch_claimed` event carrying the worker address,
+    /// total claimed amount, and per-stream results. Individual `stream / withdrawn`
+    /// events are still emitted for each successful claim.
+    pub fn batch_claim(env: Env, stream_ids: Vec<u64>) -> Result<Vec<(u64, i128)>, QuipayError> {
         Self::require_not_paused(&env)?;
+
+        if stream_ids.len() > MAX_BATCH_CLAIM_STREAMS {
+            return Err(QuipayError::BatchTooLarge);
+        }
+        if stream_ids.is_empty() {
+            return Ok(Vec::new(&env));
+        }
+
+        let mut worker: Option<Address> = None;
+        let mut worker_idx = 0u32;
+        while worker_idx < stream_ids.len() {
+            let Some(stream_id) = stream_ids.get(worker_idx) else {
+                worker_idx += 1;
+                continue;
+            };
+            if let Some(stream) = Self::get_stored_stream(&env, stream_id) {
+                worker = Some(stream.worker);
+                break;
+            }
+            worker_idx += 1;
+        }
+
+        let worker = worker.ok_or(QuipayError::StreamNotFound)?;
         worker.require_auth();
 
         let now = env.ledger().timestamp();
@@ -1371,11 +1348,7 @@ impl PayrollStream {
             .get(&DataKey::WithdrawalCooldown)
             .unwrap_or(DEFAULT_WITHDRAWAL_COOLDOWN);
         if cooldown > 0 {
-            let last_ts: u64 = env
-                .storage()
-                .persistent()
-                .get(&DataKey::LastWithdrawal(worker.clone()))
-                .unwrap_or(0);
+            let last_ts = Self::get_last_withdrawal_timestamp(&env, &worker);
             if now < last_ts.saturating_add(cooldown) {
                 return Err(QuipayError::WithdrawalCooldown);
             }
@@ -1387,20 +1360,12 @@ impl PayrollStream {
             .get(&DataKey::Vault)
             .ok_or(QuipayError::NotInitialized)?;
 
-        // Load all stream IDs for this worker from the persistent index.
-        let all_ids: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&StreamKey::WorkerStreams(worker.clone()))
-            .unwrap_or_else(|| Vec::new(&env));
-
-        // ── Phase 1: scan streams, collect candidates ─────────────────────
-        // ── Phase 1: scan streams, collect candidates ─────────────────────
         // Per-token totals are tracked with parallel vecs (token_keys / token_amounts)
         // to stay no_std compatible without needing Map.
-        let mut stream_results: Vec<StreamClaimResult> = Vec::new(&env);
+        let mut claim_results: Vec<(u64, i128)> = Vec::new(&env);
         let mut token_keys: Vec<Address> = Vec::new(&env);
         let mut token_amounts: Vec<i128> = Vec::new(&env);
+        let mut seen_stream_ids: Vec<u64> = Vec::new(&env);
 
         // Mutable snapshots we'll write back in phase 2.
         // store as (stream_id, updated_stream) pairs; we reuse the same ordering.
@@ -1409,30 +1374,39 @@ impl PayrollStream {
         let mut payable_amounts: Vec<i128> = Vec::new(&env);
 
         let mut total_claimed: i128 = 0i128;
-        let mut processed: u32 = 0;
         let mut idx: u32 = 0;
 
-        while idx < all_ids.len() && processed < MAX_BATCH_CLAIM_STREAMS {
-            let Some(stream_id) = all_ids.get(idx) else {
+        while idx < stream_ids.len() {
+            let Some(stream_id) = stream_ids.get(idx) else {
                 idx += 1;
                 continue;
             };
             idx += 1;
 
-            let key = StreamKey::Stream(stream_id);
-            let Some(mut stream) = env.storage().persistent().get::<StreamKey, Stream>(&key) else {
-                processed += 1;
+            if seen_stream_ids.contains(stream_id) {
+                claim_results.push_back((stream_id, 0));
+                continue;
+            }
+            seen_stream_ids.push_back(stream_id);
+
+            let Some(mut stream) = Self::get_stored_stream(&env, stream_id) else {
+                claim_results.push_back((stream_id, 0));
                 continue;
             };
 
+            if stream.worker != worker {
+                claim_results.push_back((stream_id, 0));
+                continue;
+            }
+
             // Skip closed streams — they have nothing left to pay.
             if Self::is_closed(&stream) {
-                processed += 1;
+                claim_results.push_back((stream_id, 0));
                 continue;
             }
 
             if stream.status == StreamStatus::Disputed {
-                processed += 1;
+                claim_results.push_back((stream_id, 0));
                 continue;
             }
 
@@ -1442,7 +1416,7 @@ impl PayrollStream {
             if available <= 0 {
                 // Keep storage alive even with zero balance.
                 Self::bump_stream_storage_ttl(&env, stream_id, &worker);
-                processed += 1;
+                claim_results.push_back((stream_id, 0));
                 continue;
             }
 
@@ -1479,25 +1453,15 @@ impl PayrollStream {
                 .checked_add(available)
                 .ok_or(QuipayError::Overflow)?;
 
-            stream_results.push_back(StreamClaimResult {
-                stream_id,
-                token: stream.token.clone(),
-                amount: available,
-            });
-
+            claim_results.push_back((stream_id, available));
             payable_stream_ids.push_back(stream_id);
             payable_streams.push_back(stream);
             payable_amounts.push_back(available);
-
-            processed += 1;
         }
 
         // Nothing to pay — return early without touching vault or storage.
         if total_claimed == 0 {
-            return Ok(BatchClaimResult {
-                streams: stream_results,
-                total_claimed: 0,
-            });
+            return Ok(claim_results);
         }
 
         // ── Phase 2: issue one vault payout per token ─────────────────────
@@ -1517,8 +1481,7 @@ impl PayrollStream {
                 payable_streams.get(sidx),
                 payable_amounts.get(sidx),
             ) {
-                let key = StreamKey::Stream(stream_id);
-                env.storage().persistent().set(&key, &stream);
+                Self::set_stored_stream(&env, stream_id, &stream);
                 Self::bump_stream_storage_ttl(&env, stream_id, &worker);
 
                 // Per-stream withdrawn event (mirrors single withdraw — indexers see it).
@@ -1536,9 +1499,7 @@ impl PayrollStream {
         }
 
         // Record cooldown timestamp once for the whole batch.
-        env.storage()
-            .persistent()
-            .set(&DataKey::LastWithdrawal(worker.clone()), &now);
+        Self::set_last_withdrawal_timestamp(&env, &worker, now);
 
         // ── Single BatchClaimed event with full breakdown ──────────────────
         env.events().publish(
@@ -1547,13 +1508,10 @@ impl PayrollStream {
                 Symbol::new(&env, "batch_claimed"),
                 worker.clone(),
             ),
-            (total_claimed, stream_results.clone()),
+            (total_claimed, claim_results.clone()),
         );
 
-        Ok(BatchClaimResult {
-            streams: stream_results,
-            total_claimed,
-        })
+        Ok(claim_results)
     }
 
     pub fn transfer_stream(
@@ -1564,12 +1522,8 @@ impl PayrollStream {
     ) -> Result<(), QuipayError> {
         Self::require_not_paused(&env)?;
 
-        let key = StreamKey::Stream(stream_id);
-        let mut stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+        let mut stream: Stream =
+            Self::get_stored_stream(&env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
         if stream.status == StreamStatus::Canceled
             || stream.status == StreamStatus::Completed
@@ -1602,17 +1556,13 @@ impl PayrollStream {
         );
 
         let wrk_key = StreamKey::WorkerStreams(new_recipient.clone());
-        let mut wrk_ids: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&wrk_key)
-            .unwrap_or_else(|| Vec::new(&env));
+        let mut wrk_ids: Vec<u64> = Self::get_stored_stream_ids(&env, wrk_key.clone());
         wrk_ids.push_back(stream_id);
-        env.storage().persistent().set(&wrk_key, &wrk_ids);
+        Self::set_stored_stream_ids(&env, wrk_key, &wrk_ids);
 
         // Update the stream recipient
         stream.worker = new_recipient.clone();
-        env.storage().persistent().set(&key, &stream);
+        Self::set_stored_stream(&env, stream_id, &stream);
 
         // Ensure the new worker's index and the stream state have their TTL extended
         Self::bump_stream_storage_ttl(&env, stream_id, &new_recipient);
@@ -1638,12 +1588,8 @@ impl PayrollStream {
         Self::require_not_paused(&env)?;
         caller.require_auth();
 
-        let key = StreamKey::Stream(stream_id);
-        let mut stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+        let mut stream: Stream =
+            Self::get_stored_stream(&env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
         if stream.employer != caller {
             let gateway_addr = gateway.ok_or(QuipayError::Unauthorized)?;
@@ -1687,7 +1633,7 @@ impl PayrollStream {
 
         // If the grace period has already elapsed, finalize the cancellation now.
         if stream.cancel_effective_at > 0 && now >= stream.cancel_effective_at {
-            return Self::finalize_cancel(&env, stream_id, &key, &mut stream, now);
+            return Self::finalize_cancel(&env, stream_id, &mut stream, now);
         }
 
         // ── First call: set the grace period ────────────────────────────────
@@ -1699,12 +1645,12 @@ impl PayrollStream {
 
         if grace == 0 {
             // Grace period disabled — cancel immediately.
-            return Self::finalize_cancel(&env, stream_id, &key, &mut stream, now);
+            return Self::finalize_cancel(&env, stream_id, &mut stream, now);
         }
 
         stream.cancel_effective_at = now.saturating_add(grace);
         stream.status = StreamStatus::PendingCancel;
-        env.storage().persistent().set(&key, &stream);
+        Self::set_stored_stream(&env, stream_id, &stream);
 
         env.events().publish(
             (
@@ -1759,8 +1705,7 @@ impl PayrollStream {
                 continue;
             };
 
-            let key = StreamKey::Stream(stream_id);
-            let stream_opt: Option<Stream> = env.storage().persistent().get(&key);
+            let stream_opt: Option<Stream> = Self::get_stored_stream(&env, stream_id);
 
             let success = match stream_opt {
                 None => false,
@@ -1773,18 +1718,18 @@ impl PayrollStream {
                     } else if stream.status == StreamStatus::PendingCancel {
                         // Grace period already running — finalize if elapsed, else idempotent.
                         if stream.cancel_effective_at > 0 && now >= stream.cancel_effective_at {
-                            Self::finalize_cancel(&env, stream_id, &key, &mut stream, now).is_ok()
+                            Self::finalize_cancel(&env, stream_id, &mut stream, now).is_ok()
                         } else {
                             true
                         }
                     } else if grace == 0 {
                         // Grace period disabled — cancel immediately.
-                        Self::finalize_cancel(&env, stream_id, &key, &mut stream, now).is_ok()
+                        Self::finalize_cancel(&env, stream_id, &mut stream, now).is_ok()
                     } else {
                         // Schedule cancellation with grace period.
                         stream.cancel_effective_at = now.saturating_add(grace);
                         stream.status = StreamStatus::PendingCancel;
-                        env.storage().persistent().set(&key, &stream);
+                        Self::set_stored_stream(&env, stream_id, &stream);
                         Self::bump_stream_storage_ttl(&env, stream_id, &stream.worker);
 
                         env.events().publish(
@@ -1820,26 +1765,21 @@ impl PayrollStream {
             .ok_or(QuipayError::NotInitialized)?;
         admin.require_auth();
 
-        let key = StreamKey::Stream(stream_id);
-        let mut stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+        let mut stream: Stream =
+            Self::get_stored_stream(&env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
         if Self::is_closed(&stream) {
             return Ok(());
         }
 
         let now = env.ledger().timestamp();
-        Self::finalize_cancel(&env, stream_id, &key, &mut stream, now)
+        Self::finalize_cancel(&env, stream_id, &mut stream, now)
     }
 
     /// Internal helper: pay accrued amount, remove remaining liability, and mark stream Canceled.
     fn finalize_cancel(
         env: &Env,
         stream_id: u64,
-        key: &StreamKey,
         stream: &mut Stream,
         now: u64,
     ) -> Result<(), QuipayError> {
@@ -1901,7 +1841,7 @@ impl PayrollStream {
         }
 
         Self::close_stream_internal(stream, now, StreamStatus::Canceled);
-        env.storage().persistent().set(key, stream);
+        Self::set_stored_stream(env, stream_id, stream);
 
         env.events().publish(
             (
@@ -2047,18 +1987,10 @@ impl PayrollStream {
     }
 
     pub fn finalize_stream(env: Env, stream_id: u64) -> Result<u64, QuipayError> {
-        let key = StreamKey::Stream(stream_id);
-        let mut stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+        let mut stream: Stream =
+            Self::get_stored_stream(&env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
-        if let Some(receipt_id) = env
-            .storage()
-            .persistent()
-            .get::<_, u64>(&DataKey::ReceiptByStream(stream_id))
-        {
+        if let Some(receipt_id) = Self::get_stored_receipt_id_for_stream(&env, stream_id) {
             return Ok(receipt_id);
         }
 
@@ -2070,28 +2002,19 @@ impl PayrollStream {
                 QuipayError::StreamNotClosed
             );
             Self::close_stream_internal(&mut stream, now, StreamStatus::Completed);
-            env.storage().persistent().set(&key, &stream);
+            Self::set_stored_stream(&env, stream_id, &stream);
         }
 
         Self::try_mint_receipt(&env, &stream, stream_id, 0u32);
-        env.storage()
-            .persistent()
-            .get(&DataKey::ReceiptByStream(stream_id))
-            .ok_or(QuipayError::ReceiptNotFound)
+        Self::get_stored_receipt_id_for_stream(&env, stream_id).ok_or(QuipayError::ReceiptNotFound)
     }
 
     pub fn get_receipt(env: Env, receipt_id: u64) -> Result<PaymentReceipt, QuipayError> {
-        env.storage()
-            .persistent()
-            .get(&DataKey::ReceiptById(receipt_id))
-            .ok_or(QuipayError::ReceiptNotFound)
+        Self::get_stored_receipt(&env, receipt_id).ok_or(QuipayError::ReceiptNotFound)
     }
 
     pub fn get_receipt_for_stream(env: Env, stream_id: u64) -> Result<PaymentReceipt, QuipayError> {
-        let receipt_id: u64 = env
-            .storage()
-            .persistent()
-            .get(&DataKey::ReceiptByStream(stream_id))
+        let receipt_id: u64 = Self::get_stored_receipt_id_for_stream(&env, stream_id)
             .ok_or(QuipayError::ReceiptNotFound)?;
         Self::get_receipt(env, receipt_id)
     }
@@ -2111,12 +2034,8 @@ impl PayrollStream {
             .ok_or(QuipayError::NotInitialized)?;
         gateway.require_auth();
 
-        let key = StreamKey::Stream(stream_id);
-        let mut stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+        let mut stream: Stream =
+            Self::get_stored_stream(&env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
         if stream.employer != employer {
             return Err(QuipayError::NotEmployer);
@@ -2134,7 +2053,7 @@ impl PayrollStream {
 
         // If the grace period has elapsed, finalize now.
         if stream.cancel_effective_at > 0 && now >= stream.cancel_effective_at {
-            return Self::finalize_cancel(&env, stream_id, &key, &mut stream, now);
+            return Self::finalize_cancel(&env, stream_id, &mut stream, now);
         }
 
         let grace: u64 = env
@@ -2144,11 +2063,11 @@ impl PayrollStream {
             .unwrap_or(DEFAULT_CANCELLATION_GRACE_PERIOD);
 
         if grace == 0 {
-            return Self::finalize_cancel(&env, stream_id, &key, &mut stream, now);
+            return Self::finalize_cancel(&env, stream_id, &mut stream, now);
         }
 
         stream.cancel_effective_at = now.saturating_add(grace);
-        env.storage().persistent().set(&key, &stream);
+        Self::set_stored_stream(&env, stream_id, &stream);
 
         env.events().publish(
             (
@@ -2202,21 +2121,13 @@ impl PayrollStream {
 
         let limit = Self::get_employer_stream_limit(env.clone(), employer.clone());
         let emp_key = StreamKey::EmployerStreams(employer.clone());
-        let emp_ids: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&emp_key)
-            .unwrap_or_else(|| Vec::new(&env));
+        let emp_ids: Vec<u64> = Self::get_stored_stream_ids(&env, emp_key);
 
         let mut active_count = 0u32;
         let mut i = 0u32;
         while i < emp_ids.len() {
             if let Some(id) = emp_ids.get(i) {
-                if let Some(s) = env
-                    .storage()
-                    .persistent()
-                    .get::<StreamKey, Stream>(&StreamKey::Stream(id))
-                {
+                if let Some(s) = Self::get_stored_stream(&env, id) {
                     if !Self::is_closed(&s) {
                         active_count += 1;
                     }
@@ -2253,7 +2164,7 @@ impl PayrollStream {
             .get(&DataKey::Vault)
             .ok_or(QuipayError::NotInitialized)?;
 
-        use soroban_sdk::{IntoVal, Symbol, vec};
+        use soroban_sdk::{vec, IntoVal, Symbol};
 
         let token_allowed: bool = env.invoke_contract(
             &vault,
@@ -2317,27 +2228,17 @@ impl PayrollStream {
             clawback_authority,
         };
 
-        env.storage()
-            .persistent()
-            .set(&StreamKey::Stream(stream_id), &stream);
+        Self::set_stored_stream(&env, stream_id, &stream);
 
         let emp_key = StreamKey::EmployerStreams(employer.clone());
-        let mut emp_ids: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&emp_key)
-            .unwrap_or_else(|| Vec::new(&env));
+        let mut emp_ids: Vec<u64> = Self::get_stored_stream_ids(&env, emp_key.clone());
         emp_ids.push_back(stream_id);
-        env.storage().persistent().set(&emp_key, &emp_ids);
+        Self::set_stored_stream_ids(&env, emp_key, &emp_ids);
 
         let wrk_key = StreamKey::WorkerStreams(worker.clone());
-        let mut wrk_ids: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&wrk_key)
-            .unwrap_or_else(|| Vec::new(&env));
+        let mut wrk_ids: Vec<u64> = Self::get_stored_stream_ids(&env, wrk_key.clone());
         wrk_ids.push_back(stream_id);
-        env.storage().persistent().set(&wrk_key, &wrk_ids);
+        Self::set_stored_stream_ids(&env, wrk_key, &wrk_ids);
 
         // Keep the new stream state and its worker index entry alive.
         Self::bump_stream_storage_ttl(&env, stream_id, &worker);
@@ -2356,25 +2257,19 @@ impl PayrollStream {
     }
 
     pub fn get_stream(env: Env, stream_id: u64) -> Option<Stream> {
-        env.storage()
-            .persistent()
-            .get(&StreamKey::Stream(stream_id))
+        Self::get_stored_stream(&env, stream_id)
     }
 
     /// Returns the optional metadata hash for a stream.
     /// The hash references an off-chain record (e.g. IPFS CID or database key)
     /// containing human-readable context such as description, department, and payment type.
     pub fn get_stream_metadata(env: Env, stream_id: u64) -> Option<BytesN<32>> {
-        let stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&StreamKey::Stream(stream_id))?;
+        let stream: Stream = Self::get_stored_stream(&env, stream_id)?;
         stream.metadata_hash
     }
 
     pub fn get_withdrawable(env: Env, stream_id: u64) -> Option<i128> {
-        let key = StreamKey::Stream(stream_id);
-        let stream: Stream = env.storage().persistent().get(&key)?;
+        let stream: Stream = Self::get_stored_stream(&env, stream_id)?;
 
         if Self::is_closed(&stream) {
             return Some(0);
@@ -2388,8 +2283,7 @@ impl PayrollStream {
     /// Pure view: returns claimable amount without mutating state.
     /// Claimable = min(streamed_amount - withdrawn_amount, vault_available_balance).
     pub fn get_claimable(env: Env, stream_id: u64) -> Option<i128> {
-        let key = StreamKey::Stream(stream_id);
-        let stream: Stream = env.storage().persistent().get(&key)?;
+        let stream: Stream = Self::get_stored_stream(&env, stream_id)?;
 
         if Self::is_closed(&stream) {
             return Some(0);
@@ -2403,7 +2297,7 @@ impl PayrollStream {
             return Some(0);
         }
 
-        use soroban_sdk::{IntoVal, Symbol, vec};
+        use soroban_sdk::{vec, IntoVal, Symbol};
         let vault_balance: i128 = env.invoke_contract(
             &vault,
             &Symbol::new(&env, "get_balance"),
@@ -2429,11 +2323,8 @@ impl PayrollStream {
         stream_id: u64,
         timestamp: u64,
     ) -> Result<i128, QuipayError> {
-        let stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&StreamKey::Stream(stream_id))
-            .ok_or(QuipayError::StreamNotFound)?;
+        let stream: Stream =
+            Self::get_stored_stream(&env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
         if timestamp < stream.start_ts || timestamp > stream.end_ts {
             return Err(QuipayError::InvalidTimeRange);
@@ -2444,8 +2335,7 @@ impl PayrollStream {
 
     /// Check if a stream is currently solvent (vault has enough funds to cover remaining liability)
     pub fn is_stream_solvent(env: Env, stream_id: u64) -> Option<bool> {
-        let key = StreamKey::Stream(stream_id);
-        let stream: Stream = env.storage().persistent().get(&key)?;
+        let stream: Stream = Self::get_stored_stream(&env, stream_id)?;
 
         // If stream is closed, it's considered solvent
         if Self::is_closed(&stream) {
@@ -2461,7 +2351,7 @@ impl PayrollStream {
             .unwrap_or(0);
 
         // Check vault solvency for this stream's remaining liability
-        use soroban_sdk::{IntoVal, Symbol, vec};
+        use soroban_sdk::{vec, IntoVal, Symbol};
         let solvent: bool = env.invoke_contract(
             &vault,
             &Symbol::new(&env, "check_solvency"),
@@ -2477,8 +2367,7 @@ impl PayrollStream {
 
     /// Get stream health information including solvency ratio and days of runway
     pub fn get_stream_health(env: Env, stream_id: u64) -> Option<StreamHealth> {
-        let key = StreamKey::Stream(stream_id);
-        let stream: Stream = env.storage().persistent().get(&key)?;
+        let stream: Stream = Self::get_stored_stream(&env, stream_id)?;
 
         // If stream is closed, return perfect health
         if Self::is_closed(&stream) {
@@ -2503,7 +2392,7 @@ impl PayrollStream {
             });
         }
 
-        use soroban_sdk::{IntoVal, Symbol, vec};
+        use soroban_sdk::{vec, IntoVal, Symbol};
 
         // Get vault balance and liability for this token
         let vault_balance: i128 = env.invoke_contract(
@@ -2558,11 +2447,7 @@ impl PayrollStream {
             return Err(QuipayError::BatchTooLarge);
         }
 
-        let ids: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&StreamKey::EmployerStreams(employer))
-            .unwrap_or_else(|| Vec::new(&env));
+        let ids: Vec<u64> = Self::get_stored_stream_ids(&env, StreamKey::EmployerStreams(employer));
 
         let total = ids.len();
         let mut result = Vec::new(&env);
@@ -2573,8 +2458,7 @@ impl PayrollStream {
         let end = offset.saturating_add(limit).min(total);
         for i in offset..end {
             if let Some(id) = ids.get(i) {
-                let stream_key = StreamKey::Stream(id);
-                if let Some(stream) = env.storage().persistent().get::<_, Stream>(&stream_key) {
+                if let Some(stream) = Self::get_stored_stream(&env, id) {
                     result.push_back(stream);
                 }
             }
@@ -2584,11 +2468,7 @@ impl PayrollStream {
     }
 
     pub fn get_stream_count(env: Env, employer: Address) -> u32 {
-        env.storage()
-            .persistent()
-            .get::<_, Vec<u64>>(&StreamKey::EmployerStreams(employer))
-            .map(|ids| ids.len())
-            .unwrap_or(0)
+        Self::get_stored_stream_ids(&env, StreamKey::EmployerStreams(employer)).len()
     }
 
     pub fn get_streams_by_worker(
@@ -2597,11 +2477,7 @@ impl PayrollStream {
         offset: Option<u32>,
         limit: Option<u32>,
     ) -> Vec<u64> {
-        let ids: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&StreamKey::WorkerStreams(worker))
-            .unwrap_or_else(|| Vec::new(&env));
+        let ids: Vec<u64> = Self::get_stored_stream_ids(&env, StreamKey::WorkerStreams(worker));
 
         Self::paginate(&env, ids, offset, limit)
     }
@@ -2644,12 +2520,8 @@ impl PayrollStream {
     }
 
     pub fn cleanup_stream(env: Env, stream_id: u64) -> Result<(), QuipayError> {
-        let key = StreamKey::Stream(stream_id);
-        let stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+        let stream: Stream =
+            Self::get_stored_stream(&env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
         require!(Self::is_closed(&stream), QuipayError::StreamNotClosed);
 
@@ -2667,7 +2539,7 @@ impl PayrollStream {
         Self::remove_from_index(&env, StreamKey::EmployerStreams(stream.employer), stream_id);
         Self::remove_from_index(&env, StreamKey::WorkerStreams(stream.worker), stream_id);
 
-        env.storage().persistent().remove(&key);
+        Self::remove_stored_stream(&env, stream_id);
         Ok(())
     }
 
@@ -2789,6 +2661,233 @@ impl PayrollStream {
             .unwrap_or(0)
     }
 
+    fn ensure_storage_version(env: &Env) {
+        if !env.storage().instance().has(&DataKey::Admin) {
+            return;
+        }
+
+        let version: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::StorageVersion)
+            .unwrap_or(LEGACY_STORAGE_VERSION);
+
+        if version >= CURRENT_STORAGE_VERSION {
+            return;
+        }
+
+        Self::migrate_legacy_storage(env);
+    }
+
+    fn migrate_legacy_storage(env: &Env) {
+        let next_stream_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::NextStreamId)
+            .unwrap_or(1u64);
+
+        let mut stream_id = 1u64;
+        while stream_id < next_stream_id {
+            if let Some(stream) = env
+                .storage()
+                .persistent()
+                .get::<StreamKey, Stream>(&StreamKey::Stream(stream_id))
+            {
+                let stream_key = PersistentDataKey::StreamV2(StreamKey::Stream(stream_id));
+                if !env.storage().persistent().has(&stream_key) {
+                    env.storage().persistent().set(&stream_key, &stream);
+                }
+
+                let employer_key = PersistentDataKey::StreamV2(StreamKey::EmployerStreams(
+                    stream.employer.clone(),
+                ));
+                let mut employer_ids: Vec<u64> = env
+                    .storage()
+                    .persistent()
+                    .get(&employer_key)
+                    .unwrap_or_else(|| Vec::new(env));
+                if !employer_ids.contains(stream_id) {
+                    employer_ids.push_back(stream_id);
+                    env.storage().persistent().set(&employer_key, &employer_ids);
+                }
+
+                let worker_key =
+                    PersistentDataKey::StreamV2(StreamKey::WorkerStreams(stream.worker.clone()));
+                let mut worker_ids: Vec<u64> = env
+                    .storage()
+                    .persistent()
+                    .get(&worker_key)
+                    .unwrap_or_else(|| Vec::new(env));
+                if !worker_ids.contains(stream_id) {
+                    worker_ids.push_back(stream_id);
+                    env.storage().persistent().set(&worker_key, &worker_ids);
+                }
+
+                if let Some(last_withdrawal) = env
+                    .storage()
+                    .persistent()
+                    .get::<DataKey, u64>(&DataKey::LastWithdrawal(stream.worker.clone()))
+                {
+                    env.storage().persistent().set(
+                        &PersistentDataKey::LastWithdrawalV2(stream.worker.clone()),
+                        &last_withdrawal,
+                    );
+                }
+            }
+
+            if let Some(dispute) = env
+                .storage()
+                .persistent()
+                .get::<DataKey, crate::dispute::Dispute>(&DataKey::Dispute(stream_id))
+            {
+                env.storage()
+                    .persistent()
+                    .set(&PersistentDataKey::DisputeV2(stream_id), &dispute);
+            }
+
+            if let Some(receipt_id) = env
+                .storage()
+                .persistent()
+                .get::<DataKey, u64>(&DataKey::ReceiptByStream(stream_id))
+            {
+                env.storage().persistent().set(
+                    &PersistentDataKey::ReceiptByStreamV2(stream_id),
+                    &receipt_id,
+                );
+            }
+
+            stream_id += 1;
+        }
+
+        let next_receipt_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::NextReceiptId)
+            .unwrap_or(1u64);
+        let mut receipt_id = 1u64;
+        while receipt_id < next_receipt_id {
+            if let Some(receipt) = env
+                .storage()
+                .persistent()
+                .get::<DataKey, PaymentReceipt>(&DataKey::ReceiptById(receipt_id))
+            {
+                env.storage()
+                    .persistent()
+                    .set(&PersistentDataKey::ReceiptByIdV2(receipt_id), &receipt);
+            }
+            receipt_id += 1;
+        }
+
+        env.storage()
+            .instance()
+            .set(&DataKey::StorageVersion, &CURRENT_STORAGE_VERSION);
+    }
+
+    fn get_stored_stream(env: &Env, stream_id: u64) -> Option<Stream> {
+        Self::ensure_storage_version(env);
+        env.storage()
+            .persistent()
+            .get(&PersistentDataKey::StreamV2(StreamKey::Stream(stream_id)))
+    }
+
+    fn set_stored_stream(env: &Env, stream_id: u64, stream: &Stream) {
+        Self::ensure_storage_version(env);
+        env.storage().persistent().set(
+            &PersistentDataKey::StreamV2(StreamKey::Stream(stream_id)),
+            stream,
+        );
+    }
+
+    fn remove_stored_stream(env: &Env, stream_id: u64) {
+        Self::ensure_storage_version(env);
+        env.storage()
+            .persistent()
+            .remove(&PersistentDataKey::StreamV2(StreamKey::Stream(stream_id)));
+    }
+
+    fn get_stored_stream_ids(env: &Env, key: StreamKey) -> Vec<u64> {
+        Self::ensure_storage_version(env);
+        env.storage()
+            .persistent()
+            .get(&PersistentDataKey::StreamV2(key))
+            .unwrap_or_else(|| Vec::new(env))
+    }
+
+    fn set_stored_stream_ids(env: &Env, key: StreamKey, ids: &Vec<u64>) {
+        Self::ensure_storage_version(env);
+        let versioned_key = PersistentDataKey::StreamV2(key);
+        if ids.len() == 0 {
+            env.storage().persistent().remove(&versioned_key);
+        } else {
+            env.storage().persistent().set(&versioned_key, ids);
+        }
+    }
+
+    fn get_last_withdrawal_timestamp(env: &Env, worker: &Address) -> u64 {
+        Self::ensure_storage_version(env);
+        env.storage()
+            .persistent()
+            .get(&PersistentDataKey::LastWithdrawalV2(worker.clone()))
+            .unwrap_or(0)
+    }
+
+    fn set_last_withdrawal_timestamp(env: &Env, worker: &Address, timestamp: u64) {
+        Self::ensure_storage_version(env);
+        env.storage().persistent().set(
+            &PersistentDataKey::LastWithdrawalV2(worker.clone()),
+            &timestamp,
+        );
+    }
+
+    pub(crate) fn get_stored_dispute(env: &Env, stream_id: u64) -> Option<crate::dispute::Dispute> {
+        Self::ensure_storage_version(env);
+        env.storage()
+            .persistent()
+            .get(&PersistentDataKey::DisputeV2(stream_id))
+    }
+
+    pub(crate) fn set_stored_dispute(env: &Env, stream_id: u64, dispute: &crate::dispute::Dispute) {
+        Self::ensure_storage_version(env);
+        env.storage()
+            .persistent()
+            .set(&PersistentDataKey::DisputeV2(stream_id), dispute);
+    }
+
+    fn get_stored_receipt(env: &Env, receipt_id: u64) -> Option<PaymentReceipt> {
+        Self::ensure_storage_version(env);
+        env.storage()
+            .persistent()
+            .get(&PersistentDataKey::ReceiptByIdV2(receipt_id))
+    }
+
+    fn set_stored_receipt(env: &Env, receipt_id: u64, receipt: &PaymentReceipt) {
+        Self::ensure_storage_version(env);
+        env.storage()
+            .persistent()
+            .set(&PersistentDataKey::ReceiptByIdV2(receipt_id), receipt);
+    }
+
+    fn get_stored_receipt_id_for_stream(env: &Env, stream_id: u64) -> Option<u64> {
+        Self::ensure_storage_version(env);
+        env.storage()
+            .persistent()
+            .get(&PersistentDataKey::ReceiptByStreamV2(stream_id))
+    }
+
+    fn set_stored_receipt_id_for_stream(env: &Env, stream_id: u64, receipt_id: &u64) {
+        Self::ensure_storage_version(env);
+        env.storage()
+            .persistent()
+            .set(&PersistentDataKey::ReceiptByStreamV2(stream_id), receipt_id);
+    }
+
+    fn has_stored_receipt_for_stream(env: &Env, stream_id: u64) -> bool {
+        Self::ensure_storage_version(env);
+        env.storage()
+            .persistent()
+            .has(&PersistentDataKey::ReceiptByStreamV2(stream_id))
+    }
+
     fn require_not_paused(env: &Env) -> Result<(), QuipayError> {
         if Self::is_paused(env.clone()) {
             return Err(QuipayError::ProtocolPaused);
@@ -2801,14 +2900,14 @@ impl PayrollStream {
     }
 
     fn bump_stream_storage_ttl(env: &Env, stream_id: u64, worker: &Address) {
-        let stream_key = StreamKey::Stream(stream_id);
+        let stream_key = PersistentDataKey::StreamV2(StreamKey::Stream(stream_id));
         env.storage().persistent().extend_ttl(
             &stream_key,
             STORAGE_TTL_THRESHOLD_LEDGER,
             STORAGE_TTL_EXTEND_TO_LEDGER,
         );
 
-        let worker_key = StreamKey::WorkerStreams(worker.clone());
+        let worker_key = PersistentDataKey::StreamV2(StreamKey::WorkerStreams(worker.clone()));
         env.storage().persistent().extend_ttl(
             &worker_key,
             STORAGE_TTL_THRESHOLD_LEDGER,
@@ -2822,10 +2921,10 @@ impl PayrollStream {
     }
 
     fn remove_from_index(env: &Env, key: StreamKey, stream_id: u64) {
-        let ids: Vec<u64> = match env.storage().persistent().get(&key) {
-            Some(v) => v,
-            None => return,
-        };
+        let ids: Vec<u64> = Self::get_stored_stream_ids(env, key.clone());
+        if ids.len() == 0 {
+            return;
+        }
         let mut new_ids: Vec<u64> = Vec::new(env);
         let mut i = 0u32;
         while i < ids.len() {
@@ -2836,11 +2935,7 @@ impl PayrollStream {
             }
             i += 1;
         }
-        if new_ids.len() == 0 {
-            env.storage().persistent().remove(&key);
-        } else {
-            env.storage().persistent().set(&key, &new_ids);
-        }
+        Self::set_stored_stream_ids(env, key, &new_ids);
     }
 
     fn vested_amount(stream: &Stream, now: u64) -> i128 {
@@ -2874,7 +2969,7 @@ impl PayrollStream {
         token: Address,
         amount: i128,
     ) {
-        use soroban_sdk::{IntoVal, Symbol, vec};
+        use soroban_sdk::{vec, IntoVal, Symbol};
         env.invoke_contract::<()>(
             vault,
             &Symbol::new(env, "payout_liability"),
@@ -2894,7 +2989,7 @@ impl PayrollStream {
         token: Address,
         amount: i128,
     ) {
-        use soroban_sdk::{IntoVal, Symbol, vec};
+        use soroban_sdk::{vec, IntoVal, Symbol};
         env.invoke_contract::<()>(
             vault,
             &Symbol::new(env, "remove_liability"),
@@ -3040,12 +3135,8 @@ impl PayrollStream {
         Self::require_not_paused(&env)?;
         require!(amount > 0, QuipayError::InvalidAmount);
 
-        let key = StreamKey::Stream(stream_id);
-        let mut stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+        let mut stream: Stream =
+            Self::get_stored_stream(&env, stream_id).ok_or(QuipayError::StreamNotFound)?;
         require!(!Self::is_closed(&stream), QuipayError::StreamClosed);
 
         let authority = stream
@@ -3066,7 +3157,7 @@ impl PayrollStream {
             .withdrawn_amount
             .checked_add(amount)
             .ok_or(QuipayError::Overflow)?;
-        env.storage().persistent().set(&key, &stream);
+        Self::set_stored_stream(&env, stream_id, &stream);
         Self::bump_stream_storage_ttl(&env, stream_id, &stream.worker);
 
         env.events().publish(

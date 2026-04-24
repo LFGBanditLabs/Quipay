@@ -6,11 +6,11 @@ use super::*;
 use crate::stream_curve::SpeedCurve;
 use quipay_common::QuipayError;
 use soroban_sdk::{
-    Address, Env, IntoVal, testutils::Address as _, testutils::Ledger as _, testutils::MockAuth,
+    testutils::Address as _, testutils::Ledger as _, testutils::MockAuth, Address, Env, IntoVal,
 };
 
 mod dummy_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct DummyVault;
     #[contractimpl]
@@ -34,7 +34,7 @@ mod dummy_vault {
 }
 
 mod rejecting_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct RejectingVault;
     #[contractimpl]
@@ -52,7 +52,7 @@ mod rejecting_vault {
 }
 
 mod selective_rejecting_payout_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct SelectiveRejectingPayoutVault;
     #[contractimpl]
@@ -75,7 +75,7 @@ mod selective_rejecting_payout_vault {
 
 /// Insolvent vault: check_solvency returns false so stream creation is blocked
 mod insolvent_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct InsolventVault;
     #[contractimpl]
@@ -93,7 +93,7 @@ mod insolvent_vault {
 }
 
 mod denylisted_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct DenylistedVault;
     #[contractimpl]
@@ -1231,7 +1231,7 @@ fn test_withdraw_zero_available_returns_zero() {
 // ---------------------------------------------------------------------------
 
 mod mock_gateway {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct MockGateway;
     #[contractimpl]
@@ -1247,7 +1247,7 @@ mod mock_gateway {
 }
 
 mod auth_mock_gateway {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
 
     #[contract]
     pub struct AuthMockGateway;

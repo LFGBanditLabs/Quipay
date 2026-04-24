@@ -1,7 +1,7 @@
 #![cfg(test)]
 use super::*;
 use crate::test::setup;
-use soroban_sdk::{TryFromVal, testutils::Address as _, testutils::Events, testutils::Ledger as _};
+use soroban_sdk::{testutils::Address as _, testutils::Events, testutils::Ledger as _, TryFromVal};
 
 #[test]
 fn test_pause_and_resume_stream_vesting() {

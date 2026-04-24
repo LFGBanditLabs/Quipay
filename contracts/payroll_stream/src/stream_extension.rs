@@ -16,12 +16,8 @@ impl PayrollStream {
     ) -> Result<(), QuipayError> {
         Self::require_not_paused(&env)?;
 
-        let key = StreamKey::Stream(stream_id);
-        let mut stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+        let mut stream: Stream =
+            Self::get_stored_stream(&env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
         // Authorization: Only the employer of the stream can extend it
         stream.employer.require_auth();
@@ -65,7 +61,7 @@ impl PayrollStream {
                 .get(&DataKey::Vault)
                 .ok_or(QuipayError::NotInitialized)?;
 
-            use soroban_sdk::{IntoVal, Symbol, vec};
+            use soroban_sdk::{vec, IntoVal, Symbol};
 
             // Check solvency for the additional amount
             let solvent: bool = env.invoke_contract(
@@ -117,7 +113,7 @@ impl PayrollStream {
         }
 
         // Save updated stream
-        env.storage().persistent().set(&key, &stream);
+        Self::set_stored_stream(&env, stream_id, &stream);
         Self::bump_stream_storage_ttl(&env, stream_id, &stream.worker);
 
         // Emit extension event

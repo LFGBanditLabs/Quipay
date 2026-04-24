@@ -8,12 +8,15 @@ The `PayrollStream` contract manages continuous salary streaming and accrual cal
 
 ### Storage Keys
 
-| Key             | Type      | Description                                                    |
-| --------------- | --------- | -------------------------------------------------------------- |
-| `Admin`         | `Address` | The address with administrative privileges.                    |
-| `Paused`        | `bool`    | Indicates whether the protocol is currently paused.            |
-| `NextStreamId`  | `u64`     | The ID to be assigned to the next created stream.              |
-| `RetentionSecs` | `u64`     | The duration cancelled/completed stream data is kept on-chain. |
+| Key              | Type      | Description                                                         |
+| ---------------- | --------- | ------------------------------------------------------------------- |
+| `Admin`          | `Address` | The address with administrative privileges.                         |
+| `StorageVersion` | `u32`     | Active storage schema version used for lazy post-upgrade migration. |
+| `Paused`         | `bool`    | Indicates whether the protocol is currently paused.                 |
+| `NextStreamId`   | `u64`     | The ID to be assigned to the next created stream.                   |
+| `RetentionSecs`  | `u64`     | The duration cancelled/completed stream data is kept on-chain.      |
+
+See [Storage Migration Strategy](./STORAGE_MIGRATION.md) for the versioned-key upgrade flow.
 
 ### Contract Functions
 

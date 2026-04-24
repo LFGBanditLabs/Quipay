@@ -3,10 +3,10 @@ extern crate std;
 
 use crate::{PayrollStream, PayrollStreamClient};
 use proptest::prelude::*;
-use soroban_sdk::{Address, Env, testutils::Address as _, testutils::Ledger};
+use soroban_sdk::{testutils::Address as _, testutils::Ledger, Address, Env};
 
 mod dummy_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
 
     #[contract]
     pub struct DummyVault;
