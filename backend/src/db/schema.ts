@@ -28,8 +28,8 @@ export const payrollStreams = pgTable(
   "payroll_streams",
   {
     streamId: bigint("stream_id", { mode: "number" }).primaryKey(),
-    employer: text("employer").notNull(),
-    worker: text("worker").notNull(),
+    employerAddress: text("employer_address").notNull(),
+    workerAddress: text("worker_address").notNull(),
     totalAmount: numeric("total_amount").notNull(), // stored in stroops (1e-7 XLM equivalent)
     withdrawnAmount: numeric("withdrawn_amount").notNull().default("0"),
     startTs: bigint("start_ts", { mode: "number" }).notNull(), // unix seconds (on-chain ledger timestamp)
@@ -50,22 +50,25 @@ export const payrollStreams = pgTable(
       .defaultNow(),
   },
   (table) => [
-    index("idx_streams_employer").on(table.employer),
-    index("idx_streams_worker").on(table.worker),
+    index("idx_streams_employer").on(table.employerAddress),
+    index("idx_streams_worker").on(table.workerAddress),
     index("idx_streams_status").on(table.status),
     index("idx_streams_created_at").on(table.createdAt.desc()),
     index("idx_streams_start_ts").on(table.startTs),
-    index("idx_streams_employer_status").on(table.employer, table.status),
-    index("idx_streams_worker_status").on(table.worker, table.status),
+    index("idx_streams_employer_status").on(table.employerAddress, table.status),
+    index("idx_streams_worker_status").on(table.workerAddress, table.status),
     index("idx_streams_employer_created").on(
-      table.employer,
+      table.employerAddress,
       table.createdAt.desc(),
     ),
     index("idx_streams_worker_created").on(
-      table.worker,
+      table.workerAddress,
       table.createdAt.desc(),
     ),
-    index("idx_streams_employer_worker").on(table.employer, table.worker),
+    index("idx_streams_employer_worker").on(
+      table.employerAddress,
+      table.workerAddress,
+    ),
   ],
 );
 

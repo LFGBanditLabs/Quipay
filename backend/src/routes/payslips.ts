@@ -92,8 +92,8 @@ payslipsRouter.get(
       const streamsResult = await query<any>(
         `SELECT 
           ps.stream_id,
-          ps.employer,
-          ps.worker,
+          ps.employer_address,
+          ps.worker_address,
           ps.total_amount,
           ps.withdrawn_amount,
           ps.start_ts,
@@ -101,7 +101,7 @@ payslipsRouter.get(
           ps.status,
           ps.created_at
         FROM payroll_streams ps
-        WHERE ps.worker = $1
+        WHERE ps.worker_address = $1
           AND ps.deleted_at IS NULL
           AND (
             (ps.start_ts >= extract(epoch from $2::timestamp)::bigint 
@@ -128,7 +128,7 @@ payslipsRouter.get(
 
       // Get employer address (assuming all streams in a period are from same employer)
       // In a real scenario, you might need to handle multiple employers
-      const employerAddress = streams[0].employer;
+      const employerAddress = streams[0].employer_address;
 
       // Calculate total gross amount across all streams
       const totalGrossAmount = streams.reduce(
