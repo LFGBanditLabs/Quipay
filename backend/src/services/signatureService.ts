@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { InternalError, ConfigError } from "../errors/AppError";
 import QRCode from "qrcode";
 import {
   logServiceInfo,
@@ -147,7 +148,7 @@ export const signPayslip = async (
       payslipId: params.payslipId,
       error: error instanceof Error ? error.message : String(error),
     });
-    throw new Error("Failed to generate signature");
+    throw new InternalError("Failed to generate signature");
   }
 };
 
@@ -220,7 +221,7 @@ export const generateQRCode = async (signature: string): Promise<Buffer> => {
     await logServiceError(SERVICE_NAME, "Failed to generate QR code", {
       error: error instanceof Error ? error.message : String(error),
     });
-    throw new Error("Failed to generate QR code");
+    throw new InternalError("Failed to generate QR code");
   }
 };
 
@@ -245,7 +246,7 @@ export const generateQRCodeDataURL = async (
     await logServiceError(SERVICE_NAME, "Failed to generate QR code data URL", {
       error: error instanceof Error ? error.message : String(error),
     });
-    throw new Error("Failed to generate QR code data URL");
+    throw new InternalError("Failed to generate QR code data URL");
   }
 };
 
@@ -271,7 +272,7 @@ export const validateSigningKeysConfigured = (): void => {
     process.env.NODE_ENV === "production" &&
     (!envKeys.private || !envKeys.public)
   ) {
-    throw new Error(
+    throw new ConfigError(
       "Signing keys not configured. Set PAYSLIP_SIGNING_KEY_PRIVATE and PAYSLIP_SIGNING_KEY_PUBLIC environment variables.",
     );
   }

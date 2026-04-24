@@ -1,4 +1,5 @@
 import { createCircuitBreaker } from "../utils/circuitBreaker";
+import { ServiceUnavailableError } from "../errors/AppError";
 
 export interface VaultClientConfig {
   url: string;
@@ -74,7 +75,7 @@ export class VaultClient {
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to read secret: ${response.statusText}`);
+      throw new ServiceUnavailableError(`Failed to read secret: ${response.statusText}`);
     }
 
     return response.json();
@@ -95,7 +96,7 @@ export class VaultClient {
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to write secret: ${response.statusText}`);
+      throw new ServiceUnavailableError(`Failed to write secret: ${response.statusText}`);
     }
 
     return response.json();
@@ -114,7 +115,7 @@ export class VaultClient {
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to delete secret: ${response.statusText}`);
+      throw new ServiceUnavailableError(`Failed to delete secret: ${response.statusText}`);
     }
 
     return response.json();
@@ -171,7 +172,7 @@ export class VaultClient {
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to create policy: ${response.statusText}`);
+      throw new ServiceUnavailableError(`Failed to create policy: ${response.statusText}`);
     }
 
     return response.json();
@@ -188,7 +189,7 @@ export class VaultClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to enable secret engine: ${response.statusText}`);
+      throw new ServiceUnavailableError(`Failed to enable secret engine: ${response.statusText}`);
     }
 
     return response.json();
@@ -213,7 +214,7 @@ export class VaultClient {
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to create AppRole: ${response.statusText}`);
+      throw new ServiceUnavailableError(`Failed to create AppRole: ${response.statusText}`);
     }
 
     return response.json();
@@ -231,7 +232,7 @@ export class VaultClient {
     );
 
     if (!roleIdResponse.ok) {
-      throw new Error(`Failed to get role ID: ${roleIdResponse.statusText}`);
+      throw new ServiceUnavailableError(`Failed to get role ID: ${roleIdResponse.statusText}`);
     }
 
     const roleIdData = await roleIdResponse.json();
@@ -246,7 +247,7 @@ export class VaultClient {
     );
 
     if (!secretIdResponse.ok) {
-      throw new Error(
+      throw new ServiceUnavailableError(
         `Failed to get secret ID: ${secretIdResponse.statusText}`,
       );
     }
