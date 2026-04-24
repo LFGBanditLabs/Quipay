@@ -281,8 +281,8 @@ export default function BrandingSettings({
           border: 1px solid var(--border);
         }
         .bs-btn-danger {
-          background: rgba(239, 68, 68, 0.15);
-          color: #ef4444;
+          background: var(--token-color-error-soft);
+          color: var(--token-color-error-500);
         }
         .bs-color-input-group {
           display: flex;
@@ -320,16 +320,16 @@ export default function BrandingSettings({
           margin-top: 12px;
           padding: 10px 14px;
           border-radius: 8px;
-          background: rgba(239, 68, 68, 0.1);
-          color: #ef4444;
+          background: var(--token-color-error-soft);
+          color: var(--token-color-error-500);
           font-size: 13px;
         }
         .bs-success {
           margin-top: 12px;
           padding: 10px 14px;
           border-radius: 8px;
-          background: rgba(16, 185, 129, 0.1);
-          color: #10b981;
+          background: var(--token-color-success-soft);
+          color: var(--token-color-success-500);
           font-size: 13px;
         }
       `}</style>

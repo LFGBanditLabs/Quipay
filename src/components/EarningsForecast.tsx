@@ -251,12 +251,12 @@ export const EarningsForecast: React.FC<EarningsForecastProps> = ({
               <ReferenceLine
                 key={marker.id}
                 x={marker.day}
-                stroke="rgba(245, 158, 11, 0.7)"
+                stroke="var(--token-color-warning-500)"
                 strokeDasharray="4 4"
                 label={{
                   value: marker.label,
                   position: "insideTopRight",
-                  fill: "rgba(245, 158, 11, 0.9)",
+                  fill: "var(--token-color-warning-500)",
                   fontSize: 10,
                 }}
               />

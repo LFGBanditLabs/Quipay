@@ -263,9 +263,9 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({
         position: "relative",
         width: "100%",
         height: "400px",
-        background: "var(--sds-color-neutral-background, #fff)",
+        background: "var(--sds-color-neutral-background, var(--surface))",
         borderRadius: "12px",
-        border: "1px solid var(--sds-color-neutral-border, #eaeaea)",
+        border: "1px solid var(--sds-color-neutral-border, var(--border))",
         overflow: "hidden",
       }}
     >
@@ -281,11 +281,11 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({
             position: "absolute",
             left: tooltipPos.x + 15,
             top: tooltipPos.y + 15,
-            background: "var(--sds-color-neutral-background, #fff)",
-            border: "1px solid var(--sds-color-neutral-border, #eaeaea)",
+            background: "var(--sds-color-neutral-background, var(--surface))",
+            border: "1px solid var(--sds-color-neutral-border, var(--border))",
             padding: "12px",
             borderRadius: "8px",
-            boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+            boxShadow: "var(--shadow)",
             zIndex: 10,
             pointerEvents: "none",
             minWidth: "200px",
@@ -302,7 +302,9 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({
           <Text
             as="div"
             size="xs"
-            style={{ color: "var(--sds-color-content-secondary, #666)" }}
+            style={{
+              color: "var(--sds-color-content-secondary, var(--muted))",
+            }}
           >
             {hoveredNode.data.employeeAddress}
           </Text>
@@ -310,7 +312,8 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({
             style={{
               marginTop: "8px",
               paddingTop: "8px",
-              borderTop: "1px solid var(--sds-color-neutral-border, #eaeaea)",
+              borderTop:
+                "1px solid var(--sds-color-neutral-border, var(--border))",
             }}
           >
             <Text as="div" size="sm">
@@ -326,11 +329,11 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({
             position: "absolute",
             left: tooltipPos.x + 15,
             top: tooltipPos.y + 15,
-            background: "var(--sds-color-neutral-background, #fff)",
-            border: "1px solid var(--sds-color-neutral-border, #eaeaea)",
+            background: "var(--sds-color-neutral-background, var(--surface))",
+            border: "1px solid var(--sds-color-neutral-border, var(--border))",
             padding: "12px",
             borderRadius: "8px",
-            boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+            boxShadow: "var(--shadow)",
             zIndex: 10,
             pointerEvents: "none",
           }}
@@ -341,7 +344,9 @@ const StreamVisualizer: React.FC<StreamVisualizerProps> = ({
           <Text
             as="div"
             size="xs"
-            style={{ color: "var(--sds-color-content-secondary, #666)" }}
+            style={{
+              color: "var(--sds-color-content-secondary, var(--muted))",
+            }}
           >
             Total Balance: {treasuryBalance}
           </Text>

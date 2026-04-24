@@ -3,6 +3,21 @@ import { exportToCSV, exportToXLSX } from "../util/exportData";
 import type { ExportFilters, StreamRecord } from "../util/exportData";
 import toast from "react-hot-toast";
 
+/**
+ * Handles exporting payroll stream records to CSV or XLSX format.
+ *
+ * Wraps the underlying export utilities with loading state management and
+ * user-facing toast notifications for success and error feedback.
+ *
+ * @param streams - Array of stream records to export.
+ * @returns An object containing the export handler and a loading flag.
+ *
+ * @example
+ * ```tsx
+ * const { handleExport, isExporting } = useExport(streams);
+ * await handleExport("csv", { dateRange: "last30days" });
+ * ```
+ */
 export const useExport = (streams: StreamRecord[]) => {
   const [isExporting, setIsExporting] = useState(false);
 
