@@ -67,6 +67,27 @@ if (process.env.NODE_ENV === "production" && !process.env.ALLOWED_ORIGINS) {
   process.exit(1);
 }
 
+// JWT_SECRET must be set in production — a missing or weak secret leaves WebSocket
+// connections unauthenticated.
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  console.error(
+    "FATAL: JWT_SECRET environment variable must be set in production",
+  );
+  process.exit(1);
+}
+
+// QUIPAY_WEBHOOK_SIGNING_SECRET must be set in production so that all outbound
+// webhooks carry a verifiable X-Quipay-Signature header.
+if (
+  process.env.NODE_ENV === "production" &&
+  !process.env.QUIPAY_WEBHOOK_SIGNING_SECRET
+) {
+  console.error(
+    "FATAL: QUIPAY_WEBHOOK_SIGNING_SECRET environment variable must be set in production",
+  );
+  process.exit(1);
+}
+
 app.use(cors(createCorsOptions(ALLOWED_ORIGINS)));
 app.use(
   express.json({
