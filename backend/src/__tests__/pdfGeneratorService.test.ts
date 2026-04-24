@@ -25,8 +25,6 @@ describe("PDFGeneratorService", () => {
     end_ts: 1706745600,
     status: "active",
     created_at: new Date("2024-01-01"),
-    updated_at: new Date("2024-01-01"),
-    ledger_created: 1000,
   };
 
   const mockWithdrawals: WithdrawalRecord[] = [
