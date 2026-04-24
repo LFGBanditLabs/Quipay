@@ -14,7 +14,7 @@ export const ExportModal = ({
   onExport,
   isExporting,
 }: ExportModalProps) => {
-  const [format, setFormat] = useState<"csv" | "xlsx">("csv");
+  const [format, setFormat] = useState<"csv" | "xlsx" | "pdf">("csv");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [status, setStatus] = useState<ExportFilters["status"]>("all");
@@ -100,7 +100,7 @@ export const ExportModal = ({
             Format
           </label>
           <div className="flex gap-3">
-            {(["csv", "xlsx"] as const).map((f) => (
+            {(["csv", "xlsx", "pdf"] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFormat(f)}
