@@ -4,7 +4,7 @@ extern crate std;
 
 use super::*;
 use quipay_common::QuipayError;
-use soroban_sdk::{Address, Env, testutils::Address as _, testutils::Ledger as _};
+use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, Address, Env};
 
 use crate::test::setup;
 

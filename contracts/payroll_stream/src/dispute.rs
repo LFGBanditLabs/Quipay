@@ -12,7 +12,7 @@
 //!   - Token transfers go through existing `call_vault_payout` / `call_vault_remove_liability`
 
 use quipay_common::QuipayError;
-use soroban_sdk::{Address, BytesN, Env, Symbol, contracttype};
+use soroban_sdk::{contracttype, Address, BytesN, Env, Symbol};
 
 use crate::{DataKey, DisputeOutcome, PayrollStream, Stream, StreamKey, StreamStatus};
 
@@ -83,12 +83,8 @@ pub fn raise_dispute(
 ) -> Result<(), QuipayError> {
     caller.require_auth();
 
-    let key = StreamKey::Stream(stream_id);
-    let mut stream: Stream = env
-        .storage()
-        .persistent()
-        .get(&key)
-        .ok_or(QuipayError::StreamNotFound)?;
+    let mut stream: Stream =
+        PayrollStream::get_stored_stream(env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
     // Auth: caller must be a participant
     if *caller != stream.employer && *caller != stream.worker {
@@ -114,8 +110,9 @@ pub fn raise_dispute(
 
     let now = env.ledger().timestamp();
 
-    env.storage().persistent().set(
-        &DataKey::Dispute(stream_id),
+    PayrollStream::set_stored_dispute(
+        env,
+        stream_id,
         &Dispute {
             stream_id,
             raised_by: caller.clone(),
@@ -128,7 +125,7 @@ pub fn raise_dispute(
 
     // Freeze stream by transitioning to Disputed status
     stream.status = StreamStatus::Disputed;
-    env.storage().persistent().set(&key, &stream);
+    PayrollStream::set_stored_stream(env, stream_id, &stream);
 
     env.events().publish(
         (
@@ -175,22 +172,15 @@ pub fn resolve_dispute(
     }
 
     // Load and validate dispute
-    let mut dispute: Dispute = env
-        .storage()
-        .persistent()
-        .get(&DataKey::Dispute(stream_id))
-        .ok_or(QuipayError::Custom)?; // NoOpenDispute
+    let mut dispute: Dispute =
+        PayrollStream::get_stored_dispute(env, stream_id).ok_or(QuipayError::Custom)?; // NoOpenDispute
 
     if dispute.resolved {
         return Err(QuipayError::Custom); // DisputeAlreadyResolved
     }
 
-    let key = StreamKey::Stream(stream_id);
-    let mut stream: Stream = env
-        .storage()
-        .persistent()
-        .get(&key)
-        .ok_or(QuipayError::StreamNotFound)?;
+    let mut stream: Stream =
+        PayrollStream::get_stored_stream(env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
     let vault: Address = env
         .storage()
@@ -309,11 +299,9 @@ pub fn resolve_dispute(
     // Mark dispute resolved
     dispute.resolved = true;
     dispute.outcome = MaybeOutcome::Some(outcome.clone());
-    env.storage()
-        .persistent()
-        .set(&DataKey::Dispute(stream_id), &dispute);
+    PayrollStream::set_stored_dispute(env, stream_id, &dispute);
 
-    env.storage().persistent().set(&key, &stream);
+    PayrollStream::set_stored_stream(env, stream_id, &stream);
 
     env.events().publish(
         (
@@ -331,7 +319,7 @@ pub fn resolve_dispute(
 // ─── View helpers ─────────────────────────────────────────────────────────────
 
 pub fn get_dispute(env: &Env, stream_id: u64) -> Option<Dispute> {
-    env.storage().persistent().get(&DataKey::Dispute(stream_id))
+    PayrollStream::get_stored_dispute(env, stream_id)
 }
 
 pub fn has_open_dispute(env: &Env, stream_id: u64) -> bool {

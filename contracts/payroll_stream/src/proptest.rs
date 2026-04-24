@@ -2,12 +2,12 @@
 extern crate std;
 
 use crate::stream_curve::SpeedCurve::Linear;
-use crate::{PayrollStream, PayrollStreamClient, Stream, StreamStatus, stream_curve::SpeedCurve};
+use crate::{stream_curve::SpeedCurve, PayrollStream, PayrollStreamClient, Stream, StreamStatus};
 use proptest::prelude::*;
-use soroban_sdk::{Address, Env, testutils::Address as _, testutils::Ledger};
+use soroban_sdk::{testutils::Address as _, testutils::Ledger, Address, Env};
 
 mod dummy_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct DummyVault;
     #[contractimpl]

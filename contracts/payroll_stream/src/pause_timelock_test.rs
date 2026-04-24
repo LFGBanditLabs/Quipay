@@ -3,9 +3,8 @@ extern crate std;
 use super::*;
 use crate::test::setup;
 use soroban_sdk::{
-    Address, Env,
     testutils::{Address as _, Ledger},
-    vec,
+    vec, Address, Env,
 };
 
 #[test]
