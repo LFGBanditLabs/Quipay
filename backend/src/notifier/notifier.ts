@@ -189,13 +189,24 @@ const sendSlackAlert = async (payload: TreasuryAlertPayload): Promise<void> => {
 };
 
 /**
- * Sends alert via email (placeholder implementation)
- * In production, integrate with SendGrid, AWS SES, or similar
+ * Sends alert via email.
+ *
+ * Requires ALERT_EMAIL_ENABLED=true and an email provider integration.
+ * Supported providers: SendGrid (SENDGRID_API_KEY), AWS SES (AWS_SES_*).
+ * Until a provider is configured this channel logs and is a no-op.
  */
 const sendEmailAlert = async (payload: TreasuryAlertPayload): Promise<void> => {
-  // TODO: integrate with email service provider (e.g. SendGrid)
-  console.log(
-    `[Notifier] Email alert would be sent for employer ${payload.employer}`,
+  const sendgridKey = process.env.SENDGRID_API_KEY;
+  if (!sendgridKey) {
+    console.warn(
+      `[Notifier] ⚠️  SENDGRID_API_KEY not set — email alert skipped for employer ${payload.employer}. ` +
+        "Set SENDGRID_API_KEY and ALERT_EMAIL_TO to enable email notifications.",
+    );
+    return;
+  }
+  // Email provider integration goes here (SendGrid / AWS SES).
+  console.warn(
+    `[Notifier] Email delivery not yet implemented. Skipping alert for ${payload.employer}.`,
   );
 };
 
