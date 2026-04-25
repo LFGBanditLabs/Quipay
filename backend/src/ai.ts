@@ -6,13 +6,44 @@ import {
   aiParseCommandSchema,
   aiExecuteCommandSchema,
 } from "./schemas/ai.schema";
+import { enqueueJob } from "./queue/asyncQueue";
+import {
+  createEnrichmentJob,
+  getJob,
+  setJobError,
+  setJobResult,
+} from "./services/aiJobStore";
 
 export const aiRouter = Router();
 const aiGateway = new AIGateway();
 
+/** AI gateway timeout inside the queue worker, in milliseconds (#929). */
+export const AI_GATEWAY_TIMEOUT_MS = 30_000;
+
+function withTimeout<T>(label: string, ms: number, work: Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
 /**
- * @api {post} /ai/parse Parse a natural language command
- * @apiDescription Translates conversational text into a structured contract call.
+ * @api {post} /ai/parse Enqueue a natural-language command for AI parsing
+ * @apiDescription
+ * Returns immediately with `enrichment_job_id` (#929). The actual AI gateway
+ * call happens on the shared async queue with a 30-second timeout; poll
+ * `GET /api/ai/jobs/:id` for the result.
  */
 aiRouter.post(
   "/parse",
@@ -20,17 +51,66 @@ aiRouter.post(
   validateRequest({ body: aiParseCommandSchema }),
   async (req: Request, res: Response) => {
     const { command } = req.body;
+    const job = createEnrichmentJob();
 
-    try {
-      let result = await aiGateway.parseCommand(command);
-      result = await aiGateway.verifyAndRefine(result);
+    enqueueJob(
+      async () => {
+        try {
+          const parsed = await withTimeout(
+            "aiGateway.parseCommand",
+            AI_GATEWAY_TIMEOUT_MS,
+            aiGateway.parseCommand(command),
+          );
+          const refined = await withTimeout(
+            "aiGateway.verifyAndRefine",
+            AI_GATEWAY_TIMEOUT_MS,
+            aiGateway.verifyAndRefine(parsed),
+          );
+          setJobResult(job.id, refined);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          const status = message.includes("timed out") ? "timed_out" : "failed";
+          setJobError(job.id, status, message);
+          throw err;
+        }
+      },
+      {
+        jobType: "ai.parseCommand",
+        payload: { jobId: job.id },
+        context: { command },
+      },
+    ).catch(() => {
+      // enqueueJob already records terminal failures in the DLQ; we surface
+      // the per-job status via setJobError above. Swallow to avoid an
+      // unhandled rejection from the fire-and-forget enqueue call.
+    });
 
-      res.json(result);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
+    return res.status(202).json({
+      enrichment_job_id: job.id,
+      status: job.status,
+      poll_url: `/ai/jobs/${job.id}`,
+    });
   },
 );
+
+/**
+ * @api {get} /ai/jobs/:id Poll the status / result of an AI enrichment job
+ */
+aiRouter.get("/jobs/:id", (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  const job = getJob(id);
+  if (!job) {
+    return res.status(404).json({ error: "enrichment job not found" });
+  }
+  return res.json({
+    id: job.id,
+    status: job.status,
+    result: job.result ?? null,
+    error: job.error ?? null,
+    createdAt: new Date(job.createdAt).toISOString(),
+    updatedAt: new Date(job.updatedAt).toISOString(),
+  });
+});
 
 /**
  * @api {post} /ai/execute Execute (or confirm) an AI-parsed command
