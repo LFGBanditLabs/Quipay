@@ -118,6 +118,92 @@ fn test_xlm_deposit_withdraw_and_payout() {
 }
 
 #[test]
+fn test_deposit_blocked_when_paused_then_unpaused() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_id = token_contract.address();
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+    allow_token(&client, &token_id);
+
+    token_admin_client.mint(&user, &1_000);
+    client.pause();
+    assert!(client.is_paused());
+
+    let blocked = client.try_deposit(&user, &token_id, &100);
+    assert_eq!(blocked, Err(Ok(QuipayError::ProtocolPaused)));
+
+    client.unpause();
+    assert!(!client.is_paused());
+    client.deposit(&user, &token_id, &100);
+    assert_eq!(client.get_treasury_balance(&token_id), 100);
+}
+
+#[test]
+fn test_pause_requires_admin_auth() {
+    let env = Env::default();
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    let result = client.try_pause();
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_pause_and_unpause_emit_events() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(PayrollVault, ());
+    let client = PayrollVaultClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+    client.pause();
+    client.unpause();
+
+    let events = env.events().all();
+    let pause_event = events.get(events.len() - 2).unwrap();
+    let unpause_event = events.last().unwrap();
+
+    assert_eq!(pause_event.0, contract_id);
+    assert_eq!(
+        Symbol::try_from_val(&env, &pause_event.1.get(0).unwrap()).unwrap(),
+        symbol_short!("v_pause")
+    );
+    assert_eq!(
+        Address::try_from_val(&env, &pause_event.1.get(1).unwrap()).unwrap(),
+        admin
+    );
+    assert_eq!(
+        u64::try_from_val(&env, &pause_event.2).unwrap(),
+        env.ledger().timestamp()
+    );
+
+    assert_eq!(unpause_event.0, contract_id);
+    assert_eq!(
+        Symbol::try_from_val(&env, &unpause_event.1.get(0).unwrap()).unwrap(),
+        symbol_short!("v_unpause")
+    );
+    assert_eq!(
+        Address::try_from_val(&env, &unpause_event.1.get(1).unwrap()).unwrap(),
+        admin
+    );
+}
+
+#[test]
 fn test_solvency_enforcement() {
     let env = Env::default();
     env.mock_all_auths();

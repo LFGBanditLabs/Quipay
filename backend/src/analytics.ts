@@ -7,6 +7,7 @@ import {
   getPayrollTrends,
   getAddressStats,
   getEmployerPayrollSummary,
+  getPayrollSummaryByOrg,
   getEmployerPayrollMonthly,
   getEmployerPayrollByWorker,
   getVolumeOverTime,
@@ -16,6 +17,10 @@ import {
   getEmployerSpendBreakdown,
 } from "./db/queries";
 import { globalCache } from "./utils/cache";
+import {
+  getCachedPayrollSummary,
+  setCachedPayrollSummary,
+} from "./services/payrollSummaryCache";
 import {
   authenticateRequest,
   requireUser,
@@ -34,6 +39,11 @@ const requireDb = (_req: Request, res: Response, next: () => void) => {
 
 analyticsRouter.use(requireDb);
 
+const isValidPayrollPeriod = (
+  value: unknown,
+): value is "ytd" | "qtd" | "mtd" =>
+  value === "ytd" || value === "qtd" || value === "mtd";
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const timed = async <T>(
@@ -45,6 +55,44 @@ const timed = async <T>(
 };
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
+
+analyticsRouter.get(
+  "/payroll-summary",
+  authenticateRequest,
+  requireUser,
+  async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const orgId =
+      typeof req.query.org_id === "string" && req.query.org_id.trim()
+        ? req.query.org_id.trim()
+        : req.user.id;
+    const period = isValidPayrollPeriod(req.query.period)
+      ? req.query.period
+      : "ytd";
+
+    try {
+      const cacheKey = `payroll-summary:${orgId}:${period}`;
+      const cached = await getCachedPayrollSummary(cacheKey);
+      if (cached) {
+        return res.set("X-Cache", "HIT").json({ ok: true, data: cached });
+      }
+
+      const { data, ms } = await timed(() => getPayrollSummaryByOrg(orgId, period));
+      await setCachedPayrollSummary(cacheKey, data, 5 * 60 * 1000);
+
+      return res
+        .set("X-Cache", "MISS")
+        .set("X-Query-Time-Ms", String(ms))
+        .json({ ok: true, data });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      return res.status(500).json({ ok: false, error: msg });
+    }
+  },
+);
 
 analyticsRouter.get(
   "/payroll/summary",

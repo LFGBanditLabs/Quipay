@@ -47,6 +47,17 @@ export interface TokenBalance {
   balance: string;
 }
 
+export interface PayrollSummary {
+  total_disbursed: string;
+  avg_payment: string;
+  cost_by_department: Array<{
+    dept: string;
+    total: string;
+  }>;
+  headcount: number;
+  streams_active: number;
+}
+
 // Default tokens to monitor (XLM and USDC)
 const USDC_ISSUER = import.meta.env.PUBLIC_USDC_ISSUER || "";
 
@@ -94,6 +105,9 @@ export const usePayroll = (
   const [totalLiabilities, setTotalLiabilities] = useState<string>("0");
   const [streams, setStreams] = useState<Stream[]>([]);
   const [vaultData, setVaultData] = useState<TokenVaultData[]>([]);
+  const [payrollSummary, setPayrollSummary] = useState<PayrollSummary | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isVaultLoading, setIsVaultLoading] = useState<boolean>(false);
 
@@ -128,6 +142,39 @@ export const usePayroll = (
 
   const [error, setError] = useState<string | null>(null);
   const [fetchTick, setFetchTick] = useState(0);
+
+  const fetchPayrollSummary = useCallback(async (address: string) => {
+    const backendUrl =
+      import.meta.env.PUBLIC_BACKEND_URL || "http://localhost:3001";
+    const authToken = localStorage.getItem("auth_token");
+    const headers: HeadersInit = authToken
+      ? {
+          Authorization: `Bearer ${authToken}`,
+        }
+      : {
+          "x-user-role": "user",
+          "x-user-id": address,
+        };
+
+    try {
+      const response = await fetch(
+        `${backendUrl}/api/v1/analytics/payroll-summary?org_id=${encodeURIComponent(address)}&period=ytd`,
+        { headers },
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to load payroll summary");
+      }
+
+      const payload = (await response.json()) as {
+        data?: PayrollSummary;
+      };
+      setPayrollSummary(payload.data ?? null);
+    } catch (summaryError) {
+      console.warn("Failed to fetch payroll summary:", summaryError);
+      setPayrollSummary(null);
+    }
+  }, []);
 
   const refetch = useCallback(() => {
     setFetchTick((t) => t + 1);
@@ -209,9 +256,12 @@ export const usePayroll = (
   const refreshData = useCallback(async () => {
     await fetchVaultData();
     if (employerAddress) {
-      await fetchStreams(employerAddress);
+      await Promise.all([
+        fetchStreams(employerAddress),
+        fetchPayrollSummary(employerAddress),
+      ]);
     }
-  }, [fetchVaultData, fetchStreams, employerAddress]);
+  }, [employerAddress, fetchPayrollSummary, fetchStreams, fetchVaultData]);
 
   useEffect(() => {
     if (!employerAddress) return;
@@ -243,6 +293,7 @@ export const usePayroll = (
   useEffect(() => {
     if (!employerAddress) {
       setStreams([]);
+      setPayrollSummary(null);
       setIsLoading(false);
       setError(null);
       return;
@@ -257,7 +308,10 @@ export const usePayroll = (
         await fetchVaultData();
 
         // Fetch real stream data from contract
-        await fetchStreams(employerAddress);
+        await Promise.all([
+          fetchStreams(employerAddress),
+          fetchPayrollSummary(employerAddress),
+        ]);
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to load payroll data";
@@ -269,7 +323,13 @@ export const usePayroll = (
     };
 
     void fetchData();
-  }, [employerAddress, fetchTick, fetchVaultData, fetchStreams]);
+  }, [
+    employerAddress,
+    fetchPayrollSummary,
+    fetchStreams,
+    fetchTick,
+    fetchVaultData,
+  ]);
 
   const activeStreams = useMemo(
     () =>
@@ -323,6 +383,7 @@ export const usePayroll = (
   return {
     treasuryBalances,
     totalLiabilities,
+    payrollSummary,
     activeStreamsCount,
     streams,
     activeStreams,

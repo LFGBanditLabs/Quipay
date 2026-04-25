@@ -1,16 +1,15 @@
-/**
- * NotificationCenter.tsx
- * ─────────────────────
- * A bell-icon notification center that shows critical protocol alerts,
- * treasury balance warnings, network degradation events, and user actions.
- * Persists across page navigation and badges unread count.
- */
-
 /* eslint-disable react-refresh/only-export-components */
-import { useState, useRef, useEffect, useCallback } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
-
-/* ── Types ──────────────────────────────────────────────────────────────────── */
+import { useNotification } from "../hooks/useNotification";
+import type { PersistentNotificationType } from "../providers/notificationStorage";
 
 export type AlertSeverity = "critical" | "warning" | "info" | "success";
 export type AlertCategory =
@@ -28,16 +27,12 @@ export interface ProtocolAlert {
   category: AlertCategory;
   timestamp: number;
   read: boolean;
-  /** Optional action the user can take */
   action?: {
     label: string;
     onClick: () => void;
   };
-  /** Optional: auto-dismiss after ms */
   autoDismissMs?: number;
 }
-
-/* ── Store (module-level singleton so alerts survive re-renders) ─────────── */
 
 type Listener = () => void;
 
@@ -54,7 +49,7 @@ class AlertStore {
   }
 
   private notify() {
-    this.listeners.forEach((l) => l());
+    this.listeners.forEach((listener) => listener());
   }
 
   getAlerts() {
@@ -62,24 +57,22 @@ class AlertStore {
   }
 
   addAlert(alert: Omit<ProtocolAlert, "id" | "timestamp" | "read">) {
-    // Deduplicate: don't add if an identical title exists in the last 60s
     const recent = this.alerts.find(
-      (a) => a.title === alert.title && Date.now() - a.timestamp < 60_000,
+      (item) => item.title === alert.title && Date.now() - item.timestamp < 60_000,
     );
     if (recent) return recent.id;
 
     const id = `alert-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const newAlert: ProtocolAlert = {
+    const next: ProtocolAlert = {
       ...alert,
       id,
       timestamp: Date.now(),
       read: false,
     };
 
-    this.alerts = [newAlert, ...this.alerts].slice(0, this.maxAlerts);
+    this.alerts = [next, ...this.alerts].slice(0, this.maxAlerts);
     this.notify();
 
-    // Auto-dismiss
     if (alert.autoDismissMs) {
       setTimeout(() => this.dismissAlert(id), alert.autoDismissMs);
     }
@@ -88,19 +81,19 @@ class AlertStore {
   }
 
   markAsRead(id: string) {
-    this.alerts = this.alerts.map((a) =>
-      a.id === id ? { ...a, read: true } : a,
+    this.alerts = this.alerts.map((alert) =>
+      alert.id === id ? { ...alert, read: true } : alert,
     );
     this.notify();
   }
 
   markAllRead() {
-    this.alerts = this.alerts.map((a) => ({ ...a, read: true }));
+    this.alerts = this.alerts.map((alert) => ({ ...alert, read: true }));
     this.notify();
   }
 
   dismissAlert(id: string) {
-    this.alerts = this.alerts.filter((a) => a.id !== id);
+    this.alerts = this.alerts.filter((alert) => alert.id !== id);
     this.notify();
   }
 
@@ -110,19 +103,17 @@ class AlertStore {
   }
 
   getUnreadCount() {
-    return this.alerts.filter((a) => !a.read).length;
+    return this.alerts.filter((alert) => !alert.read).length;
   }
 }
 
 export const alertStore = new AlertStore();
 
-/* ── Hook ───────────────────────────────────────────────────────────────────── */
-
 export function useAlertStore() {
   const [, forceRender] = useState(0);
 
   useEffect(() => {
-    return alertStore.subscribe(() => forceRender((n) => n + 1));
+    return alertStore.subscribe(() => forceRender((count) => count + 1));
   }, []);
 
   return {
@@ -136,7 +127,18 @@ export function useAlertStore() {
   };
 }
 
-/* ── Icons ──────────────────────────────────────────────────────────────────── */
+type UnifiedNotification = {
+  id: string;
+  title: string;
+  message: string;
+  timestamp: number;
+  read: boolean;
+  accent: string;
+  label: string;
+  icon: string;
+  onOpen?: () => void;
+  onDismiss?: () => void;
+};
 
 const IconBell = () => (
   <svg
@@ -170,402 +172,429 @@ const IconX = () => (
   </svg>
 );
 
-/* ── Severity styling ───────────────────────────────────────────────────────── */
-
-const SEVERITY_STYLES: Record<
+const ALERT_META: Record<
   AlertSeverity,
-  { bg: string; border: string; icon: string; color: string }
+  { accent: string; label: string; icon: string }
 > = {
-  critical: {
-    bg: "var(--token-color-error-soft)",
-    border: "var(--token-color-error-soft-strong)",
-    icon: "🚨",
-    color: "var(--token-color-error-500)",
+  critical: { accent: "var(--token-color-error-500)", label: "Critical", icon: "!" },
+  warning: { accent: "var(--token-color-warning-500)", label: "Warning", icon: "!" },
+  info: { accent: "var(--token-color-accent)", label: "Info", icon: "i" },
+  success: { accent: "var(--token-color-success-500)", label: "Success", icon: "OK" },
+};
+
+const PERSISTED_META: Record<
+  PersistentNotificationType,
+  { accent: string; label: string; icon: string }
+> = {
+  tx_confirmed: {
+    accent: "var(--token-color-success-500)",
+    label: "Confirmed",
+    icon: "OK",
   },
-  warning: {
-    bg: "var(--token-color-warning-soft)",
-    border: "var(--token-color-warning-soft-strong)",
-    icon: "⚠️",
-    color: "var(--token-color-warning-500)",
+  tx_failed: {
+    accent: "var(--token-color-error-500)",
+    label: "Failed",
+    icon: "!",
   },
-  info: {
-    bg: "var(--token-color-accent-soft)",
-    border: "var(--token-color-accent-soft-strong)",
-    icon: "ℹ️",
-    color: "var(--token-color-accent)",
+  stream_started: {
+    accent: "var(--token-color-accent)",
+    label: "Started",
+    icon: "S",
   },
-  success: {
-    bg: "var(--token-color-success-soft)",
-    border: "var(--token-color-success-soft-strong)",
-    icon: "✅",
-    color: "var(--token-color-success-500)",
+  stream_completed: {
+    accent: "var(--token-color-success-500)",
+    label: "Completed",
+    icon: "DONE",
+  },
+  payroll_disbursed: {
+    accent: "var(--token-color-warning-500)",
+    label: "Payroll",
+    icon: "$",
   },
 };
 
-const CATEGORY_LABELS: Record<AlertCategory, string> = {
-  treasury: "Treasury",
-  network: "Network",
-  wallet: "Wallet",
-  protocol: "Protocol",
-  system: "System",
+const formatAge = (timestamp: number) => {
+  const age = Date.now() - timestamp;
+  if (age < 60_000) return "just now";
+  if (age < 3_600_000) return `${Math.floor(age / 60_000)}m ago`;
+  if (age < 86_400_000) return `${Math.floor(age / 3_600_000)}h ago`;
+  return `${Math.floor(age / 86_400_000)}d ago`;
 };
 
-/* ── Alert Item ─────────────────────────────────────────────────────────────── */
-
-function AlertItem({
-  alert,
-  onRead,
-  onDismiss,
-}: {
-  alert: ProtocolAlert;
-  onRead: (id: string) => void;
-  onDismiss: (id: string) => void;
-}) {
-  const style = SEVERITY_STYLES[alert.severity];
-
-  // Use state for current time so Date.now() is not called during render
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const age = now - alert.timestamp;
-  const timeAgo =
-    age < 60_000
-      ? "just now"
-      : age < 3_600_000
-        ? `${Math.floor(age / 60_000)}m ago`
-        : age < 86_400_000
-          ? `${Math.floor(age / 3_600_000)}h ago`
-          : `${Math.floor(age / 86_400_000)}d ago`;
-
-  return (
-    <div
-      onClick={() => !alert.read && onRead(alert.id)}
-      style={{
-        padding: "12px 14px",
-        borderRadius: "8px",
-        background: alert.read ? "transparent" : style.bg,
-        border: `1px solid ${alert.read ? "var(--border)" : style.border}`,
-        cursor: alert.read ? "default" : "pointer",
-        position: "relative",
-        transition: "background 0.2s",
-      }}
-    >
-      {/* Unread dot */}
-      {!alert.read && (
-        <span
-          style={{
-            position: "absolute",
-            top: 8,
-            right: 8,
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            background: style.color,
-          }}
-        />
-      )}
-
-      {/* Dismiss button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDismiss(alert.id);
-        }}
-        style={{
-          position: "absolute",
-          top: 6,
-          right: alert.read ? 6 : 22,
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          color: "var(--muted)",
-          padding: "2px",
-          opacity: 0.5,
-        }}
-        aria-label="Dismiss"
-      >
-        <IconX />
-      </button>
-
-      <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
-        <span style={{ fontSize: "16px", flexShrink: 0, marginTop: "1px" }}>
-          {style.icon}
-        </span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              marginBottom: "3px",
-            }}
-          >
-            <span
-              style={{
-                fontSize: "13px",
-                fontWeight: 700,
-                color: "var(--text)",
-              }}
-            >
-              {alert.title}
-            </span>
-            <span
-              style={{
-                fontSize: "10px",
-                fontWeight: 600,
-                padding: "1px 6px",
-                borderRadius: "4px",
-                background: "var(--surface-subtle)",
-                color: "var(--muted)",
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
-              }}
-            >
-              {CATEGORY_LABELS[alert.category]}
-            </span>
-          </div>
-          <p
-            style={{
-              margin: 0,
-              fontSize: "12px",
-              color: "var(--muted)",
-              lineHeight: 1.4,
-            }}
-          >
-            {alert.message}
-          </p>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginTop: "6px",
-            }}
-          >
-            <span
-              style={{ fontSize: "11px", color: "var(--muted)", opacity: 0.6 }}
-            >
-              {timeAgo}
-            </span>
-            {alert.action && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  alert.action?.onClick();
-                }}
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  color: style.color,
-                  background: "none",
-                  border: `1px solid ${style.border}`,
-                  borderRadius: "4px",
-                  padding: "2px 8px",
-                  cursor: "pointer",
-                }}
-              >
-                {alert.action.label}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Main Component ─────────────────────────────────────────────────────────── */
-
-const NotificationCenter: React.FC = () => {
+const NotificationCenter = () => {
   const { t } = useTranslation();
   const {
     alerts,
-    unreadCount,
+    unreadCount: alertUnreadCount,
     markAsRead,
     markAllRead,
     dismissAlert,
-    clearAll,
   } = useAlertStore();
+  const {
+    streamNotifications,
+    unreadCount: persistedUnreadCount,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+  } = useNotification();
   const [isOpen, setIsOpen] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
-  // Close on click outside
+  const items = useMemo<UnifiedNotification[]>(
+    () =>
+      [
+        ...streamNotifications.map((notification) => {
+          const meta = PERSISTED_META[notification.type];
+          return {
+            id: notification.id,
+            title: notification.title,
+            message: notification.message,
+            timestamp: Date.parse(notification.timestamp),
+            read: notification.read,
+            accent: meta.accent,
+            label: meta.label,
+            icon: meta.icon,
+            onOpen: () => {
+              if (!notification.read) {
+                markNotificationAsRead(notification.id);
+              }
+            },
+          };
+        }),
+        ...alerts.map((alert) => {
+          const meta = ALERT_META[alert.severity];
+          return {
+            id: alert.id,
+            title: alert.title,
+            message: alert.message,
+            timestamp: alert.timestamp,
+            read: alert.read,
+            accent: meta.accent,
+            label: meta.label,
+            icon: meta.icon,
+            onOpen: () => {
+              if (!alert.read) {
+                markAsRead(alert.id);
+              }
+              alert.action?.onClick();
+            },
+            onDismiss: () => dismissAlert(alert.id),
+          };
+        }),
+      ].sort((left, right) => right.timestamp - left.timestamp),
+    [
+      alerts,
+      dismissAlert,
+      markAsRead,
+      markNotificationAsRead,
+      streamNotifications,
+    ],
+  );
+
+  const totalUnread = alertUnreadCount + persistedUnreadCount;
+
   useEffect(() => {
     if (!isOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, [isOpen]);
 
-  const handleToggle = useCallback(() => {
-    setIsOpen((v) => !v);
+  const focusListItem = useCallback((index: number) => {
+    const nodes =
+      listRef.current?.querySelectorAll<HTMLButtonElement>(
+        "[data-notification-item='true']",
+      ) ?? [];
+    if (nodes.length === 0) return;
+    const safeIndex = Math.max(0, Math.min(index, nodes.length - 1));
+    nodes[safeIndex]?.focus();
   }, []);
 
+  const handleListKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      const nodes =
+        listRef.current?.querySelectorAll<HTMLButtonElement>(
+          "[data-notification-item='true']",
+        ) ?? [];
+      if (nodes.length === 0) return;
+
+      const activeIndex = Array.from(nodes).findIndex(
+        (node) => node === document.activeElement,
+      );
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        focusListItem(activeIndex < 0 ? 0 : activeIndex + 1);
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        focusListItem(activeIndex <= 0 ? 0 : activeIndex - 1);
+      }
+      if (event.key === "Home") {
+        event.preventDefault();
+        focusListItem(0);
+      }
+      if (event.key === "End") {
+        event.preventDefault();
+        focusListItem(nodes.length - 1);
+      }
+    },
+    [focusListItem],
+  );
+
+  const handleMarkAllRead = useCallback(() => {
+    markAllNotificationsAsRead();
+    markAllRead();
+  }, [markAllNotificationsAsRead, markAllRead]);
+
   return (
-    <div ref={panelRef} style={{ position: "relative" }}>
-      {/* Bell button */}
+    <div ref={containerRef} style={{ position: "relative" }}>
       <button
-        onClick={handleToggle}
+        onClick={() => setIsOpen((current) => !current)}
         aria-label={t("notifications.title", "Notifications")}
+        aria-expanded={isOpen}
         style={{
           position: "relative",
-          background: "none",
-          border: "none",
+          width: "40px",
+          height: "40px",
+          borderRadius: "999px",
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
+          boxShadow: "0 4px 12px var(--shadow-color, rgba(0,0,0,0.15))",
           cursor: "pointer",
           color: "var(--text)",
-          padding: "6px",
           display: "flex",
           alignItems: "center",
+          justifyContent: "center",
         }}
       >
         <IconBell />
-        {unreadCount > 0 && (
+        {totalUnread > 0 && (
           <span
             style={{
               position: "absolute",
-              top: 0,
-              right: 0,
-              minWidth: 16,
-              height: 16,
-              borderRadius: "8px",
+              top: "-2px",
+              right: "-2px",
+              minWidth: 18,
+              height: 18,
+              borderRadius: "999px",
               background: "var(--token-color-error-500)",
-              color: "white",
+              color: "#fff",
               fontSize: "10px",
               fontWeight: 800,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              padding: "0 4px",
-              lineHeight: 1,
+              padding: "0 5px",
             }}
           >
-            {unreadCount > 9 ? "9+" : unreadCount}
+            {totalUnread > 99 ? "99+" : totalUnread}
           </span>
         )}
       </button>
 
-      {/* Dropdown panel */}
       {isOpen && (
         <div
           style={{
             position: "absolute",
-            top: "calc(100% + 8px)",
+            bottom: "calc(100% + 10px)",
             right: 0,
-            width: "380px",
+            width: "min(92vw, 380px)",
             maxHeight: "480px",
-            borderRadius: "12px",
+            overflow: "hidden",
+            borderRadius: "16px",
             border: "1px solid var(--border)",
             background: "var(--surface)",
-            boxShadow: "0 12px 40px -10px var(--shadow-color)",
+            boxShadow: "0 18px 40px -18px var(--shadow-color)",
             zIndex: 1000,
-            overflow: "hidden",
             display: "flex",
             flexDirection: "column",
           }}
+          role="status"
+          aria-live="polite"
         >
-          {/* Header */}
           <div
             style={{
+              padding: "14px 16px",
+              borderBottom: "1px solid var(--border)",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              padding: "12px 16px",
-              borderBottom: "1px solid var(--border)",
+              gap: "12px",
             }}
           >
-            <span
-              style={{
-                fontSize: "14px",
-                fontWeight: 700,
-                color: "var(--text)",
-              }}
-            >
-              {t("notifications.title", "Notifications")}
-              {unreadCount > 0 && (
-                <span
-                  style={{
-                    fontSize: "12px",
-                    color: "var(--muted)",
-                    fontWeight: 500,
-                    marginLeft: "6px",
-                  }}
-                >
-                  ({unreadCount} new)
-                </span>
-              )}
-            </span>
-            <div style={{ display: "flex", gap: "8px" }}>
-              {unreadCount > 0 && (
-                <button
-                  onClick={markAllRead}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    fontSize: "11px",
-                    color: "var(--accent)",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  Mark all read
-                </button>
-              )}
-              {alerts.length > 0 && (
-                <button
-                  onClick={clearAll}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    fontSize: "11px",
-                    color: "var(--muted)",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  Clear
-                </button>
-              )}
+            <div>
+              <div
+                style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}
+              >
+                {t("notifications.title", "Notifications")}
+              </div>
+              <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+                {totalUnread > 0 ? `${totalUnread} unread` : "All caught up"}
+              </div>
             </div>
+            {totalUnread > 0 && (
+              <button
+                onClick={handleMarkAllRead}
+                style={{
+                  border: "none",
+                  background: "none",
+                  cursor: "pointer",
+                  color: "var(--accent)",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                }}
+              >
+                Mark all read
+              </button>
+            )}
           </div>
 
-          {/* Alert list */}
           <div
+            ref={listRef}
+            onKeyDown={handleListKeyDown}
             style={{
-              flex: 1,
               overflowY: "auto",
               padding: "8px",
               display: "flex",
               flexDirection: "column",
-              gap: "6px",
+              gap: "8px",
             }}
           >
-            {alerts.length === 0 ? (
+            {items.length === 0 ? (
               <div
                 style={{
-                  padding: "40px 16px",
+                  padding: "36px 18px",
                   textAlign: "center",
                   color: "var(--muted)",
                   fontSize: "13px",
                 }}
               >
-                <div style={{ fontSize: "28px", marginBottom: "8px" }}>🔔</div>
                 {t("notifications.empty", "No notifications yet")}
               </div>
             ) : (
-              alerts.map((alert) => (
-                <AlertItem
-                  key={alert.id}
-                  alert={alert}
-                  onRead={markAsRead}
-                  onDismiss={dismissAlert}
-                />
+              items.map((item) => (
+                <div
+                  key={item.id}
+                  style={{
+                    position: "relative",
+                    border: "1px solid var(--border)",
+                    borderLeft: `3px solid ${item.accent}`,
+                    borderRadius: "12px",
+                    background: item.read
+                      ? "var(--surface)"
+                      : "color-mix(in srgb, var(--surface) 92%, white 8%)",
+                  }}
+                >
+                  <button
+                    data-notification-item="true"
+                    onClick={item.onOpen}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: "12px 14px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          color: item.accent,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                        }}
+                      >
+                        <span aria-hidden="true">{item.icon}</span>
+                        <span>{item.label}</span>
+                      </span>
+                      <time style={{ fontSize: "11px", color: "var(--muted)" }}>
+                        {formatAge(item.timestamp)}
+                      </time>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        color: "var(--text)",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      {item.title}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        lineHeight: 1.45,
+                        color: "var(--muted)",
+                      }}
+                    >
+                      {item.message}
+                    </div>
+                  </button>
+                  {!item.read && (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        top: "12px",
+                        right: item.onDismiss ? "36px" : "12px",
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "999px",
+                        background: item.accent,
+                      }}
+                    />
+                  )}
+                  {item.onDismiss && (
+                    <button
+                      onClick={item.onDismiss}
+                      aria-label="Dismiss notification"
+                      style={{
+                        position: "absolute",
+                        top: "8px",
+                        right: "8px",
+                        border: "none",
+                        background: "none",
+                        color: "var(--muted)",
+                        cursor: "pointer",
+                        padding: "4px",
+                      }}
+                    >
+                      <IconX />
+                    </button>
+                  )}
+                </div>
               ))
             )}
           </div>
