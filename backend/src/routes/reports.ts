@@ -8,6 +8,7 @@ import {
   createReportSchedule,
   getReportSchedulesByEmployer,
   deleteReportSchedule,
+  getReportScheduleById,
 } from "../db/payrollReportSchedule";
 
 export const reportsRouter = Router();
@@ -103,8 +104,9 @@ reportsRouter.delete(
     try {
       const { id } = req.params;
       const employerId = req.user?.id || "unknown";
+      const scheduleId = parseInt(id, 10);
 
-      const schedule = await deleteReportSchedule(parseInt(id, 10));
+      const schedule = await getReportScheduleById(scheduleId);
 
       if (!schedule) {
         return res.status(404).json({
@@ -119,9 +121,17 @@ reportsRouter.delete(
         });
       }
 
+      const deletedSchedule = await deleteReportSchedule(scheduleId, employerId);
+
+      if (!deletedSchedule) {
+        return res.status(404).json({
+          error: "Report schedule not found",
+        });
+      }
+
       res.json({
         message: "Report schedule deleted successfully",
-        schedule,
+        schedule: deletedSchedule,
       });
     } catch (error: any) {
       console.error("[Reports] Error deleting schedule:", error.message);
