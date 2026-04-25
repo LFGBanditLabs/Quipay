@@ -178,6 +178,46 @@ describe("StellarListener Integration Tests", () => {
       );
     });
 
+    it("should include decoded stream fields in webhook payload", async () => {
+      const stellarListener = await import("../../stellarListener");
+
+      mockGetLatestLedger
+        .mockResolvedValueOnce({ sequence: 2500 })
+        .mockResolvedValueOnce({ sequence: 2501 });
+
+      const streamCreatedEvent = {
+        id: "evt-002b",
+        ledger: 2501,
+        contractId: QUIPAY_CONTRACT_ID,
+        type: "contract",
+        topic: [{ toXDR: () => "new_stream_event" }],
+        value: {
+          stream_id: 987,
+          worker_address: "GWORKER_DEC0DED",
+          employer_address: "GEMPLOYER_DEC0DED",
+          amount: "1000000",
+          token: "USDC",
+        },
+      };
+
+      mockGetEvents.mockResolvedValueOnce({ events: [streamCreatedEvent] });
+
+      await stellarListener.startStellarListener();
+      await new Promise((resolve) => setTimeout(resolve, 6000));
+
+      expect(sendWebhookNotification).toHaveBeenCalledWith(
+        "new_stream",
+        expect.objectContaining({
+          id: "evt-002b",
+          stream_id: 987,
+          worker_address: "GWORKER_DEC0DED",
+          employer_address: "GEMPLOYER_DEC0DED",
+          amount: "1000000",
+          token: "USDC",
+        }),
+      );
+    });
+
     it("should handle multiple events in a single ledger", async () => {
       const stellarListener = await import("../../stellarListener");
 

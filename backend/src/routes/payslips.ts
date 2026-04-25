@@ -15,7 +15,7 @@ import {
   upsertWorkerNotificationSettings,
 } from "../db/queries";
 import { generatePayslip } from "../services/pdfGeneratorService";
-import { signPayslip } from "../services/signatureService";
+import { signPayslip, verifySignature } from "../services/signatureService";
 import { query } from "../db/pool";
 import { logServiceInfo, logServiceError } from "../audit/serviceLogger";
 
@@ -258,6 +258,13 @@ payslipsRouter.post(
     try {
       const { signature } = req.body;
 
+      if (!signature || typeof signature !== "string") {
+        return res.status(400).json({
+          valid: false,
+          message: "Signature is required",
+        });
+      }
+
       logServiceInfo("payslipRouter", "Signature verification requested", {
         signature: signature.substring(0, 20) + "...",
       });
@@ -273,9 +280,39 @@ payslipsRouter.post(
         });
       }
 
-      // In a real implementation, you would verify the signature cryptographically
-      // For now, we trust that if the signature exists in the database, it's valid
-      // TODO: Implement actual signature verification using verifySignature from SignatureService
+      const generatedAt = new Date(payslip.generated_at);
+      const streamIds = Array.isArray(payslip.stream_ids)
+        ? payslip.stream_ids.map((streamId) => Number(streamId))
+        : [];
+
+      if (
+        Number.isNaN(generatedAt.getTime()) ||
+        streamIds.some((streamId) => Number.isNaN(streamId))
+      ) {
+        return res.status(500).json({
+          error: "Internal Server Error",
+          message: "Payslip record is malformed and cannot be verified",
+        });
+      }
+
+      const isValid = await verifySignature({
+        signature,
+        payslipData: {
+          payslipId: payslip.payslip_id,
+          workerAddress: payslip.worker_address,
+          period: payslip.period,
+          totalGrossAmount: payslip.total_gross_amount,
+          streamIds,
+          generatedAt,
+        },
+      });
+
+      if (!isValid) {
+        return res.status(401).json({
+          valid: false,
+          message: "Invalid signature: payslip authenticity check failed",
+        });
+      }
 
       logServiceInfo("payslipRouter", "Signature verified successfully", {
         payslipId: payslip.payslip_id,

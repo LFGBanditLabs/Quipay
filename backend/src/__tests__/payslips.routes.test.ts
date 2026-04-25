@@ -176,6 +176,14 @@ describe("Payslips Router", () => {
   });
 
   describe("POST /api/verify-signature", () => {
+    it("should return 400 when signature is missing", async () => {
+      const response = await request(app).post("/api/verify-signature").send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body.valid).toBe(false);
+      expect(response.body.message).toContain("Signature is required");
+    });
+
     it("should return 404 when signature not found", async () => {
       (queries.getPayslipBySignature as jest.Mock).mockResolvedValue(null);
 
@@ -205,6 +213,7 @@ describe("Payslips Router", () => {
       (queries.getPayslipBySignature as jest.Mock).mockResolvedValue(
         mockPayslip,
       );
+      (signatureService.verifySignature as jest.Mock).mockResolvedValue(true);
 
       const response = await request(app)
         .post("/api/verify-signature")
@@ -212,6 +221,16 @@ describe("Payslips Router", () => {
 
       expect(response.status).toBe(200);
       expect(response.body.valid).toBe(true);
+      expect(signatureService.verifySignature).toHaveBeenCalledWith({
+        signature: "valid-signature",
+        payslipData: expect.objectContaining({
+          payslipId: "payslip-123",
+          workerAddress: "GAXXX111",
+          period: "2025-01",
+          totalGrossAmount: "5000000",
+          streamIds: [1, 2],
+        }),
+      });
       expect(response.body.payslip).toMatchObject({
         id: "payslip-123",
         workerAddress: "GAXXX111",
@@ -220,6 +239,34 @@ describe("Payslips Router", () => {
         streamIds: [1, 2],
       });
       expect(response.body.payslip.generatedAt).toBeDefined();
+    });
+
+    it("should return 401 when cryptographic verification fails", async () => {
+      const tamperedPayslip = {
+        id: 1,
+        payslip_id: "payslip-123",
+        worker_address: "GAXXX111",
+        period: "2025-01",
+        signature: "valid-signature",
+        branding_snapshot: {},
+        pdf_url: null,
+        total_gross_amount: "9999999",
+        stream_ids: [1, 2],
+        generated_at: new Date("2025-01-15"),
+      };
+
+      (queries.getPayslipBySignature as jest.Mock).mockResolvedValue(
+        tamperedPayslip,
+      );
+      (signatureService.verifySignature as jest.Mock).mockResolvedValue(false);
+
+      const response = await request(app)
+        .post("/api/verify-signature")
+        .send({ signature: "valid-signature" });
+
+      expect(response.status).toBe(401);
+      expect(response.body.valid).toBe(false);
+      expect(response.body.message).toContain("Invalid signature");
     });
   });
 });
