@@ -349,6 +349,8 @@ fn construct_stream(
         cancel_effective_at: 0,
         speed_curve: SpeedCurve::Linear,
         clawback_authority: None,
+        expected_exchange_rate_bps: 10_000,
+        max_slippage_bps: 0,
     }
 }
 

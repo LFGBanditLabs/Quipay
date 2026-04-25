@@ -1,6 +1,6 @@
 #![no_std]
 use core::convert::TryFrom;
-use quipay_common::{require, QuipayError};
+use quipay_common::{checked_sub_i128, require, QuipayError};
 use soroban_sdk::{
     contract, contractimpl, contracttype, Address, BytesN, Env, IntoVal, Symbol, Vec,
 };
@@ -8,6 +8,7 @@ use soroban_sdk::{
 const MAX_BATCH_CREATE_STREAMS: u32 = 20;
 const MAX_BATCH_CLAIM_STREAMS: u32 = 50; // max active streams processed in one batch_claim call
 const MAX_BATCH_CANCEL_STREAMS: u32 = 20;
+const DEFAULT_EXCHANGE_RATE_BPS: i128 = 10_000;
 const DEFAULT_MAX_STREAM_DURATION: u64 = 365 * 24 * 60 * 60; // 365 days in seconds
 /// Maximum page size for employer stream pagination.
 const MAX_EMPLOYER_STREAM_PAGE_SIZE: u32 = 50;
@@ -39,6 +40,7 @@ pub enum DataKey {
     EmergencyMultisig,  // Vec<Address> (3 authorized keys)
     EmergencyPauseVotes, // Vec<Address> (keys that voted for current pause)
     BlacklistedAddress(Address), // Compliance blacklist shared across stream participants
+    CurrentExchangeRateBps, // Current exchange rate (basis points) used for slippage checks
     NextReceiptId,
     ReceiptById(u64),
     ReceiptByStream(u64),
@@ -160,6 +162,8 @@ pub struct Stream {
     pub cancel_effective_at: u64, // 0 means no pending cancellation; >0 means grace period active
     pub speed_curve: stream_curve::SpeedCurve, // New field for customizable speed curves
     pub clawback_authority: Option<Address>, // Optional authority allowed to claw back vested funds
+    pub expected_exchange_rate_bps: i128,
+    pub max_slippage_bps: u32,
 }
 
 #[contracttype]
@@ -182,6 +186,7 @@ pub struct StreamParams {
     pub metadata_hash: Option<BytesN<32>>,
     pub speed_curve: MaybeSpeedCurve,
     pub clawback_authority: Option<Address>,
+    pub max_slippage_bps: u32,
 }
 
 #[contracttype]
@@ -798,6 +803,7 @@ impl PayrollStream {
             metadata_hash,
             speed_curve,
             None,
+            0,
         )?;
 
         env.events().publish(
@@ -841,6 +847,7 @@ impl PayrollStream {
             metadata_hash,
             speed_curve,
             clawback_authority,
+            0,
         )?;
 
         env.events().publish(
@@ -996,6 +1003,8 @@ impl PayrollStream {
                     _ => stream_curve::SpeedCurve::Linear,
                 },
                 clawback_authority: param.clawback_authority.clone(),
+                expected_exchange_rate_bps: Self::get_current_exchange_rate_bps(env.clone()),
+                max_slippage_bps: param.max_slippage_bps,
             };
 
             Self::set_stored_stream(&env, stream_id, &stream);
@@ -1062,6 +1071,9 @@ impl PayrollStream {
         }
 
         let now = env.ledger().timestamp();
+        if Self::enforce_slippage_guard(&env, stream_id, &mut stream, now)? {
+            return Ok(0);
+        }
 
         // Enforce per-worker withdrawal cooldown
         let cooldown: u64 = env
@@ -1077,7 +1089,7 @@ impl PayrollStream {
         }
 
         let vested = Self::vested_amount(&stream, now);
-        let available = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
+        let available = checked_sub_i128(vested, stream.withdrawn_amount).unwrap_or(0);
 
         // Keep the stream state and worker index entry alive even if there's
         // nothing available to withdraw yet.
@@ -1179,7 +1191,7 @@ impl PayrollStream {
                 continue;
             };
             let plan = match Self::get_stored_stream(&env, stream_id) {
-                Some(stream) => {
+                Some(mut stream) => {
                     if stream.worker != caller {
                         BatchWithdrawalPlan::Result(WithdrawResult {
                             stream_id,
@@ -1199,8 +1211,15 @@ impl PayrollStream {
                             success: false,
                         })
                     } else {
+                        if Self::enforce_slippage_guard(&env, stream_id, &mut stream, now).unwrap_or(false) {
+                            BatchWithdrawalPlan::Result(WithdrawResult {
+                                stream_id,
+                                amount: 0,
+                                success: false,
+                            })
+                        } else {
                         let vested = Self::vested_amount(&stream, now);
-                        let available = vested.checked_sub(stream.withdrawn_amount).unwrap_or(0);
+                        let available = checked_sub_i128(vested, stream.withdrawn_amount).unwrap_or(0);
 
                         if available <= 0 {
                             // Keep the stream state and worker index entry alive
@@ -1217,6 +1236,7 @@ impl PayrollStream {
                                 stream,
                                 amount: available,
                             })
+                        }
                         }
                     }
                 }
@@ -1915,6 +1935,7 @@ impl PayrollStream {
             metadata_hash,
             core::option::Option::<stream_curve::SpeedCurve>::None, // speed_curve not supported via gateway yet
             None,
+            0,
         )
     }
 
@@ -1934,6 +1955,29 @@ impl PayrollStream {
     /// Get the authorized DAO governance contract address.
     pub fn get_dao_governance(env: Env) -> Option<Address> {
         env.storage().instance().get(&DataKey::DaoGovernance)
+    }
+
+    pub fn set_current_exchange_rate_bps(env: Env, rate_bps: i128) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+        if rate_bps <= 0 {
+            return Err(QuipayError::InvalidAmount);
+        }
+        env.storage()
+            .instance()
+            .set(&DataKey::CurrentExchangeRateBps, &rate_bps);
+        Ok(())
+    }
+
+    pub fn get_current_exchange_rate_bps(env: Env) -> i128 {
+        env.storage()
+            .instance()
+            .get(&DataKey::CurrentExchangeRateBps)
+            .unwrap_or(DEFAULT_EXCHANGE_RATE_BPS)
     }
 
     /// Create a stream via an executed DAO governance proposal.
@@ -1971,6 +2015,7 @@ impl PayrollStream {
             metadata_hash,
             core::option::Option::<stream_curve::SpeedCurve>::None,
             None,
+            0,
         )?;
 
         env.events().publish(
@@ -2095,6 +2140,7 @@ impl PayrollStream {
         metadata_hash: Option<BytesN<32>>,
         speed_curve: Option<stream_curve::SpeedCurve>,
         clawback_authority: Option<Address>,
+        max_slippage_bps: u32,
     ) -> Result<u64, QuipayError> {
         require!(
             !Self::is_blacklisted(env.clone(), employer.clone())
@@ -2226,6 +2272,8 @@ impl PayrollStream {
             cancel_effective_at: 0,
             speed_curve: speed_curve.unwrap_or(stream_curve::SpeedCurve::Linear),
             clawback_authority,
+            expected_exchange_rate_bps: Self::get_current_exchange_rate_bps(env.clone()),
+            max_slippage_bps,
         };
 
         Self::set_stored_stream(&env, stream_id, &stream);
@@ -2893,6 +2941,52 @@ impl PayrollStream {
             return Err(QuipayError::ProtocolPaused);
         }
         Ok(())
+    }
+
+    fn enforce_slippage_guard(
+        env: &Env,
+        stream_id: u64,
+        stream: &mut Stream,
+        now: u64,
+    ) -> Result<bool, QuipayError> {
+        // Zero tolerance is treated as "slippage guard disabled" to keep existing
+        // streams backward compatible.
+        if stream.max_slippage_bps == 0 {
+            return Ok(false);
+        }
+
+        let expected = stream.expected_exchange_rate_bps;
+        let current = Self::get_current_exchange_rate_bps(env.clone());
+        if expected <= 0 || current <= 0 {
+            return Ok(false);
+        }
+
+        let diff = if current >= expected {
+            current - expected
+        } else {
+            expected - current
+        };
+        let diff_bps = diff
+            .checked_mul(10_000)
+            .and_then(|scaled| scaled.checked_div(expected))
+            .ok_or(QuipayError::ArithmeticOverflow)?;
+
+        if diff_bps > stream.max_slippage_bps as i128 {
+            stream.status = StreamStatus::Paused;
+            stream.paused_at = now;
+            Self::set_stored_stream(env, stream_id, stream);
+            env.events().publish(
+                (
+                    Symbol::new(env, "stream"),
+                    Symbol::new(env, "paused_slippage"),
+                    stream_id,
+                ),
+                (expected, current, stream.max_slippage_bps),
+            );
+            return Ok(true);
+        }
+
+        Ok(false)
     }
 
     fn is_closed(stream: &Stream) -> bool {

@@ -34,6 +34,7 @@ fn test_register_and_get_worker() {
     assert_eq!(profile.wallet, worker);
     assert_eq!(profile.preferred_token, preferred_token);
     assert_eq!(profile.metadata_hash, metadata_hash);
+    assert_eq!(profile.is_archived, false);
 }
 
 #[test]
@@ -402,4 +403,39 @@ fn test_blacklist_address_and_unblacklist_address_flow() {
     client.unblacklist_address(&worker);
     assert_eq!(client.is_blacklisted(&worker), false);
     client.register_worker(&worker, &token, &hash);
+}
+
+#[test]
+fn test_archive_and_unarchive_employee_flow() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
+
+    let admin = Address::generate(&e);
+    let employer = Address::generate(&e);
+    let worker = Address::generate(&e);
+    let token = Address::generate(&e);
+    let hash = String::from_str(&e, "QmArchive");
+
+    client.initialize(&admin);
+    client.register_worker(&worker, &token, &hash);
+    client.set_stream_active(&employer, &worker, &true);
+
+    client.archive_employee(&employer, &worker);
+    let archived = client.get_archived_employees();
+    assert_eq!(archived.len(), 1);
+    assert_eq!(archived.get(0).unwrap().wallet, worker);
+    assert_eq!(archived.get(0).unwrap().is_archived, true);
+
+    let active = client.get_workers_by_employer(&employer, &0, &10);
+    assert_eq!(active.len(), 0);
+
+    client.unarchive_employee(&employer, &worker);
+    let archived_after = client.get_archived_employees();
+    assert_eq!(archived_after.len(), 0);
+
+    client.set_stream_active(&employer, &worker, &true);
+    let active_after = client.get_workers_by_employer(&employer, &0, &10);
+    assert_eq!(active_after.len(), 1);
 }

@@ -73,6 +73,10 @@ pub enum QuipayError {
     StartTimeInPast = 1023,
     /// An arithmetic operation overflowed `i128`.
     Overflow = 1024,
+    /// Checked arithmetic operation failed (overflow, underflow, or division by zero).
+    ArithmeticOverflow = 1046,
+    /// Stream release halted due to slippage beyond tolerated basis points.
+    SlippageExceeded = 1047,
 
     // ── Compliance ────────────────────────────────────────────────────────────
     /// The minimum retention period for funds has not elapsed.

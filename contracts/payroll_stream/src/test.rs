@@ -144,7 +144,28 @@ fn make_stream_params(
         metadata_hash: None,
         speed_curve: MaybeSpeedCurve::Some(stream_curve::SpeedCurve::Linear),
         clawback_authority: None,
+        max_slippage_bps: 0,
     }
+}
+
+#[test]
+fn test_slippage_guard_pauses_stream_when_tolerance_exceeded() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, employer, worker, token, _) = setup(&env);
+
+    client.set_current_exchange_rate_bps(&10_000);
+    let mut params = make_stream_params(&employer, &worker, &token, 10, 0, 100);
+    params.max_slippage_bps = 100; // 1%
+    let stream_ids = client.create_stream_batch(&soroban_sdk::vec![&env, params], &0);
+    let stream_id = stream_ids.get(0).unwrap();
+
+    client.set_current_exchange_rate_bps(&11_500); // 15% deviation
+    let withdrawn = client.withdraw(&stream_id, &worker);
+    assert_eq!(withdrawn, 0);
+
+    let stream = client.get_stream(&stream_id).unwrap();
+    assert_eq!(stream.status, StreamStatus::Paused);
 }
 
 #[test]
@@ -2144,6 +2165,7 @@ fn test_batch_create_with_mixed_cliff_times() {
             metadata_hash: None,
             speed_curve: MaybeSpeedCurve::Some(stream_curve::SpeedCurve::Linear),
             clawback_authority: None,
+            max_slippage_bps: 0,
         },
         StreamParams {
             employer: employer.clone(),
@@ -2156,6 +2178,7 @@ fn test_batch_create_with_mixed_cliff_times() {
             metadata_hash: None,
             speed_curve: MaybeSpeedCurve::Some(stream_curve::SpeedCurve::Linear),
             clawback_authority: None,
+            max_slippage_bps: 0,
         },
         StreamParams {
             employer: employer.clone(),
@@ -2168,6 +2191,7 @@ fn test_batch_create_with_mixed_cliff_times() {
             metadata_hash: None,
             speed_curve: MaybeSpeedCurve::Some(stream_curve::SpeedCurve::Linear),
             clawback_authority: None,
+            max_slippage_bps: 0,
         },
     ];
 

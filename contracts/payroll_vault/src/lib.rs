@@ -1,6 +1,6 @@
 #![no_std]
 #![allow(unexpected_cfgs)]
-use quipay_common::{QuipayError, require_positive_amount};
+use quipay_common::{QuipayError, checked_add_i128, require_positive_amount};
 use soroban_sdk::{
     Address, BytesN, Env, Symbol, Vec, contract, contractimpl, contracttype, symbol_short, token,
 };
@@ -653,7 +653,7 @@ impl PayrollVault {
         // Update treasury balance
         let key = StateKey::TreasuryBalance(token.clone());
         let current_balance: i128 = e.storage().persistent().get(&key).unwrap_or(0);
-        let new_total = current_balance + amount;
+        let new_total = checked_add_i128(current_balance, amount)?;
         e.storage().persistent().set(&key, &new_total);
 
         let token_client = token::Client::new(&e, &token);

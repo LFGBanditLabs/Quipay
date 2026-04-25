@@ -236,8 +236,7 @@ const sendEmailAlert = async (
   const sendgridKey = process.env.SENDGRID_API_KEY;
   const sendgrid = getSendgridConfig();
   if (!sendgrid) {
-    const employer =
-      "employer" in payload ? payload.employer : payload.employer;
+    const employer = payload.employer;
     await serviceLogger.warn("Notifier", "SendGrid not configured; skipping email alert", {
       event_type: "email_alert_skipped",
       employer: truncateAddress(employer),
@@ -252,7 +251,7 @@ const sendEmailAlert = async (
       : WORKER_ALERT_EMAIL_TO || ALERT_EMAIL_TO;
 
   if (!to) {
-    const employer = "employer" in payload ? payload.employer : payload.employer;
+    const employer = payload.employer;
     await serviceLogger.warn("Notifier", "ALERT_EMAIL_TO not set; skipping email alert", {
       event_type: "email_alert_skipped",
       employer: truncateAddress(employer),
@@ -263,7 +262,7 @@ const sendEmailAlert = async (
 
   ensureSendgridInitialized(sendgrid.apiKey);
 
-  const employerAddress = "employer" in payload ? payload.employer : payload.employer;
+  const employerAddress = payload.employer;
   const employerShort = truncateAddress(employerAddress);
 
   const rendered =

@@ -78,3 +78,16 @@ ORDER BY created_at DESC;
 ```
 
 The integration suite asserts that PostgreSQL chooses an index-backed plan for these lookups, which is the expected improvement over sequential scans as the dataset grows.
+
+## Issue #897 status
+
+The backend schema in this repository models stream-heavy payroll workloads, so
+the frequently queried columns are covered by:
+
+- `idx_streams_employer` (`payroll_streams.employer_address`)
+- `idx_streams_worker` (`payroll_streams.worker_address`)
+- `idx_streams_created_at` (`payroll_streams.created_at DESC`)
+- `idx_streams_status` (`payroll_streams.status`)
+
+These indexes are already present in `backend/src/db/schema.ts` and generated
+into `backend/drizzle/0000_quick_landau.sql`, so migration checks remain green.
