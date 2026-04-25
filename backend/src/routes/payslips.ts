@@ -44,9 +44,20 @@ const workerNotificationPreferencesSchema = z.object({
   lowRunwayAlerts: z.boolean().optional(),
 });
 
+export const WORKERS_LIST_DEFAULT_LIMIT = 20;
+export const WORKERS_LIST_MAX_LIMIT = 100;
+
 const workersFieldSelectionSchema = z.object({
   fields: z.enum(["summary", "full"]).optional(),
   org_id: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(WORKERS_LIST_MAX_LIMIT, `limit cannot exceed ${WORKERS_LIST_MAX_LIMIT}`)
+    .optional(),
+  cursor: z.string().optional(),
 });
 
 const mapWorkerRowToSummary = (row: any): WorkerSummaryDto => ({
@@ -82,9 +93,18 @@ payslipsRouter.get(
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const { fields = "summary", org_id } = req.query as {
+      const {
+        fields = "summary",
+        org_id,
+        page,
+        limit,
+        cursor,
+      } = req.query as {
         fields?: "summary" | "full";
         org_id?: string;
+        page?: number;
+        limit?: number;
+        cursor?: string;
       };
       const isAdmin =
         req.user.role === Role.Admin || req.user.role === Role.SuperAdmin;
@@ -96,11 +116,51 @@ payslipsRouter.get(
         });
       }
 
+      const effectiveLimit = limit ?? WORKERS_LIST_DEFAULT_LIMIT;
+      const effectivePage = page ?? 1;
+      if (effectiveLimit > WORKERS_LIST_MAX_LIMIT || effectiveLimit < 1) {
+        return res.status(400).json({
+          error: "Bad Request",
+          message: `limit must be between 1 and ${WORKERS_LIST_MAX_LIMIT}`,
+        });
+      }
+
       const employerFilter = isAdmin ? org_id?.trim() || null : req.user.id;
-      const whereClause = employerFilter
+      const baseWhere = employerFilter
         ? "WHERE employer_address = $1 AND deleted_at IS NULL"
         : "WHERE deleted_at IS NULL";
-      const params = employerFilter ? [employerFilter] : [];
+      const baseParams: unknown[] = employerFilter ? [employerFilter] : [];
+
+      // Total count for pagination metadata.
+      const countResult = await query<{ count: string }>(
+        `SELECT COUNT(DISTINCT worker_address)::text AS count
+         FROM payroll_streams ${baseWhere}`,
+        baseParams,
+      );
+      const total = Number(countResult.rows[0]?.count ?? 0);
+      const totalPages = effectiveLimit > 0
+        ? Math.max(1, Math.ceil(total / effectiveLimit))
+        : 1;
+
+      // Cursor pagination: caller passes the last-seen worker name (URL-safe).
+      // When a cursor is supplied we ignore page/offset and stream the next slice.
+      const usingCursor = typeof cursor === "string" && cursor.length > 0;
+      let pagedWhere = baseWhere;
+      const pagedParams: unknown[] = [...baseParams];
+      if (usingCursor) {
+        pagedParams.push(cursor);
+        const cursorClause = `name > $${pagedParams.length}`;
+        pagedWhere = `${baseWhere} HAVING ${cursorClause}`;
+      }
+
+      pagedParams.push(effectiveLimit);
+      const limitParamIdx = pagedParams.length;
+      let offsetClause = "";
+      if (!usingCursor) {
+        const offset = (effectivePage - 1) * effectiveLimit;
+        pagedParams.push(offset);
+        offsetClause = ` OFFSET $${pagedParams.length}`;
+      }
 
       const workersResult = await query<any>(
         `SELECT
@@ -119,10 +179,11 @@ payslipsRouter.get(
           MAX(metadata->>'phone') AS phone,
           MAX(metadata) AS metadata
         FROM payroll_streams
-        ${whereClause}
+        ${pagedWhere}
         GROUP BY worker_address, employer_address
-        ORDER BY name ASC`,
-        params,
+        ORDER BY name ASC
+        LIMIT $${limitParamIdx}${offsetClause}`,
+        pagedParams,
       );
 
       const data =
@@ -130,7 +191,17 @@ payslipsRouter.get(
           ? workersResult.rows.map(mapWorkerRowToFull)
           : workersResult.rows.map(mapWorkerRowToSummary);
 
-      return res.json({ data });
+      const lastName: string | null =
+        data.length > 0 ? (data[data.length - 1] as { name: string }).name : null;
+      const meta = {
+        total,
+        page: usingCursor ? null : effectivePage,
+        limit: effectiveLimit,
+        totalPages: usingCursor ? null : totalPages,
+        nextCursor: data.length === effectiveLimit ? lastName : null,
+      };
+
+      return res.json({ data, meta });
     } catch (error) {
       logServiceError("workersRouter", "Failed to fetch workers", {
         error: error instanceof Error ? error.message : String(error),
