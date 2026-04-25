@@ -5,6 +5,7 @@ import {
   FeeBumpTransaction,
 } from "@stellar/stellar-sdk";
 import NodeCache from "node-cache";
+import { instrumentStellarRpc } from "../metrics";
 
 export const stellarRouter = Router();
 
@@ -65,7 +66,10 @@ stellarRouter.post(
       }
 
       // Simulate transaction to get fee estimate
-      const simulationResult = await server.simulateTransaction(transaction);
+      const simulationResult = await instrumentStellarRpc(
+        "simulateTransaction",
+        () => server.simulateTransaction(transaction),
+      );
 
       // Check if simulation failed (error is a string in error responses)
       if (
@@ -147,7 +151,9 @@ stellarRouter.post(
  */
 stellarRouter.get("/health", async (_req: Request, res: Response) => {
   try {
-    const latestLedger = await server.getLatestLedger();
+    const latestLedger = await instrumentStellarRpc("getLatestLedger", () =>
+      server.getLatestLedger(),
+    );
     res.json({
       status: "healthy",
       latestLedger: latestLedger.sequence,
