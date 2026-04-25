@@ -23,6 +23,7 @@ const DEFAULT_SECRETS_CONFIG: SecretsConfig = {
     "SLACK_SIGNING_SECRET",
     "REDIS_URL",
     "HOT_WALLET_SECRET",
+    "PAYSLIP_SIGNING_KEY_PRIVATE",
     "QUIPAY_WEBHOOK_SIGNING_SECRET",
   ],
 };
@@ -42,10 +43,32 @@ export class SecretsBootstrap {
   }
 
   async initialize(): Promise<void> {
-    await logServiceInfo("SecretsBootstrap", "Starting secrets initialization");
+    await this.bootstrapSecrets();
+  }
+
+  /**
+   * Bootstraps secrets from Vault or environment variables.
+   * Fetches all configured secrets and injects them into process.env.
+   */
+  async bootstrapSecrets(): Promise<void> {
+    await logServiceInfo("SecretsBootstrap", "Starting secrets bootstrapping");
 
     await this.checkVaultHealth();
+    
+    // If Vault is healthy, also check token validity
+    if (this.isVaultAvailable) {
+      const tokenValid = await vaultService.isTokenValid();
+      if (!tokenValid) {
+        await logServiceWarn(
+          "SecretsBootstrap",
+          "Vault token is invalid, falling back to environment variables",
+        );
+        this.isVaultAvailable = false;
+      }
+    }
+
     await this.fetchAllSecrets();
+    this.injectSecretsIntoEnv();
     this.validateRequiredSecrets();
 
     if (this.isVaultAvailable) {
@@ -57,7 +80,15 @@ export class SecretsBootstrap {
       );
     }
 
-    await logServiceInfo("SecretsBootstrap", "Secrets initialization complete");
+    await logServiceInfo("SecretsBootstrap", "Secrets bootstrapping complete");
+  }
+
+  private injectSecretsIntoEnv(): void {
+    for (const [key, value] of this.fetchedSecrets.entries()) {
+      if (value !== null) {
+        process.env[key] = value;
+      }
+    }
   }
 
   private async checkVaultHealth(): Promise<void> {
