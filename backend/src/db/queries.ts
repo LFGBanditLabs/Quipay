@@ -2,6 +2,8 @@ import { query, getPool } from "./pool";
 import { globalCache } from "../utils/cache";
 import { DatabaseError } from "../errors/AppError";
 import { invalidatePayrollSummaryCache } from "../services/payrollSummaryCache";
+import { validateRow } from "./validation";
+import { overallStatsSchema } from "./schemas";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -295,7 +297,7 @@ export const recordVaultEvent = async (params: {
 // ─── Analytics reads ─────────────────────────────────────────────────────────
 
 export const getOverallStats = async (): Promise<OverallStats> => {
-  const res = await query<OverallStats>(`
+  const res = await query<Record<string, unknown>>(`
         SELECT
             COUNT(*)                                       AS total_streams,
             COUNT(*) FILTER (WHERE status = 'active')      AS active_streams,
@@ -306,7 +308,10 @@ export const getOverallStats = async (): Promise<OverallStats> => {
         FROM payroll_streams
         WHERE deleted_at IS NULL
     `);
-  const row = res.rows[0];
+  // #930: validate the row at the trust boundary so a schema drift surfaces
+  // as a typed DatabaseValidationError instead of silently propagating
+  // `undefined` into the OverallStats response.
+  const row = validateRow("getOverallStats", res.rows[0], overallStatsSchema);
   return {
     total_streams: Number(row.total_streams),
     active_streams: Number(row.active_streams),
