@@ -48,6 +48,8 @@ fn legacy_stream(employer: &Address, worker: &Address, token: &Address) -> Strea
         cancel_effective_at: 0,
         speed_curve: stream_curve::SpeedCurve::Linear,
         clawback_authority: None,
+        expected_exchange_rate_bps: 10_000,
+        max_slippage_bps: 0,
     }
 }
 

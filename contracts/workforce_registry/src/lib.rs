@@ -8,6 +8,7 @@ pub struct WorkerProfile {
     pub wallet: Address,
     pub preferred_token: Address,
     pub metadata_hash: String,
+    pub is_archived: bool,
 }
 
 #[derive(Clone)]
@@ -20,6 +21,7 @@ pub enum DataKey {
     EmployerActiveWorkerByIndex(Address, u32),
     EmployerActiveWorkerIndex(Address, Address),
     BlacklistedWorker(Address),
+    ArchivedWorkers,
 }
 
 #[contract]
@@ -114,15 +116,18 @@ impl WorkforceRegistryContract {
         );
 
         let key = DataKey::Worker(worker.clone());
-        require!(
-            !e.storage().persistent().has(&key),
-            QuipayError::AlreadyInitialized
-        );
+        if let Some(existing) = e.storage().persistent().get::<DataKey, WorkerProfile>(&key) {
+            if !existing.is_archived {
+                return Err(QuipayError::AlreadyInitialized);
+            }
+            Self::remove_from_archived_workers(&e, &worker);
+        }
 
         let profile = WorkerProfile {
             wallet: worker.clone(),
             preferred_token: preferred_token.clone(),
             metadata_hash: metadata_hash.clone(),
+            is_archived: false,
         };
 
         e.storage().persistent().set(&key, &profile);
@@ -175,6 +180,7 @@ impl WorkforceRegistryContract {
             wallet: worker.clone(),
             preferred_token: preferred_token.clone(),
             metadata_hash: metadata_hash.clone(),
+            is_archived: false,
         };
 
         e.storage().persistent().set(&key, &profile);
@@ -224,7 +230,19 @@ impl WorkforceRegistryContract {
         worker: Address,
         active: bool,
     ) -> Result<(), QuipayError> {
-        employer.require_auth();
+        Self::set_stream_active_internal(e, employer, worker, active, true)
+    }
+
+    fn set_stream_active_internal(
+        e: Env,
+        employer: Address,
+        worker: Address,
+        active: bool,
+        require_auth: bool,
+    ) -> Result<(), QuipayError> {
+        if require_auth {
+            employer.require_auth();
+        }
 
         // Check if worker is blacklisted
         let blacklist_key = DataKey::BlacklistedWorker(worker.clone());
@@ -241,6 +259,12 @@ impl WorkforceRegistryContract {
             e.storage().persistent().has(&worker_key),
             QuipayError::WorkerNotFound
         );
+        let profile: WorkerProfile = e
+            .storage()
+            .persistent()
+            .get(&worker_key)
+            .ok_or(QuipayError::WorkerNotFound)?;
+        require!(!profile.is_archived, QuipayError::WorkerNotFound);
 
         let idx_key = DataKey::EmployerActiveWorkerIndex(employer.clone(), worker.clone());
         let is_active = e.storage().persistent().has(&idx_key);
@@ -402,6 +426,84 @@ impl WorkforceRegistryContract {
         Ok(())
     }
 
+    pub fn archive_employee(e: Env, employer: Address, employee: Address) -> Result<(), QuipayError> {
+        employer.require_auth();
+        let key = DataKey::Worker(employee.clone());
+        let mut profile: WorkerProfile = e
+            .storage()
+            .persistent()
+            .get(&key)
+            .ok_or(QuipayError::WorkerNotFound)?;
+        if profile.is_archived {
+            return Ok(());
+        }
+        let idx_key = DataKey::EmployerActiveWorkerIndex(employer.clone(), employee.clone());
+        if e.storage().persistent().has(&idx_key) {
+            Self::set_stream_active_internal(
+                e.clone(),
+                employer.clone(),
+                employee.clone(),
+                false,
+                false,
+            )?;
+        }
+        profile.is_archived = true;
+        e.storage().persistent().set(&key, &profile);
+        let mut archived = Self::get_archived_workers_index(&e);
+        if !archived.contains(employee.clone()) {
+            archived.push_back(employee.clone());
+            e.storage().persistent().set(&DataKey::ArchivedWorkers, &archived);
+        }
+        e.events().publish(
+            (symbol_short!("w_reg"), symbol_short!("arch"), employer, employee),
+            (),
+        );
+        Ok(())
+    }
+
+    pub fn unarchive_employee(
+        e: Env,
+        employer: Address,
+        employee: Address,
+    ) -> Result<(), QuipayError> {
+        employer.require_auth();
+        let key = DataKey::Worker(employee.clone());
+        let mut profile: WorkerProfile = e
+            .storage()
+            .persistent()
+            .get(&key)
+            .ok_or(QuipayError::WorkerNotFound)?;
+        if !profile.is_archived {
+            return Ok(());
+        }
+        profile.is_archived = false;
+        e.storage().persistent().set(&key, &profile);
+        Self::remove_from_archived_workers(&e, &employee);
+        e.events().publish(
+            (symbol_short!("w_reg"), symbol_short!("unarch"), employer, employee),
+            (),
+        );
+        Ok(())
+    }
+
+    pub fn get_archived_employees(e: Env) -> Vec<WorkerProfile> {
+        let archived = Self::get_archived_workers_index(&e);
+        let mut out: Vec<WorkerProfile> = Vec::new(&e);
+        let mut i = 0u32;
+        while i < archived.len() {
+            if let Some(worker) = archived.get(i) {
+                let key = DataKey::Worker(worker);
+                if let Some(profile) = e.storage().persistent().get::<DataKey, WorkerProfile>(&key) {
+                    if profile.is_archived {
+                        out.push_back(profile);
+                    }
+                }
+            }
+            i += 1;
+        }
+        out
+    }
+
     fn set_blacklist_state(e: Env, worker: Address, blacklisted: bool) -> Result<(), QuipayError> {
         let admin = Self::get_admin(e.clone())?;
         admin.require_auth();
@@ -453,6 +555,31 @@ impl WorkforceRegistryContract {
     pub fn is_blacklisted(e: Env, worker: Address) -> bool {
         let key = DataKey::BlacklistedWorker(worker);
         e.storage().persistent().get(&key).unwrap_or(false)
+    }
+
+    fn get_archived_workers_index(e: &Env) -> Vec<Address> {
+        e.storage()
+            .persistent()
+            .get(&DataKey::ArchivedWorkers)
+            .unwrap_or(Vec::new(e))
+    }
+
+    fn remove_from_archived_workers(e: &Env, worker: &Address) {
+        let archived = Self::get_archived_workers_index(e);
+        if archived.is_empty() {
+            return;
+        }
+        let mut filtered = Vec::new(e);
+        let mut i = 0u32;
+        while i < archived.len() {
+            if let Some(entry) = archived.get(i) {
+                if entry != *worker {
+                    filtered.push_back(entry);
+                }
+            }
+            i += 1;
+        }
+        e.storage().persistent().set(&DataKey::ArchivedWorkers, &filtered);
     }
 }
 
