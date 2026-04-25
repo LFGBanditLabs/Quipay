@@ -13,6 +13,8 @@ const feeEstimateCache = new NodeCache({ stdTTL: 30, checkperiod: 5 });
 
 const SOROBAN_RPC_URL =
   process.env.PUBLIC_STELLAR_RPC_URL || "https://soroban-testnet.stellar.org";
+const networkPassphrase =
+  process.env.STELLAR_NETWORK_PASSPHRASE || "Test SDF Network ; September 2015";
 const server = new rpc.Server(SOROBAN_RPC_URL);
 
 /**
@@ -138,9 +140,6 @@ stellarRouter.post(
     }
   },
 );
-
-const networkPassphrase =
-  process.env.STELLAR_NETWORK_PASSPHRASE || "Test SDF Network ; September 2015";
 
 /**
  * GET /api/stellar/health

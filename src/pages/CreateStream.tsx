@@ -6,6 +6,7 @@ import { useNotification } from "../hooks/useNotification";
 import Tooltip from "../components/Tooltip";
 import CollapsibleSection from "../components/CollapsibleSection";
 import { useStreamTemplates } from "../hooks/useStreamTemplates";
+import BulkStreamCreator from "../components/BulkStreamCreator";
 
 const CreateStream: React.FC = () => {
   const tw = {
@@ -23,13 +24,14 @@ const CreateStream: React.FC = () => {
   };
 
   const navigate = useNavigate();
-  const { addNotification } = useNotification();
+  const { addNotification, addStreamNotification } = useNotification();
   const { templates, addTemplate } = useStreamTemplates();
   const location = useLocation();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [hasLoadedFromLocation, setHasLoadedFromLocation] = useState(false);
   const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
+  const [mode, setMode] = useState<"single" | "bulk">("single");
   const [formData, setFormData] = useState({
     workerAddress: "",
     workerName: "",
@@ -416,6 +418,9 @@ const CreateStream: React.FC = () => {
       handleSaveAsTemplate();
     }
     addNotification("Payment stream created successfully!", "success");
+    addStreamNotification("stream_created", {
+      message: `Created stream for ${formData.workerName || "worker"}.`,
+    });
     void navigate("/dashboard");
   };
 
@@ -431,13 +436,61 @@ const CreateStream: React.FC = () => {
           </Text>
         </div>
 
-        <Wizard
-          steps={steps}
-          onComplete={handleComplete}
-          onCancel={() => {
-            void navigate("/dashboard");
+        {/* Mode tabs */}
+        <div
+          style={{
+            display: "flex",
+            gap: "0.5rem",
+            marginBottom: "1.5rem",
+            borderBottom: "1px solid var(--border)",
+            paddingBottom: "0.75rem",
           }}
-        />
+        >
+          <button
+            type="button"
+            onClick={() => setMode("single")}
+            style={{
+              padding: "0.4rem 1rem",
+              borderRadius: "0.5rem",
+              border: "1px solid var(--border)",
+              background: mode === "single" ? "var(--accent)" : "transparent",
+              color: mode === "single" ? "#fff" : "var(--muted)",
+              fontWeight: 600,
+              fontSize: "0.875rem",
+              cursor: "pointer",
+            }}
+          >
+            Single Stream
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("bulk")}
+            style={{
+              padding: "0.4rem 1rem",
+              borderRadius: "0.5rem",
+              border: "1px solid var(--border)",
+              background: mode === "bulk" ? "var(--accent)" : "transparent",
+              color: mode === "bulk" ? "#fff" : "var(--muted)",
+              fontWeight: 600,
+              fontSize: "0.875rem",
+              cursor: "pointer",
+            }}
+          >
+            Bulk Upload (CSV)
+          </button>
+        </div>
+
+        {mode === "single" ? (
+          <Wizard
+            steps={steps}
+            onComplete={handleComplete}
+            onCancel={() => {
+              void navigate("/dashboard");
+            }}
+          />
+        ) : (
+          <BulkStreamCreator />
+        )}
 
         <div style={{ marginTop: "3rem", textAlign: "center" }}>
           <Text as="p" size="sm" style={{ color: "var(--muted)" }}>

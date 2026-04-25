@@ -11,16 +11,21 @@
 
 .stream-progress-bar {
   position: relative;
-  height: 0.625rem; /* 10px */
+  height: var(--token-space-2);
   overflow: hidden;
-  border-radius: 9999px;
-  background: var(--surface, #1e1e2e);
+  border-radius: var(--token-radius-pill);
+  background: var(--surface);
 }
 
 .stream-progress-fill {
   height: 100%;
-  border-radius: 9999px;
-  background: linear-gradient(90deg, #4f46e5, #0ea5e9, #4f46e5);
+  border-radius: var(--token-radius-pill);
+  background: linear-gradient(
+    90deg,
+    var(--token-color-accent),
+    var(--token-color-brand-500),
+    var(--token-color-accent)
+  );
   background-size: 200% 100%;
   animation: stream-shimmer 2.4s ease-in-out infinite;
   transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
@@ -31,27 +36,27 @@
 .stream-stats {
   display: flex;
   justify-content: space-between;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
+  gap: var(--token-space-2);
+  margin-top: var(--token-space-3);
 }
 
 .stream-stat {
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
+  gap: var(--token-space-1);
 }
 
 .stream-stat-label {
-  font-size: 0.75rem;
+  font-size: var(--token-font-size-xs);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted, #94a3b8);
+  letter-spacing: var(--token-letter-spacing-caps);
+  color: var(--muted);
 }
 
 .stream-stat-value {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text, #e2e8f0);
+  font-size: var(--token-font-size-sm);
+  font-weight: var(--token-font-weight-semibold);
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 
@@ -60,23 +65,25 @@
 .stream-countdown {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  padding: 0.625rem 0.75rem;
-  border-radius: 0.75rem;
-  font-size: 0.8125rem;
+  gap: var(--token-space-2);
+  margin-top: var(--token-space-4);
+  padding: var(--token-space-2) var(--token-space-3);
+  border-radius: var(--token-radius-lg);
+  font-size: var(--token-font-size-caption);
 }
 
 .stream-countdown--locked {
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  background: rgba(245, 158, 11, 0.08);
-  color: #f59e0b;
+  border: var(--token-size-hairline) solid
+    var(--token-color-warning-soft-strong);
+  background: var(--token-color-warning-soft);
+  color: var(--token-color-warning-500);
 }
 
 .stream-countdown--available {
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  background: rgba(16, 185, 129, 0.08);
-  color: #10b981;
+  border: var(--token-size-hairline) solid
+    var(--token-color-success-soft-strong);
+  background: var(--token-color-success-soft);
+  color: var(--token-color-success-500);
 }
 
 @keyframes pulse-dot {
@@ -90,19 +97,56 @@
 }
 
 .stream-countdown-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 9999px;
+  width: var(--token-space-2);
+  height: var(--token-space-2);
+  border-radius: var(--token-radius-pill);
   background: currentColor;
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
 .stream-countdown-label {
-  font-weight: 600;
+  font-weight: var(--token-font-weight-semibold);
 }
 
 .stream-countdown-time {
   margin-left: auto;
-  font-family: monospace;
-  font-weight: 600;
+  font-family: var(--token-font-family-mono);
+  font-weight: var(--token-font-weight-semibold);
+}
+
+.stream-progress-card {
+  padding: var(--token-space-4);
+  border-radius: var(--token-radius-lg);
+  border: var(--token-size-hairline) solid var(--sds-color-neutral-border);
+  background: var(--sds-color-background-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--token-space-2);
+}
+
+.stream-progress-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stream-progress-card-title {
+  font-size: var(--token-font-size-sm);
+  font-weight: var(--token-font-weight-semibold);
+  color: var(--text);
+}
+
+.stream-progress-card-status {
+  font-size: var(--token-font-size-xs);
+  color: var(--muted);
+  font-weight: var(--token-font-weight-regular);
+}
+
+.stream-progress-card-status--complete {
+  color: var(--token-color-success-500);
+  font-weight: var(--token-font-weight-semibold);
+}
+
+.stream-progress-fill--complete {
+  background: var(--token-color-success-500);
 }

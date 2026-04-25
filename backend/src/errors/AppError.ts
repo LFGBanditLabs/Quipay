@@ -103,6 +103,14 @@ export class InternalError extends AppError {
   }
 }
 
+// ─── 500 Configuration Error ───────────────────────────────────────────────────
+
+export class ConfigError extends AppError {
+  constructor(message: string) {
+    super(message, 500, "CONFIGURATION_ERROR", undefined, false);
+  }
+}
+
 // ─── 502/503 Upstream Errors ─────────────────────────────────────────────────
 
 export class StellarNetworkError extends AppError {
@@ -111,8 +119,25 @@ export class StellarNetworkError extends AppError {
   }
 }
 
+export class UpstreamStorageError extends AppError {
+  constructor(
+    message = "Upstream storage service request failed",
+    details?: unknown,
+  ) {
+    super(message, 502, "UPSTREAM_STORAGE_ERROR", details);
+  }
+}
+
 export class ServiceUnavailableError extends AppError {
   constructor(message = "Service temporarily unavailable") {
     super(message, 503, "SERVICE_UNAVAILABLE");
+  }
+}
+
+// ─── 507 Insufficient Storage ────────────────────────────────────────────────
+
+export class StorageError extends AppError {
+  constructor(message = "Insufficient storage", details?: unknown) {
+    super(message, 507, "STORAGE_ERROR", details);
   }
 }

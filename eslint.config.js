@@ -6,7 +6,6 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import reactX from "eslint-plugin-react-x";
 import tseslint from "typescript-eslint";
 import prettier from "eslint-config-prettier";
-import { globalIgnores } from "eslint/config";
 
 export default tseslint.config(
   {
@@ -19,9 +18,12 @@ export default tseslint.config(
       "backend/**",
       "developer-hub/**",
       "scripts/**",
+      "src/stories/**",
       "*.mjs",
       "*.cjs",
       "*.js",
+      "**/*.js",
+      "src/stories/**",
     ],
   },
   js.configs.recommended,
@@ -54,6 +56,7 @@ export default tseslint.config(
         "warn",
         { allowConstantExport: true },
       ],
+      "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unsafe-assignment": "off",
       "@typescript-eslint/no-unsafe-call": "off",
       "@typescript-eslint/no-unsafe-member-access": "off",

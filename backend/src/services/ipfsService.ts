@@ -1,8 +1,6 @@
 import axios from "axios";
-
-const PINATA_JWT = process.env.PINATA_JWT || "";
-const PINATA_GATEWAY_URL =
-  process.env.PINATA_GATEWAY_URL || "https://gateway.pinata.cloud";
+import { ConfigError } from "../errors/AppError";
+import { createCircuitBreaker } from "../utils/circuitBreaker";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -13,8 +11,8 @@ const PINATA_GATEWAY_URL =
 export interface PayrollProof {
   schemaVersion: "1.0";
   streamId: number;
-  employer: string;
-  worker: string;
+  employer_address: string;
+  worker_address: string;
   tokenAddress: string;
   tokenSymbol: string;
   /** Human-readable token units (stroops / 10^7) */
@@ -45,15 +43,16 @@ export interface PinResult {
 // ─── Upload ───────────────────────────────────────────────────────────────────
 
 /**
- * Pins a PayrollProof JSON document to IPFS via the Pinata pinning service.
- * Throws if PINATA_JWT is not configured or the upload fails.
+ * Internal function to pin to IPFS without circuit breaker wrapper.
  */
-export const pinProofToIPFS = async (
-  proof: PayrollProof,
-): Promise<PinResult> => {
-  if (!PINATA_JWT) {
-    throw new Error(
-      "[IPFSService] PINATA_JWT is not configured. Set it in your environment.",
+const pinToIPFSInternal = async (proof: PayrollProof): Promise<PinResult> => {
+  const jwt = process.env.PINATA_JWT?.trim();
+  const gatewayUrl =
+    process.env.PINATA_GATEWAY_URL || "https://gateway.pinata.cloud";
+
+  if (!jwt) {
+    throw new ConfigError(
+      "PINATA_JWT is not configured. Set it in your environment.",
     );
   }
 
@@ -65,8 +64,8 @@ export const pinProofToIPFS = async (
         name: `quipay-proof-stream-${proof.streamId}.json`,
         keyvalues: {
           streamId: String(proof.streamId),
-          worker: proof.worker,
-          employer: proof.employer,
+          worker: proof.worker_address,
+          employer: proof.employer_address,
           network: proof.network,
         },
       },
@@ -74,7 +73,7 @@ export const pinProofToIPFS = async (
     },
     {
       headers: {
-        Authorization: `Bearer ${PINATA_JWT}`,
+        Authorization: `Bearer ${jwt}`,
         "Content-Type": "application/json",
       },
       timeout: 30_000,
@@ -85,6 +84,25 @@ export const pinProofToIPFS = async (
   return {
     cid,
     ipfsUrl: `ipfs://${cid}`,
-    gatewayUrl: `${PINATA_GATEWAY_URL}/ipfs/${cid}`,
+    gatewayUrl: `${gatewayUrl}/ipfs/${cid}`,
   };
+};
+
+// Circuit breaker for Pinata API calls with retry logic
+const pinataCircuitBreaker = createCircuitBreaker(pinToIPFSInternal, {
+  name: "pinata-ipfs",
+  timeout: 35_000, // Slightly longer than axios timeout
+  errorThresholdPercentage: 50,
+  resetTimeout: 60_000, // 1 minute before trying again
+});
+
+/**
+ * Pins a PayrollProof JSON document to IPFS via the Pinata pinning service.
+ * Uses circuit breaker for resilience against Pinata API failures.
+ * Throws if PINATA_JWT is not configured or the upload fails after retries.
+ */
+export const pinProofToIPFS = async (
+  proof: PayrollProof,
+): Promise<PinResult> => {
+  return await pinataCircuitBreaker.fire(proof);
 };

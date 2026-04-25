@@ -20,6 +20,27 @@ export class TestDatabase {
   async start(): Promise<{ connectionString: string; pool: Pool }> {
     console.log("[TestDB] Starting PostgreSQL container...");
 
+    const existingDbUrl = process.env.DATABASE_URL;
+    if (existingDbUrl) {
+      console.log(
+        "[TestDB] Using existing DATABASE_URL from environment:",
+        existingDbUrl,
+      );
+      // Set DATABASE_URL before init
+      process.env.DATABASE_URL = existingDbUrl;
+      await this.initializeDbPool();
+
+      const { getPool } = require("../../db/pool");
+      this.pool = getPool();
+      if (!this.pool) {
+        throw new Error("Failed to initialize database pool");
+      }
+
+      await this.createSchema();
+
+      return { connectionString: existingDbUrl, pool: this.pool };
+    }
+
     // Start PostgreSQL container
     this.container = await new PostgreSqlContainer("postgres:16-alpine")
       .withExposedPorts(5432)
@@ -92,23 +113,32 @@ export class TestDatabase {
   async clean(): Promise<void> {
     if (!this.pool) return;
 
-    await this.pool.query(`
-      TRUNCATE TABLE 
-        audit_logs,
-        dead_letter_queue,
-        employers,
-        treasury_monitor_log,
-        treasury_balances,
-        webhook_outbound_attempts,
-        webhook_outbound_events,
-        scheduler_logs,
-        payroll_schedules,
-        vault_events,
-        withdrawals,
-        payroll_streams,
-        sync_cursors
-      CASCADE
-    `);
+    await this.pool.query("SET session_replication_role = 'replica'");
+
+    try {
+      await this.pool.query(`
+        TRUNCATE TABLE
+          audit_logs,
+          dead_letter_queue,
+          employers,
+          idempotency_keys,
+          metric_snapshots,
+          treasury_monitor_log,
+          treasury_balances,
+          webhook_outbound_attempts,
+          webhook_outbound_events,
+          scheduler_logs,
+          payroll_schedules,
+          vault_events,
+          withdrawals,
+          payroll_streams,
+          sync_cursors,
+          stream_audit_log
+        CASCADE
+      `);
+    } finally {
+      await this.pool.query("SET session_replication_role = 'origin'");
+    }
   }
 
   /**

@@ -1,6 +1,6 @@
 [package]
 name = "quipay_common"
-edition.workspace = true
+edition = "2021"
 license.workspace = true
 repository.workspace = true
 publish = false

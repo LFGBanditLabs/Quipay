@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
@@ -26,12 +26,17 @@ jobs:
         working-directory: backend
       - run: npm test
         working-directory: backend
+      - name: Verify migrations are up-to-date
+        run: npx drizzle-kit check
+        working-directory: backend
+        env:
+          DATABASE_URL: "postgres://dummy:dummy@localhost:5432/dummy"
 
   query-performance:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm

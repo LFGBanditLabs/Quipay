@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Layout, Text } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
@@ -10,6 +10,7 @@ import {
 } from "../hooks/useStreams";
 import { useNotification } from "../hooks/useNotification";
 import { EarningsDisplay } from "../components/EarningsDisplay";
+import { EarningsForecast } from "../components/EarningsForecast";
 import CopyButton from "../components/CopyButton";
 import { formatTokenAmount } from "../util/tokenDecimals";
 import { StreamTimeline } from "../components/StreamTimeline";
@@ -18,12 +19,13 @@ import { EarningsSkeleton } from "../components/dashboard/EarningsSkeleton";
 import { Skeleton } from "../components/Loading/Skeleton";
 import { TableVirtuoso } from "react-virtuoso";
 import { shortHash } from "../services/reportService";
+import PayslipDownloadButton from "../components/PayslipDownloadButton";
 
 const StreamCard: React.FC<{
   stream: WorkerStream;
   withdrawals: WithdrawalRecord[];
 }> = ({ stream, withdrawals }) => {
-  const { addNotification } = useNotification();
+  const { addNotification, addStreamNotification } = useNotification();
   const { t } = useTranslation();
   const [currentEarnings, setCurrentEarnings] = useState(0);
   const [timeUntilCliff, setTimeUntilCliff] = useState<string>("");
@@ -37,6 +39,7 @@ const StreamCard: React.FC<{
       setLastEventAmount(update.amount);
     }
   });
+  const previousAvailableRef = useRef<number | null>(null);
 
   useEffect(() => {
     const calculate = () => {
@@ -60,22 +63,39 @@ const StreamCard: React.FC<{
       // Calculate earnings (only start accruing after cliff)
       if (timeToCliff > 0) {
         setCurrentEarnings(0);
+        previousAvailableRef.current = 0;
         return;
       }
 
       const elapsedAfterCliff = now - stream.cliffTime;
       if (elapsedAfterCliff < 0) {
         setCurrentEarnings(0);
+        previousAvailableRef.current = 0;
         return;
       }
       const earned = elapsedAfterCliff * stream.flowRate;
-      setCurrentEarnings(Math.min(earned, stream.totalAmount));
+      const boundedEarnings = Math.min(earned, stream.totalAmount);
+      const nextAvailable = Math.max(0, boundedEarnings - stream.claimedAmount);
+
+      if (
+        previousAvailableRef.current !== null &&
+        previousAvailableRef.current <= 0 &&
+        nextAvailable > 0
+      ) {
+        addStreamNotification("withdrawal_available", {
+          message: `Funds are now available for stream ${stream.id}.`,
+          dedupeKey: `withdrawal-available-${stream.id}`,
+        });
+      }
+
+      previousAvailableRef.current = nextAvailable;
+      setCurrentEarnings(boundedEarnings);
     };
 
     calculate();
     const interval = setInterval(calculate, 1000);
     return () => clearInterval(interval);
-  }, [stream]);
+  }, [addStreamNotification, stream]);
 
   const percentage =
     stream.totalAmount > 0 ? (currentEarnings / stream.totalAmount) * 100 : 0;
@@ -208,12 +228,15 @@ const StreamCard: React.FC<{
       </div>
 
       {/* Last event indicator */}
-      {lastEventAmount !== null && (
-        <div className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/8 px-3 py-2 text-xs text-sky-400">
-          ⚡ Last withdrawal detected: {lastEventAmount.toFixed(7)}{" "}
-          {stream.tokenSymbol}
-        </div>
-      )}
+      {lastEventAmount !== null &&
+        (() => {
+          const amt = lastEventAmount;
+          return (
+            <div className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/8 px-3 py-2 text-xs text-sky-400">
+              ⚡ Last withdrawal detected: {amt.toFixed(7)} {stream.tokenSymbol}
+            </div>
+          );
+        })()}
 
       <div
         style={{
@@ -261,7 +284,16 @@ const CompletedStreamCard: React.FC<{
   withdrawals: WithdrawalRecord[];
 }> = ({ stream, withdrawals }) => {
   const { t } = useTranslation();
+  const { address } = useWallet();
   const [showTimeline, setShowTimeline] = useState(false);
+
+  // Calculate the period (YYYY-MM) from the stream end date
+  const getPeriod = () => {
+    const endDate = new Date(stream.endTime * 1000);
+    const year = endDate.getFullYear();
+    const month = String(endDate.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}`;
+  };
 
   return (
     <div className="relative overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface-subtle)] p-6">
@@ -332,6 +364,17 @@ const CompletedStreamCard: React.FC<{
         </div>
       )}
 
+      {/* Payslip Download Button */}
+      {address && (
+        <div className="mt-4">
+          <PayslipDownloadButton
+            workerAddress={address}
+            period={getPeriod()}
+            className="w-full"
+          />
+        </div>
+      )}
+
       <button
         className="mt-4 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-3 font-semibold text-[var(--text)] transition-colors hover:bg-[var(--surface-subtle)]"
         onClick={() => setShowTimeline(!showTimeline)}
@@ -351,6 +394,40 @@ const WorkerDashboard: React.FC = () => {
   const { address } = useWallet();
   const { streams, withdrawalHistory, isLoading, error, refetch } =
     useStreams(address);
+  const { addStreamNotification } = useNotification();
+  const previousStreamStatusesRef = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const previousStatuses = previousStreamStatusesRef.current;
+    streams.forEach((stream) => {
+      const previousStatus = previousStatuses[stream.id];
+      if (previousStatus === undefined) return;
+
+      if (previousStatus !== 2 && stream.status === 2) {
+        addStreamNotification("stream_completed", {
+          message: `Stream ${stream.id} is now completed.`,
+          dedupeKey: `stream-completed-${stream.id}`,
+        });
+      }
+
+      if (previousStatus !== 1 && stream.status === 1) {
+        addStreamNotification("stream_cancelled", {
+          message: `Stream ${stream.id} was cancelled.`,
+          dedupeKey: `stream-cancelled-${stream.id}`,
+        });
+      }
+    });
+
+    previousStreamStatusesRef.current = streams.reduce<Record<string, number>>(
+      (acc, stream) => {
+        acc[stream.id] = stream.status;
+        return acc;
+      },
+      {},
+    );
+  }, [addStreamNotification, isLoading, streams]);
 
   if (isLoading) {
     return (
@@ -427,6 +504,10 @@ const WorkerDashboard: React.FC = () => {
 
           <section className="mb-12 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-6 max-[768px]:grid-cols-1">
             <EarningsDisplay streams={streams} />
+          </section>
+
+          <section className="mb-12">
+            <EarningsForecast streams={streams} />
           </section>
 
           <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-[var(--text)]">

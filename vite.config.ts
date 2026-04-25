@@ -72,6 +72,10 @@ export default defineConfig(() => {
     },
     envPrefix: ["PUBLIC_", "VITE_"],
     server: {
+      headers: {
+        "Content-Security-Policy":
+          "default-src 'self'; script-src 'self'; connect-src 'self' https://horizon.stellar.org; report-uri /csp-report",
+      },
       proxy: {
         "/friendbot": {
           target: "http://localhost:8000/friendbot",

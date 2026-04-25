@@ -4,6 +4,7 @@ import {
   verifySlackSignature,
   SecureRequest,
 } from "../middleware/security";
+import { inputSanitizationMiddleware } from "../middleware/inputSanitization";
 import { secretsBootstrap } from "../services/secretsBootstrap";
 import { verifyKey } from "discord-interactions";
 import crypto from "crypto";
@@ -149,6 +150,94 @@ describe("Security Middleware", () => {
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
       expect(mockRes.json).toHaveBeenCalledWith({ error: "Request expired" });
+    });
+  });
+
+  describe("inputSanitizationMiddleware", () => {
+    it("should sanitize HTML tags from string fields", () => {
+      const mockReq = {
+        body: {
+          name: "<script>alert('xss')</script>",
+          description: "Normal text",
+        },
+      } as any;
+      const mockRes = {} as Response;
+      const next = jest.fn();
+
+      inputSanitizationMiddleware(mockReq, mockRes, next);
+
+      expect(mockReq.body.name).toBe("");
+      expect(mockReq.body.description).toBe("Normal text");
+      expect(next).toHaveBeenCalled();
+    });
+
+    it("should strip null bytes and control characters", () => {
+      const mockReq = {
+        body: {
+          input: "test\x00\x01\x02string",
+        },
+      } as any;
+      const mockRes = {} as Response;
+      const next = jest.fn();
+
+      inputSanitizationMiddleware(mockReq, mockRes, next);
+
+      expect(mockReq.body.input).toBe("teststring");
+      expect(next).toHaveBeenCalled();
+    });
+
+    it("should handle nested objects", () => {
+      const mockReq = {
+        body: {
+          user: {
+            name: "<b>Bold</b>",
+            details: {
+              bio: "Some\x00bio",
+            },
+          },
+        },
+      } as any;
+      const mockRes = {} as Response;
+      const next = jest.fn();
+
+      inputSanitizationMiddleware(mockReq, mockRes, next);
+
+      expect(mockReq.body.user.name).toBe("Bold");
+      expect(mockReq.body.user.details.bio).toBe("Somebio");
+      expect(next).toHaveBeenCalled();
+    });
+
+    it("should handle arrays", () => {
+      const mockReq = {
+        body: {
+          items: ["<i>item1</i>", "item2\x00"],
+        },
+      } as any;
+      const mockRes = {} as Response;
+      const next = jest.fn();
+
+      inputSanitizationMiddleware(mockReq, mockRes, next);
+
+      expect(mockReq.body.items).toEqual(["item1", "item2"]);
+      expect(next).toHaveBeenCalled();
+    });
+
+    it("should return 400 on depth exceeded", () => {
+      const deepObject = { a: { b: { c: { d: { e: { f: "deep" } } } } } };
+      const mockReq = { body: deepObject } as any;
+      const mockRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+      } as any;
+      const next = jest.fn();
+
+      inputSanitizationMiddleware(mockReq, mockRes, next);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: "Invalid request body",
+      });
+      expect(next).not.toHaveBeenCalled();
     });
   });
 });

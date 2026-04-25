@@ -1,9 +1,19 @@
 import * as cron from "node-cron";
+import {
+  Address,
+  Contract,
+  Keypair,
+  TransactionBuilder,
+  scValToNative,
+  nativeToScVal,
+  rpc,
+} from "@stellar/stellar-sdk";
 import { getPool } from "../db/pool";
 import { getAuditLogger, isAuditLoggerInitialized } from "../audit/init";
 import { withAdvisoryLock } from "../utils/lock";
 import { listDueWebhookOutboundEvents } from "../db/queries";
 import { retryWebhookEvent } from "../delivery";
+import { InternalError } from "../errors/AppError";
 
 interface SchedulerScheduledTask {
   start: () => void;
@@ -26,6 +36,9 @@ import {
   getTreasuryBalances,
   getActiveLiabilities,
   getStreamsByWorker,
+  dequeuePendingOverrides,
+  markOverrideCompleted,
+  markOverrideFailed,
 } from "../db/queries";
 import {
   sendCliffUnlockNotification,
@@ -39,6 +52,11 @@ const SCHEDULER_POLL_INTERVAL_MS = parseInt(
 );
 const AUTOMATION_GATEWAY_ADDRESS = process.env.AUTOMATION_GATEWAY_ADDRESS || "";
 const PAYROLL_STREAM_ADDRESS = process.env.PAYROLL_STREAM_ADDRESS || "";
+const HOT_WALLET_SECRET = process.env.HOT_WALLET_SECRET || "";
+const SOROBAN_RPC_URL =
+  process.env.PUBLIC_STELLAR_RPC_URL || process.env.STELLAR_RPC_URL || "";
+const NETWORK_PASSPHRASE =
+  process.env.STELLAR_NETWORK_PASSPHRASE || "Test SDF Network ; September 2015";
 
 const WEBHOOK_RETRY_POLL_INTERVAL_MS = parseInt(
   process.env.WEBHOOK_RETRY_POLL_MS || "10000",
@@ -124,6 +142,7 @@ const calculateNextRun = (cronExpression: string): Date | null => {
 
 const triggerStreamCreation = async (
   schedule: PayrollSchedule,
+  params: { startTs: number; endTs: number },
 ): Promise<number> => {
   log(`Creating stream for schedule ${schedule.id}`, {
     employer: schedule.employer,
@@ -136,9 +155,106 @@ const triggerStreamCreation = async (
     return Math.floor(Math.random() * 1000000) + 1;
   }
 
-  throw new Error(
-    "Contract integration not yet implemented. Configure AUTOMATION_GATEWAY_ADDRESS and PAYROLL_STREAM_ADDRESS.",
+  if (!HOT_WALLET_SECRET) {
+    throw new InternalError(
+      "HOT_WALLET_SECRET is required for scheduler contract submission",
+    );
+  }
+
+  if (!SOROBAN_RPC_URL) {
+    throw new InternalError(
+      "PUBLIC_STELLAR_RPC_URL (or STELLAR_RPC_URL) is required for scheduler contract submission",
+    );
+  }
+
+  const server = new rpc.Server(SOROBAN_RPC_URL);
+  const hotWallet = Keypair.fromSecret(HOT_WALLET_SECRET);
+  const account = await server.getAccount(hotWallet.publicKey());
+
+  const contract = new Contract(PAYROLL_STREAM_ADDRESS);
+
+  const startTs = params.startTs;
+  const endTs = params.endTs;
+
+  const employerScVal = Address.fromString(schedule.employer).toScVal();
+  const workerScVal = Address.fromString(schedule.worker).toScVal();
+  const tokenScVal = Address.fromString(schedule.token).toScVal();
+
+  const rate = BigInt(schedule.rate);
+
+  const operation = contract.call(
+    "create_stream",
+    employerScVal,
+    workerScVal,
+    tokenScVal,
+    nativeToScVal(rate, { type: "i128" }),
+    nativeToScVal(0, { type: "u64" }),
+    nativeToScVal(startTs, { type: "u64" }),
+    nativeToScVal(endTs, { type: "u64" }),
+    nativeToScVal(null, { type: "bytes" }),
+    nativeToScVal(null, { type: "symbol" }),
   );
+
+  const baseTx = new TransactionBuilder(account, {
+    fee: "100",
+    networkPassphrase: NETWORK_PASSPHRASE,
+  })
+    .addOperation(operation)
+    .setTimeout(60)
+    .build();
+
+  const simulation = await server.simulateTransaction(baseTx);
+  if ("error" in simulation && typeof simulation.error === "string") {
+    throw new InternalError(`Soroban simulation failed: ${simulation.error}`);
+  }
+
+  const assembled =
+    typeof (rpc as any).assembleTransaction === "function"
+      ? (rpc as any).assembleTransaction(baseTx, simulation).build()
+      : baseTx;
+
+  assembled.sign(hotWallet);
+
+  const sendRes = await server.sendTransaction(assembled as any);
+  if (sendRes.status === "ERROR") {
+    throw new InternalError(
+      `Soroban submission failed: ${sendRes.errorResultXdr || "unknown error"}`,
+    );
+  }
+
+  const txHash = sendRes.hash;
+  for (let i = 0; i < 30; i += 1) {
+    const tx = await server.getTransaction(txHash);
+    if ((tx as any).status === "SUCCESS") {
+      const returnValue = (tx as any).returnValue;
+      const native = returnValue ? scValToNative(returnValue) : null;
+      const streamId =
+        typeof native === "bigint"
+          ? Number(native)
+          : typeof native === "number"
+            ? native
+            : typeof native === "string"
+              ? Number(native)
+              : null;
+      if (!streamId || Number.isNaN(streamId)) {
+        throw new InternalError(
+          "Soroban contract call succeeded but stream id could not be parsed",
+        );
+      }
+      return streamId;
+    }
+    if ((tx as any).status === "FAILED") {
+      throw new InternalError(
+        `Soroban transaction failed: ${(tx as any).resultXdr || "unknown failure"}`,
+      );
+    }
+    if ((tx as any).status === "TRY_AGAIN_LATER") {
+      await new Promise((r) => setTimeout(r, 1000));
+      continue;
+    }
+  }
+
+  throw new InternalError("Soroban transaction timeout while awaiting result");
 };
 
 const executeScheduledPayroll = async (
@@ -184,7 +300,7 @@ const executeScheduledPayroll = async (
           durationDays: schedule.duration_days,
         });
 
-        streamId = await triggerStreamCreation(schedule);
+        streamId = await triggerStreamCreation(schedule, { startTs, endTs });
 
         log(`Stream created successfully with ID: ${streamId}`);
 
@@ -327,6 +443,9 @@ const unscheduleJob = (scheduleId: number): boolean => {
 
 const refreshJobs = async (): Promise<void> => {
   try {
+    // First, check and execute any pending scheduler overrides
+    await executeSchedulerOverrides();
+
     const schedules = await getActivePayrollSchedules();
     log(`Found ${schedules.length} active schedules`);
 
@@ -417,9 +536,9 @@ const runCliffUnlockChecker = async (): Promise<void> => {
       if (notifiedCliffUnlockKeys.has(key)) continue;
 
       await sendCliffUnlockNotification({
-        worker: stream.worker,
+        worker: stream.worker_address,
         streamId: stream.stream_id,
-        employer: stream.employer,
+        employer: stream.employer_address,
         token: "USDC",
         cliffDate: new Date(stream.start_ts * 1000).toISOString(),
       });
@@ -452,14 +571,14 @@ const runLowRunwayAlerter = async (): Promise<void> => {
 
     const streams = await getStreamsByWorker(b.employer, "active", 20, 0);
     for (const stream of streams) {
-      const prefs = await getWorkerNotificationSettings(stream.worker);
+      const prefs = await getWorkerNotificationSettings(stream.worker_address);
       const shouldNotify = prefs?.low_runway_alerts ?? true;
       if (!shouldNotify) continue;
 
       await sendWorkerLowRunwayNotification({
-        worker: stream.worker,
+        worker: stream.worker_address,
         streamId: stream.stream_id,
-        employer: stream.employer,
+        employer: stream.employer_address,
         token: b.token,
         runwayDays,
         thresholdDays: LOW_RUNWAY_DAYS_THRESHOLD,
@@ -497,15 +616,98 @@ const runStreamEndingChecker = async (): Promise<void> => {
       if (notifiedStreamEndingKeys.has(key)) continue;
 
       await sendStreamEndingNotification({
-        worker: stream.worker,
+        worker: stream.worker_address,
         streamId: stream.stream_id,
-        employer: stream.employer,
+        employer: stream.employer_address,
         token: "USDC",
         streamEndDate: new Date(stream.end_ts * 1000).toISOString(),
         amount: Number(stream.total_amount),
       });
       notifiedStreamEndingKeys.add(key);
     }
+  }
+};
+
+/**
+ * Execute pending scheduler overrides from the admin queue.
+ * Dequeues up to 10 pending overrides and processes them.
+ */
+const executeSchedulerOverrides = async (): Promise<void> => {
+  if (!getPool()) return;
+
+  try {
+    const overrides = await dequeuePendingOverrides(10);
+
+    if (overrides.length === 0) return;
+
+    log(`Processing ${overrides.length} scheduler override(s)`);
+
+    for (const override of overrides) {
+      try {
+        log(
+          `Executing override ${override.id}: ${override.action} for ${override.employer_address} -> ${override.worker_address}`,
+        );
+
+        if (override.action === "create_stream") {
+          // Extract parameters from override.params
+          const {
+            token = "USDC",
+            rate,
+            durationDays = 30,
+          } = override.params as {
+            token?: string;
+            rate?: string;
+            durationDays?: number;
+          };
+
+          if (!rate) {
+            throw new Error("Missing required parameter: rate");
+          }
+
+          // Create a mock schedule for stream creation
+          const mockSchedule: PayrollSchedule = {
+            id: -override.id, // Negative ID to distinguish from real schedules
+            employer: override.employer_address,
+            worker: override.worker_address,
+            token,
+            rate,
+            cron_expression: "0 0 1 * *", // Dummy cron
+            duration_days: durationDays,
+            enabled: true,
+            last_run_at: null,
+            next_run_at: null,
+            created_at: new Date(),
+            updated_at: new Date(),
+          };
+
+          const streamId = await triggerStreamCreation(mockSchedule);
+
+          await markOverrideCompleted({
+            id: override.id,
+            streamId,
+          });
+
+          log(
+            `Override ${override.id} completed successfully. Stream ID: ${streamId}`,
+          );
+        } else {
+          // For cancel_stream and pause_stream, we'd need contract integration
+          throw new Error(
+            `Action ${override.action} not yet implemented. Contract integration required.`,
+          );
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        logError(`Override ${override.id} failed`, error);
+
+        await markOverrideFailed({
+          id: override.id,
+          errorMessage: errorMsg,
+        });
+      }
+    }
+  } catch (error) {
+    logError("Failed to execute scheduler overrides", error);
   }
 };
 

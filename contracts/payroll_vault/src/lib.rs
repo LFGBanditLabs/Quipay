@@ -14,6 +14,9 @@ mod upgrade_test;
 #[cfg(test)]
 mod fuzz_test;
 
+#[cfg(test)]
+mod multisig_dedup_test;
+
 #[cfg(kani)]
 mod kani_test;
 
@@ -29,16 +32,18 @@ pub enum StateKey {
     PendingAdmin, // Pending admin address (for two-step transfer)
     Version,
     AuthorizedContract, // Contract authorized to modify liabilities (e.g., PayrollStream)
-    TokenList,          // Tokens tracked by the vault
+    TokenList,          // Allowlisted tokens accepted by the vault
     // Additional state that should persist across upgrades
     TreasuryBalance(Address), // Funds held for payroll (Token -> Amount)
     TotalLiability(Address),  // Amount owed to recipients (Token -> Amount)
     // Timelock storage
     PendingUpgrade, // (wasm_hash, execute_after_timestamp)
+    PendingDrain,   // Emergency drain proposal with 24-hour timelock
     // Multi-sig storage
-    Signers,             // Vec<Address> - list of authorized signers
-    Threshold,           // u32 - M of N required
-    WithdrawalThreshold, // i128 - amount above which multisig is required
+    Signers,                 // Vec<Address> - list of authorized signers
+    Threshold,               // u32 - M of N required
+    PendingUpgradeApprovals, // Map::<Address, bool>
+    WithdrawalThreshold,     // i128 - amount above which multisig is required
 }
 
 #[contracttype]
@@ -67,6 +72,15 @@ pub struct TreasuryTokenSummary {
     pub liability: i128,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PendingDrain {
+    pub recipient: Address,
+    pub execute_after: u64,
+    pub proposed_at: u64,
+    pub proposed_by: Address,
+}
+
 #[contract]
 pub struct PayrollVault;
 
@@ -78,9 +92,17 @@ const UPGRADE_CANCELED: Symbol = symbol_short!("up_cancel");
 const SIGNER_ADDED: Symbol = symbol_short!("sig_add");
 const SIGNER_REMOVED: Symbol = symbol_short!("sig_rm");
 const THRESHOLD_SET: Symbol = symbol_short!("thr_set");
+const DRAIN_PROPOSED: Symbol = symbol_short!("dr_prop");
+const DRAIN_EXECUTED: Symbol = symbol_short!("dr_exec");
+const DRAIN_CANCELED: Symbol = symbol_short!("dr_cncl");
+const TOKEN_ALLOWLISTED: Symbol = symbol_short!("tok_allow");
+const TOKEN_DENYLISTED: Symbol = symbol_short!("tok_deny");
 
 // 48 hours in seconds
 const TIMELOCK_DURATION: u64 = 48 * 60 * 60;
+
+// 24 hours in seconds (emergency drain timelock)
+const DRAIN_TIMELOCK_DURATION: u64 = 24 * 60 * 60;
 
 // Default withdrawal threshold for multisig requirement (100,000 units)
 const DEFAULT_WITHDRAWAL_THRESHOLD: i128 = 100_000;
@@ -167,6 +189,11 @@ impl PayrollVault {
             .persistent()
             .set(&StateKey::PendingUpgrade, &pending_upgrade);
 
+        // Reset approvals for new upgrade
+        e.storage()
+            .persistent()
+            .remove(&StateKey::PendingUpgradeApprovals);
+
         // Emit upgrade proposed event
         #[allow(deprecated)]
         e.events().publish(
@@ -183,11 +210,52 @@ impl PayrollVault {
         Ok(())
     }
 
+    pub fn approve_upgrade(
+        e: Env,
+        signer: Address,
+        wasm_hash: BytesN<32>,
+    ) -> Result<(), QuipayError> {
+        signer.require_auth();
+
+        let signers: Vec<Address> = e
+            .storage()
+            .persistent()
+            .get(&StateKey::Signers)
+            .ok_or(QuipayError::NoSigners)?;
+        if !signers.contains(signer.clone()) {
+            return Err(QuipayError::SignerNotFound);
+        }
+
+        let pending_upgrade: PendingUpgrade = e
+            .storage()
+            .persistent()
+            .get(&StateKey::PendingUpgrade)
+            .ok_or(QuipayError::Custom)?;
+
+        if pending_upgrade.wasm_hash != wasm_hash {
+            return Err(QuipayError::Custom);
+        }
+
+        let mut approvals: Vec<Address> = e
+            .storage()
+            .persistent()
+            .get(&StateKey::PendingUpgradeApprovals)
+            .unwrap_or(Vec::new(&e));
+        if !approvals.contains(signer.clone()) {
+            approvals.push_back(signer);
+            e.storage()
+                .persistent()
+                .set(&StateKey::PendingUpgradeApprovals, &approvals);
+        }
+
+        Ok(())
+    }
+
     /// Execute a proposed upgrade after the timelock period
     /// Only the admin can call this function
     pub fn execute_upgrade(e: Env, new_version: (u32, u32, u32)) -> Result<(), QuipayError> {
         let admin = Self::get_admin(e.clone())?;
-        Self::require_multisig_auth(&e)?;
+        admin.require_auth();
 
         let pending_upgrade: PendingUpgrade = e
             .storage()
@@ -198,6 +266,33 @@ impl PayrollVault {
         let now = e.ledger().timestamp();
         if now < pending_upgrade.execute_after {
             return Err(QuipayError::Custom);
+        }
+
+        let threshold: u32 = e
+            .storage()
+            .persistent()
+            .get(&StateKey::Threshold)
+            .unwrap_or(1);
+        let approvals: Vec<Address> = e
+            .storage()
+            .persistent()
+            .get(&StateKey::PendingUpgradeApprovals)
+            .unwrap_or(Vec::new(&e));
+        let signers: Vec<Address> = e
+            .storage()
+            .persistent()
+            .get(&StateKey::Signers)
+            .ok_or(QuipayError::NoSigners)?;
+
+        let mut valid_approvals = 0;
+        for approval in approvals.iter() {
+            if signers.contains(approval) {
+                valid_approvals += 1;
+            }
+        }
+
+        if valid_approvals < threshold {
+            return Err(QuipayError::InsufficientSignatures);
         }
 
         // Get current version for event
@@ -221,6 +316,9 @@ impl PayrollVault {
 
         // Clear pending upgrade
         e.storage().persistent().remove(&StateKey::PendingUpgrade);
+        e.storage()
+            .persistent()
+            .remove(&StateKey::PendingUpgradeApprovals);
 
         // Emit upgrade executed event
         #[allow(deprecated)]
@@ -254,6 +352,9 @@ impl PayrollVault {
 
         // Clear pending upgrade
         e.storage().persistent().remove(&StateKey::PendingUpgrade);
+        e.storage()
+            .persistent()
+            .remove(&StateKey::PendingUpgradeApprovals);
 
         // Emit upgrade canceled event
         #[allow(deprecated)]
@@ -459,6 +560,15 @@ impl PayrollVault {
         Ok(())
     }
 
+    /// Get the withdrawal threshold (amount above which multisig is required).
+    /// Returns 0 if no threshold has been set.
+    pub fn get_withdrawal_threshold(e: Env) -> i128 {
+        e.storage()
+            .persistent()
+            .get(&StateKey::WithdrawalThreshold)
+            .unwrap_or(0)
+    }
+
     /// Get all authorized signers
     pub fn get_signers(e: Env) -> Vec<Address> {
         e.storage()
@@ -500,14 +610,15 @@ impl PayrollVault {
     pub fn deposit(e: Env, from: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
         from.require_auth();
         require_positive_amount!(amount);
+        if !Self::is_token_allowed(e.clone(), token.clone()) {
+            return Err(QuipayError::InvalidToken);
+        }
 
         // Update treasury balance
         let key = StateKey::TreasuryBalance(token.clone());
         let current_balance: i128 = e.storage().persistent().get(&key).unwrap_or(0);
-        e.storage()
-            .persistent()
-            .set(&key, &(current_balance + amount));
-        Self::track_supported_token(&e, token.clone());
+        let new_total = current_balance + amount;
+        e.storage().persistent().set(&key, &new_total);
 
         let token_client = token::Client::new(&e, &token);
         token_client.transfer(&from, e.current_contract_address(), &amount);
@@ -519,7 +630,7 @@ impl PayrollVault {
                 from.clone(),
                 token.clone(),
             ),
-            amount,
+            (amount, new_total),
         );
 
         Ok(())
@@ -529,6 +640,10 @@ impl PayrollVault {
     /// Returns true if balance >= current_liability + additional_liability.
     pub fn check_solvency(e: Env, token: Address, additional_liability: i128) -> bool {
         if additional_liability < 0 {
+            return false;
+        }
+
+        if !Self::is_token_allowed(e.clone(), token.clone()) {
             return false;
         }
 
@@ -583,11 +698,9 @@ impl PayrollVault {
 
         let balance_key = StateKey::TreasuryBalance(token.clone());
         let balance: i128 = e.storage().persistent().get(&balance_key).unwrap_or(0);
-
+        let new_total = balance - amount;
         // If the invariant holds, this should never underflow.
-        e.storage()
-            .persistent()
-            .set(&balance_key, &(balance - amount));
+        e.storage().persistent().set(&balance_key, &new_total);
 
         let token_client = token::Client::new(&e, &token);
         token_client.transfer(&e.current_contract_address(), &to, &amount);
@@ -599,7 +712,7 @@ impl PayrollVault {
                 to.clone(),
                 token.clone(),
             ),
-            amount,
+            (amount, new_total),
         );
 
         Ok(())
@@ -837,6 +950,10 @@ impl PayrollVault {
             .ok_or(QuipayError::NotInitialized)?;
         authorized.require_auth();
 
+        if !Self::is_token_allowed(e.clone(), token.clone()) {
+            return Err(QuipayError::InvalidToken);
+        }
+
         if amount <= 0 {
             return Err(QuipayError::InvalidAmount);
         }
@@ -923,10 +1040,60 @@ impl PayrollVault {
 
     /// Get all supported tokens tracked by the vault.
     pub fn get_supported_tokens(e: Env) -> Vec<Address> {
+        Self::get_allowed_tokens(e)
+    }
+
+    /// Get all allowlisted tokens accepted by the vault.
+    pub fn get_allowed_tokens(e: Env) -> Vec<Address> {
         e.storage()
             .persistent()
             .get(&StateKey::TokenList)
             .unwrap_or_else(|| Vec::new(&e))
+    }
+
+    /// Returns true if the token is currently allowlisted.
+    pub fn is_token_allowed(e: Env, token: Address) -> bool {
+        Self::get_allowed_tokens(e).contains(token)
+    }
+
+    /// Admin-only function to allowlist a token for deposits and stream liabilities.
+    pub fn allowlist_token(e: Env, token: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        let mut tokens = Self::get_allowed_tokens(e.clone());
+        if !tokens.contains(token.clone()) {
+            tokens.push_back(token.clone());
+            e.storage().persistent().set(&StateKey::TokenList, &tokens);
+        }
+
+        #[allow(deprecated)]
+        e.events().publish((TOKEN_ALLOWLISTED, admin), token);
+        Ok(())
+    }
+
+    /// Admin-only function to remove a token from the allowlist.
+    pub fn denylist_token(e: Env, token: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        let tokens = Self::get_allowed_tokens(e.clone());
+        let mut filtered = Vec::new(&e);
+        let mut i = 0;
+        while i < tokens.len() {
+            let allowed = tokens.get(i).ok_or(QuipayError::StorageError)?;
+            if allowed != token {
+                filtered.push_back(allowed);
+            }
+            i += 1;
+        }
+        e.storage()
+            .persistent()
+            .set(&StateKey::TokenList, &filtered);
+
+        #[allow(deprecated)]
+        e.events().publish((TOKEN_DENYLISTED, admin), token);
+        Ok(())
     }
 
     /// Get a summary of treasury balances and liabilities for all tracked tokens.
@@ -951,6 +1118,139 @@ impl PayrollVault {
         summary
     }
 
+    // ==================== Emergency Drain (Timelock) ====================
+
+    /// Propose an emergency drain of all vault funds to `recipient`.
+    ///
+    /// Starts a 24-hour timelock. Requires the configured multisig threshold.
+    /// Off-chain monitors should observe the `DRAIN_PROPOSED` event and alert
+    /// token holders so they can exit before the drain executes.
+    ///
+    /// Emits: `(DRAIN_PROPOSED, admin)` → `(recipient, execute_after)`
+    pub fn propose_emergency_drain(e: Env, recipient: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        Self::require_multisig_auth(&e)?;
+
+        // Disallow stacking proposals – cancel first, then re-propose.
+        if e.storage().persistent().has(&StateKey::PendingDrain) {
+            return Err(QuipayError::Custom);
+        }
+
+        let now = e.ledger().timestamp();
+        let execute_after = now.saturating_add(DRAIN_TIMELOCK_DURATION);
+
+        let pending = PendingDrain {
+            recipient: recipient.clone(),
+            execute_after,
+            proposed_at: now,
+            proposed_by: admin.clone(),
+        };
+
+        e.storage()
+            .persistent()
+            .set(&StateKey::PendingDrain, &pending);
+
+        #[allow(deprecated)]
+        e.events()
+            .publish((DRAIN_PROPOSED, admin), (recipient, execute_after));
+
+        Ok(())
+    }
+
+    /// Execute a pending emergency drain after the 24-hour timelock has expired.
+    ///
+    /// Permissionless after the timelock: anyone can call this once the window
+    /// opens, ensuring liveness even if the admin key is unavailable.
+    /// Drains every tracked token's full on-chain balance to the `recipient`
+    /// recorded in the proposal.
+    ///
+    /// Emits: `(DRAIN_EXECUTED, recipient)` → `(token, amount)` per token,
+    ///         then `(DRAIN_EXECUTED, recipient)` → `"done"` as a final marker.
+    pub fn execute_emergency_drain(e: Env) -> Result<(), QuipayError> {
+        let pending: PendingDrain = e
+            .storage()
+            .persistent()
+            .get(&StateKey::PendingDrain)
+            .ok_or(QuipayError::NoDrainPending)?;
+
+        let now = e.ledger().timestamp();
+        if now < pending.execute_after {
+            return Err(QuipayError::DrainTimelockActive);
+        }
+
+        let recipient = pending.recipient.clone();
+
+        // Drain every tracked token.
+        let tokens: Vec<Address> = e
+            .storage()
+            .persistent()
+            .get(&StateKey::TokenList)
+            .unwrap_or_else(|| Vec::new(&e));
+
+        let mut i = 0;
+        while i < tokens.len() {
+            let token = tokens.get(i).unwrap();
+            let token_client = token::Client::new(&e, &token);
+            let on_chain_balance = token_client.balance(&e.current_contract_address());
+
+            if on_chain_balance > 0 {
+                // Wipe internal accounting for this token.
+                e.storage()
+                    .persistent()
+                    .set(&StateKey::TreasuryBalance(token.clone()), &0i128);
+                e.storage()
+                    .persistent()
+                    .set(&StateKey::TotalLiability(token.clone()), &0i128);
+
+                token_client.transfer(&e.current_contract_address(), &recipient, &on_chain_balance);
+
+                #[allow(deprecated)]
+                e.events().publish(
+                    (DRAIN_EXECUTED, recipient.clone()),
+                    (token, on_chain_balance),
+                );
+            }
+
+            i += 1;
+        }
+
+        // Remove the pending proposal.
+        e.storage().persistent().remove(&StateKey::PendingDrain);
+
+        Ok(())
+    }
+
+    /// Cancel a pending emergency drain proposal.
+    ///
+    /// Only the admin can call this function.
+    ///
+    /// Emits: `(DRAIN_CANCELED, admin)` → `(recipient, execute_after)`
+    pub fn cancel_emergency_drain(e: Env) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        let pending: PendingDrain = e
+            .storage()
+            .persistent()
+            .get(&StateKey::PendingDrain)
+            .ok_or(QuipayError::NoDrainPending)?;
+
+        e.storage().persistent().remove(&StateKey::PendingDrain);
+
+        #[allow(deprecated)]
+        e.events().publish(
+            (DRAIN_CANCELED, admin),
+            (pending.recipient, pending.execute_after),
+        );
+
+        Ok(())
+    }
+
+    /// Return the currently pending emergency drain proposal, if any.
+    pub fn get_pending_drain(e: Env) -> Option<PendingDrain> {
+        e.storage().persistent().get(&StateKey::PendingDrain)
+    }
+
     /// Get the current contract address
     pub fn get_contract_address(e: Env) -> Address {
         e.current_contract_address()
@@ -958,6 +1258,17 @@ impl PayrollVault {
 }
 
 impl PayrollVault {
+    /// Verify that the required number of signers have authorized the transaction.
+    ///
+    /// ### Deduplication
+    /// This function ensures each signer is unique by checking for duplicates in the
+    /// signer list. This prevents a single key from satisfying the threshold multiple
+    /// times by appearing in the list more than once.
+    ///
+    /// ### Requirements
+    /// - At least `threshold` unique signers must authorize
+    /// - Duplicate signers in the list are rejected
+    /// - Threshold must be valid (> 0 and <= number of signers)
     fn require_multisig_auth(e: &Env) -> Result<(), QuipayError> {
         let signers: Vec<Address> = e
             .storage()
@@ -975,6 +1286,22 @@ impl PayrollVault {
             return Err(QuipayError::InvalidThreshold);
         }
 
+        // Check for duplicate signers to prevent a single key from satisfying threshold multiple times
+        let mut i = 0;
+        while i < signers.len() {
+            let signer_i = signers.get(i).ok_or(QuipayError::SignerNotFound)?;
+            let mut j = i + 1;
+            while j < signers.len() {
+                let signer_j = signers.get(j).ok_or(QuipayError::SignerNotFound)?;
+                if signer_i == signer_j {
+                    return Err(QuipayError::DuplicateSigner);
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+
+        // Require auth from the first `threshold` signers
         let mut i = 0;
         while i < threshold {
             let signer = signers.get(i).ok_or(QuipayError::SignerNotFound)?;
@@ -983,20 +1310,5 @@ impl PayrollVault {
         }
 
         Ok(())
-    }
-
-    fn track_supported_token(e: &Env, token: Address) {
-        let mut tokens = e
-            .storage()
-            .persistent()
-            .get(&StateKey::TokenList)
-            .unwrap_or_else(|| Vec::new(e));
-
-        if tokens.contains(token.clone()) {
-            return;
-        }
-
-        tokens.push_back(token);
-        e.storage().persistent().set(&StateKey::TokenList, &tokens);
     }
 }

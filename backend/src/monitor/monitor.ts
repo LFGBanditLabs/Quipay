@@ -12,6 +12,22 @@ import {
 import { sendTreasuryAlert } from "../notifier/notifier";
 import { getAuditLogger, isAuditLoggerInitialized } from "../audit/init";
 import { serviceLogger } from "../audit/serviceLogger";
+import { employerRunwayGauge } from "../metrics";
+
+/**
+ * Safely converts a PostgreSQL NUMERIC/BIGINT string to a JS number.
+ * Uses Number() rather than parseFloat() so non-numeric strings return 0
+ * instead of a partial parse (e.g. "123abc" → 0, not 123).
+ */
+const parseAmount = (val: string | null | undefined): number => {
+  if (val == null || val === "") return 0;
+  const n = Number(val);
+  return Number.isFinite(n) ? n : 0;
+};
+
+let monitorStopping = false;
+let monitorTimeoutId: NodeJS.Timeout | null = null;
+let inFlightMonitorCycle: Promise<EmployerTreasuryStatus[]> | null = null;
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
@@ -123,12 +139,12 @@ export const computeTreasuryStatus = async (): Promise<
 
   // Build lookup maps
   const balanceMap = new Map<string, number>(
-    balances.map((b: TreasuryBalance) => [b.employer, parseFloat(b.balance)]),
+    balances.map((b: TreasuryBalance) => [b.employer, parseAmount(b.balance)]),
   );
   const liabilityMap = new Map<string, number>(
     liabilities.map((l: TreasuryLiability) => [
       l.employer,
-      parseFloat(l.liabilities),
+      parseAmount(l.liabilities),
     ]),
   );
 
@@ -148,8 +164,8 @@ export const computeTreasuryStatus = async (): Promise<
     const activeStreams = await getStreamsByEmployer(employer, "active", 1000);
 
     const streamData = activeStreams.map((s: StreamRecord) => ({
-      total_amount: parseFloat(s.total_amount),
-      withdrawn_amount: parseFloat(s.withdrawn_amount),
+      total_amount: parseAmount(s.total_amount),
+      withdrawn_amount: parseAmount(s.withdrawn_amount),
       start_ts: s.start_ts,
       end_ts: s.end_ts,
     }));
@@ -209,6 +225,12 @@ export const runMonitorCycle = async (): Promise<EmployerTreasuryStatus[]> => {
       }
 
       for (const status of statuses) {
+        // Update Prometheus gauge: -1 signals unlimited runway (no active streams).
+        employerRunwayGauge.set(
+          { employer_address: status.employer },
+          status.runway_days ?? -1,
+        );
+
         // Alert when runway is less than threshold (default 7 days)
         const alertNeeded =
           status.runway_days !== null && status.runway_days < RUNWAY_ALERT_DAYS;
@@ -317,6 +339,8 @@ export const startMonitor = async (): Promise<void> => {
     return;
   }
 
+  monitorStopping = false;
+
   await serviceLogger.info("Monitor", "Treasury monitor started", {
     poll_interval_ms: POLL_INTERVAL_MS,
     runway_alert_days: RUNWAY_ALERT_DAYS,
@@ -324,16 +348,35 @@ export const startMonitor = async (): Promise<void> => {
 
   const tick = async () => {
     try {
-      await runMonitorCycle();
+      inFlightMonitorCycle = runMonitorCycle();
+      await inFlightMonitorCycle;
     } catch (err: unknown) {
       await serviceLogger.error(
         "Monitor",
         "Unhandled error in monitor cycle",
         err,
       );
+    } finally {
+      inFlightMonitorCycle = null;
     }
-    setTimeout(tick, POLL_INTERVAL_MS);
+
+    if (monitorStopping) return;
+
+    monitorTimeoutId = setTimeout(tick, POLL_INTERVAL_MS);
   };
 
   await tick();
+};
+
+export const stopMonitor = async (): Promise<void> => {
+  monitorStopping = true;
+
+  if (monitorTimeoutId) {
+    clearTimeout(monitorTimeoutId);
+    monitorTimeoutId = null;
+  }
+
+  if (inFlightMonitorCycle) {
+    await inFlightMonitorCycle;
+  }
 };

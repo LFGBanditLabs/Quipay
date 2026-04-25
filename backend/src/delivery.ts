@@ -1,4 +1,5 @@
 import axios from "axios";
+import { DatabaseError, NotFoundError } from "./errors/AppError";
 import { webhookStore, WebhookSubscription } from "./webhooks";
 import { metricsManager } from "./metrics";
 import crypto from "crypto";
@@ -116,6 +117,16 @@ const buildOutgoingPayload = (
   return outgoingPayload;
 };
 
+const computeQuipayWebhookSignatureHex = (
+  rawBody: Buffer,
+  signingSecret: string,
+): string => {
+  return crypto
+    .createHmac("sha256", signingSecret)
+    .update(rawBody)
+    .digest("hex");
+};
+
 const attemptDeliveryOnce = async (params: {
   eventId: string;
   url: string;
@@ -130,12 +141,27 @@ const attemptDeliveryOnce = async (params: {
   let rawError: any = null;
 
   try {
+    const signingSecret = process.env.QUIPAY_WEBHOOK_SIGNING_SECRET;
+
+    const requestBodyString = JSON.stringify(params.outgoingPayload);
+    const signatureHex = signingSecret
+      ? computeQuipayWebhookSignatureHex(
+          Buffer.from(requestBodyString, "utf8"),
+          signingSecret,
+        )
+      : null;
+
     const response: any = await webhookBreaker.fire(
       params.url,
       params.outgoingPayload,
       {
         timeout: 5000,
         validateStatus: () => true,
+        headers: signatureHex
+          ? {
+              "X-Quipay-Signature": signatureHex,
+            }
+          : undefined,
       },
     );
     statusCode = response.status;
@@ -270,11 +296,11 @@ export const sendWebhookNotification = async (
 
 export const retryWebhookEvent = async (eventId: string): Promise<void> => {
   if (!getPool()) {
-    throw new Error("Database not configured");
+    throw new DatabaseError("Database not configured");
   }
   const ev = await getWebhookOutboundEventById(eventId);
   if (!ev) {
-    throw new Error("Webhook event not found");
+    throw new NotFoundError(`Webhook event ${eventId}`);
   }
 
   // Re-resolve subscription at runtime; if missing, mark failed.

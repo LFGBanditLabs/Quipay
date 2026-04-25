@@ -7,9 +7,10 @@ import {
   useState,
   useTransition,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { wallet } from "../util/wallet";
 import storage from "../util/storage";
-import { fetchBalances } from "../util/wallet";
+import { fetchBalances, disconnectWallet } from "../util/wallet";
 import type { MappedBalances } from "../util/wallet";
 
 const signTransaction = wallet.signTransaction.bind(wallet);
@@ -46,6 +47,9 @@ export interface WalletContextType {
   updateBalances: () => Promise<void>;
   connectionError?: string;
   clearError: () => void;
+  disconnect: () => Promise<void>;
+  accounts: string[];
+  switchAccount: (address: string) => void;
 }
 
 const POLL_INTERVAL = 1000;
@@ -57,21 +61,78 @@ export const WalletContext = // eslint-disable-line react-refresh/only-export-co
     updateBalances: async () => {},
     signTransaction,
     clearError: () => {},
+    disconnect: async () => {},
+    accounts: [],
+    switchAccount: () => {},
   });
 
 export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
+  const queryClient = useQueryClient();
   const [balances, setBalances] = useState<MappedBalances>({});
-  const [address, setAddress] = useState<string>();
-  const [network, setNetwork] = useState<string>();
-  const [networkPassphrase, setNetworkPassphrase] = useState<string>();
+  // const [address, setAddress] = useState<string>();
+  // const [network, setNetwork] = useState<string>();
+  // const [networkPassphrase, setNetworkPassphrase] = useState<string>();
+
+  const [address, setAddress] = useState<string | undefined>(() => {
+    const stored = storage.getItem("walletAddress");
+    return stored || undefined;
+  });
+  const [network, setNetwork] = useState<string | undefined>(() => {
+    const stored = storage.getItem("walletNetwork");
+    return stored || undefined;
+  });
+  const [networkPassphrase, setNetworkPassphrase] = useState<
+    string | undefined
+  >(() => {
+    const stored = storage.getItem("networkPassphrase");
+    return stored || undefined;
+  });
+  const [accounts, setAccounts] = useState<string[]>(() => {
+    const stored = storage.getItem("walletAccounts");
+    if (stored && Array.isArray(stored)) return stored;
+    return address ? [address] : [];
+  });
+
   const [isPending, startTransition] = useTransition();
+
+  const switchAccount = useCallback(
+    (newAddress: string) => {
+      if (accounts.includes(newAddress)) {
+        setAddress(newAddress);
+        storage.setItem("walletAddress", newAddress);
+      }
+    },
+    [accounts],
+  );
+
+  const handleSetAddress = (newAddr: string | undefined) => {
+    setAddress(newAddr);
+    if (newAddr) {
+      setAccounts((prev) => {
+        if (prev.includes(newAddr)) return prev;
+        const next = [...prev, newAddr];
+        storage.setItem("walletAccounts", next);
+        return next;
+      });
+    }
+  };
   const [connectionError, setConnectionError] = useState<string | undefined>();
   const popupLock = useRef(false);
 
   const clearError = useCallback(() => setConnectionError(undefined), []);
 
+  const disconnect = useCallback(async () => {
+    await disconnectWallet();
+    // Clear all cached queries to remove any contract client data
+    queryClient.clear();
+    nullify();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryClient]);
+
   const nullify = () => {
-    setAddress(undefined);
+    handleSetAddress(undefined);
+    setAccounts([]);
+    storage.removeItem("walletAccounts");
     setNetwork(undefined);
     setNetworkPassphrase(undefined);
     setBalances({});
@@ -113,7 +174,7 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       walletNetwork !== null &&
       passphrase !== null
     ) {
-      setAddress(walletAddr);
+      handleSetAddress(walletAddr);
       setNetwork(walletNetwork);
       setNetworkPassphrase(passphrase);
     }
@@ -141,7 +202,7 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
           n.networkPassphrase !== networkPassphrase
         ) {
           storage.setItem("walletAddress", a.address);
-          setAddress(a.address);
+          handleSetAddress(a.address);
           setNetwork(n.network);
           setNetworkPassphrase(n.networkPassphrase);
         }
@@ -207,6 +268,9 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       signTransaction,
       connectionError,
       clearError,
+      disconnect,
+      accounts,
+      switchAccount,
     }),
     [
       address,
@@ -217,6 +281,9 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       isPending,
       connectionError,
       clearError,
+      disconnect,
+      accounts,
+      switchAccount,
     ],
   );
 

@@ -381,6 +381,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "dao-governance"
+version = "0.0.1"
+dependencies = [
+ "quipay_common",
+ "soroban-sdk",
+]
+
+[[package]]
 name = "darling"
 version = "0.20.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -972,9 +980,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
+name = "payroll_receipt"
+version = "0.0.1"
+dependencies = [
+ "quipay_common",
+ "soroban-sdk",
+]
+
+[[package]]
 name = "payroll_stream"
 version = "0.0.1"
 dependencies = [
+ "payroll_receipt",
  "payroll_vault",
  "proptest",
  "quipay_common",
@@ -1075,6 +1092,7 @@ version = "0.0.0"
 dependencies = [
  "arbitrary",
  "libfuzzer-sys",
+ "payroll_stream",
  "payroll_vault",
  "soroban-sdk",
 ]

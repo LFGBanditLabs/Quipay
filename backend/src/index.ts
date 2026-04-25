@@ -13,10 +13,21 @@ import { proofsRouter } from "./routes/proofs";
 import { stellarRouter } from "./routes/stellar";
 import { reportsRouter } from "./routes/reports";
 import { employersRouter } from "./routes/employers";
-import { startStellarListener } from "./stellarListener";
-import { startScheduler, getSchedulerStatus } from "./scheduler/scheduler";
-import { startMonitor, runMonitorCycle } from "./monitor/monitor";
-import { startPayrollReportScheduler } from "./scheduler/reportScheduler";
+import { startEventIndexer, stopEventIndexer } from "./services/eventIndexer";
+import {
+  startScheduler,
+  getSchedulerStatus,
+  stopScheduler,
+} from "./scheduler/scheduler";
+import { startMonitor, runMonitorCycle, stopMonitor } from "./monitor/monitor";
+import {
+  startPayrollReportScheduler,
+  stopPayrollReportScheduler,
+} from "./scheduler/reportScheduler";
+import { streamsRouter } from "./routes/streams";
+import { payslipsRouter } from "./routes/payslips";
+import { brandingRouter } from "./routes/branding";
+import { keyRotationScheduler } from "./services/keyRotationScheduler";
 import {
   initWebSocketServer,
   shutdownWebSocketServer,
@@ -27,48 +38,118 @@ import {
   createLoggingMiddleware,
   createErrorLoggingMiddleware,
 } from "./audit/middleware";
-import { initDb } from "./db/pool";
+import { initDb, closeDb } from "./db/pool";
+import { runMigrations } from "./db/migrate";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { strictRateLimiter } from "./middleware/rateLimiter";
-import { getPool } from "./db/pool";
-import Redis from "ioredis";
-import { rpc } from "@stellar/stellar-sdk";
 import { secretsBootstrap } from "./services/secretsBootstrap";
 import { requestIdMiddleware } from "./middleware/requestId";
+import { httpLoggerMiddleware } from "./middleware/httpLogger";
 import { requireMonitorStatusAdminToken } from "./middleware/monitorStatusAuth";
+import { inputSanitizationMiddleware } from "./middleware/inputSanitization";
 import { getHealthResponse } from "./health";
+import { stopSyncer } from "./syncer";
+import { createCorsOptions, getAllowedOrigins } from "./config/cors";
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3001;
 
-app.use(cors());
+let shuttingDown = false;
+
+// CORS configuration with origin whitelist
+const ALLOWED_ORIGINS = getAllowedOrigins();
+
+// In production, ALLOWED_ORIGINS must be explicitly set
+if (process.env.NODE_ENV === "production" && !process.env.ALLOWED_ORIGINS) {
+  console.error(
+    "FATAL: ALLOWED_ORIGINS environment variable must be set in production",
+  );
+  process.exit(1);
+}
+
+// JWT_SECRET must be set in production — a missing or weak secret leaves WebSocket
+// connections unauthenticated.
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  console.error(
+    "FATAL: JWT_SECRET environment variable must be set in production",
+  );
+  process.exit(1);
+}
+
+// QUIPAY_WEBHOOK_SIGNING_SECRET must be set in production so that all outbound
+// webhooks carry a verifiable X-Quipay-Signature header.
+if (
+  process.env.NODE_ENV === "production" &&
+  !process.env.QUIPAY_WEBHOOK_SIGNING_SECRET
+) {
+  console.error(
+    "FATAL: QUIPAY_WEBHOOK_SIGNING_SECRET environment variable must be set in production",
+  );
+  process.exit(1);
+}
+
+// MONITOR_STATUS_ADMIN_TOKEN must be set in production to protect the monitor
+// status endpoint from unauthorized access.
+if (
+  process.env.NODE_ENV === "production" &&
+  !process.env.MONITOR_STATUS_ADMIN_TOKEN
+) {
+  console.error(
+    "FATAL: MONITOR_STATUS_ADMIN_TOKEN environment variable must be set in production",
+  );
+  process.exit(1);
+}
+
+app.use(cors(createCorsOptions(ALLOWED_ORIGINS)));
 app.use(
   express.json({
-    limit: "1mb",
+    limit: "64kb",
     verify: (req: any, res: any, buf: Buffer) => {
       req.rawBody = buf;
     },
   }),
 ); // Limit payload size to prevent memory exhaustion
+app.use(inputSanitizationMiddleware);
 app.use(
   express.urlencoded({
     extended: true,
-    limit: "1mb",
+    limit: "64kb",
     verify: (req: any, res: any, buf: Buffer) => {
       req.rawBody = buf;
     },
   }),
 ); // For Slack form data
 
-// Add X-Request-ID generation/forwarding via AsyncLocalStorage
+// Add X-Request-ID / X-Correlation-ID generation/forwarding via AsyncLocalStorage
 app.use(requestIdMiddleware);
+
+app.use((req, res, next) => {
+  if (shuttingDown) {
+    res.set("Connection", "close");
+    return res.status(503).json({ error: "Server is shutting down" });
+  }
+  next();
+});
+// Emit one structured JSON log line per request (correlationId, method, path, statusCode, durationMs)
+app.use(httpLoggerMiddleware);
 
 // Initialize database and audit logger
 async function initializeServices() {
   await secretsBootstrap.initialize();
   await initDb();
+  
+  if (process.env.NODE_ENV === "production" || process.env.RUN_MIGRATIONS === "true") {
+    try {
+      await runMigrations();
+    } catch (err) {
+      console.error("[Backend] ❌ Migration failed during startup:", err);
+      // In production, we might want to exit if migrations fail
+      if (process.env.NODE_ENV === "production") process.exit(1);
+    }
+  }
+
   const auditLogger = initAuditLogger();
 
   // Add audit logging middleware for contract interactions
@@ -81,6 +162,12 @@ async function initializeServices() {
 app.use("/api-docs", docsRouter);
 // Backwards-compatible alias
 app.use("/docs", docsRouter);
+
+// CSP violation reporting endpoint
+app.post("/csp-report", (req, res) => {
+  console.error("CSP Violation:", JSON.stringify(req.body, null, 2));
+  res.status(204).end();
+});
 
 app.use("/webhooks", webhookRouter);
 app.use("/slack", slackRouter);
@@ -95,6 +182,11 @@ app.use("/api/employers", employersRouter);
 app.use("/proofs", proofsRouter);
 app.use("/stellar", stellarRouter);
 app.use("/reports", reportsRouter);
+app.use("/streams", streamsRouter);
+app.use("/api/streams", streamsRouter);
+app.use("/api/workers", payslipsRouter);
+app.use("/api", payslipsRouter); // For /api/verify-signature
+app.use("/api/employers", brandingRouter);
 
 // Start time for uptime calculation
 const startTime = Date.now();
@@ -115,8 +207,22 @@ export const nonceManager = new NonceManager(
   "https://horizon-testnet.stellar.org",
 );
 
-// We intentionally do not await initialization here so as not to block express startup,
-// the nonceManager natively awaits itself inside getNonce if not initialized.
+// Initialize nonce manager with timeout, but don't block startup
+// Log warning if initialization fails
+void (async () => {
+  try {
+    await nonceManager.initialize(10000);
+    console.log("[Backend] ✅ Nonce manager initialized successfully");
+  } catch (error) {
+    console.warn(
+      "[Backend] ⚠️  Nonce manager initialization failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+    console.warn(
+      "[Backend] ⚠️  First getNonce() call will attempt initialization again",
+    );
+  }
+})();
 
 /**
  * @api {get} /health Health check endpoint
@@ -275,7 +381,12 @@ async function main() {
         next: express.NextFunction,
       ) => {
         if (auditLogger) {
-          createErrorLoggingMiddleware(auditLogger)(err, req, res, next);
+          createErrorLoggingMiddleware(auditLogger)(
+            err,
+            req as any,
+            res as any,
+            next,
+          );
         } else {
           next(err);
         }
@@ -293,10 +404,106 @@ async function main() {
     initWebSocketServer(server);
 
     // Start background services after server is listening
-    startStellarListener();
+    void startEventIndexer();
     startScheduler();
     startMonitor();
     startPayrollReportScheduler();
+
+    const rotationEnabled = process.env.KEY_ROTATION_ENABLED === "true";
+    if (rotationEnabled) {
+      void keyRotationScheduler.start();
+    } else if (process.env.NODE_ENV === "production") {
+      console.warn(
+        "[Backend] ⚠️  WARNING: Key rotation is disabled in production. This is NOT recommended for security.",
+      );
+    }
+
+    const shutdown = async (signal: string) => {
+      if (shuttingDown) {
+        console.log(`[Backend] Shutdown already in progress (${signal})`);
+        return;
+      }
+
+      shuttingDown = true;
+      console.log(`[Backend] ${signal} received. Shutting down gracefully...`);
+
+      await new Promise<void>((resolve) => {
+        server.close(() => {
+          console.log("[Backend] HTTP server closed");
+          resolve();
+        });
+      });
+
+      try {
+        stopScheduler();
+        console.log("[Backend] Scheduler stopped");
+      } catch (err) {
+        console.error("[Backend] Failed to stop scheduler:", err);
+      }
+
+      try {
+        stopPayrollReportScheduler();
+        console.log("[Backend] Payroll report scheduler stopped");
+      } catch (err) {
+        console.error(
+          "[Backend] Failed to stop payroll report scheduler:",
+          err,
+        );
+      }
+
+      try {
+        await stopEventIndexer();
+        console.log("[Backend] Event indexer stopped");
+      } catch (err) {
+        console.error("[Backend] Failed to stop event indexer:", err);
+      }
+
+      try {
+        await stopMonitor();
+        console.log("[Backend] Monitor stopped");
+      } catch (err) {
+        console.error("[Backend] Failed to stop monitor:", err);
+      }
+
+      try {
+        await keyRotationScheduler.stop();
+        console.log("[Backend] Key rotation scheduler stopped");
+      } catch (err) {
+        console.error("[Backend] Failed to stop key rotation scheduler:", err);
+      }
+
+      try {
+        await stopSyncer();
+        console.log("[Backend] Syncer stopped");
+      } catch (err) {
+        console.error("[Backend] Failed to stop syncer:", err);
+      }
+
+      try {
+        await shutdownWebSocketServer();
+        console.log("[Backend] WebSocket server closed");
+      } catch (err) {
+        console.error("[Backend] Failed to stop websocket server:", err);
+      }
+
+      try {
+        await closeDb();
+        console.log("[Backend] Database pool closed");
+      } catch (err) {
+        console.error("[Backend] Failed to close database pool:", err);
+      }
+
+      try {
+        if (auditLogger) {
+          await auditLogger.shutdown();
+          console.log("[Backend] Audit logger closed");
+        }
+      } catch (err) {
+        console.error("[Backend] Failed to shutdown audit logger:", err);
+      }
+
+      process.exit(0);
+    };
 
     // Handle server errors
     server.on("error", (err: any) => {
@@ -334,23 +541,12 @@ async function main() {
       }
     });
 
-    // Graceful shutdown
     process.on("SIGTERM", () => {
-      console.log("[Backend] SIGTERM received. Shutting down gracefully...");
-      server.close(() => {
-        console.log("[Backend] HTTP server closed");
-        shutdownWebSocketServer().then(() => {
-          console.log("[Backend] WebSocket server closed");
-          if (auditLogger) {
-            auditLogger.shutdown().then(() => {
-              console.log("[Backend] Audit logger closed");
-              process.exit(0);
-            });
-          } else {
-            process.exit(0);
-          }
-        });
-      });
+      void shutdown("SIGTERM");
+    });
+
+    process.on("SIGINT", () => {
+      void shutdown("SIGINT");
     });
   } catch (err) {
     console.error("[Backend] Failed to initialize services:", err);

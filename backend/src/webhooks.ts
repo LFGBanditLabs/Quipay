@@ -20,8 +20,10 @@ import {
 import {
   getWebhookOutboundEventByIdForOwner,
   listWebhookOutboundEventsByOwner,
+  countWebhookOutboundEventsByOwner,
 } from "./db/queries";
 import { retryWebhookEvent } from "./delivery";
+import { verifyQuipaySignature } from "./middleware/security";
 
 export interface WebhookSubscription {
   id: string;
@@ -35,6 +37,15 @@ export interface WebhookSubscription {
 export const webhookStore = new Map<string, WebhookSubscription>();
 
 export const webhookRouter = Router();
+
+webhookRouter.post(
+  "/inbound",
+  standardRateLimiter,
+  verifyQuipaySignature,
+  (req: Request, res: Response) => {
+    res.status(200).json({ received: true });
+  },
+);
 
 /**
  * @api {post} /webhooks Register a new webhook
@@ -98,13 +109,27 @@ webhookRouter.get(
       limit: number;
     };
     const offset = (Number(page) - 1) * Number(limit);
-    const events = await listWebhookOutboundEventsByOwner({
-      ownerId: req.user.id,
-      limit: Number(limit),
-      offset,
-    });
 
-    res.json({ events, page: Number(page), limit: Number(limit) });
+    const [events, total] = await Promise.all([
+      listWebhookOutboundEventsByOwner({
+        ownerId: req.user.id,
+        limit: Number(limit),
+        offset,
+      }),
+      countWebhookOutboundEventsByOwner(req.user.id),
+    ]);
+
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const hasMore = offset + limitNum < total;
+
+    res.json({
+      events,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      hasMore,
+    });
   },
 );
 

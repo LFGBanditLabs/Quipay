@@ -5,6 +5,7 @@ import { serviceLogger } from "../audit/serviceLogger";
 import { DbPoolMetricSnapshot, setDbPoolMetricsProvider } from "../metrics";
 import { MigrationRunner } from "./migrationRunner";
 import * as schema from "./schema";
+import { DatabaseError } from "../errors/AppError";
 
 let pool: Pool | null = null;
 let db: NodePgDatabase<typeof schema> | null = null;
@@ -81,7 +82,10 @@ const resolvePoolConfig = (): ResolvedPoolConfig => {
     ),
     maxUses: parsePositiveInt(getEnvValue("PGPOOL_MAX_USES"), 7_500),
     statementTimeoutMillis: parsePositiveInt(
-      getEnvValue("PGPOOL_STATEMENT_TIMEOUT_MS"),
+      getEnvValue(
+        "PGPOOL_STATEMENT_TIMEOUT_MS",
+        "DB_POOL_STATEMENT_TIMEOUT_MS",
+      ),
       15_000,
     ),
     idleInTransactionSessionTimeoutMillis: parsePositiveInt(
@@ -106,13 +110,17 @@ const applySessionTimeouts = async (
   poolClient: PoolClient,
   config: ResolvedPoolConfig,
 ) => {
-  await poolClient.query("SET statement_timeout = $1", [
-    config.statementTimeoutMillis,
+  await poolClient.query(
+    "SELECT set_config('statement_timeout', $1::text, false)",
+    [String(config.statementTimeoutMillis)],
+  );
+  await poolClient.query(
+    "SELECT set_config('idle_in_transaction_session_timeout', $1::text, false)",
+    [String(config.idleInTransactionSessionTimeoutMillis)],
+  );
+  await poolClient.query("SELECT set_config('application_name', $1, false)", [
+    config.applicationName,
   ]);
-  await poolClient.query("SET idle_in_transaction_session_timeout = $1", [
-    config.idleInTransactionSessionTimeoutMillis,
-  ]);
-  await poolClient.query("SET application_name = $1", [config.applicationName]);
 };
 
 const getPoolEventContext = (
@@ -354,6 +362,6 @@ export const query = async <T extends QueryResultRow = QueryResultRow>(
   text: string,
   params?: unknown[],
 ): Promise<QueryResult<T>> => {
-  if (!pool) throw new Error("Database pool is not initialized");
+  if (!pool) throw new DatabaseError("Database pool is not initialized");
   return pool.query<T>(text, params);
 };

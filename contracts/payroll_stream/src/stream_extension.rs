@@ -16,12 +16,8 @@ impl PayrollStream {
     ) -> Result<(), QuipayError> {
         Self::require_not_paused(&env)?;
 
-        let key = StreamKey::Stream(stream_id);
-        let mut stream: Stream = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(QuipayError::StreamNotFound)?;
+        let mut stream: Stream =
+            Self::get_stored_stream(&env, stream_id).ok_or(QuipayError::StreamNotFound)?;
 
         // Authorization: Only the employer of the stream can extend it
         stream.employer.require_auth();
@@ -36,9 +32,25 @@ impl PayrollStream {
             return Err(QuipayError::InvalidTimeRange);
         }
 
+        // Validation: New end time must be strictly after stream start time (no zero-duration)
+        if new_end_time <= stream.start_ts {
+            return Err(QuipayError::InvalidTimeRange);
+        }
+
         // Validation: additional_amount must be non-negative
         if additional_amount < 0 {
             return Err(QuipayError::InvalidAmount);
+        }
+
+        // Validation: Minimum duration check
+        let duration = new_end_time.saturating_sub(stream.start_ts);
+        if duration < Self::get_min_stream_duration(env.clone()) {
+            return Err(QuipayError::DurationTooShort);
+        }
+
+        // Validation: Maximum duration check
+        if duration > Self::get_max_stream_duration(env.clone()) {
+            return Err(QuipayError::InvalidTimeRange);
         }
 
         // If additional amount is provided, we need to deposit it into the vault
@@ -49,7 +61,7 @@ impl PayrollStream {
                 .get(&DataKey::Vault)
                 .ok_or(QuipayError::NotInitialized)?;
 
-            use soroban_sdk::{IntoVal, Symbol, vec};
+            use soroban_sdk::{vec, IntoVal, Symbol};
 
             // Check solvency for the additional amount
             let solvent: bool = env.invoke_contract(
@@ -101,7 +113,7 @@ impl PayrollStream {
         }
 
         // Save updated stream
-        env.storage().persistent().set(&key, &stream);
+        Self::set_stored_stream(&env, stream_id, &stream);
         Self::bump_stream_storage_ttl(&env, stream_id, &stream.worker);
 
         // Emit extension event

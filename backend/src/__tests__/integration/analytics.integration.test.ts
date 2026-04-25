@@ -216,15 +216,15 @@ describe("Analytics Integration Tests", () => {
       const streams = await getStreamsByEmployer("GEMPLOYER1");
 
       expect(streams).toHaveLength(2);
-      expect(streams[0].employer).toBe("GEMPLOYER1");
-      expect(streams[1].employer).toBe("GEMPLOYER1");
+      expect(streams[0].employer_address).toBe("GEMPLOYER1");
+      expect(streams[1].employer_address).toBe("GEMPLOYER1");
     });
 
     it("should filter streams by worker", async () => {
       const streams = await getStreamsByWorker("GWORKER1");
 
       expect(streams).toHaveLength(1);
-      expect(streams[0].worker).toBe("GWORKER1");
+      expect(streams[0].worker_address).toBe("GWORKER1");
     });
 
     it("should filter streams by status", async () => {

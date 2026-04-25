@@ -1,6 +1,7 @@
 import { getDb } from "./pool";
 import { payrollReportSchedules } from "./schema";
 import { eq, desc, and } from "drizzle-orm";
+import { DatabaseError } from "../errors/AppError";
 
 export interface PayrollReportScheduleInput {
   employerId: string;
@@ -21,7 +22,7 @@ export const createReportSchedule = async (
   input: PayrollReportScheduleInput,
 ): Promise<PayrollReportSchedule> => {
   const db = getDb();
-  if (!db) throw new Error("Database not initialized");
+  if (!db) throw new DatabaseError("Database not initialized");
 
   const [schedule] = await db
     .insert(payrollReportSchedules)
@@ -49,15 +50,36 @@ export const getReportSchedulesByEmployer = async (
   >;
 };
 
+export const getReportScheduleById = async (
+  id: number,
+): Promise<PayrollReportSchedule | null> => {
+  const db = getDb();
+  if (!db) return null;
+
+  const [schedule] = await db
+    .select()
+    .from(payrollReportSchedules)
+    .where(eq(payrollReportSchedules.id, id))
+    .limit(1);
+
+  return (schedule as PayrollReportSchedule) || null;
+};
+
 export const deleteReportSchedule = async (
   id: number,
+  employerId: string,
 ): Promise<PayrollReportSchedule | null> => {
   const db = getDb();
   if (!db) return null;
 
   const [deleted] = await db
     .delete(payrollReportSchedules)
-    .where(eq(payrollReportSchedules.id, id))
+    .where(
+      and(
+        eq(payrollReportSchedules.id, id),
+        eq(payrollReportSchedules.employerId, employerId),
+      ),
+    )
     .returning();
 
   return (deleted as PayrollReportSchedule) || null;

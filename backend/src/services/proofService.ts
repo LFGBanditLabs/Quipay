@@ -56,8 +56,8 @@ export const generateAndStoreProof = async (
   const proof: PayrollProof = {
     schemaVersion: "1.0",
     streamId: stream.stream_id,
-    employer: stream.employer,
-    worker: stream.worker,
+    employer_address: stream.employer_address,
+    worker_address: stream.worker_address,
     tokenAddress: "",
     tokenSymbol,
     totalAmount: toTokenUnits(stream.total_amount),

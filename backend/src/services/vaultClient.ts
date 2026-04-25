@@ -1,3 +1,5 @@
+import { ServiceUnavailableError } from "../errors/AppError";
+import { logServiceError, logServiceWarn } from "../audit/serviceLogger";
 import { createCircuitBreaker } from "../utils/circuitBreaker";
 
 export interface VaultClientConfig {
@@ -35,31 +37,50 @@ export class VaultClient {
 
   async healthCheck(): Promise<boolean> {
     try {
-      const response: any = await vaultBreaker.fire(
+      const response: Response = (await vaultBreaker.fire(
         `${this.baseUrl}/v1/sys/health`,
         {
           method: "GET",
           headers: this.getHeaders(),
         },
-      );
+      )) as Response;
+
+      if (!response.ok && response.status !== 429) {
+        // 429 is "unsealed and standby", which might be okay depending on config, 
+        // but generally 200 is what we want for "healthy and active"
+        await logServiceWarn("VaultClient", "Vault health check returned non-OK status", {
+          status: response.status,
+          statusText: response.statusText,
+        });
+      }
+
       return response.ok;
-    } catch {
+    } catch (error) {
+      await logServiceError("VaultClient", "Vault health check failed", error);
       return false;
     }
   }
 
   async lookupSelfToken(): Promise<boolean> {
     try {
-      const response: any = await vaultBreaker.fire(
+      const response: Response = (await vaultBreaker.fire(
         `${this.baseUrl}/v1/auth/token/lookup-self`,
         {
           method: "GET",
           headers: this.getHeaders(),
         },
-      );
+      )) as Response;
+
+      if (!response.ok) {
+        await logServiceWarn("VaultClient", "Vault token validation failed", {
+          status: response.status,
+          statusText: response.statusText,
+        });
+      }
 
       return response.ok;
-    } catch {
+    } catch (error) {
+      await logServiceError("VaultClient", "Vault token validation failed with error", error);
       return false;
     }
   }
@@ -74,7 +95,7 @@ export class VaultClient {
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to read secret: ${response.statusText}`);
+      throw new ServiceUnavailableError(`Failed to read secret: ${response.statusText}`);
     }
 
     return response.json();
@@ -95,7 +116,7 @@ export class VaultClient {
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to write secret: ${response.statusText}`);
+      throw new ServiceUnavailableError(`Failed to write secret: ${response.statusText}`);
     }
 
     return response.json();
@@ -114,7 +135,7 @@ export class VaultClient {
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to delete secret: ${response.statusText}`);
+      throw new ServiceUnavailableError(`Failed to delete secret: ${response.statusText}`);
     }
 
     return response.json();
@@ -171,7 +192,7 @@ export class VaultClient {
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to create policy: ${response.statusText}`);
+      throw new ServiceUnavailableError(`Failed to create policy: ${response.statusText}`);
     }
 
     return response.json();
@@ -188,7 +209,7 @@ export class VaultClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to enable secret engine: ${response.statusText}`);
+      throw new ServiceUnavailableError(`Failed to enable secret engine: ${response.statusText}`);
     }
 
     return response.json();
@@ -213,7 +234,7 @@ export class VaultClient {
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to create AppRole: ${response.statusText}`);
+      throw new ServiceUnavailableError(`Failed to create AppRole: ${response.statusText}`);
     }
 
     return response.json();
@@ -231,7 +252,7 @@ export class VaultClient {
     );
 
     if (!roleIdResponse.ok) {
-      throw new Error(`Failed to get role ID: ${roleIdResponse.statusText}`);
+      throw new ServiceUnavailableError(`Failed to get role ID: ${roleIdResponse.statusText}`);
     }
 
     const roleIdData = await roleIdResponse.json();
@@ -246,7 +267,7 @@ export class VaultClient {
     );
 
     if (!secretIdResponse.ok) {
-      throw new Error(
+      throw new ServiceUnavailableError(
         `Failed to get secret ID: ${secretIdResponse.statusText}`,
       );
     }

@@ -329,6 +329,52 @@ describe("runMonitorCycle", () => {
   });
 });
 
+// ─── parseAmount precision ───────────────────────────────────────────────────
+
+describe("parseAmount precision (large treasury amounts)", () => {
+  it("correctly parses a large amount without producing NaN", async () => {
+    // 999_999_999.9999999 XLM is a realistic upper bound for an employer treasury.
+    // parseFloat() on a non-numeric suffix (e.g. "123abc") would silently return
+    // a partial parse; Number() returns NaN and parseAmount() normalises to 0.
+    mockGetBalances.mockResolvedValue([
+      { employer: "EMP_LARGE", balance: "999999999" },
+    ]);
+    mockGetLiabilities.mockResolvedValue([
+      { employer: "EMP_LARGE", liabilities: "0" },
+    ]);
+    mockGetStreamsByEmployer.mockResolvedValue([
+      {
+        total_amount: "999999999",
+        withdrawn_amount: "0",
+        start_ts: fixedNowSeconds - 100,
+        end_ts: fixedNowSeconds + 86_400 * 365,
+      },
+    ]);
+
+    const results = await computeTreasuryStatus();
+    const large = results.find((r) => r.employer === "EMP_LARGE")!;
+
+    expect(large.balance).toBe(999_999_999);
+    expect(Number.isNaN(large.daily_burn_rate)).toBe(false);
+    expect(large.daily_burn_rate).toBeGreaterThan(0);
+    expect(Number.isNaN(large.runway_days as number)).toBe(false);
+  });
+
+  it("returns 0 for invalid amount strings instead of a partial parse", async () => {
+    mockGetBalances.mockResolvedValue([
+      { employer: "EMP_BAD", balance: "not-a-number" },
+    ]);
+    mockGetLiabilities.mockResolvedValue([
+      { employer: "EMP_BAD", liabilities: "0" },
+    ]);
+    mockGetStreamsByEmployer.mockResolvedValue([]);
+
+    const results = await computeTreasuryStatus();
+    const bad = results.find((r) => r.employer === "EMP_BAD")!;
+    expect(bad.balance).toBe(0);
+  });
+});
+
 // ─── startMonitor no-op when DB absent ──────────────────────────────────────
 
 describe("startMonitor", () => {

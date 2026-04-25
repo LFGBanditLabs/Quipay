@@ -1,4 +1,5 @@
 import { Request as ExpressRequest, Response, NextFunction } from "express";
+import { setWalletAddressInContext } from "./requestId";
 
 // ─── Role Definitions ────────────────────────────────────────────────────────
 
@@ -182,6 +183,9 @@ export function authenticateRequest(
     return;
   }
   req.user = user;
+  // Propagate the wallet / user address into the async context so that every
+  // downstream log line automatically includes it without extra plumbing.
+  setWalletAddressInContext(user.id);
   next();
 }
 

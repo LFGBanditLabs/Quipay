@@ -89,6 +89,12 @@ const dbPoolMinConnections = new Gauge({
   },
 });
 
+export const employerRunwayGauge = new Gauge({
+  name: "quipay_employer_runway_days",
+  help: "Estimated treasury runway in days per employer. Set to -1 when no active streams (unlimited runway).",
+  labelNames: ["employer_address"],
+});
+
 export class MetricsManager {
   public register: Registry;
   public processedTransactions: Counter;
@@ -129,6 +135,7 @@ export class MetricsManager {
     this.register.registerMetric(dbPoolWaitingClients);
     this.register.registerMetric(dbPoolMaxConnections);
     this.register.registerMetric(dbPoolMinConnections);
+    this.register.registerMetric(employerRunwayGauge);
   }
 
   public trackTransaction(

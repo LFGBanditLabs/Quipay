@@ -4,3 +4,4 @@ dist
 target
 .soroban
 *.min.js
+deploy/helm/**

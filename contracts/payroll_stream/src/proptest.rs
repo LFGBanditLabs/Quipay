@@ -1,12 +1,13 @@
 #![cfg(test)]
 extern crate std;
 
-use crate::{PayrollStream, PayrollStreamClient, Stream, StreamStatus};
+use crate::stream_curve::SpeedCurve::Linear;
+use crate::{stream_curve::SpeedCurve, PayrollStream, PayrollStreamClient, Stream, StreamStatus};
 use proptest::prelude::*;
-use soroban_sdk::{Address, Env, testutils::Address as _, testutils::Ledger};
+use soroban_sdk::{testutils::Address as _, testutils::Ledger, Address, Env};
 
 mod dummy_vault {
-    use soroban_sdk::{Address, Env, contract, contractimpl};
+    use soroban_sdk::{contract, contractimpl, Address, Env};
     #[contract]
     pub struct DummyVault;
     #[contractimpl]
@@ -15,6 +16,9 @@ mod dummy_vault {
             true
         }
         pub fn add_liability(_env: Env, _token: Address, _amount: i128) {}
+        pub fn is_token_allowed(_env: Env, _token: Address) -> bool {
+            true
+        }
         pub fn remove_liability(_env: Env, _token: Address, _amount: i128) {}
         pub fn payout_liability(_env: Env, _to: Address, _token: Address, _amount: i128) {}
     }
@@ -52,7 +56,9 @@ proptest! {
         let vault_id = env.register_contract(None, dummy_vault::DummyVault);
 
         client.init(&admin);
+        client.set_min_stream_duration(&0u64);
         client.set_vault(&vault_id);
+        client.set_cancellation_grace_period(&0u64); // disable grace period for prop tests
 
         let initial_time = 1_000_000_000u64;
         env.ledger().set_timestamp(initial_time);
@@ -60,7 +66,7 @@ proptest! {
         let start_ts = initial_time.saturating_add(start_offset);
         let end_ts = start_ts.saturating_add(duration);
 
-        let stream_id = client.create_stream(&employer, &worker, &token, &rate, &0u64, &start_ts, &end_ts, &None);
+        let stream_id = client.create_stream(&employer, &worker, &token, &rate, &0u64, &start_ts, &end_ts, &None, &None);
 
         let mut current_time = initial_time;
         let steps = std::cmp::min(time_leaps.len(), actions.len());
@@ -340,6 +346,9 @@ fn construct_stream(
         paused_at: 0,
         total_paused_duration: 0,
         metadata_hash: None,
+        cancel_effective_at: 0,
+        speed_curve: SpeedCurve::Linear,
+        clawback_authority: None,
     }
 }
 

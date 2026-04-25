@@ -6,6 +6,8 @@ export class NonceManager {
   private availableNonces: bigint[] = [];
   private accountId: string;
   private server: Horizon.Server;
+  private initializationError: Error | null = null;
+  private isInitialized: boolean = false;
 
   // Process queue to ensure strict sequential extraction when multiple requests hit at the exact same ms
   private requestQueue = new PQueue({ concurrency: 1 });
@@ -20,12 +22,29 @@ export class NonceManager {
 
   /**
    * Initializes the manager by fetching the latest account sequence number from the network.
+   * Includes a timeout to prevent indefinite blocking on RPC unavailability.
    */
-  async initialize(): Promise<void> {
+  async initialize(timeoutMs: number = 10000): Promise<void> {
     return this.requestQueue.add(async () => {
-      const account = await this.server.loadAccount(this.accountId);
-      this.currentSequence = BigInt(account.sequence);
-      this.availableNonces = [];
+      try {
+        const account = await Promise.race([
+          this.server.loadAccount(this.accountId),
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error(`Nonce initialization timeout after ${timeoutMs}ms`)),
+              timeoutMs,
+            ),
+          ),
+        ]);
+        this.currentSequence = BigInt(account.sequence);
+        this.availableNonces = [];
+        this.isInitialized = true;
+        this.initializationError = null;
+      } catch (error) {
+        this.initializationError = error instanceof Error ? error : new Error(String(error));
+        this.isInitialized = false;
+        throw this.initializationError;
+      }
     });
   }
 
@@ -73,13 +92,45 @@ export class NonceManager {
     return {
       currentSequence: this.currentSequence?.toString() || null,
       availableNonces: this.availableNonces.map((n) => n.toString()),
+      isInitialized: this.isInitialized,
+      initializationError: this.initializationError?.message || null,
     };
+  }
+
+  /**
+   * Check if the nonce manager is healthy.
+   */
+  isHealthy(): boolean {
+    return this.isInitialized && this.initializationError === null;
+  }
+
+  /**
+   * Get initialization error if any.
+   */
+  getInitializationError(): Error | null {
+    return this.initializationError;
   }
 
   // Helper to avoid deadlock when calling initialize() from inside getNonce()'s queue context
   private async initializeQueueFree(): Promise<void> {
-    const account = await this.server.loadAccount(this.accountId);
-    this.currentSequence = BigInt(account.sequence);
-    this.availableNonces = [];
+    try {
+      const account = await Promise.race([
+        this.server.loadAccount(this.accountId),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Nonce initialization timeout after 10000ms")),
+            10000,
+          ),
+        ),
+      ]);
+      this.currentSequence = BigInt(account.sequence);
+      this.availableNonces = [];
+      this.isInitialized = true;
+      this.initializationError = null;
+    } catch (error) {
+      this.initializationError = error instanceof Error ? error : new Error(String(error));
+      this.isInitialized = false;
+      throw this.initializationError;
+    }
   }
 }

@@ -1,0 +1,13 @@
+apiVersion: v2
+name: quipay-backend
+description: Helm chart for the Quipay backend API service
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - quipay
+  - stellar
+  - payroll
+maintainers:
+  - name: LFGBanditLabs
+    url: https://github.com/LFGBanditLabs/Quipay

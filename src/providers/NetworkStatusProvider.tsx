@@ -1,16 +1,40 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { getNetworkStatus, NetworkStatus } from "../util/networkStatus";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+} from "react";
+import {
+  getNetworkStatus,
+  NetworkStatus,
+  RpcNodeHealth,
+} from "../util/networkStatus";
 
-interface NetworkStatusContextType extends NetworkStatus {
+export interface NetworkStatusContextType extends NetworkStatus {
   refresh: () => Promise<void>;
+  /** Rolling history of status snapshots for the health monitor chart */
+  history: NetworkStatus[];
+  /** Whether a refresh is currently in progress */
+  isRefreshing: boolean;
 }
 
 const NetworkStatusContext = createContext<
   NetworkStatusContextType | undefined
 >(undefined);
 
-const REFRESH_INTERVAL = 30000; // 30 seconds
+const REFRESH_INTERVAL = 30_000; // 30 seconds
+const MAX_HISTORY = 20;
+
+const defaultNodeHealth: RpcNodeHealth = {
+  name: "",
+  url: "",
+  status: "online",
+  latency: 0,
+  lastChecked: Date.now(),
+};
 
 export const NetworkStatusProvider = ({
   children,
@@ -22,37 +46,47 @@ export const NetworkStatusProvider = ({
     latency: 0,
     congestion: "low",
     minFee: 100,
+    horizonHealth: defaultNodeHealth,
+    sorobanHealth: defaultNodeHealth,
   });
+  const [history, setHistory] = useState<NetworkStatus[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const mountedRef = useRef(true);
 
-  const refresh = async () => {
-    const newStatus = await getNetworkStatus();
-    setStatus(newStatus);
-  };
-
-  useEffect(() => {
-    let active = true;
-
-    async function updateStatus() {
+  const refresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
       const newStatus = await getNetworkStatus();
-      if (active) {
+      if (mountedRef.current) {
         setStatus(newStatus);
+        setHistory((prev) => [...prev, newStatus].slice(-MAX_HISTORY));
+      }
+    } finally {
+      if (mountedRef.current) {
+        setIsRefreshing(false);
       }
     }
+  }, []);
 
-    void updateStatus();
+  useEffect(() => {
+    mountedRef.current = true;
+
+    void refresh();
 
     const interval = setInterval(() => {
-      void updateStatus();
+      void refresh();
     }, REFRESH_INTERVAL);
 
     return () => {
-      active = false;
+      mountedRef.current = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [refresh]);
 
   return (
-    <NetworkStatusContext.Provider value={{ ...status, refresh }}>
+    <NetworkStatusContext.Provider
+      value={{ ...status, refresh, history, isRefreshing }}
+    >
       {children}
     </NetworkStatusContext.Provider>
   );

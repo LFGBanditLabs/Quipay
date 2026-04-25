@@ -11,18 +11,28 @@ const {
 } = sdk;
 const SorobanRpc = sdk.rpc;
 
-const RPC_URL = "https://soroban-testnet.stellar.org";
-const NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
+const RPC_URL =
+  process.env.STELLAR_RPC_URL || "https://soroban-testnet.stellar.org";
+const NETWORK_PASSPHRASE =
+  process.env.STELLAR_NETWORK_PASSPHRASE || "Test SDF Network ; September 2015";
 
-// Contract IDs from deployment
-const VAULT_ID = "CCVIZ7256UFV2TKVTQ6ANU6S75IFFSXMLJOXOXW5QZOUXBTWDIRXGEUJ";
-const STREAM_ID = "CAQ5IXSFW74FXUZ6M7OURK36JFEGTJ5NC5GITPRSZBSY2FWOTRVAGVPV";
+// Contract IDs from deployment — set via environment variables
+const VAULT_ID = process.env.VAULT_CONTRACT_ID;
+const STREAM_ID = process.env.STREAM_CONTRACT_ID;
 
-// Admin key (public is enough for view, but we need to sign tx for invocation even if it's a view?
-// No, for simulateTransaction we don't need to sign if we don't submit?
-// Actually, to call a contract function we usually construct a transaction and simulate it.)
-// We can use a random keypair for simulation source.
-const keypair = Keypair.random();
+if (!VAULT_ID || !STREAM_ID) {
+  console.error(
+    "Missing required env vars: VAULT_CONTRACT_ID, STREAM_CONTRACT_ID",
+  );
+  process.exit(1);
+}
+
+// Admin key for simulation — must be provided via ADMIN_SECRET env var
+if (!process.env.ADMIN_SECRET) {
+  console.error("Missing required env var: ADMIN_SECRET");
+  process.exit(1);
+}
+const adminKey = Keypair.fromSecret(process.env.ADMIN_SECRET);
 
 async function main() {
   console.log("Starting smoke tests...");
@@ -30,18 +40,6 @@ async function main() {
 
   async function callView(contractId, method, args = []) {
     console.log(`Calling ${method} on ${contractId}...`);
-    const account = await server
-      .getAccount(keypair.publicKey())
-      .catch(() => null);
-
-    // If account doesn't exist (it's random), we can still simulate?
-    // Usually we need a valid sequence number.
-    // Let's use the friendbot to fund it first to be safe, or use the admin key from deployment.
-    // Using admin key from deployment output (replace with your secret)
-    const adminKey = Keypair.fromSecret(
-      process.env.ADMIN_SECRET ||
-        "SCHCP7RX4FWWLZ5JNUOHTSWSQ5S63DYMWHC6RBNLWZZRMSLKQJ22JZNX",
-    );
     const adminAccount = await server.getAccount(adminKey.publicKey());
 
     const contract = new Contract(contractId);

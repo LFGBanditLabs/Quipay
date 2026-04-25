@@ -1,12 +1,17 @@
 import React, { useState, useCallback } from "react";
 import { useTransactionData } from "../hooks/useTransactionData";
+import { usePayroll, type Stream } from "../hooks/usePayroll";
+import { getReceiptForStream } from "../contracts/payroll_stream";
 import {
+  exportOnChainReceiptPDF,
   exportTransactionsCSV,
   exportTransactionsPDF,
   exportPaycheckPDF,
   exportMonthlySummaryPDF,
+  exportPayrollStreamsCSV,
 } from "../services/reportService";
 import type { PayrollTransaction } from "../types/reports";
+import { useWallet } from "../hooks/useWallet";
 import { useAnalytics } from "../hooks/useAnalytics";
 import {
   Area,
@@ -147,6 +152,11 @@ const Reports: React.FC = () => {
     availableMonths,
   } = useTransactionData();
 
+  const { address: walletAddress } = useWallet();
+
+  // Use connected wallet address for payroll stream queries
+  const { streams } = usePayroll(walletAddress);
+
   const {
     trends,
     loading: analyticsLoading,
@@ -168,14 +178,71 @@ const Reports: React.FC = () => {
     showToast("CSV exported successfully");
   };
 
+  const handlePayrollStreamsCSVExport = () => {
+    try {
+      // Convert streams to the format expected by CSV export function
+      const payrollStreams = streams.map((stream) => ({
+        streamId: stream.id,
+        worker: stream.employeeAddress,
+        total_amount: BigInt(parseFloat(stream.totalAmount) * 1e7),
+        withdrawn_amount: BigInt(parseFloat(stream.totalStreamed) * 1e7),
+        start_ts: BigInt(
+          Math.floor(new Date(stream.startDate).getTime() / 1000),
+        ),
+        end_ts: BigInt(Math.floor(new Date(stream.endDate).getTime() / 1000)),
+        status:
+          stream.status === "active"
+            ? 0
+            : stream.status === "cancelled"
+              ? 1
+              : 2,
+      }));
+
+      exportPayrollStreamsCSV(payrollStreams);
+      showToast("Payroll streams CSV exported successfully");
+    } catch (error) {
+      showToast("Failed to export payroll streams CSV");
+      console.error("CSV export error:", error);
+    }
+  };
+
   const handlePDFExport = () => {
     exportTransactionsPDF(filteredTransactions);
     showToast("PDF exported successfully");
   };
 
   const handlePaycheckPDF = (tx: PayrollTransaction) => {
-    exportPaycheckPDF(tx);
+    void exportPaycheckPDF(tx);
     showToast(`Paycheck PDF generated for ${tx.employeeName}`);
+  };
+
+  const handleOnChainReceiptPDF = (stream: Stream) => {
+    void (async () => {
+      try {
+        const sourceAddress = walletAddress || stream.employeeAddress;
+        const receipt = await getReceiptForStream(
+          sourceAddress,
+          BigInt(stream.id),
+        );
+
+        if (!receipt) {
+          showToast(`No on-chain receipt found for stream ${stream.id}`);
+          return;
+        }
+
+        await exportOnChainReceiptPDF(receipt, {
+          employeeName: stream.employeeName,
+          employeeId: stream.id,
+          tokenSymbol: stream.tokenSymbol,
+          sourceAddress,
+          filename: `quipay-receipt-${stream.id}.pdf`,
+        });
+        showToast(`On-chain receipt exported for stream ${stream.id}`);
+      } catch (error) {
+        console.error("On-chain receipt export error:", error);
+        showToast(`Failed to export on-chain receipt for stream ${stream.id}`);
+      }
+    })();
   };
 
   const handleMonthlySummaryPDF = () => {
@@ -334,6 +401,13 @@ const Reports: React.FC = () => {
                     📥 Export CSV
                   </button>
                   <button
+                    id="btn-export-payroll-csv"
+                    className={`${tw.btnExport} ${tw.btnCSV}`}
+                    onClick={handlePayrollStreamsCSVExport}
+                  >
+                    📊 Export Payroll CSV
+                  </button>
+                  <button
                     id="btn-export-pdf"
                     className={`${tw.btnExport} ${tw.btnPDF}`}
                     onClick={handlePDFExport}
@@ -402,6 +476,98 @@ const Reports: React.FC = () => {
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className={tw.card}>
+            <div className={tw.cardHeader}>
+              <h2 className={tw.cardTitle}>
+                <span className={tw.cardTitleIcon}>🧾</span>
+                On-Chain Receipts
+              </h2>
+            </div>
+
+            {streams.filter(
+              (stream) =>
+                stream.status === "completed" || stream.status === "cancelled",
+            ).length === 0 ? (
+              <div className={tw.emptyState}>
+                <div className={tw.emptyIcon}>🧾</div>
+                <p>No completed or cancelled streams with receipts yet.</p>
+              </div>
+            ) : (
+              <div className={tw.tableWrapper}>
+                <table className={tw.dataTable}>
+                  <thead>
+                    <tr>
+                      <th>Stream</th>
+                      <th>Worker</th>
+                      <th>Status</th>
+                      <th>Amount</th>
+                      <th>Token</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {streams
+                      .filter(
+                        (stream) =>
+                          stream.status === "completed" ||
+                          stream.status === "cancelled",
+                      )
+                      .map((stream) => (
+                        <tr key={`receipt-${stream.id}`}>
+                          <td>{stream.id}</td>
+                          <td>
+                            {stream.employeeName}
+                            <br />
+                            <span
+                              style={{ fontSize: "0.7rem", color: "#64748b" }}
+                            >
+                              {shortHash(stream.employeeAddress)}
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className={`${tw.statusBadge} ${
+                                stream.status === "completed"
+                                  ? tw.statusCompleted
+                                  : tw.statusFailed
+                              }`}
+                            >
+                              <span
+                                className={`${tw.statusDot} ${
+                                  stream.status === "completed"
+                                    ? tw.dotCompleted
+                                    : tw.dotFailed
+                                }`}
+                              />
+                              {stream.status === "completed"
+                                ? "Completed"
+                                : "Cancelled"}
+                            </span>
+                          </td>
+                          <td className={tw.amountCell}>
+                            {fmtCurrency(
+                              Number.parseFloat(stream.totalStreamed || "0"),
+                              stream.tokenSymbol,
+                            )}
+                          </td>
+                          <td>{stream.tokenSymbol}</td>
+                          <td>
+                            <button
+                              className={`${tw.btnExport} ${tw.btnPaycheck}`}
+                              onClick={() => handleOnChainReceiptPDF(stream)}
+                              title="Download on-chain payroll receipt PDF"
+                            >
+                              🧾 Receipt
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>

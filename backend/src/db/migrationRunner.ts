@@ -65,7 +65,7 @@ export class MigrationRunner {
     version: number;
     name: string;
   } | null {
-    const match = filename.match(/^(\d{3})_(.+)\.sql$/);
+    const match = filename.match(/^(\d+)_(.+)\.sql$/);
     if (!match) return null;
 
     return {
@@ -88,6 +88,7 @@ export class MigrationRunner {
       .sort();
 
     const migrations: Migration[] = [];
+    const seenVersions = new Set<number>();
 
     for (const file of files) {
       const parsed = this.parseMigrationFilename(file);
@@ -96,6 +97,13 @@ export class MigrationRunner {
       const filepath = path.join(this.migrationsDir, file);
       const sql = fs.readFileSync(filepath, "utf-8");
       const checksum = this.calculateChecksum(sql);
+
+      if (seenVersions.has(parsed.version)) {
+        throw new Error(
+          `Duplicate migration version detected: ${parsed.version} (${file})`,
+        );
+      }
+      seenVersions.add(parsed.version);
 
       migrations.push({
         version: parsed.version,
@@ -106,7 +114,13 @@ export class MigrationRunner {
       });
     }
 
-    return migrations;
+    return migrations.sort((a, b) => {
+      if (a.version !== b.version) {
+        return a.version - b.version;
+      }
+
+      return a.name.localeCompare(b.name);
+    });
   }
 
   /**

@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import ConnectAccount from "../ConnectAccount";
 import ThemeToggle from "../ThemeToggle";
 import LanguageSwitcher from "../LanguageSwitcher";
+import { Tooltip, TooltipTrigger, TooltipContent } from "../ui";
+import NotificationCenter from "./NotificationCenter";
 
 const Navbar: React.FC = () => {
   const { t } = useTranslation();
@@ -11,14 +13,44 @@ const Navbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
 
   const navLinks = [
-    { to: "/dashboard", label: t("nav.dashboard") },
+    { to: "/dashboard", label: t("nav.dashboard"), shortcut: "Ctrl+D" },
+    {
+      to: "/dashboard-customization",
+      label: t("nav.customize_dashboard"),
+    },
     { to: "/payroll", label: t("nav.payroll") },
-    { to: "/treasury-management", label: t("nav.treasury") },
+    {
+      to: "/treasury-management",
+      label: t("nav.treasury"),
+      tourId: "tour-treasury-nav",
+    },
     { to: "/worker", label: t("nav.worker") },
-    { to: "/workforce", label: t("nav.workforce") },
+    {
+      to: "/workforce",
+      label: t("nav.workforce"),
+      tourId: "tour-workforce-nav",
+    },
+    { to: "/address-book", label: t("nav.address_book") },
     { to: "/reports", label: t("nav.reports") },
-    { to: "/templates", label: "Templates" },
+    { to: "/analytics", label: t("nav.analytics") },
+    { to: "/templates", label: t("nav.templates") },
     { to: "/governance", label: t("nav.governance") },
+    {
+      to: "/withdraw",
+      label: t("nav.withdraw"),
+      shortcut: "Ctrl+W",
+    },
+    {
+      to: "/create-stream",
+      label: t("nav.create_stream"),
+      shortcut: "Ctrl+N",
+      tourId: "tour-create-stream-nav",
+    },
+    {
+      to: "/settings",
+      label: t("nav.settings"),
+      shortcut: "Ctrl+,",
+    },
   ];
 
   const closeMenu = () => setIsMenuOpen(false);
@@ -47,44 +79,56 @@ const Navbar: React.FC = () => {
       <header
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
           isScrolled
-            ? "bg-[var(--surface)]/80 backdrop-blur-xl border-b border-[var(--border)] shadow-lg"
+            ? "bg-(--surface)/80 backdrop-blur-xl border-b border-border shadow-lg"
             : "bg-transparent"
         }`}
       >
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-2">
-              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 text-white font-bold text-sm shadow-lg shadow-indigo-500/25">
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-linear-to-br from-indigo-500 to-purple-500 text-white font-bold text-sm shadow-lg shadow-indigo-500/25">
                 Q
               </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+              <span className="text-xl font-bold bg-linear-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
                 Quipay
               </span>
             </div>
 
             <div className="hidden md:flex items-center gap-1">
               {navLinks.map((link) => (
-                <NavLink
-                  key={link.to}
-                  to={link.to}
-                  onClick={closeMenu}
-                  className={({ isActive }) =>
-                    `relative inline-flex min-h-11 items-center rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 ${
-                      isActive
-                        ? "text-[var(--text)] bg-[var(--surface-subtle)]"
-                        : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-subtle)]/50"
-                    }`
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      {link.label}
-                      {isActive && (
-                        <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-gradient-to-r from-indigo-400 to-pink-400" />
+                <Tooltip key={link.to}>
+                  <TooltipTrigger>
+                    <NavLink
+                      id={link.tourId}
+                      to={link.to}
+                      onClick={closeMenu}
+                      className={({ isActive }) =>
+                        `relative inline-flex min-h-11 items-center rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 ${
+                          isActive
+                            ? "text-(--text) bg-(--surface-subtle)"
+                            : "text-muted hover:text-(--text) hover:bg-(--surface-subtle)/50"
+                        }`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          {link.label}
+                          {isActive && (
+                            <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-linear-to-r from-indigo-400 to-pink-400" />
+                          )}
+                        </>
                       )}
-                    </>
+                    </NavLink>
+                  </TooltipTrigger>
+                  {link.shortcut && (
+                    <TooltipContent side="bottom" className="flex gap-2">
+                      {link.label}
+                      <kbd className="rounded bg-background/20 px-1.5 py-0.5 text-[10px] font-sans">
+                        {link.shortcut}
+                      </kbd>
+                    </TooltipContent>
                   )}
-                </NavLink>
+                </Tooltip>
               ))}
             </div>
 
@@ -92,15 +136,17 @@ const Navbar: React.FC = () => {
               <div className="hidden md:flex items-center gap-2">
                 <LanguageSwitcher />
                 <ThemeToggle />
+                <NotificationCenter />
                 <ConnectAccount />
               </div>
 
               <div className="flex md:hidden items-center gap-2">
                 <ConnectAccount />
+                <NotificationCenter />
                 <button
                   type="button"
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  className="min-h-11 min-w-11 rounded-lg p-2 text-[var(--muted)] transition-all duration-200 hover:bg-[var(--surface-subtle)] hover:text-[var(--text)]"
+                  className="min-h-11 min-w-11 rounded-lg p-2 text-muted transition-all duration-200 hover:bg-(--surface-subtle) hover:text-(--text)"
                   aria-label={
                     isMenuOpen ? t("nav.close_menu") : t("nav.open_menu")
                   }
@@ -155,7 +201,7 @@ const Navbar: React.FC = () => {
             : "opacity-0 -translate-y-4 pointer-events-none"
         }`}
       >
-        <nav className="bg-[var(--surface)]/95 backdrop-blur-xl border-b border-[var(--border)] shadow-2xl">
+        <nav className="bg-(--surface)/95 backdrop-blur-xl border-b border-border shadow-2xl">
           <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-1">
             {navLinks.map((link) => (
               <NavLink
@@ -165,8 +211,8 @@ const Navbar: React.FC = () => {
                 className={({ isActive }) =>
                   `flex min-h-11 items-center rounded-xl px-4 py-3 text-base font-medium transition-all duration-200 ${
                     isActive
-                      ? "text-[var(--text)] bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-[var(--border)]"
-                      : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-subtle)]"
+                      ? "text-(--text) bg-linear-to-r from-indigo-500/10 to-purple-500/10 border border-border"
+                      : "text-muted hover:text-(--text) hover:bg-(--surface-subtle)"
                   }`
                 }
               >
@@ -174,13 +220,13 @@ const Navbar: React.FC = () => {
                   <div className="flex items-center justify-between w-full">
                     <span>{link.label}</span>
                     {isActive && (
-                      <span className="w-2 h-2 rounded-full bg-gradient-to-r from-indigo-400 to-pink-400" />
+                      <span className="w-2 h-2 rounded-full bg-linear-to-r from-indigo-400 to-pink-400" />
                     )}
                   </div>
                 )}
               </NavLink>
             ))}
-            <div className="flex items-center justify-center gap-4 pt-4 mt-2 border-t border-[var(--border)]">
+            <div className="flex items-center justify-center gap-4 pt-4 mt-2 border-t border-border">
               <LanguageSwitcher />
               <ThemeToggle />
             </div>
