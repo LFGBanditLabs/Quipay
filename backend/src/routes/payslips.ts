@@ -4,6 +4,7 @@ import {
   authenticateRequest,
   requireUser,
   AuthenticatedRequest,
+  Role,
 } from "../middleware/rbac";
 import { z } from "zod";
 import {
@@ -18,6 +19,7 @@ import { generatePayslip } from "../services/pdfGeneratorService";
 import { signPayslip, verifySignature } from "../services/signatureService";
 import { query } from "../db/pool";
 import { logServiceInfo, logServiceError } from "../audit/serviceLogger";
+import { WorkerSummaryDto, WorkerFullDto } from "../types/worker";
 
 export const payslipsRouter = Router();
 
@@ -41,6 +43,106 @@ const workerNotificationPreferencesSchema = z.object({
   streamEndingAlerts: z.boolean().optional(),
   lowRunwayAlerts: z.boolean().optional(),
 });
+
+const workersFieldSelectionSchema = z.object({
+  fields: z.enum(["summary", "full"]).optional(),
+  org_id: z.string().optional(),
+});
+
+const mapWorkerRowToSummary = (row: any): WorkerSummaryDto => ({
+  id: row.id,
+  name: row.name,
+  address: row.address,
+  department: row.department || "Unassigned",
+  status: row.status === "active" ? "active" : "inactive",
+});
+
+const mapWorkerRowToFull = (row: any): WorkerFullDto => ({
+  ...mapWorkerRowToSummary(row),
+  employerAddress: row.employer_address,
+  bankAccountStub: row.bank_account_stub,
+  personalIdentifier: row.personal_identifier,
+  email: row.email,
+  phone: row.phone,
+  metadata: row.metadata ?? null,
+});
+
+/**
+ * GET /api/workers?fields=summary|full&org_id=...
+ * Returns summary worker DTOs by default. Full view is admin-only.
+ */
+payslipsRouter.get(
+  "/",
+  authenticateRequest,
+  requireUser,
+  validateRequest({ query: workersFieldSelectionSchema }),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { fields = "summary", org_id } = req.query as {
+        fields?: "summary" | "full";
+        org_id?: string;
+      };
+      const isAdmin =
+        req.user.role === Role.Admin || req.user.role === Role.SuperAdmin;
+
+      if (fields === "full" && !isAdmin) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "Only admins can request full worker fields",
+        });
+      }
+
+      const employerFilter = isAdmin ? org_id?.trim() || null : req.user.id;
+      const whereClause = employerFilter
+        ? "WHERE employer_address = $1 AND deleted_at IS NULL"
+        : "WHERE deleted_at IS NULL";
+      const params = employerFilter ? [employerFilter] : [];
+
+      const workersResult = await query<any>(
+        `SELECT
+          worker_address AS id,
+          COALESCE(NULLIF(MAX(metadata->>'name'), ''), worker_address) AS name,
+          worker_address AS address,
+          COALESCE(NULLIF(MAX(metadata->>'department'), ''), 'Unassigned') AS department,
+          CASE
+            WHEN BOOL_OR(status = 'active') THEN 'active'
+            ELSE 'inactive'
+          END AS status,
+          employer_address,
+          MAX(metadata->>'bank_account_stub') AS bank_account_stub,
+          MAX(metadata->>'personal_identifier') AS personal_identifier,
+          MAX(metadata->>'email') AS email,
+          MAX(metadata->>'phone') AS phone,
+          MAX(metadata) AS metadata
+        FROM payroll_streams
+        ${whereClause}
+        GROUP BY worker_address, employer_address
+        ORDER BY name ASC`,
+        params,
+      );
+
+      const data =
+        fields === "full"
+          ? workersResult.rows.map(mapWorkerRowToFull)
+          : workersResult.rows.map(mapWorkerRowToSummary);
+
+      return res.json({ data });
+    } catch (error) {
+      logServiceError("workersRouter", "Failed to fetch workers", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return res.status(500).json({
+        error: "Internal Server Error",
+        message: "Failed to fetch workers",
+      });
+    }
+  },
+);
 
 /**
  * GET /api/workers/:address/payslip?period=2025-01

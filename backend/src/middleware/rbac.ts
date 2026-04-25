@@ -18,6 +18,9 @@ export const ROLE_MAP: Record<string, Role> = {
   user: Role.User,
   admin: Role.Admin,
   superadmin: Role.SuperAdmin,
+  role_user: Role.User,
+  role_admin: Role.Admin,
+  role_superadmin: Role.SuperAdmin,
 };
 
 // ─── Extended Request ─────────────────────────────────────────────────────────
