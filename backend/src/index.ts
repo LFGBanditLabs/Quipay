@@ -440,7 +440,8 @@ async function main() {
       }
 
       try {
-        stopEventIndexer();
+        await stopEventIndexer();
+        console.log("[Backend] Event indexer stopped");
       } catch (err) {
         console.error("[Backend] Failed to stop event indexer:", err);
       }

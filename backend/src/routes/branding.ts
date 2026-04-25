@@ -14,6 +14,7 @@ import {
   deleteLogo,
 } from "../services/brandingService";
 import { logServiceInfo, logServiceError } from "../audit/serviceLogger";
+import { StorageError, UpstreamStorageError } from "../errors/AppError";
 
 // Extend AuthenticatedRequest to include file from multer
 interface AuthenticatedRequestWithFile extends AuthenticatedRequest {
@@ -103,7 +104,22 @@ brandingRouter.post(
       logServiceError("brandingRouter", "Logo upload failed", {
         error: error instanceof Error ? error.message : String(error),
         employerAddress: req.params.address,
+        filename: req.file?.originalname,
       });
+
+      if (error instanceof StorageError) {
+        return res.status(507).json({
+          error: "Insufficient Storage",
+          message: error.message,
+        });
+      }
+
+      if (error instanceof UpstreamStorageError) {
+        return res.status(502).json({
+          error: "Bad Gateway",
+          message: error.message,
+        });
+      }
 
       if (error instanceof Error && error.message.includes("Invalid file")) {
         return res.status(400).json({
@@ -115,7 +131,6 @@ brandingRouter.post(
       return res.status(500).json({
         error: "Internal Server Error",
         message: "Failed to upload logo",
-        details: error instanceof Error ? error.message : String(error),
       });
     }
   },

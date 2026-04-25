@@ -14,6 +14,17 @@ import { getAuditLogger, isAuditLoggerInitialized } from "../audit/init";
 import { serviceLogger } from "../audit/serviceLogger";
 import { employerRunwayGauge } from "../metrics";
 
+/**
+ * Safely converts a PostgreSQL NUMERIC/BIGINT string to a JS number.
+ * Uses Number() rather than parseFloat() so non-numeric strings return 0
+ * instead of a partial parse (e.g. "123abc" → 0, not 123).
+ */
+const parseAmount = (val: string | null | undefined): number => {
+  if (val == null || val === "") return 0;
+  const n = Number(val);
+  return Number.isFinite(n) ? n : 0;
+};
+
 let monitorStopping = false;
 let monitorTimeoutId: NodeJS.Timeout | null = null;
 let inFlightMonitorCycle: Promise<EmployerTreasuryStatus[]> | null = null;
@@ -128,12 +139,12 @@ export const computeTreasuryStatus = async (): Promise<
 
   // Build lookup maps
   const balanceMap = new Map<string, number>(
-    balances.map((b: TreasuryBalance) => [b.employer, parseFloat(b.balance)]),
+    balances.map((b: TreasuryBalance) => [b.employer, parseAmount(b.balance)]),
   );
   const liabilityMap = new Map<string, number>(
     liabilities.map((l: TreasuryLiability) => [
       l.employer,
-      parseFloat(l.liabilities),
+      parseAmount(l.liabilities),
     ]),
   );
 
@@ -153,8 +164,8 @@ export const computeTreasuryStatus = async (): Promise<
     const activeStreams = await getStreamsByEmployer(employer, "active", 1000);
 
     const streamData = activeStreams.map((s: StreamRecord) => ({
-      total_amount: parseFloat(s.total_amount),
-      withdrawn_amount: parseFloat(s.withdrawn_amount),
+      total_amount: parseAmount(s.total_amount),
+      withdrawn_amount: parseAmount(s.withdrawn_amount),
       start_ts: s.start_ts,
       end_ts: s.end_ts,
     }));
