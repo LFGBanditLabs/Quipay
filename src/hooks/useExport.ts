@@ -33,8 +33,10 @@ export const useExport = (streams: StreamRecord[]) => {
         await new Promise((resolve) => setTimeout(resolve, 0));
         if (format === "csv") {
           exportToCSV(streams, filters);
-        } else {
+        } else if (format === "xlsx") {
           exportToXLSX(streams, filters);
+        } else if (format === "pdf") {
+          generatePayrollReport(streams, filters.from || new Date(0), filters.to || new Date(), "pdf");
         }
         toast.success(`Exported as ${format.toUpperCase()} successfully`);
       } catch (error: unknown) {

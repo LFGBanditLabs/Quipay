@@ -39,6 +39,7 @@ import {
   createErrorLoggingMiddleware,
 } from "./audit/middleware";
 import { initDb, closeDb } from "./db/pool";
+import { runMigrations } from "./db/migrate";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { strictRateLimiter } from "./middleware/rateLimiter";
 import { secretsBootstrap } from "./services/secretsBootstrap";
@@ -138,6 +139,17 @@ app.use(httpLoggerMiddleware);
 async function initializeServices() {
   await secretsBootstrap.initialize();
   await initDb();
+  
+  if (process.env.NODE_ENV === "production" || process.env.RUN_MIGRATIONS === "true") {
+    try {
+      await runMigrations();
+    } catch (err) {
+      console.error("[Backend] ❌ Migration failed during startup:", err);
+      // In production, we might want to exit if migrations fail
+      if (process.env.NODE_ENV === "production") process.exit(1);
+    }
+  }
+
   const auditLogger = initAuditLogger();
 
   // Add audit logging middleware for contract interactions
