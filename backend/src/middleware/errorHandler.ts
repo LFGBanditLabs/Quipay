@@ -1,4 +1,6 @@
 import { Request, Response, NextFunction } from "express";
+import { requestContext } from "./requestId";
+import { logger } from "../logger";
 
 /**
  * RFC 7807 Problem Details interface
@@ -77,14 +79,40 @@ export function errorHandler(
   }
 
   const { status, retryAfter } = mapDbErrorToStatus(err);
-  const message =
-    status === 503 && err?.code === "57014"
-      ? "The database query exceeded its time limit. Please retry."
-      : err.message || "An unexpected error occurred";
+  const requestId =
+    requestContext.getStore()?.requestId ||
+    (res.getHeader("X-Request-ID") as string | undefined) ||
+    (req.headers["x-request-id"] as string | undefined) ||
+    "unknown";
 
   if (retryAfter !== undefined) {
     res.setHeader("Retry-After", String(retryAfter));
   }
+
+  logger.error(
+    {
+      event: "http_error",
+      requestId,
+      method: req.method,
+      path: req.originalUrl,
+      status,
+      err,
+    },
+    "Unhandled request error",
+  );
+
+  if (status >= 500) {
+    res.status(status).json({
+      error: "Internal server error",
+      requestId,
+    });
+    return;
+  }
+
+  const message =
+    status === 503 && err?.code === "57014"
+      ? "The database query exceeded its time limit. Please retry."
+      : err.message || "An unexpected error occurred";
 
   const problem = createProblemDetails({
     type: status === 503 ? "service-unavailable" : err.type || "internal-error",
@@ -101,14 +129,6 @@ export function errorHandler(
     }),
   });
 
-  // Log error for debugging (in production, use proper logging)
-  console.error("[ErrorHandler]", {
-    error: err,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-  });
-
   res.status(status).json(problem);
 }
 
@@ -116,12 +136,19 @@ export function errorHandler(
  * 404 Not Found handler
  */
 export function notFoundHandler(req: Request, res: Response): void {
+  const requestId =
+    requestContext.getStore()?.requestId ||
+    (res.getHeader("X-Request-ID") as string | undefined) ||
+    (req.headers["x-request-id"] as string | undefined) ||
+    "unknown";
+
   const problem = createProblemDetails({
     type: "not-found",
     title: "Not Found",
     status: 404,
     detail: `The requested resource '${req.originalUrl}' was not found`,
     instance: req.originalUrl,
+    requestId,
   });
 
   res.status(404).json(problem);
