@@ -1,4 +1,13 @@
 import * as cron from "node-cron";
+import {
+  Address,
+  Contract,
+  Keypair,
+  TransactionBuilder,
+  scValToNative,
+  nativeToScVal,
+  rpc,
+} from "@stellar/stellar-sdk";
 import { getPool } from "../db/pool";
 import { getAuditLogger, isAuditLoggerInitialized } from "../audit/init";
 import { withAdvisoryLock } from "../utils/lock";
@@ -43,6 +52,11 @@ const SCHEDULER_POLL_INTERVAL_MS = parseInt(
 );
 const AUTOMATION_GATEWAY_ADDRESS = process.env.AUTOMATION_GATEWAY_ADDRESS || "";
 const PAYROLL_STREAM_ADDRESS = process.env.PAYROLL_STREAM_ADDRESS || "";
+const HOT_WALLET_SECRET = process.env.HOT_WALLET_SECRET || "";
+const SOROBAN_RPC_URL =
+  process.env.PUBLIC_STELLAR_RPC_URL || process.env.STELLAR_RPC_URL || "";
+const NETWORK_PASSPHRASE =
+  process.env.STELLAR_NETWORK_PASSPHRASE || "Test SDF Network ; September 2015";
 
 const WEBHOOK_RETRY_POLL_INTERVAL_MS = parseInt(
   process.env.WEBHOOK_RETRY_POLL_MS || "10000",
@@ -128,6 +142,7 @@ const calculateNextRun = (cronExpression: string): Date | null => {
 
 const triggerStreamCreation = async (
   schedule: PayrollSchedule,
+  params: { startTs: number; endTs: number },
 ): Promise<number> => {
   log(`Creating stream for schedule ${schedule.id}`, {
     employer: schedule.employer,
@@ -140,9 +155,106 @@ const triggerStreamCreation = async (
     return Math.floor(Math.random() * 1000000) + 1;
   }
 
-  throw new InternalError(
-    "Contract integration not yet implemented. Configure AUTOMATION_GATEWAY_ADDRESS and PAYROLL_STREAM_ADDRESS.",
+  if (!HOT_WALLET_SECRET) {
+    throw new InternalError(
+      "HOT_WALLET_SECRET is required for scheduler contract submission",
+    );
+  }
+
+  if (!SOROBAN_RPC_URL) {
+    throw new InternalError(
+      "PUBLIC_STELLAR_RPC_URL (or STELLAR_RPC_URL) is required for scheduler contract submission",
+    );
+  }
+
+  const server = new rpc.Server(SOROBAN_RPC_URL);
+  const hotWallet = Keypair.fromSecret(HOT_WALLET_SECRET);
+  const account = await server.getAccount(hotWallet.publicKey());
+
+  const contract = new Contract(PAYROLL_STREAM_ADDRESS);
+
+  const startTs = params.startTs;
+  const endTs = params.endTs;
+
+  const employerScVal = Address.fromString(schedule.employer).toScVal();
+  const workerScVal = Address.fromString(schedule.worker).toScVal();
+  const tokenScVal = Address.fromString(schedule.token).toScVal();
+
+  const rate = BigInt(schedule.rate);
+
+  const operation = contract.call(
+    "create_stream",
+    employerScVal,
+    workerScVal,
+    tokenScVal,
+    nativeToScVal(rate, { type: "i128" }),
+    nativeToScVal(0, { type: "u64" }),
+    nativeToScVal(startTs, { type: "u64" }),
+    nativeToScVal(endTs, { type: "u64" }),
+    nativeToScVal(null, { type: "bytes" }),
+    nativeToScVal(null, { type: "symbol" }),
   );
+
+  const baseTx = new TransactionBuilder(account, {
+    fee: "100",
+    networkPassphrase: NETWORK_PASSPHRASE,
+  })
+    .addOperation(operation)
+    .setTimeout(60)
+    .build();
+
+  const simulation = await server.simulateTransaction(baseTx);
+  if ("error" in simulation && typeof simulation.error === "string") {
+    throw new InternalError(`Soroban simulation failed: ${simulation.error}`);
+  }
+
+  const assembled =
+    typeof (rpc as any).assembleTransaction === "function"
+      ? (rpc as any).assembleTransaction(baseTx, simulation).build()
+      : baseTx;
+
+  assembled.sign(hotWallet);
+
+  const sendRes = await server.sendTransaction(assembled as any);
+  if (sendRes.status === "ERROR") {
+    throw new InternalError(
+      `Soroban submission failed: ${sendRes.errorResultXdr || "unknown error"}`,
+    );
+  }
+
+  const txHash = sendRes.hash;
+  for (let i = 0; i < 30; i += 1) {
+    const tx = await server.getTransaction(txHash);
+    if ((tx as any).status === "SUCCESS") {
+      const returnValue = (tx as any).returnValue;
+      const native = returnValue ? scValToNative(returnValue) : null;
+      const streamId =
+        typeof native === "bigint"
+          ? Number(native)
+          : typeof native === "number"
+            ? native
+            : typeof native === "string"
+              ? Number(native)
+              : null;
+      if (!streamId || Number.isNaN(streamId)) {
+        throw new InternalError(
+          "Soroban contract call succeeded but stream id could not be parsed",
+        );
+      }
+      return streamId;
+    }
+    if ((tx as any).status === "FAILED") {
+      throw new InternalError(
+        `Soroban transaction failed: ${(tx as any).resultXdr || "unknown failure"}`,
+      );
+    }
+    if ((tx as any).status === "TRY_AGAIN_LATER") {
+      await new Promise((r) => setTimeout(r, 1000));
+      continue;
+    }
+  }
+
+  throw new InternalError("Soroban transaction timeout while awaiting result");
 };
 
 const executeScheduledPayroll = async (
@@ -188,7 +300,7 @@ const executeScheduledPayroll = async (
           durationDays: schedule.duration_days,
         });
 
-        streamId = await triggerStreamCreation(schedule);
+        streamId = await triggerStreamCreation(schedule, { startTs, endTs });
 
         log(`Stream created successfully with ID: ${streamId}`);
 

@@ -1,6 +1,14 @@
 import axios from "axios";
 import { createCircuitBreaker } from "../utils/circuitBreaker";
 import { sendWebhookNotification } from "../delivery";
+import { serviceLogger } from "../audit/serviceLogger";
+import sgMail from "@sendgrid/mail";
+import {
+  renderTreasuryLowRunwayEmail,
+  renderWorkerCliffUnlockEmail,
+  renderWorkerLowRunwayEmail,
+  renderWorkerStreamEndingEmail,
+} from "../templates/alertEmails";
 
 const notifierBreaker = createCircuitBreaker(axios.post, {
   name: "notifier_alerts",
@@ -10,6 +18,8 @@ const notifierBreaker = createCircuitBreaker(axios.post, {
 const ALERT_WEBHOOK_URL = process.env.ALERT_WEBHOOK_URL || "";
 const ALERT_EMAIL_ENABLED = process.env.ALERT_EMAIL_ENABLED === "true";
 const ALERT_SLACK_ENABLED = process.env.ALERT_SLACK_ENABLED === "true";
+const ALERT_EMAIL_TO = process.env.ALERT_EMAIL_TO || "";
+const WORKER_ALERT_EMAIL_TO = process.env.WORKER_ALERT_EMAIL_TO || "";
 
 export interface TreasuryAlertPayload {
   event: "treasury_low_runway";
@@ -195,19 +205,98 @@ const sendSlackAlert = async (payload: TreasuryAlertPayload): Promise<void> => {
  * Supported providers: SendGrid (SENDGRID_API_KEY), AWS SES (AWS_SES_*).
  * Until a provider is configured this channel logs and is a no-op.
  */
-const sendEmailAlert = async (payload: TreasuryAlertPayload): Promise<void> => {
+const truncateAddress = (address: string): string => {
+  if (!address) return "";
+  if (address.length <= 14) return address;
+  return `${address.slice(0, 6)}…${address.slice(-6)}`;
+};
+
+const getSendgridConfig = (): {
+  apiKey: string;
+  fromEmail: string;
+} | null => {
+  const apiKey = process.env.SENDGRID_API_KEY || "";
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL || "";
+  if (!apiKey) return null;
+  if (!fromEmail) return null;
+  return { apiKey, fromEmail };
+};
+
+const ensureSendgridInitialized = (apiKey: string): void => {
+  try {
+    sgMail.setApiKey(apiKey);
+  } catch {
+    // ignore; caller will see send() failure
+  }
+};
+
+const sendEmailAlert = async (
+  payload: TreasuryAlertPayload | WorkerNotificationPayload,
+): Promise<void> => {
   const sendgridKey = process.env.SENDGRID_API_KEY;
-  if (!sendgridKey) {
-    console.warn(
-      `[Notifier] ⚠️  SENDGRID_API_KEY not set — email alert skipped for employer ${payload.employer}. ` +
-        "Set SENDGRID_API_KEY and ALERT_EMAIL_TO to enable email notifications.",
-    );
+  const sendgrid = getSendgridConfig();
+  if (!sendgrid) {
+    const employer =
+      "employer" in payload ? payload.employer : payload.employer;
+    await serviceLogger.warn("Notifier", "SendGrid not configured; skipping email alert", {
+      event_type: "email_alert_skipped",
+      employer: truncateAddress(employer),
+      reason: "missing_sendgrid_config",
+    });
     return;
   }
-  // Email provider integration goes here (SendGrid / AWS SES).
-  console.warn(
-    `[Notifier] Email delivery not yet implemented. Skipping alert for ${payload.employer}.`,
-  );
+
+  const to =
+    payload.event === "treasury_low_runway"
+      ? ALERT_EMAIL_TO
+      : WORKER_ALERT_EMAIL_TO || ALERT_EMAIL_TO;
+
+  if (!to) {
+    const employer = "employer" in payload ? payload.employer : payload.employer;
+    await serviceLogger.warn("Notifier", "ALERT_EMAIL_TO not set; skipping email alert", {
+      event_type: "email_alert_skipped",
+      employer: truncateAddress(employer),
+      reason: "missing_recipient",
+    });
+    return;
+  }
+
+  ensureSendgridInitialized(sendgrid.apiKey);
+
+  const employerAddress = "employer" in payload ? payload.employer : payload.employer;
+  const employerShort = truncateAddress(employerAddress);
+
+  const rendered =
+    payload.event === "treasury_low_runway"
+      ? renderTreasuryLowRunwayEmail(payload)
+      : payload.event === "cliff_unlock"
+        ? renderWorkerCliffUnlockEmail(payload)
+        : payload.event === "stream_ending"
+          ? renderWorkerStreamEndingEmail(payload)
+          : renderWorkerLowRunwayEmail(payload);
+
+  try {
+    await sgMail.send({
+      to,
+      from: sendgrid.fromEmail,
+      subject: `${rendered.subject} (${employerShort})`,
+      html: rendered.html,
+    });
+
+    await serviceLogger.info("Notifier", "Email alert delivered", {
+      event_type: "email_alert_delivered",
+      employer: employerShort,
+      to: Array.isArray(to) ? "multiple" : to,
+      provider: "sendgrid",
+    });
+  } catch (err: unknown) {
+    await serviceLogger.error("Notifier", "Email alert delivery failed", err, {
+      event_type: "email_alert_failed",
+      employer: employerShort,
+      provider: "sendgrid",
+    });
+    throw err;
+  }
 };
 
 // ==================== Worker Notification Types ====================
@@ -256,6 +345,12 @@ export const sendWorkerNotification = async (params: {
     `[Notifier] 📬 Worker notification sent to ${params.worker} - ` +
       `event: ${params.event}, stream: ${params.streamId}`,
   );
+
+  if (ALERT_EMAIL_ENABLED) {
+    await sendEmailAlert(payload).catch(() => {
+      // sendEmailAlert logs through serviceLogger
+    });
+  }
 
   await sendWebhookNotification("worker_notification", payload).catch((err) => {
     console.error(

@@ -25,6 +25,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@sendgrid/mail": "^8.1.5",
     "@stellar/stellar-sdk": "^14.5.0",
     "@types/multer": "^2.1.0",
     "@types/opossum": "^8.1.9",
