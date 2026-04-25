@@ -8,6 +8,7 @@
     "start": "node dist/index.js",
     "build": "tsc",
     "test": "jest --testPathIgnorePatterns=integration",
+    "test:explain-analyze": "jest --testPathPatterns=explain-analyze --passWithNoTests",
     "test:watch": "jest --watch",
     "test:integration": "jest --testPathPatterns=integration",
     "test:unit": "jest --testPathPatterns=__tests__ --testPathIgnorePatterns=integration",

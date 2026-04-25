@@ -217,8 +217,10 @@ const triggerStreamCreation = async (
 
   const sendRes = await server.sendTransaction(assembled as any);
   if (sendRes.status === "ERROR") {
+    const errorResult =
+      "errorResultXdr" in sendRes ? sendRes.errorResultXdr : undefined;
     throw new InternalError(
-      `Soroban submission failed: ${sendRes.errorResultXdr || "unknown error"}`,
+      `Soroban submission failed: ${errorResult || "unknown error"}`,
     );
   }
 
@@ -680,7 +682,10 @@ const executeSchedulerOverrides = async (): Promise<void> => {
             updated_at: new Date(),
           };
 
-          const streamId = await triggerStreamCreation(mockSchedule);
+          const streamId = await triggerStreamCreation(mockSchedule, {
+            startTs: Math.floor(Date.now() / 1000),
+            endTs: Math.floor(Date.now() / 1000) + durationDays * 24 * 60 * 60,
+          });
 
           await markOverrideCompleted({
             id: override.id,
