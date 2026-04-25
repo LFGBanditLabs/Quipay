@@ -1,4 +1,4 @@
-import { rpc } from "@stellar/stellar-sdk";
+import { rpc, xdr, scValToNative } from "@stellar/stellar-sdk";
 import { getPool } from "./db/pool";
 import { withAdvisoryLock } from "./utils/lock";
 import {
@@ -29,63 +29,217 @@ let inFlightSyncCycle: Promise<number> | null = null;
 
 // ─── Event parsers ────────────────────────────────────────────────────────────
 
+type StreamEventKind = "stream_created" | "stream_cancelled" | "funds_withdrawn";
+
+interface SyncedStreamEvent {
+  kind: StreamEventKind;
+  streamId: number;
+  employerAddress: string;
+  workerAddress: string;
+  tokenAddress?: string;
+  totalAmount?: bigint;
+  startTs?: number;
+  endTs?: number;
+  withdrawnAmount?: bigint;
+}
+
+const toBase64Xdr = (value: { toXDR: (format: "base64") => string }): string =>
+  value.toXDR("base64");
+
+const decodeScVal = (value: unknown): xdr.ScVal | null => {
+  try {
+    if (
+      value &&
+      typeof value === "object" &&
+      "toXDR" in value &&
+      typeof (value as any).toXDR === "function"
+    ) {
+      return xdr.ScVal.fromXDR(toBase64Xdr(value as any), "base64");
+    }
+
+    if (typeof value === "string" && value.length > 0) {
+      return xdr.ScVal.fromXDR(value, "base64");
+    }
+  } catch {
+    // best effort decode
+  }
+  return null;
+};
+
+const scValNative = (value: unknown): unknown => {
+  const decoded = decodeScVal(value);
+  if (!decoded) return null;
+  try {
+    return scValToNative(decoded);
+  } catch {
+    return null;
+  }
+};
+
+const symbolFromTopic = (topic: unknown): string | null => {
+  const decoded = decodeScVal(topic);
+  if (!decoded) return null;
+  try {
+    if (decoded.switch() !== xdr.ScValType.scvSymbol()) return null;
+    return decoded.sym()?.toString() ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const u64FromTopic = (topic: unknown): number | null => {
+  const decoded = decodeScVal(topic);
+  if (!decoded) return null;
+  try {
+    if (decoded.switch() !== xdr.ScValType.scvU64()) return null;
+    const value = decoded.u64();
+    const asString =
+      typeof (value as any)?.toString === "function"
+        ? (value as any).toString()
+        : String(value);
+    const n = Number(asString);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+};
+
+const stringFromTopic = (topic: unknown): string | null => {
+  const native = scValNative(topic);
+  if (typeof native === "string") return native;
+  return native && typeof (native as any).toString === "function"
+    ? (native as any).toString()
+    : null;
+};
+
+const asBigInt = (value: unknown): bigint | null => {
+  if (typeof value === "bigint") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return BigInt(value);
+  if (typeof value === "string" && value.length > 0) {
+    try {
+      return BigInt(value);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+
+const asNumber = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "bigint") {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (typeof value === "string" && value.length > 0) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+};
+
+const decodeStreamEvent = (event: rpc.Api.EventResponse): SyncedStreamEvent | null => {
+  const topics = event.topic as unknown[];
+  if (!topics || topics.length < 2) return null;
+
+  const topicRoot = symbolFromTopic(topics[0]);
+  if (topicRoot !== "stream") return null;
+
+  const action = symbolFromTopic(topics[1]);
+  if (!action) return null;
+
+  const valueNative = scValNative((event as any).value);
+  const valueArray = Array.isArray(valueNative) ? valueNative : null;
+
+  if (action === "created") {
+    if (topics.length < 4 || !valueArray || valueArray.length < 5) return null;
+
+    const workerAddress = stringFromTopic(topics[2]);
+    const employerAddress = stringFromTopic(topics[3]);
+    const streamId = asNumber(valueArray[0]);
+    const tokenAddress = valueArray[1] ? String(valueArray[1]) : undefined;
+    const rate = asBigInt(valueArray[2]);
+    const startTs = asNumber(valueArray[3]);
+    const endTs = asNumber(valueArray[4]);
+
+    if (
+      !workerAddress ||
+      !employerAddress ||
+      streamId === null ||
+      startTs === null ||
+      endTs === null ||
+      !rate
+    ) {
+      return null;
+    }
+
+    const duration = BigInt(Math.max(0, endTs - startTs));
+    const totalAmount = rate * duration;
+
+    return {
+      kind: "stream_created",
+      streamId,
+      employerAddress,
+      workerAddress,
+      tokenAddress,
+      totalAmount,
+      startTs,
+      endTs,
+    };
+  }
+
+  if (action === "withdrawn") {
+    if (topics.length < 4 || !valueArray || valueArray.length < 1) return null;
+    const streamId = u64FromTopic(topics[2]);
+    const workerAddress = stringFromTopic(topics[3]);
+    const withdrawnAmount = asBigInt(valueArray[0]);
+    const tokenAddress = valueArray[1] ? String(valueArray[1]) : undefined;
+
+    if (streamId === null || !workerAddress || !withdrawnAmount) return null;
+
+    return {
+      kind: "funds_withdrawn",
+      streamId,
+      employerAddress: "",
+      workerAddress,
+      tokenAddress,
+      withdrawnAmount,
+    };
+  }
+
+  if (action === "canceled") {
+    if (topics.length < 4) return null;
+    const streamId = u64FromTopic(topics[2]);
+    const employerAddress = stringFromTopic(topics[3]);
+    const workerAddress =
+      valueArray && valueArray.length > 0 ? String(valueArray[0]) : null;
+    const tokenAddress =
+      valueArray && valueArray.length > 1 ? String(valueArray[1]) : undefined;
+
+    if (streamId === null || !employerAddress || !workerAddress) return null;
+
+    return {
+      kind: "stream_cancelled",
+      streamId,
+      employerAddress,
+      workerAddress,
+      tokenAddress,
+    };
+  }
+
+  return null;
+};
+
 /**
  * Best-effort parse of a Soroban XDR event into a structured record.
  * Returns null for unrecognised event types.
  */
-const parseEvent = (
-  event: rpc.Api.EventResponse,
-): null | {
-  kind:
-    | "stream_created"
-    | "withdrawal"
-    | "stream_cancelled"
-    | "stream_completed";
-  data: Record<string, unknown>;
-} => {
+const parseEvent = (event: rpc.Api.EventResponse): SyncedStreamEvent | null => {
   try {
-    const topics = event.topic;
-    if (!topics || topics.length === 0) return null;
-
-    const topicBase64 = topics[0].toXDR("base64");
-
-    // Soroban events encode the function name / topic as a Symbol SCVal.
-    // We do substring matching on the base64 for speed; a production
-    // implementation would fully decode the XDR to a ScVal Symbol.
-    const isCreate =
-      topicBase64.includes("create") || topicBase64.includes("stream");
-    const isWithdraw = topicBase64.includes("withdraw");
-    const isCancel = topicBase64.includes("cancel");
-    const isComplete = topicBase64.includes("complete");
-
-    if (isComplete) {
-      return {
-        kind: "stream_completed",
-        data: { raw: topicBase64, ledger: event.ledger },
-      };
-    }
-    if (isCreate && !isWithdraw && !isCancel) {
-      return {
-        kind: "stream_created",
-        data: { raw: topicBase64, ledger: event.ledger },
-      };
-    }
-    if (isWithdraw) {
-      return {
-        kind: "withdrawal",
-        data: { raw: topicBase64, ledger: event.ledger },
-      };
-    }
-    if (isCancel) {
-      return {
-        kind: "stream_cancelled",
-        data: { raw: topicBase64, ledger: event.ledger },
-      };
-    }
+    return decodeStreamEvent(event);
   } catch {
-    // silently ignore malformed events
+    return null;
   }
-  return null;
 };
 
 // ─── Batch ingest ─────────────────────────────────────────────────────────────
@@ -97,17 +251,14 @@ const ingestEvents = async (events: rpc.Api.EventResponse[]): Promise<void> => {
 
     try {
       if (parsed.kind === "stream_created") {
-        // In a real environment the XDR value would be fully decoded.
-        // We insert a placeholder record so the stream row exists and
-        // can be enriched by the live listener when data is available.
         await upsertStream({
-          streamId: event.ledger, // placeholder until real XDR decode
-          employer: (event.contractId as any).toString() || "",
-          worker: (event.contractId as any).toString() || "",
-          totalAmount: 0n,
+          streamId: parsed.streamId,
+          employer: parsed.employerAddress,
+          worker: parsed.workerAddress,
+          totalAmount: parsed.totalAmount ?? 0n,
           withdrawnAmount: 0n,
-          startTs: 0,
-          endTs: 0,
+          startTs: parsed.startTs ?? 0,
+          endTs: parsed.endTs ?? 0,
           status: "active",
           ledger: event.ledger,
         });
@@ -115,16 +266,16 @@ const ingestEvents = async (events: rpc.Api.EventResponse[]): Promise<void> => {
         // Emit WebSocket event
         emitStreamEvent(
           "stream_created",
-          event.ledger.toString(),
-          { ledger: event.ledger },
-          (event.contractId as any).toString(),
-          (event.contractId as any).toString(),
+          parsed.streamId.toString(),
+          { ledger: event.ledger, streamId: parsed.streamId },
+          parsed.employerAddress,
+          parsed.workerAddress,
         );
-      } else if (parsed.kind === "withdrawal") {
+      } else if (parsed.kind === "funds_withdrawn") {
         await recordWithdrawal({
-          streamId: event.ledger,
-          worker: (event.contractId as any).toString() || "",
-          amount: 0n,
+          streamId: parsed.streamId,
+          worker: parsed.workerAddress,
+          amount: parsed.withdrawnAmount ?? 0n,
           ledger: event.ledger,
           ledgerTs: event.ledger, // ledger timestamp approximation
         });
@@ -132,23 +283,23 @@ const ingestEvents = async (events: rpc.Api.EventResponse[]): Promise<void> => {
         // Emit WebSocket event
         emitStreamEvent(
           "withdrawal",
-          event.ledger.toString(),
+          parsed.streamId.toString(),
           {
             ledger: event.ledger,
-            worker: (event.contractId as any).toString(),
+            worker: parsed.workerAddress,
           },
           undefined,
-          (event.contractId as any).toString(),
+          parsed.workerAddress,
         );
       } else if (parsed.kind === "stream_cancelled") {
         await upsertStream({
-          streamId: event.ledger,
-          employer: (event.contractId as any).toString() || "",
-          worker: (event.contractId as any).toString() || "",
-          totalAmount: 0n,
+          streamId: parsed.streamId,
+          employer: parsed.employerAddress,
+          worker: parsed.workerAddress,
+          totalAmount: parsed.totalAmount ?? 0n,
           withdrawnAmount: 0n,
-          startTs: 0,
-          endTs: 0,
+          startTs: parsed.startTs ?? 0,
+          endTs: parsed.endTs ?? 0,
           status: "cancelled",
           closedAt: event.ledger,
           ledger: event.ledger,
@@ -157,39 +308,11 @@ const ingestEvents = async (events: rpc.Api.EventResponse[]): Promise<void> => {
         // Emit WebSocket event
         emitStreamEvent(
           "stream_cancelled",
-          event.ledger.toString(),
-          { ledger: event.ledger },
-          (event.contractId as any).toString(),
-          (event.contractId as any).toString(),
+          parsed.streamId.toString(),
+          { ledger: event.ledger, streamId: parsed.streamId },
+          parsed.employerAddress,
+          parsed.workerAddress,
         );
-      } else if (parsed.kind === "stream_completed") {
-        await upsertStream({
-          streamId: event.ledger,
-          employer: (event.contractId as any).toString() || "",
-          worker: (event.contractId as any).toString() || "",
-          totalAmount: 0n,
-          withdrawnAmount: 0n,
-          startTs: 0,
-          endTs: 0,
-          status: "completed",
-          closedAt: event.ledger,
-          ledger: event.ledger,
-        });
-
-        // Emit WebSocket event
-        emitStreamEvent(
-          "stream_completed",
-          event.ledger.toString(),
-          { ledger: event.ledger },
-          (event.contractId as any).toString(),
-          (event.contractId as any).toString(),
-        );
-
-        // Generate and pin an IPFS payroll proof for this completed stream
-        const streamRecord = await getStreamById(event.ledger);
-        if (streamRecord) {
-          void generateAndStoreProof(streamRecord);
-        }
       }
     } catch (err: unknown) {
       await serviceLogger.error("Syncer", "Failed to ingest event", err, {
