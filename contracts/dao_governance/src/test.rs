@@ -175,6 +175,96 @@ fn test_finalize_passed() {
     assert_eq!(status, ProposalStatus::Passed);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// #946 — Quorum enforcement in execute_proposal tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// When quorum IS met, execute_proposal succeeds.
+#[test]
+fn test_execute_proposal_quorum_met() {
+    let (env, contract_id, admin, gov_token, _payroll_stream) = setup_env();
+    let client = DaoGovernanceClient::new(&env, &contract_id);
+
+    // 300_000 / 1_000_000 = 30% > default 10% quorum ✓
+    let voter = Address::generate(&env);
+    StellarAssetClient::new(&env, &gov_token).mint(&voter, &300_000_i128);
+
+    let params = make_stream_params(&env, &admin);
+    let proposal_id = client.create_proposal(
+        &admin,
+        &make_description_hash(&env, 11),
+        &params,
+        &make_raw_call_data(&env, "quorum-met"),
+    );
+    client.vote(&voter, &proposal_id, &true);
+
+    // Advance past voting period + timelock
+    env.ledger().with_mut(|l| {
+        l.timestamp += 259_201 + 24 * 60 * 60 + 1;
+    });
+
+    let stream_id = client.execute_proposal(&admin, &proposal_id);
+    assert_eq!(stream_id, 777);
+
+    let proposal = client.get_proposal(&proposal_id).unwrap();
+    assert_eq!(proposal.status, ProposalStatus::Executed);
+}
+
+/// When quorum is NOT met, execute_proposal returns QuorumNotMet.
+#[test]
+fn test_execute_proposal_quorum_not_met() {
+    let (env, contract_id, admin, gov_token, _payroll_stream) = setup_env();
+    let client = DaoGovernanceClient::new(&env, &contract_id);
+
+    // 500 / 1_000_000 = 0.05% << 10% quorum ✗
+    let voter = Address::generate(&env);
+    StellarAssetClient::new(&env, &gov_token).mint(&voter, &500_i128);
+
+    let params = make_stream_params(&env, &admin);
+    let proposal_id = client.create_proposal(
+        &admin,
+        &make_description_hash(&env, 12),
+        &params,
+        &make_raw_call_data(&env, "quorum-fail"),
+    );
+    client.vote(&voter, &proposal_id, &true);
+
+    env.ledger().with_mut(|l| {
+        l.timestamp += 259_201 + 24 * 60 * 60 + 1;
+    });
+
+    let result = client.try_execute_proposal(&admin, &proposal_id);
+    assert_eq!(result, Err(Ok(QuipayError::QuorumNotMet)));
+}
+
+/// Edge case: zero total_voting_power should not panic.
+/// With total_supply = 1, quorum_threshold rounds to 0 (integer math), so
+/// 0 votes_cast >= 0. But 0 for-votes fails the approval check → Rejected.
+#[test]
+fn test_execute_proposal_zero_total_voting_power() {
+    let (env, contract_id, admin, _gov_token, _payroll_stream) = setup_env();
+    let client = DaoGovernanceClient::new(&env, &contract_id);
+
+    // Supply so tiny that quorum_threshold = 0 (integer division)
+    client.set_total_supply(&1_i128);
+
+    let params = make_stream_params(&env, &admin);
+    let proposal_id = client.create_proposal(
+        &admin,
+        &make_description_hash(&env, 13),
+        &params,
+        &make_raw_call_data(&env, "zero-supply"),
+    );
+    // No votes cast
+
+    env.ledger().with_mut(|l| {
+        l.timestamp += 259_201 + 24 * 60 * 60 + 1;
+    });
+
+    // Rejected (no votes → approval fails) → QuorumNotMet from execute_proposal
+    let result = client.try_execute_proposal(&admin, &proposal_id);
+    assert_eq!(result, Err(Ok(QuipayError::QuorumNotMet)));
+}
 #[test]
 fn test_finalize_rejected_no_quorum() {
     let (env, contract_id, admin, gov_token, _payroll_stream) = setup_env();
