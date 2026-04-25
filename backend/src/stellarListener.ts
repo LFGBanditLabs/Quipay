@@ -15,6 +15,102 @@ let getLatestLedgerBreaker: ReturnType<typeof createCircuitBreaker> | null =
   null;
 let getEventsBreaker: ReturnType<typeof createCircuitBreaker> | null = null;
 
+interface DecodedStreamEventData {
+  worker_address?: string;
+  employer_address?: string;
+  amount?: string;
+  token?: string;
+  stream_id?: number | string;
+}
+
+interface StreamWebhookPayload extends DecodedStreamEventData {
+  id: string;
+  ledger: number;
+  contractId: string;
+  type: string;
+  eventType: string;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const normalizeKey = (key: string): string =>
+  key.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const primitiveToString = (value: unknown): string | null => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "bigint") {
+    return value.toString();
+  }
+  return null;
+};
+
+const flattenEventValue = (
+  value: unknown,
+  sink: Record<string, string>,
+): void => {
+  if (Array.isArray(value)) {
+    value.forEach((entry) => flattenEventValue(entry, sink));
+    return;
+  }
+
+  if (!isRecord(value)) {
+    return;
+  }
+
+  for (const [rawKey, nestedValue] of Object.entries(value)) {
+    const normalized = normalizeKey(rawKey);
+    const primitive = primitiveToString(nestedValue);
+
+    if (primitive !== null && !sink[normalized]) {
+      sink[normalized] = primitive;
+    }
+
+    flattenEventValue(nestedValue, sink);
+  }
+};
+
+const decodeStreamEvent = (
+  event: rpc.Api.EventResponse,
+): DecodedStreamEventData => {
+  const flattened: Record<string, string> = {};
+  const rawValue = event.value as unknown;
+  const normalizedValue =
+    isRecord(rawValue) && typeof rawValue.toJSON === "function"
+      ? (() => {
+          try {
+            return rawValue.toJSON() as unknown;
+          } catch {
+            return rawValue;
+          }
+        })()
+      : rawValue;
+
+  flattenEventValue(normalizedValue, flattened);
+
+  const pick = (aliases: string[]): string | undefined => {
+    for (const alias of aliases) {
+      const value = flattened[normalizeKey(alias)];
+      if (value) return value;
+    }
+    return undefined;
+  };
+
+  const streamIdRaw = pick(["streamid", "stream_id", "stream", "id"]);
+  const parsedStreamId =
+    streamIdRaw && !Number.isNaN(Number(streamIdRaw))
+      ? Number(streamIdRaw)
+      : streamIdRaw;
+
+  return {
+    worker_address: pick(["workeraddress", "worker", "recipient"]),
+    employer_address: pick(["employeraddress", "employer", "sender"]),
+    amount: pick(["amount", "value", "rate"]),
+    token: pick(["token", "asset", "currency"]),
+    stream_id: parsedStreamId,
+  };
+};
+
 /**
  * Initializes the circuit breakers.
  * Exported for testing purposes.
@@ -83,7 +179,7 @@ export const startStellarListener = async () => {
         const currentLedger = await getLatestLedgerInternal();
         if (currentLedger <= latestLedger) return;
 
-        const eventsResponse: any = await getGetEventsBreaker().fire({
+        const eventsResponse = (await getGetEventsBreaker().fire({
           startLedger: latestLedger + 1,
           filters: [
             {
@@ -92,23 +188,23 @@ export const startStellarListener = async () => {
             },
           ],
           limit: 100,
-        });
+        })) as { events?: rpc.Api.EventResponse[] };
 
         if (!eventsResponse) return; // Fallback or issue
 
-        eventsResponse.events.forEach((event: any) => {
-          parseAndDeliverEvent(event);
-        });
+        eventsResponse.events?.forEach((event) => parseAndDeliverEvent(event));
 
         latestLedger = currentLedger;
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error(
-          `[Stellar Listener] Error polling events: ${err.message}`,
+          `[Stellar Listener] Error polling events: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
     }, 5000);
-  } catch (err: any) {
-    console.error(`[Stellar Listener] Initialization failed: ${err.message}`);
+  } catch (err: unknown) {
+    console.error(
+      `[Stellar Listener] Initialization failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 };
 
@@ -164,13 +260,13 @@ const parseAndDeliverEvent = (event: rpc.Api.EventResponse) => {
       eventType = "generic_contract_event";
     }
 
-    const payload = {
-      id: event.id,
+    const payload: StreamWebhookPayload = {
+      id: String(event.id),
       ledger: event.ledger,
-      contractId: event.contractId,
+      contractId: String(event.contractId),
       type: event.type,
-      eventType: eventType,
-      // we omit parsing the underlying XDR value deeply for simplicity
+      eventType,
+      ...decodeStreamEvent(event),
     };
 
     if (eventType !== "unknown") {
@@ -196,8 +292,11 @@ const simulateEvents = () => {
       contractId: "C_SIMULATED_QUIPAY_CONTRACT",
       type: "contract",
       eventType: randomType,
+      worker_address: "GWORKER_SIMULATED",
+      employer_address: "GEMPLOYER_SIMULATED",
       amount: Math.floor(Math.random() * 500) + 50,
-      asset: "USDC",
+      token: "USDC",
+      stream_id: Math.floor(Math.random() * 100000),
     };
 
     console.log(`[Stellar Listener] 🧪 Simulating ${randomType} event...`);

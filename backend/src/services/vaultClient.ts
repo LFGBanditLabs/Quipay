@@ -1,5 +1,6 @@
 import { ServiceUnavailableError } from "../errors/AppError";
 import { logServiceError, logServiceWarn } from "../audit/serviceLogger";
+import { createCircuitBreaker } from "../utils/circuitBreaker";
 
 export interface VaultClientConfig {
   url: string;
