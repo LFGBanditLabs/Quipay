@@ -38,6 +38,36 @@ pub struct AutomationGateway;
 
 #[contractimpl]
 impl AutomationGateway {
+    /// Placeholder change: provides a minimal on-chain circuit-breaker.
+    ///
+    /// This is intentionally simple so the team can iterate on proper routing
+    /// and safety controls later without changing the public surface too much.
+    fn require_circuit_closed(env: &Env) -> Result<(), QuipayError> {
+        let is_open: bool = env
+            .storage()
+            .instance()
+            .get(&Symbol::new(env, "circuit_open"))
+            .unwrap_or(false);
+        require!(!is_open, QuipayError::CircuitOpen);
+        Ok(())
+    }
+
+    /// Toggle the circuit breaker for downstream dispatch.
+    /// Only the admin can call this.
+    pub fn set_circuit_open(env: Env, open: bool) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(env.clone())?;
+        admin.require_auth();
+
+        env.storage()
+            .instance()
+            .set(&Symbol::new(&env, "circuit_open"), &open);
+        env.events().publish(
+            (symbol_short!("gateway"), Symbol::new(&env, "circuit")),
+            open,
+        );
+        Ok(())
+    }
+
     /// Initialize the contract with an admin (employer).
     pub fn init(env: Env, admin: Address) -> Result<(), QuipayError> {
         require!(
@@ -45,6 +75,9 @@ impl AutomationGateway {
             QuipayError::AlreadyInitialized
         );
         env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage()
+            .instance()
+            .set(&Symbol::new(&env, "circuit_open"), &false);
         Ok(())
     }
 
@@ -240,6 +273,7 @@ impl AutomationGateway {
         _data: Bytes,
     ) -> Result<(), QuipayError> {
         agent.require_auth();
+        Self::require_circuit_closed(&env)?;
 
         require!(
             Self::is_authorized(env.clone(), agent.clone(), action),
@@ -351,6 +385,7 @@ impl AutomationGateway {
         end_ts: u64,
     ) -> Result<u64, QuipayError> {
         agent.require_auth();
+        Self::require_circuit_closed(&env)?;
 
         require!(
             Self::is_authorized(env.clone(), agent.clone(), Permission::CreateStream),
@@ -398,6 +433,7 @@ impl AutomationGateway {
         employer: Address,
     ) -> Result<(), QuipayError> {
         agent.require_auth();
+        Self::require_circuit_closed(&env)?;
 
         require!(
             Self::is_authorized(env.clone(), agent.clone(), Permission::CancelStream),

@@ -125,6 +125,8 @@ pub enum QuipayError {
     // ── Receipts ──────────────────────────────────────────────────────────────
     /// No receipt exists for the given receipt ID.
     ReceiptNotFound = 1044,
+    /// Downstream contract calls are temporarily blocked by a circuit breaker.
+    CircuitOpen = 1045,
 
     // ── Catch-all ─────────────────────────────────────────────────────────────
     /// A custom error condition not covered by the above codes.
