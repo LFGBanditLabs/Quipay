@@ -205,6 +205,18 @@ pub struct StreamCancelResult {
     pub success: bool,
 }
 
+/// Per-stream result returned by `batch_start_streams`.
+///
+/// `stream_id` is `0` when creation failed (no stream was recorded).
+/// `error_code` is `0` on success; non-zero values map to `QuipayError` discriminants.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct StreamStartResult {
+    pub stream_id: u64,
+    pub success: bool,
+    pub error_code: u32,
+}
+
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct StreamHealth {
@@ -1046,6 +1058,152 @@ impl PayrollStream {
         Ok(created_ids)
     }
 
+    /// Start up to 20 streams in a single transaction, processing each independently.
+    ///
+    /// Unlike `create_stream_batch`, this function does **not** require all streams to
+    /// share the same token and does **not** revert the entire call when one stream fails.
+    /// Each entry is attempted individually: validation failures, vault insolvency, and
+    /// stream-limit violations are captured in the per-stream result and do not prevent
+    /// subsequent streams from being created.
+    ///
+    /// # Authorization
+    /// The `employer` address must authorize this call exactly once.  Every
+    /// `StreamParams` entry in the batch must have `employer` set to the same address;
+    /// mismatched employer fields are treated as failures.
+    ///
+    /// # Batch size
+    /// Returns `Err(QuipayError::BatchTooLarge)` when more than 20 params are supplied.
+    /// An empty batch is accepted and returns an empty result vec.
+    ///
+    /// # Events
+    /// Emits a single `stream / batch_started` event containing the employer address
+    /// and the number of streams that were successfully started.  Individual
+    /// `stream / created` events are still emitted for every successful stream.
+    ///
+    /// # Returns
+    /// A `Vec<StreamStartResult>` in the same order as `params`.  Each entry carries:
+    /// - `stream_id` — the assigned ID (0 on failure)
+    /// - `success`   — true when the stream was recorded on-chain
+    /// - `error_code`— 0 on success; a `QuipayError` discriminant on failure
+    pub fn batch_start_streams(
+        env: Env,
+        employer: Address,
+        params: Vec<StreamParams>,
+    ) -> Result<Vec<StreamStartResult>, QuipayError> {
+        Self::require_not_paused(&env)?;
+
+        if params.len() > MAX_BATCH_CREATE_STREAMS {
+            return Err(QuipayError::BatchTooLarge);
+        }
+
+        if params.is_empty() {
+            return Ok(Vec::new(&env));
+        }
+
+        // Single auth for the whole batch — employer signs once.
+        employer.require_auth();
+
+        let mut results: Vec<StreamStartResult> = Vec::new(&env);
+        let mut success_count: u32 = 0;
+
+        let mut idx: u32 = 0;
+        while idx < params.len() {
+            let param = match params.get(idx) {
+                Some(p) => p,
+                None => {
+                    results.push_back(StreamStartResult {
+                        stream_id: 0,
+                        success: false,
+                        error_code: QuipayError::Custom as u32,
+                    });
+                    idx += 1;
+                    continue;
+                }
+            };
+
+            // Each stream's employer field must match the authorized employer.
+            if param.employer != employer {
+                results.push_back(StreamStartResult {
+                    stream_id: 0,
+                    success: false,
+                    error_code: QuipayError::Unauthorized as u32,
+                });
+                idx += 1;
+                continue;
+            }
+
+            // Attempt to create the stream via the shared internal helper.
+            // We pass `max_slippage_bps` through the params so callers can opt
+            // individual streams into the slippage guard.
+            let result = Self::create_stream_internal(
+                env.clone(),
+                employer.clone(),
+                param.worker.clone(),
+                param.token.clone(),
+                param.rate,
+                param.cliff_ts,
+                param.start_ts,
+                param.end_ts,
+                param.metadata_hash.clone(),
+                match param.speed_curve {
+                    MaybeSpeedCurve::Some(c) => Some(c),
+                    MaybeSpeedCurve::None => None,
+                },
+                param.clawback_authority.clone(),
+                param.max_slippage_bps,
+            );
+
+            match result {
+                Ok(stream_id) => {
+                    // Emit the standard per-stream created event so indexers see it.
+                    env.events().publish(
+                        (
+                            Symbol::new(&env, "stream"),
+                            Symbol::new(&env, "created"),
+                            param.worker.clone(),
+                            employer.clone(),
+                        ),
+                        (
+                            stream_id,
+                            param.token.clone(),
+                            param.rate,
+                            param.start_ts,
+                            param.end_ts,
+                        ),
+                    );
+
+                    results.push_back(StreamStartResult {
+                        stream_id,
+                        success: true,
+                        error_code: 0,
+                    });
+                    success_count += 1;
+                }
+                Err(e) => {
+                    results.push_back(StreamStartResult {
+                        stream_id: 0,
+                        success: false,
+                        error_code: e as u32,
+                    });
+                }
+            }
+
+            idx += 1;
+        }
+
+        // Single batch-level event for observability and indexing.
+        env.events().publish(
+            (
+                Symbol::new(&env, "stream"),
+                Symbol::new(&env, "batch_started"),
+                employer.clone(),
+            ),
+            success_count,
+        );
+
+        Ok(results)
+    }
+
     /// Withdraw vested funds from a stream.
     ///
     /// ### Paused Streams
@@ -1645,11 +1803,6 @@ impl PayrollStream {
         if stream.status == StreamStatus::PendingCancel {
             return Ok(());
         }
-
-        // // If a grace period is already pending and hasn't expired yet, nothing to do.
-        // if stream.cancel_effective_at > 0 && now < stream.cancel_effective_at {
-        //     return Err(QuipayError::GracePeriodActive);
-        // }
 
         // If the grace period has already elapsed, finalize the cancellation now.
         if stream.cancel_effective_at > 0 && now >= stream.cancel_effective_at {
@@ -2531,22 +2684,9 @@ impl PayrollStream {
     }
 
     /// Paginate a list of stream IDs with bounds checking.
-    ///
-    /// ### DoS Protection
-    /// The `limit` parameter is capped at `MAX_EMPLOYER_STREAM_PAGE_SIZE` to prevent
-    /// performance issues from excessively large page requests.
-    ///
-    /// ### Parameters
-    /// - `ids`: Full list of stream IDs to paginate
-    /// - `offset`: Starting index (default: 0)
-    /// - `limit`: Maximum items to return (default: all, capped at MAX_PAGE_SIZE)
-    ///
-    /// ### Returns
-    /// A subset of `ids` from `offset` to `offset + min(limit, MAX_PAGE_SIZE)`
     fn paginate(env: &Env, ids: Vec<u64>, offset: Option<u32>, limit: Option<u32>) -> Vec<u64> {
         let offset = offset.unwrap_or(0);
         let ids_len = ids.len();
-        // Cap limit at MAX_EMPLOYER_STREAM_PAGE_SIZE to prevent DoS
         let requested_limit = limit.unwrap_or(ids_len);
         let limit = requested_limit
             .min(MAX_EMPLOYER_STREAM_PAGE_SIZE)
@@ -2623,7 +2763,6 @@ impl PayrollStream {
             .instance()
             .set(&DataKey::PendingUpgrade, &pending_upgrade);
 
-        // Emit upgrade proposed event
         #[allow(deprecated)]
         env.events()
             .publish((UPGRADE_PROPOSED, admin), (new_wasm_hash, execute_after));
@@ -2659,7 +2798,6 @@ impl PayrollStream {
         // Clear pending upgrade
         env.storage().instance().remove(&DataKey::PendingUpgrade);
 
-        // Emit upgrade executed event
         #[allow(deprecated)]
         env.events()
             .publish((UPGRADE_EXECUTED, admin), (pending_upgrade.wasm_hash, now));
@@ -2686,7 +2824,6 @@ impl PayrollStream {
         // Clear pending upgrade
         env.storage().instance().remove(&DataKey::PendingUpgrade);
 
-        // Emit upgrade canceled event
         #[allow(deprecated)]
         env.events().publish(
             (UPGRADE_CANCELED, admin),
@@ -2949,8 +3086,6 @@ impl PayrollStream {
         stream: &mut Stream,
         now: u64,
     ) -> Result<bool, QuipayError> {
-        // Zero tolerance is treated as "slippage guard disabled" to keep existing
-        // streams backward compatible.
         if stream.max_slippage_bps == 0 {
             return Ok(false);
         }
@@ -3042,7 +3177,7 @@ impl PayrollStream {
             .storage()
             .instance()
             .get(&DataKey::EarlyCancelFeeBps)
-            .unwrap_or(0); // Default to 0 if not set
+            .unwrap_or(0);
 
         if fee_bps == 0 || remaining_amount <= 0 {
             return 0;
@@ -3051,7 +3186,7 @@ impl PayrollStream {
         remaining_amount
             .checked_mul(fee_bps as i128)
             .unwrap_or(0)
-            .checked_div(10000) // Convert basis points to actual amount
+            .checked_div(10000)
             .unwrap_or(0)
     }
 
@@ -3091,11 +3226,6 @@ impl PayrollStream {
         );
     }
 
-    // pub (crate) fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {}
-    /// Calculate the vested amount at a specific timestamp, accounting for pauses.
-    ///
-    /// Subtracts `total_paused_duration` from elapsed time so workers are only
-    /// paid for active (non-paused) time. Caps the result at `total_amount`.
     pub(crate) fn vested_amount_at(stream: &Stream, timestamp: u64) -> i128 {
         let is_closed = Self::is_closed(stream);
         let mut effective_ts = if is_closed {
@@ -3104,17 +3234,14 @@ impl PayrollStream {
             timestamp
         };
 
-        // Adjust effective_ts for currently paused streams
         if stream.status == StreamStatus::Paused {
             effective_ts = core::cmp::min(effective_ts, stream.paused_at);
         }
 
-        // Cap vesting at cancel_effective_at when a grace period is pending
         if !is_closed && stream.cancel_effective_at > 0 {
             effective_ts = core::cmp::min(effective_ts, stream.cancel_effective_at);
         }
 
-        // Subtract total paused duration from the elapsed time
         let elapsed_reduction = stream.total_paused_duration;
 
         if effective_ts < stream.cliff_ts {
@@ -3144,8 +3271,6 @@ impl PayrollStream {
             return stream.total_amount;
         }
 
-        // Delegate to the curve module — all three curves share the same
-        // boundary guarantees and integer-safe implementation.
         stream_curve::compute_vested(elapsed, duration, stream.total_amount, stream.speed_curve)
     }
 
@@ -3298,3 +3423,7 @@ mod proptest;
 mod upgrade_migration_test;
 #[cfg(test)]
 mod withdraw_proptest;
+
+/// Tests for `batch_start_streams`.
+#[cfg(test)]
+mod batch_start_test;
