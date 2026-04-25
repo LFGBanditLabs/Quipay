@@ -7,6 +7,16 @@ import React, {
   useEffect,
 } from "react";
 import "./NotificationProvider.css"; // Import CSS for sliding effect
+import { useWallet } from "../hooks/useWallet";
+import {
+  type NotificationCenterType,
+  type PersistedNotification,
+  type PersistentNotificationType,
+  loadPersistedNotifications,
+  persistNotifications,
+  normalizeNotificationType,
+  MAX_PERSISTED_NOTIFICATIONS,
+} from "./notificationStorage";
 
 type NotificationType =
   | "primary"
@@ -20,29 +30,12 @@ interface NotificationAction {
   onClick: () => void;
 }
 
-type StreamNotificationType =
-  | "stream_created"
-  | "stream_funded"
-  | "withdrawal_available"
-  | "stream_cancelled"
-  | "stream_completed";
-
 interface ToastNotification {
   id: string;
   message: string;
   type: NotificationType;
   isVisible: boolean;
   action?: NotificationAction;
-}
-
-interface StreamNotification {
-  id: string;
-  type: StreamNotificationType;
-  title: string;
-  message: string;
-  timestamp: string;
-  read: boolean;
-  dedupeKey?: string;
 }
 
 interface StreamNotificationOptions {
@@ -58,10 +51,10 @@ interface NotificationContextType {
     action?: NotificationAction,
   ) => void;
   addStreamNotification: (
-    type: StreamNotificationType,
+    type: NotificationCenterType,
     options?: StreamNotificationOptions,
   ) => void;
-  streamNotifications: StreamNotification[];
+  streamNotifications: PersistedNotification[];
   unreadCount: number;
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
@@ -71,81 +64,40 @@ const NotificationContext = createContext<NotificationContextType | undefined>(
   undefined,
 );
 
-const STREAM_NOTIFICATION_STORAGE_KEY =
-  "quipay.notification_center.stream_events.v1";
-const MAX_STREAM_NOTIFICATIONS = 50;
-
 const streamNotificationDefaults: Record<
-  StreamNotificationType,
+  PersistentNotificationType,
   { title: string; message: string }
 > = {
-  stream_created: {
-    title: "Stream created",
-    message: "A new payroll stream was created successfully.",
+  tx_confirmed: {
+    title: "Transaction confirmed",
+    message: "The transaction was confirmed successfully.",
   },
-  stream_funded: {
-    title: "Stream funded",
-    message: "Funds were added to support active payroll streams.",
+  tx_failed: {
+    title: "Transaction failed",
+    message: "The transaction could not be completed.",
   },
-  withdrawal_available: {
-    title: "Withdrawal available",
-    message: "A worker can now withdraw earned funds.",
-  },
-  stream_cancelled: {
-    title: "Stream cancelled",
-    message: "A payroll stream was cancelled.",
+  stream_started: {
+    title: "Stream started",
+    message: "A payroll stream was started successfully.",
   },
   stream_completed: {
     title: "Stream completed",
     message: "A payroll stream has reached completion.",
   },
-};
-
-const isValidStreamNotificationType = (
-  value: unknown,
-): value is StreamNotificationType =>
-  value === "stream_created" ||
-  value === "stream_funded" ||
-  value === "withdrawal_available" ||
-  value === "stream_cancelled" ||
-  value === "stream_completed";
-
-const readStoredStreamNotifications = (): StreamNotification[] => {
-  if (typeof window === "undefined") return [];
-
-  try {
-    const raw = window.localStorage.getItem(STREAM_NOTIFICATION_STORAGE_KEY);
-    if (!raw) return [];
-
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed
-      .filter((value): value is StreamNotification => {
-        if (!value || typeof value !== "object") return false;
-        const maybe = value as Partial<StreamNotification>;
-        return (
-          typeof maybe.id === "string" &&
-          isValidStreamNotificationType(maybe.type) &&
-          typeof maybe.title === "string" &&
-          typeof maybe.message === "string" &&
-          typeof maybe.timestamp === "string" &&
-          typeof maybe.read === "boolean"
-        );
-      })
-      .slice(0, MAX_STREAM_NOTIFICATIONS);
-  } catch {
-    return [];
-  }
+  payroll_disbursed: {
+    title: "Payroll disbursed",
+    message: "Payroll funds were disbursed successfully.",
+  },
 };
 
 export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
+  const { address } = useWallet();
   const [notifications, setNotifications] = useState<ToastNotification[]>([]);
   const [streamNotifications, setStreamNotifications] = useState<
-    StreamNotification[]
-  >(() => readStoredStreamNotifications());
+    PersistedNotification[]
+  >([]);
 
   const addNotification = useCallback(
     (message: string, type: NotificationType, action?: NotificationAction) => {
@@ -181,14 +133,15 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
   );
 
   const addStreamNotification = useCallback(
-    (type: StreamNotificationType, options?: StreamNotificationOptions) => {
-      const defaults = streamNotificationDefaults[type];
+    (type: NotificationCenterType, options?: StreamNotificationOptions) => {
+      const normalizedType = normalizeNotificationType(type);
+      const defaults = streamNotificationDefaults[normalizedType];
       const timestamp = new Date().toISOString();
       const dedupeKey = options?.dedupeKey;
 
-      const newNotification: StreamNotification = {
-        id: `${type}-${Date.now().toString()}-${Math.random().toString(16).slice(2, 8)}`,
-        type,
+      const newNotification: PersistedNotification = {
+        id: `${normalizedType}-${Date.now().toString()}-${Math.random().toString(16).slice(2, 8)}`,
+        type: normalizedType,
         title: options?.title ?? defaults.title,
         message: options?.message ?? defaults.message,
         timestamp,
@@ -200,7 +153,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
         if (dedupeKey && prev.some((item) => item.dedupeKey === dedupeKey)) {
           return prev;
         }
-        return [newNotification, ...prev].slice(0, MAX_STREAM_NOTIFICATIONS);
+        return [newNotification, ...prev].slice(0, MAX_PERSISTED_NOTIFICATIONS);
       });
     },
     [],
@@ -225,11 +178,15 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(
-      STREAM_NOTIFICATION_STORAGE_KEY,
-      JSON.stringify(streamNotifications),
+    setStreamNotifications(
+      loadPersistedNotifications(window.localStorage, address),
     );
-  }, [streamNotifications]);
+  }, [address]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    persistNotifications(window.localStorage, address, streamNotifications);
+  }, [address, streamNotifications]);
 
   const contextValue = useMemo(
     () => ({
@@ -284,6 +241,6 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
 export { NotificationContext };
 export type {
   NotificationContextType,
-  StreamNotification,
-  StreamNotificationType,
+  PersistedNotification as StreamNotification,
+  NotificationCenterType as StreamNotificationType,
 };

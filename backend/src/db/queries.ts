@@ -1,6 +1,7 @@
 import { query, getPool } from "./pool";
 import { globalCache } from "../utils/cache";
 import { DatabaseError } from "../errors/AppError";
+import { invalidatePayrollSummaryCache } from "../services/payrollSummaryCache";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -79,6 +80,19 @@ export interface EmployerPayrollSummary {
   completed_streams: number;
   cancelled_streams: number;
   total_disbursed: string;
+}
+
+export interface PayrollSummaryByDepartment {
+  dept: string;
+  total: string;
+}
+
+export interface PayrollAnalyticsSummary {
+  total_disbursed: string;
+  avg_payment: string;
+  cost_by_department: PayrollSummaryByDepartment[];
+  headcount: number;
+  streams_active: number;
 }
 
 export interface EmployerMonthlyPayrollPoint {
@@ -220,6 +234,7 @@ export const upsertStream = async (params: {
   globalCache.del(`analytics:address:${params.employer}`);
   globalCache.del(`analytics:address:${params.worker}`);
   globalCache.invalidateByPrefix(`analytics:payroll:${params.employer}:`);
+  await invalidatePayrollSummaryCache(params.employer);
 };
 
 export const recordWithdrawal = async (params: {
@@ -250,6 +265,7 @@ export const recordWithdrawal = async (params: {
     globalCache.invalidateByPrefix(
       `analytics:payroll:${stream.employer_address}:`,
     );
+    await invalidatePayrollSummaryCache(stream.employer_address);
   }
 };
 
@@ -323,6 +339,68 @@ export const getEmployerPayrollSummary = async (
     completed_streams: Number(row?.completed_streams ?? 0),
     cancelled_streams: Number(row?.cancelled_streams ?? 0),
     total_disbursed: row?.total_disbursed ?? "0",
+  };
+};
+
+export const getPayrollSummaryByOrg = async (
+  orgId: string,
+  period: "ytd" | "qtd" | "mtd" = "ytd",
+): Promise<PayrollAnalyticsSummary> => {
+  if (!getPool()) {
+    return {
+      total_disbursed: "0",
+      avg_payment: "0",
+      cost_by_department: [],
+      headcount: 0,
+      streams_active: 0,
+    };
+  }
+
+  const sinceExpression =
+    period === "qtd"
+      ? "DATE_TRUNC('quarter', NOW())"
+      : period === "mtd"
+        ? "DATE_TRUNC('month', NOW())"
+        : "DATE_TRUNC('year', NOW())";
+
+  const summaryRes = await query<{
+    total_disbursed: string;
+    avg_payment: string;
+    headcount: string;
+    streams_active: string;
+  }>(
+    `SELECT
+        COALESCE(SUM(withdrawn_amount), 0)::text AS total_disbursed,
+        COALESCE(AVG(NULLIF(withdrawn_amount, 0)), 0)::text AS avg_payment,
+        COUNT(DISTINCT worker_address)::text AS headcount,
+        COUNT(*) FILTER (WHERE status = 'active')::text AS streams_active
+      FROM payroll_streams
+      WHERE employer_address = $1
+        AND created_at >= ${sinceExpression}
+        AND deleted_at IS NULL`,
+    [orgId],
+  );
+
+  const costRes = await query<PayrollSummaryByDepartment>(
+    `SELECT
+        COALESCE(NULLIF(metadata->>'department', ''), 'Unassigned') AS dept,
+        COALESCE(SUM(withdrawn_amount), 0)::text AS total
+      FROM payroll_streams
+      WHERE employer_address = $1
+        AND created_at >= ${sinceExpression}
+        AND deleted_at IS NULL
+      GROUP BY 1
+      ORDER BY total DESC, dept ASC`,
+    [orgId],
+  );
+
+  const row = summaryRes.rows[0];
+  return {
+    total_disbursed: row?.total_disbursed ?? "0",
+    avg_payment: row?.avg_payment ?? "0",
+    cost_by_department: costRes.rows,
+    headcount: Number(row?.headcount ?? 0),
+    streams_active: Number(row?.streams_active ?? 0),
   };
 };
 

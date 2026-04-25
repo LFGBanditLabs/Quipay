@@ -54,3 +54,27 @@ Drizzle Kit does not have a built-in "down" migration command. If you need to re
 2. [ ] Migration generated with `npm run migration:generate`
 3. [ ] SQL verified in `backend/drizzle/`
 4. [ ] Tested locally with `npm run migration:run`
+
+## Payroll Stream Index Coverage
+- `backend/src/db/schema.ts` already defines the hot-path indexes used by the payroll queries:
+- `idx_streams_employer` on `payroll_streams.employer_address`
+- `idx_streams_worker` on `payroll_streams.worker_address`
+- `idx_streams_created_at` on `payroll_streams.created_at DESC`
+- `idx_streams_status` on `payroll_streams.status`
+
+These indexes are present in the generated Drizzle SQL under `backend/drizzle/`.
+
+For verification on a seeded database, run:
+```sql
+EXPLAIN ANALYZE
+SELECT * FROM payroll_streams
+WHERE employer_address = 'GEMPLOYER1'
+ORDER BY created_at DESC;
+
+EXPLAIN ANALYZE
+SELECT * FROM payroll_streams
+WHERE worker_address = 'GWORKER1'
+ORDER BY created_at DESC;
+```
+
+The integration suite asserts that PostgreSQL chooses an index-backed plan for these lookups, which is the expected improvement over sequential scans as the dataset grows.

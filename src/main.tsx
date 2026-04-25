@@ -25,17 +25,17 @@ createRoot(document.getElementById("root") as HTMLElement).render(
   <StrictMode>
     <ErrorBoundary region="root">
       <ThemeProvider>
-        <NotificationProvider>
-          <NetworkStatusProvider>
-            <QueryClientProvider client={queryClient}>
-              <WalletProvider>
+        <QueryClientProvider client={queryClient}>
+          <WalletProvider>
+            <NotificationProvider>
+              <NetworkStatusProvider>
                 <BrowserRouter>
                   <App />
                 </BrowserRouter>
-              </WalletProvider>
-            </QueryClientProvider>
-          </NetworkStatusProvider>
-        </NotificationProvider>
+              </NetworkStatusProvider>
+            </NotificationProvider>
+          </WalletProvider>
+        </QueryClientProvider>
       </ThemeProvider>
     </ErrorBoundary>
   </StrictMode>,

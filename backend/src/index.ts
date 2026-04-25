@@ -177,6 +177,7 @@ app.use("/ai", aiRouter);
 app.use("/admin", adminRouter); // RBAC-protected admin endpoints
 app.use("/analytics", analyticsRouter);
 app.use("/api/analytics", analyticsRouter);
+app.use("/api/v1/analytics", analyticsRouter);
 app.use("/employers", employersRouter);
 app.use("/api/employers", employersRouter);
 app.use("/proofs", proofsRouter);

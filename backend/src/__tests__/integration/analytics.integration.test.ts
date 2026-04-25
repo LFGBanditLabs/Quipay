@@ -28,8 +28,13 @@ import {
   getPayrollTrends,
   getEmployerPayrollSummary,
   getEmployerPayrollByWorker,
+  getPayrollSummaryByOrg,
 } from "../../db/queries";
 import { Pool } from "pg";
+import express from "express";
+import request from "supertest";
+import { analyticsRouter } from "../../analytics";
+import { globalCache } from "../../utils/cache";
 
 describe("Analytics Integration Tests", () => {
   let testDb: TestDatabase;
@@ -44,6 +49,7 @@ describe("Analytics Integration Tests", () => {
   afterEach(async () => {
     // Clean database between tests
     await cleanTestDatabase();
+    globalCache.clear();
   });
 
   afterAll(async () => {
@@ -71,8 +77,8 @@ describe("Analytics Integration Tests", () => {
       );
 
       expect(result.rows).toHaveLength(1);
-      expect(result.rows[0].employer).toBe("GEMPLOYER1");
-      expect(result.rows[0].worker).toBe("GWORKER1");
+      expect(result.rows[0].employer_address).toBe("GEMPLOYER1");
+      expect(result.rows[0].worker_address).toBe("GWORKER1");
       expect(result.rows[0].status).toBe("active");
       expect(result.rows[0].total_amount).toBe("1000000000");
     });
@@ -287,6 +293,36 @@ describe("Analytics Integration Tests", () => {
       );
     });
 
+    it("should aggregate payroll summary by org and department", async () => {
+      await pool.query(
+        `UPDATE payroll_streams
+         SET metadata = CASE
+           WHEN worker_address = 'GWORKER1' THEN '{"department":"Engineering"}'::jsonb
+           ELSE '{"department":"Finance"}'::jsonb
+         END
+         WHERE employer_address = 'GEMPLOYER1'`,
+      );
+
+      const summary = await getPayrollSummaryByOrg("GEMPLOYER1", "ytd");
+
+      expect(summary.total_disbursed).toBe("700000000");
+      expect(summary.avg_payment).not.toBe("0");
+      expect(summary.headcount).toBe(2);
+      expect(summary.streams_active).toBe(2);
+      expect(summary.cost_by_department).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            dept: "Engineering",
+            total: "200000000",
+          }),
+          expect.objectContaining({
+            dept: "Finance",
+            total: "500000000",
+          }),
+        ]),
+      );
+    });
+
     it("should include recent withdrawals in address stats", async () => {
       // Record some withdrawals
       await recordWithdrawal({
@@ -352,7 +388,7 @@ describe("Analytics Integration Tests", () => {
 
       // Query with EXPLAIN to check index usage
       const result = await pool.query(
-        "EXPLAIN SELECT * FROM payroll_streams WHERE employer = $1",
+        "EXPLAIN ANALYZE SELECT * FROM payroll_streams WHERE employer_address = $1 ORDER BY created_at DESC",
         ["GEMPLOYER1"],
       );
 
@@ -375,12 +411,117 @@ describe("Analytics Integration Tests", () => {
       });
 
       const result = await pool.query(
-        "EXPLAIN SELECT * FROM payroll_streams WHERE worker = $1",
+        "EXPLAIN ANALYZE SELECT * FROM payroll_streams WHERE worker_address = $1 ORDER BY created_at DESC",
         ["GWORKER1"],
       );
 
       const plan = result.rows.map((r) => r["QUERY PLAN"]).join("\n");
       expect(plan).toContain("Index");
+    });
+  });
+
+  describe("Payroll Summary Endpoint", () => {
+    const buildApp = () => {
+      const app = express();
+      app.use("/api/v1/analytics", analyticsRouter);
+      return app;
+    };
+
+    it("should serve payroll summary from the new endpoint", async () => {
+      await upsertStream({
+        streamId: 91,
+        employer: "GORG1",
+        worker: "GWORKER91",
+        totalAmount: BigInt(1000000000),
+        withdrawnAmount: BigInt(400000000),
+        startTs: Math.floor(Date.now() / 1000),
+        endTs: Math.floor(Date.now() / 1000) + 86400,
+        status: "active",
+        ledger: 1901,
+      });
+
+      await pool.query(
+        `UPDATE payroll_streams
+         SET metadata = '{"department":"Ops"}'::jsonb
+         WHERE employer_address = 'GORG1'`,
+      );
+
+      const response = await request(buildApp())
+        .get("/api/v1/analytics/payroll-summary")
+        .query({ org_id: "GORG1", period: "ytd" })
+        .set("x-user-role", "user")
+        .set("x-user-id", "GORG1");
+
+      expect(response.status).toBe(200);
+      expect(response.headers["x-cache"]).toBe("MISS");
+      expect(response.body.data).toEqual(
+        expect.objectContaining({
+          total_disbursed: "400000000",
+          headcount: 1,
+          streams_active: 1,
+        }),
+      );
+      expect(response.body.data.cost_by_department).toEqual([
+        { dept: "Ops", total: "400000000" },
+      ]);
+    });
+
+    it("should invalidate cached payroll summary after a new payroll transaction", async () => {
+      await upsertStream({
+        streamId: 101,
+        employer: "GORG2",
+        worker: "GWORKER101",
+        totalAmount: BigInt(1000000000),
+        withdrawnAmount: BigInt(100000000),
+        startTs: Math.floor(Date.now() / 1000),
+        endTs: Math.floor(Date.now() / 1000) + 86400,
+        status: "active",
+        ledger: 2101,
+      });
+
+      const app = buildApp();
+      const first = await request(app)
+        .get("/api/v1/analytics/payroll-summary")
+        .query({ org_id: "GORG2", period: "ytd" })
+        .set("x-user-role", "user")
+        .set("x-user-id", "GORG2");
+      const second = await request(app)
+        .get("/api/v1/analytics/payroll-summary")
+        .query({ org_id: "GORG2", period: "ytd" })
+        .set("x-user-role", "user")
+        .set("x-user-id", "GORG2");
+
+      expect(first.headers["x-cache"]).toBe("MISS");
+      expect(second.headers["x-cache"]).toBe("HIT");
+
+      await recordWithdrawal({
+        streamId: 101,
+        worker: "GWORKER101",
+        amount: BigInt(50000000),
+        ledger: 2102,
+        ledgerTs: Math.floor(Date.now() / 1000),
+      });
+
+      await upsertStream({
+        streamId: 101,
+        employer: "GORG2",
+        worker: "GWORKER101",
+        totalAmount: BigInt(1000000000),
+        withdrawnAmount: BigInt(150000000),
+        startTs: Math.floor(Date.now() / 1000),
+        endTs: Math.floor(Date.now() / 1000) + 86400,
+        status: "active",
+        ledger: 2102,
+      });
+
+      const refreshed = await request(app)
+        .get("/api/v1/analytics/payroll-summary")
+        .query({ org_id: "GORG2", period: "ytd" })
+        .set("x-user-role", "user")
+        .set("x-user-id", "GORG2");
+
+      expect(refreshed.headers["x-cache"]).toBe("MISS");
+      expect(refreshed.body.data.total_disbursed).toBe("150000000");
     });
   });
 

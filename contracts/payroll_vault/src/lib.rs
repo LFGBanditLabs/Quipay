@@ -44,6 +44,7 @@ pub enum StateKey {
     Threshold,               // u32 - M of N required
     PendingUpgradeApprovals, // Map::<Address, bool>
     WithdrawalThreshold,     // i128 - amount above which multisig is required
+    Paused,
 }
 
 #[contracttype]
@@ -97,6 +98,8 @@ const DRAIN_EXECUTED: Symbol = symbol_short!("dr_exec");
 const DRAIN_CANCELED: Symbol = symbol_short!("dr_cncl");
 const TOKEN_ALLOWLISTED: Symbol = symbol_short!("tok_allow");
 const TOKEN_DENYLISTED: Symbol = symbol_short!("tok_deny");
+const VAULT_PAUSED: Symbol = symbol_short!("v_pause");
+const VAULT_UNPAUSED: Symbol = symbol_short!("v_unpause");
 
 // 48 hours in seconds
 const TIMELOCK_DURATION: u64 = 48 * 60 * 60;
@@ -142,6 +145,7 @@ impl PayrollVault {
             &StateKey::WithdrawalThreshold,
             &DEFAULT_WITHDRAWAL_THRESHOLD,
         );
+        e.storage().persistent().set(&StateKey::Paused, &false);
 
         // Authorized contract starts as None - must be set by admin later
         // No need to initialize balances/liabilities as they are maps
@@ -607,7 +611,39 @@ impl PayrollVault {
 
     // ==================== Treasury Operations ====================
 
+    pub fn pause(e: Env) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        e.storage().persistent().set(&StateKey::Paused, &true);
+
+        #[allow(deprecated)]
+        e.events()
+            .publish((VAULT_PAUSED, admin), e.ledger().timestamp());
+        Ok(())
+    }
+
+    pub fn unpause(e: Env) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+
+        e.storage().persistent().set(&StateKey::Paused, &false);
+
+        #[allow(deprecated)]
+        e.events()
+            .publish((VAULT_UNPAUSED, admin), e.ledger().timestamp());
+        Ok(())
+    }
+
+    pub fn is_paused(e: Env) -> bool {
+        e.storage()
+            .persistent()
+            .get(&StateKey::Paused)
+            .unwrap_or(false)
+    }
+
     pub fn deposit(e: Env, from: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
+        Self::assert_not_paused(&e)?;
         from.require_auth();
         require_positive_amount!(amount);
         if !Self::is_token_allowed(e.clone(), token.clone()) {
@@ -679,6 +715,7 @@ impl PayrollVault {
     /// Withdraw free funds from the treasury.
     /// Enforces `amount <= available_balance(token)`.
     pub fn withdraw(e: Env, to: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
+        Self::assert_not_paused(&e)?;
         to.require_auth();
         require_positive_amount!(amount);
 
@@ -811,6 +848,7 @@ impl PayrollVault {
     /// the transaction must meet the signature threshold before execution. This ensures
     /// decentralized control over payroll payouts.
     pub fn payout(e: Env, to: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
+        Self::assert_not_paused(&e)?;
         let admin: Address = e
             .storage()
             .persistent()
@@ -863,6 +901,7 @@ impl PayrollVault {
         token: Address,
         amount: i128,
     ) -> Result<(), QuipayError> {
+        Self::assert_not_paused(&e)?;
         let authorized: Address = e
             .storage()
             .persistent()
@@ -1258,6 +1297,13 @@ impl PayrollVault {
 }
 
 impl PayrollVault {
+    fn assert_not_paused(e: &Env) -> Result<(), QuipayError> {
+        if Self::is_paused(e.clone()) {
+            return Err(QuipayError::ProtocolPaused);
+        }
+        Ok(())
+    }
+
     /// Verify that the required number of signers have authorized the transaction.
     ///
     /// ### Deduplication
