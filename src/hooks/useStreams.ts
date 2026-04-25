@@ -6,6 +6,7 @@ import {
   getWorkerWithdrawalEvents,
   ContractStream,
 } from "../contracts/payroll_stream";
+import { getCache, setCache } from "../services/offlineService";
 
 export interface WorkerStream {
   id: string;
@@ -138,12 +139,26 @@ export const useStreams = (workerAddress: string | undefined) => {
         );
 
         setWithdrawalHistory(history);
+        void setCache(`worker-streams-${workerAddress}`, workerStreams);
+        void setCache(`withdrawal-history-${workerAddress}`, history);
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Failed to load stream data";
-        setError(message);
-        setStreams([]);
-        setWithdrawalHistory([]);
+        // Try cache on failure
+        const cachedStreams = await getCache(`worker-streams-${workerAddress}`);
+        const cachedHistory = await getCache(
+          `withdrawal-history-${workerAddress}`,
+        );
+
+        if (cachedStreams || cachedHistory) {
+          setStreams(cachedStreams || []);
+          setWithdrawalHistory(cachedHistory || []);
+          setError(null); // Clear error if we have cached data
+        } else {
+          const message =
+            err instanceof Error ? err.message : "Failed to load stream data";
+          setError(message);
+          setStreams([]);
+          setWithdrawalHistory([]);
+        }
       } finally {
         setIsLoading(false);
       }

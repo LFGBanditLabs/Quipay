@@ -5,6 +5,7 @@ import Navbar from "./components/layout/Navbar";
 import OnboardingTour from "./components/OnboardingTour";
 import Footer from "./components/layout/Footer";
 import WalletGuard from "./components/WalletGuard";
+import ConnectivityBanner from "./components/ConnectivityBanner";
 
 const Home = lazy(() => import("./pages/Home"));
 const Debugger = lazy(() => import("./pages/Debugger"));
@@ -51,6 +52,7 @@ function AppLayout() {
         {t("common.skip_to_content")}
       </a>
       <Navbar />
+      <ConnectivityBanner />
       <main id="main-content" tabIndex={-1} className="flex-1 outline-none">
         <OnboardingTour />
         <Suspense fallback={<AppLoadingFallback />}>
