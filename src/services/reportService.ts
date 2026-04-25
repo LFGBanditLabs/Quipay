@@ -39,7 +39,7 @@ function formatDate(iso: string): string {
   });
 }
 
-function shortHash(hash: string): string {
+export function shortHash(hash: string): string {
   if (hash.length <= 16) return hash;
   return `${hash.slice(0, 8)}…${hash.slice(-8)}`;
 }

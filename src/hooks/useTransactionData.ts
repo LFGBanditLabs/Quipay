@@ -13,6 +13,7 @@ import type {
   MonthlySummary,
   ReportFilter,
 } from "../types/reports";
+import { getCache, setCache } from "../services/offlineService";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
 
@@ -183,11 +184,18 @@ export function useTransactionData() {
           data?: StreamApiRecord[];
         };
         if (json.ok && Array.isArray(json.data)) {
-          setAllTransactions(json.data.map(mapStreamToTransaction));
+          const mapped = json.data.map(mapStreamToTransaction);
+          setAllTransactions(mapped);
+          void setCache(`transactions-${address}`, mapped);
         }
       } catch {
-        // Backend unavailable — fall through to empty state
-        setAllTransactions([]);
+        // Backend unavailable — try cache
+        const cached = await getCache(`transactions-${address}`);
+        if (cached) {
+          setAllTransactions(cached);
+        } else {
+          setAllTransactions([]);
+        }
       } finally {
         setLoading(false);
       }

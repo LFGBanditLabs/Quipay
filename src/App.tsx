@@ -5,6 +5,7 @@ import Navbar from "./components/layout/Navbar";
 import OnboardingTour from "./components/OnboardingTour";
 import Footer from "./components/layout/Footer";
 import WalletGuard from "./components/WalletGuard";
+import ConnectivityBanner from "./components/ConnectivityBanner";
 import ErrorBoundary from "./components/ErrorBoundary";
 import NotificationCenter from "./components/NotificationCenter";
 import BugReportModal from "./components/BugReportModal";
@@ -68,6 +69,7 @@ function AppLayout() {
           {t("common.skip_to_content")}
         </a>
         <Navbar />
+        <ConnectivityBanner />
         <main id="main-content" tabIndex={-1} className="flex-1 outline-none">
           <OnboardingTour />
           <ErrorBoundary region="page-content">

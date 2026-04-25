@@ -17,6 +17,8 @@ import { StreamTimeline } from "../components/StreamTimeline";
 import { StreamCardSkeleton } from "../components/dashboard/StreamCardSkeleton";
 import { EarningsSkeleton } from "../components/dashboard/EarningsSkeleton";
 import { Skeleton } from "../components/Loading/Skeleton";
+import { TableVirtuoso } from "react-virtuoso";
+import { shortHash } from "../services/reportService";
 import PayslipDownloadButton from "../components/PayslipDownloadButton";
 
 const StreamCard: React.FC<{
@@ -558,41 +560,50 @@ const WorkerDashboard: React.FC = () => {
             {t("worker.withdrawal_history_heading")}
           </h2>
           <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)]">
-            <table className="w-full border-collapse max-[768px]:block max-[768px]:overflow-x-auto">
-              <thead>
-                <tr>
-                  <th className="bg-[var(--surface-subtle)] p-4 text-left text-sm font-medium text-[var(--muted)]">
-                    {t("worker.col_date")}
-                  </th>
-                  <th className="bg-[var(--surface-subtle)] p-4 text-left text-sm font-medium text-[var(--muted)]">
-                    {t("worker.col_amount")}
-                  </th>
-                  <th className="bg-[var(--surface-subtle)] p-4 text-left text-sm font-medium text-[var(--muted)]">
-                    {t("worker.col_token")}
-                  </th>
-                  <th className="bg-[var(--surface-subtle)] p-4 text-left text-sm font-medium text-[var(--muted)]">
-                    {t("worker.col_transaction")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {withdrawalHistory.map((record) => (
-                  <tr
-                    key={record.id}
-                    className="[&:not(:last-child)>td]:border-b [&:not(:last-child)>td]:border-[var(--border)]"
-                  >
-                    <td className="p-4 text-sm">{record.date}</td>
-                    <td className="p-4 text-sm font-semibold">
+            {withdrawalHistory.length === 0 ? (
+              <div className="p-12 text-center text-[var(--muted)]">
+                {t("worker.no_withdrawal_history")}
+              </div>
+            ) : (
+              <TableVirtuoso
+                style={{ height: "400px", background: "transparent" }}
+                data={withdrawalHistory}
+                fixedHeaderContent={() => (
+                  <tr className="bg-[var(--surface-subtle)]">
+                    <th className="p-4 text-left text-sm font-medium text-[var(--muted)] w-[120px]">
+                      {t("worker.col_date")}
+                    </th>
+                    <th className="p-4 text-left text-sm font-medium text-[var(--muted)] w-[100px]">
+                      {t("worker.col_amount")}
+                    </th>
+                    <th className="p-4 text-left text-sm font-medium text-[var(--muted)] w-[100px]">
+                      {t("worker.col_token")}
+                    </th>
+                    <th className="p-4 text-left text-sm font-medium text-[var(--muted)]">
+                      {t("worker.col_transaction")}
+                    </th>
+                  </tr>
+                )}
+                itemContent={(_index, record) => (
+                  <>
+                    <td className="p-4 text-sm border-b border-[var(--border)]">
+                      {record.date}
+                    </td>
+                    <td className="p-4 text-sm font-semibold border-b border-[var(--border)]">
                       {record.amount}
                     </td>
-                    <td className="p-4 text-sm">{record.tokenSymbol}</td>
-                    <td className="p-4 text-sm">
+                    <td className="p-4 text-sm border-b border-[var(--border)]">
+                      {record.tokenSymbol}
+                    </td>
+                    <td className="p-4 text-sm border-b border-[var(--border)]">
                       <span className="flex items-center gap-1">
                         <a
-                          href={`#${record.txHash}`}
+                          href={`https://stellar.expert/explorer/testnet/tx/${record.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="font-mono text-[var(--accent)] no-underline"
                         >
-                          {record.txHash}
+                          {shortHash(record.txHash)}
                         </a>
                         <CopyButton
                           value={record.txHash}
@@ -600,24 +611,19 @@ const WorkerDashboard: React.FC = () => {
                         />
                       </span>
                     </td>
-                  </tr>
-                ))}
-                {withdrawalHistory.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      style={{
-                        textAlign: "center",
-                        padding: "2rem",
-                        color: "var(--muted)",
-                      }}
-                    >
-                      {t("worker.no_withdrawal_history")}
-                    </td>
-                  </tr>
+                  </>
                 )}
-              </tbody>
-            </table>
+                components={{
+                  Table: ({ ...props }) => (
+                    <table
+                      {...props}
+                      className="w-full border-collapse"
+                      style={{ borderSpacing: 0 }}
+                    />
+                  ),
+                }}
+              />
+            )}
           </div>
         </div>
       </Layout.Inset>

@@ -45,9 +45,42 @@ const CreateStream: React.FC = () => {
       cliffDate: "",
     },
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const isValidStellarAddress = (addr: string) => /^G[A-Z2-7]{55}$/.test(addr);
 
   const updateFormData = (field: string, value: string | boolean | object) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+
+    // Clear error when user types
+    if (errors[field]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+
+    // Immediate validation for specific fields
+    if (field === "workerAddress" && typeof value === "string") {
+      if (value && !isValidStellarAddress(value)) {
+        setErrors((prev) => ({
+          ...prev,
+          workerAddress:
+            "Invalid Stellar address (must start with G and be 56 characters)",
+        }));
+      }
+    }
+
+    if (field === "amount" && typeof value === "string") {
+      const amt = parseFloat(value);
+      if (value && (isNaN(amt) || amt <= 0)) {
+        setErrors((prev) => ({
+          ...prev,
+          amount: "Amount must be greater than zero",
+        }));
+      }
+    }
   };
 
   const loadTemplate = React.useCallback(
@@ -190,11 +223,18 @@ const CreateStream: React.FC = () => {
               aria-required="true"
               pattern="^G[A-Z2-7]{55}$"
             />
+            {errors.workerAddress && (
+              <p className="mt-1 text-xs text-rose-500">
+                {errors.workerAddress}
+              </p>
+            )}
           </div>
         </div>
       ),
       isValid:
-        formData.workerAddress.length > 0 && formData.workerName.length > 0,
+        isValidStellarAddress(formData.workerAddress) &&
+        formData.workerName.length > 0 &&
+        !errors.workerAddress,
     },
     {
       title: "Payment",
@@ -215,6 +255,9 @@ const CreateStream: React.FC = () => {
               required
               aria-required="true"
             />
+            {errors.amount && (
+              <p className="mt-1 text-xs text-rose-500">{errors.amount}</p>
+            )}
           </div>
           <div className={tw.formGroup}>
             <label className={tw.label}>Token</label>
@@ -231,7 +274,10 @@ const CreateStream: React.FC = () => {
           </div>
         </div>
       ),
-      isValid: formData.amount.length > 0 && parseFloat(formData.amount) > 0,
+      isValid:
+        formData.amount.length > 0 &&
+        parseFloat(formData.amount) > 0 &&
+        !errors.amount,
     },
     {
       title: "Schedule",
