@@ -180,45 +180,6 @@ function isReadRequest(req: Request): boolean {
   return ["GET", "HEAD", "OPTIONS"].includes(req.method.toUpperCase());
 }
 
-function consumeSlidingWindow(
-  key: string,
-  now: number,
-  windowMs: number,
-  maxRequests: number,
-): {
-  allowed: boolean;
-  remaining: number;
-  resetAtMs: number;
-  retryAfterSeconds?: number;
-} {
-  const windowStart = now - windowMs;
-  const activeTimestamps = (identitySlidingWindowStore.get(key) || []).filter(
-    (timestamp) => timestamp > windowStart,
-  );
-
-  if (activeTimestamps.length >= maxRequests) {
-    identitySlidingWindowStore.set(key, activeTimestamps);
-    const oldestTimestamp = activeTimestamps[0];
-    const resetAtMs = oldestTimestamp + windowMs;
-    return {
-      allowed: false,
-      remaining: 0,
-      resetAtMs,
-      retryAfterSeconds: Math.max(1, Math.ceil((resetAtMs - now) / 1000)),
-    };
-  }
-
-  activeTimestamps.push(now);
-  identitySlidingWindowStore.set(key, activeTimestamps);
-
-  const oldestTimestamp = activeTimestamps[0] ?? now;
-  return {
-    allowed: true,
-    remaining: Math.max(0, maxRequests - activeTimestamps.length),
-    resetAtMs: oldestTimestamp + windowMs,
-  };
-}
-
 function getIdentityKey(req: Request): {
   key: string;
   source: "stellar" | "ip";
@@ -227,46 +188,59 @@ function getIdentityKey(req: Request): {
   if (walletAddress) {
     return { key: `stellar:${walletAddress}`, source: "stellar" };
   }
-
   return { key: `ip:${req.ip || "unknown"}`, source: "ip" };
 }
 
-function createIdentityAwareRateLimiter(): RequestHandler {
-  const READ_LIMIT = 30;
-  const WRITE_LIMIT = 5;
-  const WINDOW_MS = 60_000;
+/**
+ * Build a Redis-backed (or in-memory fallback) express-rate-limit instance.
+ *
+ * Issue #887 limits:
+ *   - Read  endpoints (GET/HEAD/OPTIONS): 100 req / 15 min
+ *   - Write endpoints (POST/PUT/PATCH/DELETE): 20 req / 15 min
+ */
+function createEndpointRateLimiter(
+  maxRequests: number,
+  prefix: string,
+): RequestHandler {
+  const WINDOW_MS = 15 * 60 * 1_000; // 15 minutes
 
-  return (req: Request, res: Response, next: NextFunction) => {
-    if (req.path === "/health" || req.path === "/metrics") {
-      return next();
-    }
-
-    const { key } = getIdentityKey(req);
-    const maxRequests = isReadRequest(req) ? READ_LIMIT : WRITE_LIMIT;
-    const result = consumeSlidingWindow(
-      key,
-      Date.now(),
-      WINDOW_MS,
-      maxRequests,
-    );
-
-    res.setHeader("X-RateLimit-Limit", String(maxRequests));
-    res.setHeader("X-RateLimit-Remaining", String(result.remaining));
-    res.setHeader(
-      "X-RateLimit-Reset",
-      String(Math.ceil(result.resetAtMs / 1000)),
-    );
-
-    if (!result.allowed) {
-      if (result.retryAfterSeconds) {
-        res.setHeader("Retry-After", String(result.retryAfterSeconds));
+  const storeOptions = redisClient
+    ? {
+        store: new RedisStore({
+          sendCommand: (async (...args: any[]) =>
+            await redisClient!.call(...(args as [any, ...any[]]))) as any,
+          prefix: `rl:${prefix}:`,
+        }),
       }
-      return rateLimitHandler(req, res);
-    }
+    : {};
 
-    return next();
+  return rateLimit({
+    windowMs: WINDOW_MS,
+    max: maxRequests,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req: Request) => getIdentityKey(req).key,
+    handler: rateLimitHandler,
+    skip: (req: Request) => req.path === "/health" || req.path === "/metrics",
+    ...storeOptions,
+  });
+}
+
+const readRateLimiter = createEndpointRateLimiter(100, "read");
+const writeRateLimiter = createEndpointRateLimiter(20, "write");
+
+/**
+ * Routes each request to the appropriate Redis-backed limiter based on HTTP method.
+ */
+function createIdentityAwareRateLimiter(): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (isReadRequest(req)) {
+      return readRateLimiter(req, res, next);
+    }
+    return writeRateLimiter(req, res, next);
   };
 }
+
 
 export function resetWalletRateLimiterStore(): void {
   identitySlidingWindowStore.clear();
@@ -275,21 +249,19 @@ export function resetWalletRateLimiterStore(): void {
 const identityAwareRateLimiter = createIdentityAwareRateLimiter();
 
 /**
- * Standard rate limiter for API endpoints.
- * Authenticated users are limited per Stellar address.
- * Unauthenticated users fall back to IP limiting.
+ * Standard rate limiter: 100 reads / 20 writes per 15 min, per Stellar address
+ * (or IP as fallback). State is persisted in Redis so limits survive restarts.
  */
 export const standardRateLimiter = identityAwareRateLimiter;
 
 /**
- * Strict limiter retains the same identity-aware semantics but is applied on
- * routes that are already sensitive or expensive.
+ * Strict limiter — same Redis-backed identity-aware semantics applied to
+ * sensitive or expensive routes.
  */
 export const strictRateLimiter = identityAwareRateLimiter;
 
 /**
- * Webhook registration uses the same authenticated-vs-IP identity model while
- * inheriting the write quota of 5 requests/minute.
+ * Webhook registration uses the write quota (20 req / 15 min).
  */
 export const webhookRegistrationLimiter = identityAwareRateLimiter;
 

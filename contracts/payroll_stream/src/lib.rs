@@ -12,6 +12,8 @@ const DEFAULT_EXCHANGE_RATE_BPS: i128 = 10_000;
 const DEFAULT_MAX_STREAM_DURATION: u64 = 365 * 24 * 60 * 60; // 365 days in seconds
 /// Maximum page size for employer stream pagination.
 const MAX_EMPLOYER_STREAM_PAGE_SIZE: u32 = 50;
+/// Default minimum cancellation notice period in ledgers (~1 day = 5 seconds/ledger * 17280)
+const DEFAULT_MIN_CANCEL_NOTICE_LEDGERS: u32 = 17280;
 
 #[contracttype]
 #[derive(Clone)]
@@ -44,6 +46,7 @@ pub enum DataKey {
     NextReceiptId,
     ReceiptById(u64),
     ReceiptByStream(u64),
+    MinCancelNoticeLedgers, // Minimum ledgers of notice before stream can be cancelled (default ~1 day = 17280)
 }
 
 #[contracttype]
@@ -132,6 +135,7 @@ pub struct Stream {
     pub cliff_ts: u64,
     pub start_ts: u64,
     pub end_ts: u64,
+    pub start_ledger: u32, // Ledger sequence when stream started (for cancellation notice period)
     pub total_amount: i128,
     pub withdrawn_amount: i128,
     pub last_withdrawal_ts: u64,
@@ -636,6 +640,31 @@ impl PayrollStream {
             .unwrap_or(DEFAULT_MIN_STREAM_DURATION)
     }
 
+    /// Set the minimum cancellation notice period in ledgers.
+    /// Setting to 0 allows immediate cancellation (for emergency use).
+    /// Only admin can call this function.
+    pub fn set_min_cancel_notice(env: Env, ledgers: u32) -> Result<(), QuipayError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(QuipayError::NotInitialized)?;
+        admin.require_auth();
+
+        env.storage()
+            .instance()
+            .set(&DataKey::MinCancelNoticeLedgers, &ledgers);
+        Ok(())
+    }
+
+    /// Get the current minimum cancellation notice period in ledgers.
+    pub fn get_min_cancel_notice(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::MinCancelNoticeLedgers)
+            .unwrap_or(DEFAULT_MIN_CANCEL_NOTICE_LEDGERS)
+    }
+
     /// Set the global default maximum number of active streams per employer.
     /// Only admin can call this function.
     pub fn set_max_streams_per_employer(env: Env, limit: u32) -> Result<(), QuipayError> {
@@ -1010,6 +1039,7 @@ impl PayrollStream {
                 total_paused_duration: 0,
                 metadata_hash: param.metadata_hash.clone(),
                 cancel_effective_at: 0,
+                start_ledger: env.ledger().sequence(),
                 speed_curve: match param.speed_curve {
                     MaybeSpeedCurve::Some(c) => c,
                     _ => stream_curve::SpeedCurve::Linear,
@@ -1797,6 +1827,16 @@ impl PayrollStream {
             return Ok(());
         }
 
+        // Check minimum cancellation notice period
+        let min_notice_ledgers = Self::get_min_cancel_notice(env.clone());
+        if min_notice_ledgers > 0 {
+            let current_ledger = env.ledger().sequence();
+            let earliest_cancel_ledger = stream.start_ledger.saturating_add(min_notice_ledgers);
+            if current_ledger < earliest_cancel_ledger {
+                return Err(QuipayError::CancellationTooEarly);
+            }
+        }
+
         let now = env.ledger().timestamp();
 
         // If already pending cancel → idempotent
@@ -2413,6 +2453,7 @@ impl PayrollStream {
             cliff_ts: effective_cliff,
             start_ts,
             end_ts,
+            start_ledger: env.ledger().sequence(),
             total_amount,
             withdrawn_amount: 0,
             last_withdrawal_ts: 0,
@@ -3413,6 +3454,9 @@ mod batch_claim_test;
 
 #[cfg(test)]
 mod cancel_grace_test;
+
+#[cfg(test)]
+mod cancel_notice_test;
 
 #[cfg(test)]
 mod integration_test;
