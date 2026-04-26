@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import type { TransactionStage } from "../components/TransactionProgressOverlay";
 
 export interface TxLifecycleState {
@@ -44,13 +44,6 @@ export function useTxLifecycle() {
     isActive: false,
     stage: "building",
   });
-
-  const stageSequenceRef = useRef<TransactionStage[]>([
-    "building",
-    "signing",
-    "submitting",
-    "confirmed",
-  ]);
 
   const startTransaction = useCallback(() => {
     setState({
