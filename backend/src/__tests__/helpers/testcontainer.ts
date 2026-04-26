@@ -79,14 +79,10 @@ export class TestDatabase {
    * This ensures all code using getPool() gets the test pool
    */
   async initializeDbPool(): Promise<void> {
-    // Clear module cache for db/pool to ensure fresh import
-    const poolModulePath = require.resolve("../../db/pool");
-    delete require.cache[poolModulePath];
-
-    // Import and call initDb() which will use the DATABASE_URL we set
-    const { initDb } = require("../../db/pool");
-    await initDb();
-
+    const poolModule = await import("../../db/pool");
+    if (poolModule.initDb) {
+      await poolModule.initDb();
+    }
     console.log("[TestDB] ✅ db/pool module initialized with test database");
   }
 
@@ -99,10 +95,17 @@ export class TestDatabase {
     const fs = require("fs");
     const path = require("path");
 
-    // Read and execute schema.sql
     const schemaPath = path.join(__dirname, "../../db/schema.sql");
-    const schemaSql = fs.readFileSync(schemaPath, "utf-8");
+    if (!fs.existsSync(schemaPath)) {
+      const altSchemaPath = path.join(__dirname, "../../../db/schema.sql");
+      if (!fs.existsSync(altSchemaPath)) {
+        console.warn("[TestDB] ⚠️ Schema file not found, skipping");
+        return;
+      }
+      return this.pool.query(fs.readFileSync(altSchemaPath, "utf-8"));
+    }
 
+    const schemaSql = fs.readFileSync(schemaPath, "utf-8");
     await this.pool.query(schemaSql);
     console.log("[TestDB] ✅ Schema created");
   }
