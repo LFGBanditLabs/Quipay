@@ -3,31 +3,31 @@
 /* Skip Link */
 .skip-link {
   position: absolute;
-  top: -60px; /* Hide further up */
-  left: 1rem;
-  background: var(--sds-color-primary-60, #2563eb);
-  color: white !important;
-  padding: 0.75rem 1.25rem;
-  z-index: 9999;
-  transition: top 0.2s ease;
+  top: calc(-1 * var(--token-space-10));
+  left: var(--token-space-4);
+  background: var(--sds-color-primary-60);
+  color: var(--token-color-text-inverse) !important;
+  padding: var(--token-space-3) var(--token-space-5);
+  z-index: var(--token-z-skip-link);
+  transition: top var(--token-duration-fast) var(--token-ease-standard);
   text-decoration: none;
   font-family: inherit;
-  font-weight: 600;
-  border-radius: 0 0 8px 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-weight: var(--token-font-weight-semibold);
+  border-radius: 0 0 var(--token-radius-md) var(--token-radius-md);
+  box-shadow: var(--token-shadow-lg);
 }
 
 .skip-link:focus {
   top: 0;
-  outline: 3px solid var(--sds-color-primary-40, #60a5fa);
-  outline-offset: 2px;
+  outline: var(--token-size-focus-ring) solid var(--sds-color-primary-40);
+  outline-offset: var(--token-space-1);
 }
 
 /* Enhanced Focus Indicators */
 /* Focus-visible for modern browsers */
 :focus-visible {
-  outline: 3px solid var(--sds-color-primary-60, #2563eb) !important;
-  outline-offset: 3px !important;
+  outline: var(--token-size-focus-ring) solid var(--sds-color-primary-60) !important;
+  outline-offset: var(--token-size-focus-ring) !important;
 }
 
 /* Fallback for older browsers or elements that don't support focus-visible well */
@@ -38,10 +38,10 @@
 /* Screen Reader Only (for labels that should be hidden visually but available to SR) */
 .sr-only {
   position: absolute;
-  width: 1px;
-  height: 1px;
+  width: var(--token-size-sr-only);
+  height: var(--token-size-sr-only);
   padding: 0;
-  margin: -1px;
+  margin: var(--token-space-neg-1);
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;

@@ -1,12 +1,27 @@
 import React, { useState, useCallback } from "react";
 import { useTransactionData } from "../hooks/useTransactionData";
+import { usePayroll, type Stream } from "../hooks/usePayroll";
+import { getReceiptForStream } from "../contracts/payroll_stream";
 import {
+  exportOnChainReceiptPDF,
   exportTransactionsCSV,
   exportTransactionsPDF,
   exportPaycheckPDF,
   exportMonthlySummaryPDF,
+  exportPayrollStreamsCSV,
 } from "../services/reportService";
 import type { PayrollTransaction } from "../types/reports";
+import { useWallet } from "../hooks/useWallet";
+import { useAnalytics } from "../hooks/useAnalytics";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 const tw = {
   reportsPage:
@@ -137,6 +152,17 @@ const Reports: React.FC = () => {
     availableMonths,
   } = useTransactionData();
 
+  const { address: walletAddress } = useWallet();
+
+  // Use connected wallet address for payroll stream queries
+  const { streams } = usePayroll(walletAddress);
+
+  const {
+    trends,
+    loading: analyticsLoading,
+    error: analyticsError,
+  } = useAnalytics();
+
   const [activeTab, setActiveTab] = useState<Tab>("transactions");
   const [toast, setToast] = useState<string | null>(null);
 
@@ -152,14 +178,71 @@ const Reports: React.FC = () => {
     showToast("CSV exported successfully");
   };
 
+  const handlePayrollStreamsCSVExport = () => {
+    try {
+      // Convert streams to the format expected by CSV export function
+      const payrollStreams = streams.map((stream) => ({
+        streamId: stream.id,
+        worker: stream.employeeAddress,
+        total_amount: BigInt(parseFloat(stream.totalAmount) * 1e7),
+        withdrawn_amount: BigInt(parseFloat(stream.totalStreamed) * 1e7),
+        start_ts: BigInt(
+          Math.floor(new Date(stream.startDate).getTime() / 1000),
+        ),
+        end_ts: BigInt(Math.floor(new Date(stream.endDate).getTime() / 1000)),
+        status:
+          stream.status === "active"
+            ? 0
+            : stream.status === "cancelled"
+              ? 1
+              : 2,
+      }));
+
+      exportPayrollStreamsCSV(payrollStreams);
+      showToast("Payroll streams CSV exported successfully");
+    } catch (error) {
+      showToast("Failed to export payroll streams CSV");
+      console.error("CSV export error:", error);
+    }
+  };
+
   const handlePDFExport = () => {
     exportTransactionsPDF(filteredTransactions);
     showToast("PDF exported successfully");
   };
 
   const handlePaycheckPDF = (tx: PayrollTransaction) => {
-    exportPaycheckPDF(tx);
+    void exportPaycheckPDF(tx);
     showToast(`Paycheck PDF generated for ${tx.employeeName}`);
+  };
+
+  const handleOnChainReceiptPDF = (stream: Stream) => {
+    void (async () => {
+      try {
+        const sourceAddress = walletAddress || stream.employeeAddress;
+        const receipt = await getReceiptForStream(
+          sourceAddress,
+          BigInt(stream.id),
+        );
+
+        if (!receipt) {
+          showToast(`No on-chain receipt found for stream ${stream.id}`);
+          return;
+        }
+
+        await exportOnChainReceiptPDF(receipt, {
+          employeeName: stream.employeeName,
+          employeeId: stream.id,
+          tokenSymbol: stream.tokenSymbol,
+          sourceAddress,
+          filename: `quipay-receipt-${stream.id}.pdf`,
+        });
+        showToast(`On-chain receipt exported for stream ${stream.id}`);
+      } catch (error) {
+        console.error("On-chain receipt export error:", error);
+        showToast(`Failed to export on-chain receipt for stream ${stream.id}`);
+      }
+    })();
   };
 
   const handleMonthlySummaryPDF = () => {
@@ -199,6 +282,89 @@ const Reports: React.FC = () => {
         </button>
       </div>
 
+      {/* Analytics Chart */}
+      <div className={tw.card}>
+        <div className={tw.cardHeader}>
+          <h2 className={tw.cardTitle}>
+            <span className={tw.cardTitleIcon}>📈</span>
+            Payroll Volume Trend
+          </h2>
+        </div>
+        <div className="mt-4 h-[300px]">
+          {analyticsLoading ? (
+            <div className="flex h-full items-center justify-center text-slate-400">
+              Loading analytics...
+            </div>
+          ) : analyticsError ? (
+            <div className="flex h-full items-center justify-center text-rose-400">
+              Error: {analyticsError}
+            </div>
+          ) : trends.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-slate-400">
+              No trend data available
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart
+                data={trends}
+                margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="bucket"
+                  tick={{ fill: "rgba(255,255,255,0.4)" }}
+                  tickFormatter={(dateStr) =>
+                    new Date(dateStr).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })
+                  }
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fill: "rgba(255,255,255,0.4)" }}
+                  tickFormatter={(v) => `$${Number(v).toLocaleString()}`}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="rgba(255,255,255,0.1)"
+                  vertical={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#1e293b",
+                    borderColor: "#334155",
+                    color: "#f8fafc",
+                    borderRadius: "8px",
+                  }}
+                  labelFormatter={(label) => new Date(label).toDateString()}
+                  formatter={(value: number | string | undefined) => [
+                    `$${Number(value ?? 0).toLocaleString()}`,
+                    "Volume",
+                  ]}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="volume"
+                  stroke="#818cf8"
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill="url(#colorVolume)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
       {/* ── Transaction History Tab ─────────────────────────────── */}
       {activeTab === "transactions" && (
         <>
@@ -233,6 +399,13 @@ const Reports: React.FC = () => {
                     onClick={handleCSVExport}
                   >
                     📥 Export CSV
+                  </button>
+                  <button
+                    id="btn-export-payroll-csv"
+                    className={`${tw.btnExport} ${tw.btnCSV}`}
+                    onClick={handlePayrollStreamsCSVExport}
+                  >
+                    📊 Export Payroll CSV
                   </button>
                   <button
                     id="btn-export-pdf"
@@ -303,6 +476,98 @@ const Reports: React.FC = () => {
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className={tw.card}>
+            <div className={tw.cardHeader}>
+              <h2 className={tw.cardTitle}>
+                <span className={tw.cardTitleIcon}>🧾</span>
+                On-Chain Receipts
+              </h2>
+            </div>
+
+            {streams.filter(
+              (stream) =>
+                stream.status === "completed" || stream.status === "cancelled",
+            ).length === 0 ? (
+              <div className={tw.emptyState}>
+                <div className={tw.emptyIcon}>🧾</div>
+                <p>No completed or cancelled streams with receipts yet.</p>
+              </div>
+            ) : (
+              <div className={tw.tableWrapper}>
+                <table className={tw.dataTable}>
+                  <thead>
+                    <tr>
+                      <th>Stream</th>
+                      <th>Worker</th>
+                      <th>Status</th>
+                      <th>Amount</th>
+                      <th>Token</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {streams
+                      .filter(
+                        (stream) =>
+                          stream.status === "completed" ||
+                          stream.status === "cancelled",
+                      )
+                      .map((stream) => (
+                        <tr key={`receipt-${stream.id}`}>
+                          <td>{stream.id}</td>
+                          <td>
+                            {stream.employeeName}
+                            <br />
+                            <span
+                              style={{ fontSize: "0.7rem", color: "#64748b" }}
+                            >
+                              {shortHash(stream.employeeAddress)}
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className={`${tw.statusBadge} ${
+                                stream.status === "completed"
+                                  ? tw.statusCompleted
+                                  : tw.statusFailed
+                              }`}
+                            >
+                              <span
+                                className={`${tw.statusDot} ${
+                                  stream.status === "completed"
+                                    ? tw.dotCompleted
+                                    : tw.dotFailed
+                                }`}
+                              />
+                              {stream.status === "completed"
+                                ? "Completed"
+                                : "Cancelled"}
+                            </span>
+                          </td>
+                          <td className={tw.amountCell}>
+                            {fmtCurrency(
+                              Number.parseFloat(stream.totalStreamed || "0"),
+                              stream.tokenSymbol,
+                            )}
+                          </td>
+                          <td>{stream.tokenSymbol}</td>
+                          <td>
+                            <button
+                              className={`${tw.btnExport} ${tw.btnPaycheck}`}
+                              onClick={() => handleOnChainReceiptPDF(stream)}
+                              title="Download on-chain payroll receipt PDF"
+                            >
+                              🧾 Receipt
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>

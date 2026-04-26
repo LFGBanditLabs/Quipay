@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { JSONSchema7 } from "json-schema";
 import { get } from "lodash";
 import { Select } from "@stellar/design-system";
@@ -124,7 +122,6 @@ export const renderOneOf = ({
             <option
               id={oneOf?.title}
               value={oneOf?.title}
-              // eslint-disable-next-line react-x/no-array-index-key -- Schema items may have duplicate titles
               key={`${oneOf?.title}-${index}`}
             >
               {oneOf?.title}

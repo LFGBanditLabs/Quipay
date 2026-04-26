@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button, Text } from "@stellar/design-system";
 
 interface WizardStep {
@@ -14,6 +15,7 @@ interface WizardProps {
 }
 
 const Wizard: React.FC<WizardProps> = ({ steps, onComplete, onCancel }) => {
+  const { t } = useTranslation();
   const [currentStep, setCurrentStep] = useState(0);
 
   const isLastStep = currentStep === steps.length - 1;
@@ -77,12 +79,12 @@ const Wizard: React.FC<WizardProps> = ({ steps, onComplete, onCancel }) => {
         <div>
           {onCancel && isFirstStep && (
             <Button variant="secondary" size="md" onClick={onCancel}>
-              Cancel
+              {t("common.cancel")}
             </Button>
           )}
           {!isFirstStep && (
             <Button variant="secondary" size="md" onClick={handleBack}>
-              Back
+              {t("common.back")}
             </Button>
           )}
         </div>
@@ -92,7 +94,7 @@ const Wizard: React.FC<WizardProps> = ({ steps, onComplete, onCancel }) => {
           onClick={handleNext}
           disabled={steps[currentStep].isValid === false}
         >
-          {isLastStep ? "Complete" : "Next"}
+          {isLastStep ? t("common.complete") : t("common.next")}
         </Button>
       </div>
     </div>

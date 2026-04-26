@@ -29,21 +29,6 @@ export function initAuditLogger(): AuditLogger {
     redactionEnabled: config.redaction.enabled,
   });
 
-  // Handle graceful shutdown
-  process.on("SIGTERM", async () => {
-    console.log("[AuditLogger] SIGTERM received, shutting down...");
-    if (auditLoggerInstance) {
-      await auditLoggerInstance.shutdown();
-    }
-  });
-
-  process.on("SIGINT", async () => {
-    console.log("[AuditLogger] SIGINT received, shutting down...");
-    if (auditLoggerInstance) {
-      await auditLoggerInstance.shutdown();
-    }
-  });
-
   return auditLoggerInstance;
 }
 

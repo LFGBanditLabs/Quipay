@@ -3,6 +3,7 @@
 extern crate std;
 
 use super::*;
+use quipay_common::QuipayError;
 use soroban_sdk::{Address, Env, String, testutils::Address as _};
 use std::vec::Vec as StdVec;
 
@@ -22,7 +23,9 @@ fn test_register_and_get_worker() {
     assert_eq!(client.get_worker(&worker), None);
 
     // Register worker
-    client.register_worker(&worker, &preferred_token, &metadata_hash);
+    client
+        .try_register_worker(&worker, &preferred_token, &metadata_hash)
+        .unwrap();
 
     // Verify registration
     assert_eq!(client.is_registered(&worker), true);
@@ -31,6 +34,7 @@ fn test_register_and_get_worker() {
     assert_eq!(profile.wallet, worker);
     assert_eq!(profile.preferred_token, preferred_token);
     assert_eq!(profile.metadata_hash, metadata_hash);
+    assert_eq!(profile.is_archived, false);
 }
 
 #[test]
@@ -46,10 +50,12 @@ fn test_update_worker() {
     let hash1 = String::from_str(&e, "QmHash1");
     let hash2 = String::from_str(&e, "QmHash2");
 
-    client.register_worker(&worker, &token1, &hash1);
+    client
+        .try_register_worker(&worker, &token1, &hash1)
+        .unwrap();
 
     // Update profile
-    client.update_worker(&worker, &token2, &hash2);
+    client.try_update_worker(&worker, &token2, &hash2).unwrap();
 
     let profile = client.get_worker(&worker).unwrap();
     assert_eq!(profile.preferred_token, token2);
@@ -57,7 +63,6 @@ fn test_update_worker() {
 }
 
 #[test]
-#[should_panic(expected = "Worker already registered")]
 fn test_duplicate_registration() {
     let e = Env::default();
     e.mock_all_auths();
@@ -68,12 +73,12 @@ fn test_duplicate_registration() {
     let token = Address::generate(&e);
     let hash = String::from_str(&e, "QmHash");
 
-    client.register_worker(&worker, &token, &hash);
-    client.register_worker(&worker, &token, &hash);
+    let _ = client.try_register_worker(&worker, &token, &hash).unwrap();
+    let result = client.try_register_worker(&worker, &token, &hash);
+    assert_eq!(result, Err(Ok(QuipayError::AlreadyInitialized)));
 }
 
 #[test]
-#[should_panic(expected = "Worker not registered")]
 fn test_update_nonexistent_worker() {
     let e = Env::default();
     e.mock_all_auths();
@@ -84,7 +89,8 @@ fn test_update_nonexistent_worker() {
     let token = Address::generate(&e);
     let hash = String::from_str(&e, "QmHash");
 
-    client.update_worker(&worker, &token, &hash);
+    let result = client.try_update_worker(&worker, &token, &hash);
+    assert_eq!(result, Err(Ok(QuipayError::WorkerNotFound)));
 }
 
 #[test]
@@ -102,8 +108,12 @@ fn test_get_workers_by_employer_pagination() {
     while i < 10 {
         let worker = Address::generate(&e);
         let metadata_hash = String::from_str(&e, "QmHash");
-        client.register_worker(&worker, &preferred_token, &metadata_hash);
-        client.set_stream_active(&employer, &worker, &true);
+        client
+            .try_register_worker(&worker, &preferred_token, &metadata_hash)
+            .unwrap();
+        client
+            .try_set_stream_active(&employer, &worker, &true)
+            .unwrap();
         workers.push(worker);
         i += 1;
     }
@@ -137,6 +147,131 @@ fn test_get_workers_by_employer_pagination() {
     assert_eq!(empty2.len(), 0);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// #944 — get_employees_paginated tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_get_employees_paginated_first_page() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
+
+    let employer = Address::generate(&e);
+    let preferred_token = Address::generate(&e);
+
+    let mut workers: StdVec<Address> = StdVec::new();
+    let mut i: u32 = 0;
+    while i < 10 {
+        let worker = Address::generate(&e);
+        let metadata_hash = String::from_str(&e, "QmHash");
+        client
+            .try_register_worker(&worker, &preferred_token, &metadata_hash)
+            .unwrap();
+        client
+            .try_set_stream_active(&employer, &worker, &true)
+            .unwrap();
+        workers.push(worker);
+        i += 1;
+    }
+
+    // First page (offset=0, limit=3) → 3 profiles starting from index 0
+    let page = client.get_employees_paginated(&employer, &0u32, &3u32);
+    assert_eq!(page.len(), 3);
+    assert_eq!(page.get(0).unwrap().wallet, workers.get(0).unwrap().clone());
+    assert_eq!(page.get(2).unwrap().wallet, workers.get(2).unwrap().clone());
+}
+
+#[test]
+fn test_get_employees_paginated_last_page() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
+
+    let employer = Address::generate(&e);
+    let preferred_token = Address::generate(&e);
+
+    let mut workers: StdVec<Address> = StdVec::new();
+    let mut i: u32 = 0;
+    while i < 5 {
+        let worker = Address::generate(&e);
+        let metadata_hash = String::from_str(&e, "QmHash");
+        client
+            .try_register_worker(&worker, &preferred_token, &metadata_hash)
+            .unwrap();
+        client
+            .try_set_stream_active(&employer, &worker, &true)
+            .unwrap();
+        workers.push(worker);
+        i += 1;
+    }
+
+    // Last page (offset=4, limit=10) → only 1 entry at index 4
+    let page = client.get_employees_paginated(&employer, &4u32, &10u32);
+    assert_eq!(page.len(), 1);
+    assert_eq!(page.get(0).unwrap().wallet, workers.get(4).unwrap().clone());
+}
+
+#[test]
+fn test_get_employees_paginated_offset_exceeds_total() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
+
+    let employer = Address::generate(&e);
+    let preferred_token = Address::generate(&e);
+
+    // Register 3 workers
+    let mut i: u32 = 0;
+    while i < 3 {
+        let worker = Address::generate(&e);
+        let metadata_hash = String::from_str(&e, "QmHash");
+        client
+            .try_register_worker(&worker, &preferred_token, &metadata_hash)
+            .unwrap();
+        client
+            .try_set_stream_active(&employer, &worker, &true)
+            .unwrap();
+        i += 1;
+    }
+
+    // offset=10 > total(3) → empty Vec without error
+    let empty = client.get_employees_paginated(&employer, &10u32, &5u32);
+    assert_eq!(empty.len(), 0);
+}
+
+#[test]
+fn test_get_employees_paginated_limit_capped_at_50() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
+
+    let employer = Address::generate(&e);
+    let preferred_token = Address::generate(&e);
+
+    // Register 60 workers
+    let mut i: u32 = 0;
+    while i < 60 {
+        let worker = Address::generate(&e);
+        let metadata_hash = String::from_str(&e, "QmHash");
+        client
+            .try_register_worker(&worker, &preferred_token, &metadata_hash)
+            .unwrap();
+        client
+            .try_set_stream_active(&employer, &worker, &true)
+            .unwrap();
+        i += 1;
+    }
+
+    // Request 100 → should be capped at 50
+    let page = client.get_employees_paginated(&employer, &0u32, &100u32);
+    assert_eq!(page.len(), 50);
+}
+
 #[test]
 fn test_get_workers_by_employer_only_active_streams() {
     let e = Env::default();
@@ -152,18 +287,26 @@ fn test_get_workers_by_employer_only_active_streams() {
     let w3 = Address::generate(&e);
     let metadata_hash = String::from_str(&e, "QmHash");
 
-    client.register_worker(&w1, &preferred_token, &metadata_hash);
-    client.register_worker(&w2, &preferred_token, &metadata_hash);
-    client.register_worker(&w3, &preferred_token, &metadata_hash);
+    client
+        .try_register_worker(&w1, &preferred_token, &metadata_hash)
+        .unwrap();
+    client
+        .try_register_worker(&w2, &preferred_token, &metadata_hash)
+        .unwrap();
+    client
+        .try_register_worker(&w3, &preferred_token, &metadata_hash)
+        .unwrap();
 
-    client.set_stream_active(&employer, &w1, &true);
-    client.set_stream_active(&employer, &w2, &true);
-    client.set_stream_active(&employer, &w3, &true);
+    client.try_set_stream_active(&employer, &w1, &true).unwrap();
+    client.try_set_stream_active(&employer, &w2, &true).unwrap();
+    client.try_set_stream_active(&employer, &w3, &true).unwrap();
 
     let all = client.get_workers_by_employer(&employer, &0u32, &10u32);
     assert_eq!(all.len(), 3);
 
-    client.set_stream_active(&employer, &w2, &false);
+    client
+        .try_set_stream_active(&employer, &w2, &false)
+        .unwrap();
 
     let after = client.get_workers_by_employer(&employer, &0u32, &10u32);
     assert_eq!(after.len(), 2);
@@ -186,8 +329,12 @@ fn test_query_performance_scales_with_page_size() {
     let mut i: u32 = 0;
     while i < 200 {
         let worker = Address::generate(&e);
-        client.register_worker(&worker, &preferred_token, &metadata_hash);
-        client.set_stream_active(&employer, &worker, &true);
+        client
+            .try_register_worker(&worker, &preferred_token, &metadata_hash)
+            .unwrap();
+        client
+            .try_set_stream_active(&employer, &worker, &true)
+            .unwrap();
         i += 1;
     }
 
@@ -207,4 +354,213 @@ fn test_query_performance_scales_with_page_size() {
 
     assert!(large_cost > small_cost);
     assert!(large_cost < small_cost.saturating_mul(20));
+}
+
+#[test]
+fn test_get_workers_with_missing_storage_entries() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
+
+    let employer = Address::generate(&e);
+    let preferred_token = Address::generate(&e);
+    let metadata_hash = String::from_str(&e, "QmHash");
+
+    // Register workers and activate streams
+    let w1 = Address::generate(&e);
+    let w2 = Address::generate(&e);
+    let w3 = Address::generate(&e);
+
+    let _ = client
+        .try_register_worker(&w1, &preferred_token, &metadata_hash)
+        .unwrap();
+    let _ = client
+        .try_register_worker(&w2, &preferred_token, &metadata_hash)
+        .unwrap();
+    let _ = client
+        .try_register_worker(&w3, &preferred_token, &metadata_hash)
+        .unwrap();
+
+    let _ = client.try_set_stream_active(&employer, &w1, &true).unwrap();
+    let _ = client.try_set_stream_active(&employer, &w2, &true).unwrap();
+    let _ = client.try_set_stream_active(&employer, &w3, &true).unwrap();
+
+    // Simulate corrupted state by manually removing a worker profile
+    // This tests that get_workers_by_employer handles missing entries gracefully
+    let worker_key = DataKey::Worker(w2.clone());
+    e.as_contract(&contract_id, || {
+        e.storage().persistent().remove(&worker_key);
+    });
+
+    // Should not panic and should skip the corrupted entry
+    let workers = client.get_workers_by_employer(&employer, &0u32, &10u32);
+
+    // Should return only the valid workers (w1 and w3), skipping w2
+    assert_eq!(workers.len(), 2);
+    assert!(workers.iter().any(|p| p.wallet == w1));
+    assert!(workers.iter().any(|p| p.wallet == w3));
+    assert!(!workers.iter().any(|p| p.wallet == w2));
+}
+
+// ============================================================================
+// Two-Step Admin Transfer Tests
+// ============================================================================
+
+#[test]
+fn test_initialize_and_get_admin() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    // Initialize
+    client.initialize(&admin);
+    assert_eq!(client.get_admin(), admin);
+}
+
+#[test]
+fn test_two_step_admin_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize
+    client.initialize(&admin);
+    assert_eq!(client.get_admin(), admin);
+
+    // Step 1: Propose new admin
+    client.propose_admin(&new_admin);
+    assert_eq!(client.get_pending_admin(), Some(new_admin.clone()));
+    assert_eq!(client.get_admin(), admin); // Admin hasn't changed yet
+
+    // Step 2: Accept admin role
+    client.accept_admin();
+    assert_eq!(client.get_admin(), new_admin);
+    assert_eq!(client.get_pending_admin(), None); // Pending cleared
+}
+
+#[test]
+fn test_accept_admin_requires_pending() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Try to accept without pending admin - should fail with NoPendingAdmin
+    let result = client.try_accept_admin();
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().unwrap(), QuipayError::NoPendingAdmin);
+}
+
+#[test]
+fn test_transfer_admin_backward_compatible() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+
+    // Initialize
+    client.initialize(&admin);
+    assert_eq!(client.get_admin(), admin);
+
+    // Use transfer_admin function (backward compatible)
+    client.transfer_admin(&new_admin);
+
+    // Should transfer atomically
+    assert_eq!(client.get_admin(), new_admin);
+    assert_eq!(client.get_pending_admin(), None); // No pending admin left
+}
+
+#[test]
+fn test_set_blacklisted_requires_admin() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let worker = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Admin can blacklist
+    client.set_blacklisted(&worker, &true);
+    assert_eq!(client.is_blacklisted(&worker), true);
+
+    // Admin can unblacklist
+    client.set_blacklisted(&worker, &false);
+    assert_eq!(client.is_blacklisted(&worker), false);
+}
+
+#[test]
+fn test_blacklist_address_and_unblacklist_address_flow() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+    let hash = String::from_str(&env, "QmHash");
+
+    client.initialize(&admin);
+    client.blacklist_address(&worker);
+    assert_eq!(client.is_blacklisted(&worker), true);
+
+    let blocked = client.try_register_worker(&worker, &token, &hash);
+    assert_eq!(blocked, Err(Ok(QuipayError::AddressBlacklisted)));
+
+    client.unblacklist_address(&worker);
+    assert_eq!(client.is_blacklisted(&worker), false);
+    client.register_worker(&worker, &token, &hash);
+}
+
+#[test]
+fn test_archive_and_unarchive_employee_flow() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
+
+    let admin = Address::generate(&e);
+    let employer = Address::generate(&e);
+    let worker = Address::generate(&e);
+    let token = Address::generate(&e);
+    let hash = String::from_str(&e, "QmArchive");
+
+    client.initialize(&admin);
+    client.register_worker(&worker, &token, &hash);
+    client.set_stream_active(&employer, &worker, &true);
+
+    client.archive_employee(&employer, &worker);
+    let archived = client.get_archived_employees();
+    assert_eq!(archived.len(), 1);
+    assert_eq!(archived.get(0).unwrap().wallet, worker);
+    assert_eq!(archived.get(0).unwrap().is_archived, true);
+
+    let active = client.get_workers_by_employer(&employer, &0, &10);
+    assert_eq!(active.len(), 0);
+
+    client.unarchive_employee(&employer, &worker);
+    let archived_after = client.get_archived_employees();
+    assert_eq!(archived_after.len(), 0);
+
+    client.set_stream_active(&employer, &worker, &true);
+    let active_after = client.get_workers_by_employer(&employer, &0, &10);
+    assert_eq!(active_after.len(), 1);
 }

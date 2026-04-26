@@ -1,24 +1,56 @@
 import { useState, useEffect } from "react";
 import { WorkerStream } from "./useStreams";
 
+/** Earnings snapshot for a single stream at the current tick. */
 export interface StreamEarning {
+  /** On-chain stream ID. */
   id: string;
+  /** Display name for the stream's employer. */
   name: string;
+  /** Total amount earned so far in token units, capped at `totalAmount`. */
   earned: number;
+  /** Flow rate in token units per second. */
   flowRate: number;
+  /** Token symbol, e.g. `"USDC"`. */
   symbol: string;
 }
 
+/** Aggregate earnings data returned by {@link useRealTimeEarnings}. */
 export interface EarningsBreakdown {
+  /** Sum of earned amounts across all streams in token units. */
   totalEarned: number;
+  /** Per-stream breakdown of earnings. */
   streamEarned: StreamEarning[];
+  /** Combined flow rate of all still-active streams in token units per hour. */
   hourlyRate: number;
+  /** Combined flow rate of all still-active streams in token units per day. */
   dailyRate: number;
+  /** Projected additional earnings over the next hour at the current flow rate. */
   projectedOneHour: number;
+  /** Projected additional earnings over the next 24 hours at the current flow rate. */
   projectedTwentyFourHours: number;
+  /** Number of streams that have not yet reached their `totalAmount`. */
   activeStreamsCount: number;
 }
 
+/**
+ * Calculates real-time earnings from an array of worker streams.
+ *
+ * Recalculates on a fixed interval using wall-clock elapsed time and each
+ * stream's `flowRate`. Earnings are capped at `totalAmount` for streams that
+ * have fully vested. Only streams that have not yet reached their cap
+ * contribute to the projected rates.
+ *
+ * @param streams - Array of resolved worker streams from {@link useStreams}.
+ * @param refreshInterval - Tick interval in milliseconds. Defaults to `100`.
+ * @returns Live {@link EarningsBreakdown} updated every `refreshInterval` ms.
+ *
+ * @example
+ * ```tsx
+ * const earnings = useRealTimeEarnings(streams, 100);
+ * console.log(earnings.totalEarned); // e.g. 12.3456
+ * ```
+ */
 export const useRealTimeEarnings = (
   streams: WorkerStream[],
   refreshInterval: number = 100,

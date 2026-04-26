@@ -1,6 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { translateError } from "../util/errors";
 import { ErrorMessage } from "./ErrorMessage";
+import TransactionSimulationModal from "./TransactionSimulationModal";
+import type { TransactionPreview } from "./TransactionSimulationModal";
+import type { SimulationResult } from "../util/simulationUtils";
+import { shortenAddress } from "../util/address";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -9,7 +13,7 @@ interface WithdrawButtonProps {
   walletAddress: string;
   /** PayrollStream contract instance (ethers.js or viem Contract) */
   contract: {
-    withdrawableAmount: (address: string) => Promise<bigint>;
+    withdrawableAmount: (address: string) => Promise<bigint | null>;
     withdraw: () => Promise<{ hash: string; wait: () => Promise<unknown> }>;
   };
   /** Token symbol shown next to amount, e.g. "USDC" */
@@ -18,6 +22,20 @@ interface WithdrawButtonProps {
   tokenDecimals?: number;
   /** Optional callback fired after a successful withdrawal */
   onSuccess?: (txHash: string) => void;
+  /**
+   * When set, opens a pre-sign simulation modal (Soroban `simulateTransaction`)
+   * so the user sees estimated fees before confirming. Confirm remains available
+   * even if simulation reports an error (non-blocking).
+   */
+  withdrawSimulation?: {
+    getPreview: (ctx: {
+      formattedAmount: string;
+      tokenSymbol: string;
+      walletAddress: string;
+    }) => TransactionPreview;
+    onSimulate: () => Promise<SimulationResult>;
+    nativeXlmBalance?: number;
+  };
 }
 
 type TxStatus =
@@ -36,10 +54,6 @@ function formatAmount(raw: bigint, decimals: number): string {
   const frac = raw % divisor;
   const fracStr = frac.toString().padStart(decimals, "0").slice(0, 2);
   return `${whole.toLocaleString()}.${fracStr}`;
-}
-
-function shortenHash(hash: string): string {
-  return `${hash.slice(0, 6)}…${hash.slice(-4)}`;
 }
 
 // ─── Icons (inline SVG, zero dependencies) ───────────────────────────────────
@@ -138,11 +152,13 @@ export default function WithdrawButton({
   tokenSymbol = "USDC",
   tokenDecimals = 6,
   onSuccess,
+  withdrawSimulation,
 }: WithdrawButtonProps) {
   const [rawAmount, setRawAmount] = useState<bigint>(0n);
   const [status, setStatus] = useState<TxStatus>("fetching");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>("");
+  const [simModalOpen, setSimModalOpen] = useState(false);
 
   // ── Fetch withdrawable amount ──────────────────────────────────────────────
 
@@ -150,7 +166,7 @@ export default function WithdrawButton({
     setStatus("fetching");
     try {
       const amount = await contract.withdrawableAmount(walletAddress);
-      setRawAmount(amount);
+      setRawAmount(amount ?? 0n);
       setStatus("idle");
     } catch (err: unknown) {
       console.error("Failed to fetch withdrawable amount:", err);
@@ -165,9 +181,7 @@ export default function WithdrawButton({
 
   // ── Withdraw flow ──────────────────────────────────────────────────────────
 
-  const handleWithdraw = async () => {
-    if (rawAmount === 0n) return;
-    setStatus("confirm");
+  const submitWithdrawal = useCallback(async () => {
     setErrorMsg("");
     setTxHash(null);
 
@@ -178,7 +192,6 @@ export default function WithdrawButton({
       await tx.wait();
       setStatus("success");
       onSuccess?.(tx.hash);
-      // Refresh amount after a short delay so the chain state settles
       setTimeout(() => {
         setRawAmount(0n);
       }, 1000);
@@ -192,6 +205,24 @@ export default function WithdrawButton({
           : appError.message,
       );
     }
+  }, [contract, onSuccess]);
+
+  const handleWithdraw = async () => {
+    if (rawAmount === 0n) return;
+
+    if (withdrawSimulation) {
+      setSimModalOpen(true);
+      return;
+    }
+
+    setStatus("confirm");
+    await submitWithdrawal();
+  };
+
+  const handleSimulationConfirm = async () => {
+    setSimModalOpen(false);
+    setStatus("confirm");
+    await submitWithdrawal();
   };
 
   const reset = () => {
@@ -208,6 +239,22 @@ export default function WithdrawButton({
 
   const formattedAmount = formatAmount(rawAmount, tokenDecimals);
   const hasBalance = rawAmount > 0n;
+
+  const simulationPreview = useMemo((): TransactionPreview | null => {
+    if (!withdrawSimulation) return null;
+    return withdrawSimulation.getPreview({
+      formattedAmount,
+      tokenSymbol,
+      walletAddress,
+    });
+  }, [withdrawSimulation, formattedAmount, tokenSymbol, walletAddress]);
+
+  const runWithdrawSimulation = useCallback(async () => {
+    if (!withdrawSimulation) {
+      throw new Error("withdrawSimulation is not configured");
+    }
+    return withdrawSimulation.onSimulate();
+  }, [withdrawSimulation]);
 
   const buttonLabel = () => {
     switch (status) {
@@ -236,6 +283,20 @@ export default function WithdrawButton({
 
   return (
     <>
+      {withdrawSimulation && simulationPreview && (
+        <TransactionSimulationModal
+          open={simModalOpen}
+          preview={simulationPreview}
+          onSimulate={runWithdrawSimulation}
+          onConfirm={() => {
+            void handleSimulationConfirm();
+          }}
+          onCancel={() => {
+            setSimModalOpen(false);
+          }}
+          nativeXlmBalance={withdrawSimulation.nativeXlmBalance}
+        />
+      )}
       {/* Scoped styles – no external CSS file needed */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap');
@@ -567,7 +628,7 @@ export default function WithdrawButton({
                   rel="noopener noreferrer"
                   title={txHash}
                 >
-                  {shortenHash(txHash)} ↗
+                  {shortenAddress(txHash)} ↗
                 </a>
               </div>
             </div>
@@ -585,7 +646,7 @@ export default function WithdrawButton({
                   rel="noopener noreferrer"
                   title={txHash}
                 >
-                  {shortenHash(txHash)} ↗
+                  {shortenAddress(txHash)} ↗
                 </a>
               </div>
               <button
@@ -605,7 +666,11 @@ export default function WithdrawButton({
               <ErrorMessage
                 error={errorMsg}
                 onRetry={() => {
-                  void handleWithdraw();
+                  if (withdrawSimulation) {
+                    setSimModalOpen(true);
+                  } else {
+                    void handleWithdraw();
+                  }
                 }}
               />
             </div>

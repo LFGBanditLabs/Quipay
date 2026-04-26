@@ -1,4 +1,5 @@
 import { getPool } from "../db/pool";
+import { withAdvisoryLock } from "../utils/lock";
 import {
   getTreasuryBalances,
   getActiveLiabilities,
@@ -10,6 +11,23 @@ import {
 } from "../db/queries";
 import { sendTreasuryAlert } from "../notifier/notifier";
 import { getAuditLogger, isAuditLoggerInitialized } from "../audit/init";
+import { serviceLogger } from "../audit/serviceLogger";
+import { employerRunwayGauge } from "../metrics";
+
+/**
+ * Safely converts a PostgreSQL NUMERIC/BIGINT string to a JS number.
+ * Uses Number() rather than parseFloat() so non-numeric strings return 0
+ * instead of a partial parse (e.g. "123abc" → 0, not 123).
+ */
+const parseAmount = (val: string | null | undefined): number => {
+  if (val == null || val === "") return 0;
+  const n = Number(val);
+  return Number.isFinite(n) ? n : 0;
+};
+
+let monitorStopping = false;
+let monitorTimeoutId: NodeJS.Timeout | null = null;
+let inFlightMonitorCycle: Promise<EmployerTreasuryStatus[]> | null = null;
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
@@ -69,6 +87,7 @@ export const calculateDailyBurnRate = (
   let totalDailyBurn = 0;
 
   for (const stream of streams) {
+    if (!stream || stream.total_amount === undefined) continue;
     const remaining = stream.total_amount - stream.withdrawn_amount;
     if (remaining <= 0) continue;
 
@@ -120,12 +139,12 @@ export const computeTreasuryStatus = async (): Promise<
 
   // Build lookup maps
   const balanceMap = new Map<string, number>(
-    balances.map((b: TreasuryBalance) => [b.employer, parseFloat(b.balance)]),
+    balances.map((b: TreasuryBalance) => [b.employer, parseAmount(b.balance)]),
   );
   const liabilityMap = new Map<string, number>(
     liabilities.map((l: TreasuryLiability) => [
       l.employer,
-      parseFloat(l.liabilities),
+      parseAmount(l.liabilities),
     ]),
   );
 
@@ -145,8 +164,8 @@ export const computeTreasuryStatus = async (): Promise<
     const activeStreams = await getStreamsByEmployer(employer, "active", 1000);
 
     const streamData = activeStreams.map((s: StreamRecord) => ({
-      total_amount: parseFloat(s.total_amount),
-      withdrawn_amount: parseFloat(s.withdrawn_amount),
+      total_amount: parseAmount(s.total_amount),
+      withdrawn_amount: parseAmount(s.withdrawn_amount),
       start_ts: s.start_ts,
       end_ts: s.end_ts,
     }));
@@ -178,97 +197,130 @@ export const computeTreasuryStatus = async (): Promise<
  * Returns the full status snapshot (useful for the API endpoint).
  */
 export const runMonitorCycle = async (): Promise<EmployerTreasuryStatus[]> => {
-  console.log("[Monitor] 🔍 Running treasury monitor cycle…");
+  const LOCK_ID_MONITOR = 999999;
+  let statuses: EmployerTreasuryStatus[] = [];
 
-  let statuses: EmployerTreasuryStatus[];
-
-  try {
-    statuses = await computeTreasuryStatus();
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[Monitor] Failed to compute treasury status: ${msg}`);
-    return [];
-  }
-
-  if (statuses.length === 0) {
-    console.log("[Monitor] ℹ️  No employer treasury data found.");
-    return [];
-  }
-
-  for (const status of statuses) {
-    // Alert when runway is less than threshold (default 7 days)
-    const alertNeeded =
-      status.runway_days !== null && status.runway_days < RUNWAY_ALERT_DAYS;
-
-    // Fire alert first so we can mark it before logging
-    if (alertNeeded) {
-      console.warn(
-        `[Monitor] ⚠️  Employer ${status.employer} has low runway: ` +
-          `${status.runway_days?.toFixed(1)} days (threshold: ${RUNWAY_ALERT_DAYS} days), ` +
-          `balance: ${status.balance} stroops, ` +
-          `daily burn: ${status.daily_burn_rate.toFixed(2)} stroops/day, ` +
-          `exhaustion date: ${status.funds_exhaustion_date}`,
-      );
-      try {
-        await sendTreasuryAlert({
-          employer: status.employer,
-          balance: status.balance,
-          liabilities: status.liabilities,
-          dailyBurnRate: status.daily_burn_rate,
-          runwayDays: status.runway_days,
-          exhaustionDate: status.funds_exhaustion_date,
-          alertThresholdDays: RUNWAY_ALERT_DAYS,
-        });
-        status.alert_sent = true;
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(
-          `[Monitor] Alert delivery failed for ${status.employer}: ${msg}`,
-        );
-      }
-    }
-
-    // Log to audit system
-    if (isAuditLoggerInitialized()) {
-      try {
-        const auditLogger = getAuditLogger();
-        await auditLogger.logMonitorEvent({
-          employer: status.employer,
-          balance: status.balance,
-          liabilities: status.liabilities,
-          dailyBurnRate: status.daily_burn_rate,
-          runwayDays: status.runway_days,
-          alertSent: status.alert_sent,
-          checkType: "routine",
-        });
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(
-          `[Monitor] Failed to log audit event for ${status.employer}: ${msg}`,
-        );
-      }
-    }
-
-    // Persist to DB regardless of alert status
-    try {
-      await logMonitorEvent({
-        employer: status.employer,
-        balance: status.balance,
-        liabilities: status.liabilities,
-        runwayDays: status.runway_days,
-        alertSent: status.alert_sent,
+  await withAdvisoryLock(
+    LOCK_ID_MONITOR,
+    async () => {
+      await serviceLogger.info("Monitor", "Running treasury monitor cycle", {
+        lock_id: LOCK_ID_MONITOR,
+        poll_interval_ms: POLL_INTERVAL_MS,
       });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(
-        `[Monitor] Failed to log event for ${status.employer}: ${msg}`,
-      );
-    }
-  }
 
-  console.log(
-    `[Monitor] ✅ Cycle complete — checked ${statuses.length} employer(s)`,
+      try {
+        statuses = await computeTreasuryStatus();
+      } catch (err: unknown) {
+        await serviceLogger.error(
+          "Monitor",
+          "Failed to compute treasury status",
+          err,
+        );
+        return;
+      }
+
+      if (statuses.length === 0) {
+        await serviceLogger.info("Monitor", "No employer treasury data found");
+        return;
+      }
+
+      for (const status of statuses) {
+        // Update Prometheus gauge: -1 signals unlimited runway (no active streams).
+        employerRunwayGauge.set(
+          { employer_address: status.employer },
+          status.runway_days ?? -1,
+        );
+
+        // Alert when runway is less than threshold (default 7 days)
+        const alertNeeded =
+          status.runway_days !== null && status.runway_days < RUNWAY_ALERT_DAYS;
+
+        // Fire alert first so we can mark it before logging
+        if (alertNeeded) {
+          await serviceLogger.warn(
+            "Monitor",
+            "Employer runway below threshold",
+            {
+              employer: status.employer,
+              runway_days: status.runway_days,
+              alert_threshold_days: RUNWAY_ALERT_DAYS,
+              balance: status.balance,
+              liabilities: status.liabilities,
+              daily_burn_rate: status.daily_burn_rate,
+              funds_exhaustion_date: status.funds_exhaustion_date,
+            },
+          );
+          try {
+            await sendTreasuryAlert({
+              employer: status.employer,
+              balance: status.balance,
+              liabilities: status.liabilities,
+              dailyBurnRate: status.daily_burn_rate,
+              runwayDays: status.runway_days,
+              exhaustionDate: status.funds_exhaustion_date,
+              alertThresholdDays: RUNWAY_ALERT_DAYS,
+            });
+            status.alert_sent = true;
+          } catch (err: unknown) {
+            await serviceLogger.error("Monitor", "Alert delivery failed", err, {
+              employer: status.employer,
+            });
+          }
+        }
+
+        // Log to audit system
+        if (isAuditLoggerInitialized()) {
+          try {
+            const auditLogger = getAuditLogger();
+            await auditLogger.logMonitorEvent({
+              employer: status.employer,
+              balance: status.balance,
+              liabilities: status.liabilities,
+              dailyBurnRate: status.daily_burn_rate,
+              runwayDays: status.runway_days,
+              alertSent: status.alert_sent,
+              checkType: "routine",
+            });
+          } catch (err: unknown) {
+            await serviceLogger.error(
+              "Monitor",
+              "Failed to write treasury audit event",
+              err,
+              {
+                employer: status.employer,
+              },
+            );
+          }
+        }
+
+        // Persist to DB regardless of alert status
+        try {
+          await logMonitorEvent({
+            employer: status.employer,
+            balance: status.balance,
+            liabilities: status.liabilities,
+            runwayDays: status.runway_days,
+            alertSent: status.alert_sent,
+          });
+        } catch (err: unknown) {
+          await serviceLogger.error(
+            "Monitor",
+            "Failed to persist treasury monitor event",
+            err,
+            {
+              employer: status.employer,
+            },
+          );
+        }
+      }
+
+      await serviceLogger.info("Monitor", "Treasury monitor cycle complete", {
+        employers_checked: statuses.length,
+      });
+    },
+    "treasury-monitor",
   );
+
   return statuses;
 };
 
@@ -280,26 +332,51 @@ export const runMonitorCycle = async (): Promise<EmployerTreasuryStatus[]> => {
  */
 export const startMonitor = async (): Promise<void> => {
   if (!getPool()) {
-    console.warn(
-      "[Monitor] ⚠️  Database not configured — treasury monitor disabled.",
+    await serviceLogger.warn(
+      "Monitor",
+      "Database not configured — treasury monitor disabled",
     );
     return;
   }
 
-  console.log(
-    `[Monitor] 🏦 Treasury monitor started (interval: ${POLL_INTERVAL_MS}ms, ` +
-      `runway alert threshold: ${RUNWAY_ALERT_DAYS} days)`,
-  );
+  monitorStopping = false;
+
+  await serviceLogger.info("Monitor", "Treasury monitor started", {
+    poll_interval_ms: POLL_INTERVAL_MS,
+    runway_alert_days: RUNWAY_ALERT_DAYS,
+  });
 
   const tick = async () => {
     try {
-      await runMonitorCycle();
+      inFlightMonitorCycle = runMonitorCycle();
+      await inFlightMonitorCycle;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[Monitor] Unhandled error in monitor cycle: ${msg}`);
+      await serviceLogger.error(
+        "Monitor",
+        "Unhandled error in monitor cycle",
+        err,
+      );
+    } finally {
+      inFlightMonitorCycle = null;
     }
-    setTimeout(tick, POLL_INTERVAL_MS);
+
+    if (monitorStopping) return;
+
+    monitorTimeoutId = setTimeout(tick, POLL_INTERVAL_MS);
   };
 
   await tick();
+};
+
+export const stopMonitor = async (): Promise<void> => {
+  monitorStopping = true;
+
+  if (monitorTimeoutId) {
+    clearTimeout(monitorTimeoutId);
+    monitorTimeoutId = null;
+  }
+
+  if (inFlightMonitorCycle) {
+    await inFlightMonitorCycle;
+  }
 };

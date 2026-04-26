@@ -132,11 +132,13 @@ const Navbar: React.FC = () => {
               <div className="hidden md:flex items-center gap-2">
                 <LanguageSwitcher />
                 <ThemeToggle />
+                <NotificationCenter />
                 <ConnectAccount />
               </div>
 
               <div className="flex md:hidden items-center gap-2">
                 <ConnectAccount />
+                <NotificationCenter />
                 <button
                   type="button"
                   onClick={() => setIsMenuOpen(!isMenuOpen)}

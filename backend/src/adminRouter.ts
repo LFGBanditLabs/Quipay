@@ -1,4 +1,4 @@
-import { Router, Response } from "express";
+import { Router, Response, Request } from "express";
 import {
   authenticateRequest,
   requireAdmin,
@@ -6,6 +6,23 @@ import {
   requireUser,
   AuthenticatedRequest,
 } from "./middleware/rbac";
+import {
+  getPendingDLQItems,
+  getPendingDLQItemsByJobType,
+  getDLQItemById,
+  updateDLQItemStatus,
+  deleteDLQItem,
+} from "./db/dlq";
+import { enqueueJob } from "./queue/asyncQueue";
+import { sendWebhookNotification, retryWebhookEvent } from "./delivery"; // used for replay examples
+import { startSyncer } from "./syncer"; // used for replay examples
+import { logAdminAction, getAdminAuditLogs } from "./db/adminAuditLog";
+import {
+  getPlatformAnalytics,
+  enqueueOverride,
+  getSchedulerOverrides,
+} from "./db/queries";
+import { globalCache } from "./utils/cache";
 
 export const adminRouter = Router();
 
@@ -30,16 +47,41 @@ adminRouter.get(
 /**
  * GET /admin/analytics
  * Admin-only: view aggregated analytics for all employers.
+ * Results are cached for 60 seconds to avoid expensive queries.
  */
 adminRouter.get(
   "/analytics",
   requireAdmin,
-  (req: AuthenticatedRequest, res: Response) => {
-    res.json({
-      message:
-        "Aggregated analytics (stub) – replace with real analytics query",
-      requestedBy: req.user,
-    });
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const cacheKey = "admin:platform-analytics";
+      const cached = globalCache.get<any>(cacheKey);
+
+      if (cached) {
+        res.json({
+          ...cached,
+          cached: true,
+          requestedBy: req.user,
+        });
+        return;
+      }
+
+      const analytics = await getPlatformAnalytics();
+
+      // Cache for 60 seconds
+      globalCache.set(cacheKey, analytics, 60_000);
+
+      res.json({
+        ...analytics,
+        cached: false,
+        requestedBy: req.user,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        error: "Failed to fetch platform analytics",
+        details: err.message,
+      });
+    }
   },
 );
 
@@ -82,11 +124,25 @@ adminRouter.delete(
 adminRouter.get(
   "/scheduler/override",
   requireAdmin,
-  (req: AuthenticatedRequest, res: Response) => {
-    res.json({
-      message: "Scheduler override queue (stub)",
-      requestedBy: req.user,
-    });
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const status = (req.query.status as string) || undefined;
+      const limit = parseInt((req.query.limit as string) || "50", 10);
+      const offset = parseInt((req.query.offset as string) || "0", 10);
+
+      const overrides = await getSchedulerOverrides({ status, limit, offset });
+
+      res.json({
+        overrides,
+        count: overrides.length,
+        requestedBy: req.user,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        error: "Failed to fetch scheduler overrides",
+        details: err.message,
+      });
+    }
   },
 );
 
@@ -97,12 +153,216 @@ adminRouter.get(
 adminRouter.post(
   "/scheduler/override",
   requireSuperAdmin,
-  (req: AuthenticatedRequest, res: Response) => {
-    res.json({
-      message: "Manual payroll override applied (stub)",
-      requestedBy: req.user,
-      body: req.body,
-    });
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { employerAddress, workerAddress, action, params } = req.body;
+
+      // Validate required fields
+      if (!employerAddress || !workerAddress || !action) {
+        res.status(400).json({
+          error:
+            "Missing required fields: employerAddress, workerAddress, action",
+        });
+        return;
+      }
+
+      // Validate action type
+      const validActions = ["create_stream", "cancel_stream", "pause_stream"];
+      if (!validActions.includes(action)) {
+        res.status(400).json({
+          error: `Invalid action. Must be one of: ${validActions.join(", ")}`,
+        });
+        return;
+      }
+
+      const overrideId = await enqueueOverride({
+        employerAddress,
+        workerAddress,
+        action,
+        params: params || {},
+        createdBy: req.user?.id || "unknown",
+      });
+
+      res.json({
+        message: "Manual payroll override queued successfully",
+        overrideId,
+        requestedBy: req.user,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        error: "Failed to create scheduler override",
+        details: err.message,
+      });
+    }
+  },
+);
+
+/**
+ * GET /admin/dlq
+ * Admin-only: list all pending items in the Dead Letter Queue.
+ */
+adminRouter.get(
+  "/dlq",
+  requireAdmin,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+      const items = await getPendingDLQItems(limit, offset);
+      res.json({ items });
+    } catch (err: any) {
+      res
+        .status(500)
+        .json({ error: "Failed to fetch DLQ items", details: err.message });
+    }
+  },
+);
+
+adminRouter.get(
+  "/webhooks/dead-letter",
+  requireAdmin,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+      const items = await getPendingDLQItemsByJobType(
+        "webhook_delivery",
+        limit,
+        offset,
+      );
+      res.json({ items });
+    } catch (err: any) {
+      res.status(500).json({
+        error: "Failed to fetch webhook dead-letter items",
+        details: err.message,
+      });
+    }
+  },
+);
+
+/**
+ * POST /admin/dlq/:id/replay
+ * SuperAdmin-only: Manually replay a terminally failed job.
+ */
+adminRouter.post(
+  "/dlq/:id/replay",
+  requireSuperAdmin,
+  async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+    const id = req.params.id as string;
+    try {
+      const item = await getDLQItemById(id);
+      if (!item) {
+        return res.status(404).json({ error: "DLQ item not found" });
+      }
+      if (item.status !== "pending") {
+        return res.status(400).json({
+          error: `DLQ item already processed. Status: ${item.status}`,
+        });
+      }
+
+      // Route the replay logic based on job type.
+      // This runs synchronously giving immediate feedback to the admin.
+      if (item.job_type === "webhook_delivery") {
+        const payload = item.payload as any;
+        await sendWebhookNotification(
+          payload.eventType,
+          payload.originalPayload,
+        );
+      } else if (item.job_type === "ledger_sync_batch") {
+        // We trigger the syncer manually or ignore if syncer self-recovers
+        console.log(
+          `[DLQ] Admin triggered ledger sync replay for ledger block.`,
+        );
+        // Assuming startSyncer runs a catch-up block sequence anyway
+        startSyncer().catch(console.error);
+      } else {
+        return res
+          .status(400)
+          .json({ error: `Unknown job_type: ${item.job_type}` });
+      }
+
+      // Mark as replayed
+      await updateDLQItemStatus(id, "replayed");
+
+      res.json({
+        message: `Successfully replayed DLQ item ${id} of type ${item.job_type}`,
+        requestedBy: req.user,
+      });
+    } catch (err: any) {
+      res
+        .status(500)
+        .json({ error: "Failed to replay DLQ item", details: err.message });
+    }
+  },
+);
+
+adminRouter.post(
+  "/webhooks/dead-letter/:id/retry",
+  requireSuperAdmin,
+  async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+    const id = req.params.id as string;
+    try {
+      const item = await getDLQItemById(id);
+      if (!item || item.job_type !== "webhook_delivery") {
+        return res
+          .status(404)
+          .json({ error: "Webhook dead-letter item not found" });
+      }
+
+      if (item.status !== "pending") {
+        return res.status(400).json({
+          error: `Dead-letter item already processed. Status: ${item.status}`,
+        });
+      }
+
+      const payload = item.payload as {
+        eventId?: string;
+        eventType?: string;
+        requestPayload?: unknown;
+      };
+
+      if (payload.eventId) {
+        await retryWebhookEvent(payload.eventId);
+      } else {
+        await sendWebhookNotification(
+          payload.eventType || "dead_letter_retry",
+          payload.requestPayload,
+        );
+      }
+
+      await updateDLQItemStatus(id, "replayed");
+
+      return res.json({
+        message: `Retried webhook dead-letter item ${id}`,
+        requestedBy: req.user,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        error: "Failed to retry webhook dead-letter item",
+        details: err.message,
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /admin/dlq/:id
+ * SuperAdmin-only: Permanently delete/discard an item from the DLQ.
+ */
+adminRouter.delete(
+  "/dlq/:id",
+  requireSuperAdmin,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const id = req.params.id as string;
+    try {
+      await updateDLQItemStatus(id, "discarded");
+      // Optionally fully delete it with `await deleteDLQItem(id);` but soft-delete provides better auditing
+      res.json({ message: `DLQ item ${id} discarded` });
+    } catch (err: any) {
+      res
+        .status(500)
+        .json({ error: "Failed to discard DLQ item", details: err.message });
+    }
   },
 );
 
@@ -117,3 +377,105 @@ adminRouter.get(
     res.json({ user: req.user });
   },
 );
+
+/**
+ * GET /admin/audit-log
+ * Admin-only: retrieve audit trail logs with pagination and filtering
+ */
+adminRouter.get(
+  "/audit-log",
+  requireAdmin,
+  async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+    try {
+      const {
+        startDate,
+        endDate,
+        admin: adminAddress,
+        action,
+        limit = "50",
+        offset = "0",
+      } = req.query;
+
+      const filters = {
+        startDate: startDate ? new Date(startDate as string) : undefined,
+        endDate: endDate ? new Date(endDate as string) : undefined,
+        adminAddress: adminAddress as string | undefined,
+        action: action as string | undefined,
+        limit: parseInt(limit as string, 10),
+        offset: parseInt(offset as string, 10),
+      };
+
+      const { logs, total } = await getAdminAuditLogs(filters);
+
+      res.json({
+        logs,
+        pagination: {
+          total,
+          limit: filters.limit,
+          offset: filters.offset,
+          hasMore: filters.offset + filters.limit < total,
+        },
+      });
+    } catch (err: any) {
+      res
+        .status(500)
+        .json({ error: "Failed to fetch audit logs", details: err.message });
+    }
+  },
+);
+
+// Helper function to extract client IP from request
+function getClientIP(req: Request): string | undefined {
+  return (
+    (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    req.ip
+  );
+}
+
+// Middleware to log admin actions
+const logAdminActionMiddleware = (actionName: string, targetParam?: string) => {
+  return async (req: AuthenticatedRequest, res: Response, next: any) => {
+    // Store original json method
+    const originalJson = res.json.bind(res);
+
+    // Override json method to log after response is prepared
+    res.json = (body: any) => {
+      // Log the admin action asynchronously (don't block response)
+      void logAdminAction({
+        adminAddress: req.user?.id || "unknown",
+        action: actionName,
+        target: targetParam ? req.params[targetParam] : undefined,
+        details: {
+          method: req.method,
+          path: req.path,
+          query: req.query,
+          body: req.body,
+          responseBody: body,
+        },
+        ipAddress: getClientIP(req),
+        userAgent: req.headers["user-agent"],
+      });
+
+      return originalJson(body);
+    };
+
+    next();
+  };
+};
+
+// Apply audit logging middleware to all admin mutation routes
+adminRouter.post(
+  "/users/:id/suspend",
+  logAdminActionMiddleware("user_suspend", "id"),
+);
+adminRouter.delete("/users/:id", logAdminActionMiddleware("user_delete", "id"));
+adminRouter.post(
+  "/scheduler/override",
+  logAdminActionMiddleware("scheduler_override"),
+);
+adminRouter.post(
+  "/dlq/:id/replay",
+  logAdminActionMiddleware("dlq_replay", "id"),
+);
+adminRouter.delete("/dlq/:id", logAdminActionMiddleware("dlq_discard", "id"));

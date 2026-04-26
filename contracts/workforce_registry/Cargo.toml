@@ -1,6 +1,6 @@
 [package]
 name = "workforce_registry"
-edition.workspace = true
+edition = "2021"
 license.workspace = true
 repository.workspace = true
 publish = false
@@ -12,6 +12,7 @@ doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
+quipay_common = { path = "../common" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

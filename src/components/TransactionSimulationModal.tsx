@@ -8,10 +8,12 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import type { SimulationResult, TokenBalance } from "../util/simulationUtils";
 import type { AppError } from "../util/errors";
 import { translateError } from "../util/errors";
 import { ErrorMessage } from "./ErrorMessage";
+import { useNotification } from "../hooks/useNotification";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,6 +26,14 @@ export interface TransactionPreview {
   contractAddress: string;
   /** Current balances before the tx */
   currentBalances: { token: string; symbol: string; amount: number }[];
+  /** Token transfers expected after the transaction is signed */
+  expectedTransfers?: {
+    label: string;
+    symbol: string;
+    amount: number;
+  }[];
+  /** State mutations the user should expect from the contract call */
+  stateChanges?: string[];
 }
 
 interface TransactionSimulationModalProps {
@@ -40,6 +50,10 @@ interface TransactionSimulationModalProps {
   onConfirm: () => void;
   /** User clicked "Cancel" or closed the modal */
   onCancel: () => void;
+  /**
+   * When set, shows a non-blocking warning if estimated fee exceeds this XLM balance.
+   */
+  nativeXlmBalance?: number;
 }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -210,13 +224,15 @@ function StatusBanner({
   result: SimulationResult;
   onRetry?: () => void;
 }) {
+  const { t } = useTranslation();
+
   if (result.status === "success") {
     return (
       <div className="tsm-banner tsm-banner-success">
         <IconCheck />
         <div>
-          <strong>Simulation passed</strong>
-          <p>This transaction is expected to succeed on-chain.</p>
+          <strong>{t("transaction.sim_passed")}</strong>
+          <p>{t("transaction.sim_passed_desc")}</p>
         </div>
       </div>
     );
@@ -227,7 +243,7 @@ function StatusBanner({
       <div className="tsm-banner tsm-banner-warning">
         <IconRestore />
         <div>
-          <strong>Ledger restore required</strong>
+          <strong>{t("transaction.restore_required")}</strong>
           <p>{result.errorMessage}</p>
         </div>
       </div>
@@ -251,7 +267,9 @@ export default function TransactionSimulationModal({
   onSimulate,
   onConfirm,
   onCancel,
+  nativeXlmBalance,
 }: TransactionSimulationModalProps) {
+  const { t } = useTranslation();
   const [simResult, setSimResult] = useState<SimulationResult | null>(null);
   const [simLoading, setSimLoading] = useState(false);
   const [simError, setSimError] = useState<string | null>(null);
@@ -293,6 +311,12 @@ export default function TransactionSimulationModal({
     simResult.status !== "restore_required";
 
   const willFail = simResult?.status === "error";
+
+  const insufficientXlm =
+    nativeXlmBalance !== undefined &&
+    simResult &&
+    simResult.status === "success" &&
+    simResult.estimatedFeeXLM > nativeXlmBalance;
 
   if (!open) return null;
 
@@ -536,6 +560,44 @@ export default function TransactionSimulationModal({
           color: var(--tsm-muted);
         }
 
+        /* ── Expected transfers ── */
+        .tsm-transfer-list,
+        .tsm-state-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .tsm-transfer-item,
+        .tsm-state-item {
+          background: var(--tsm-surface);
+          border: 1px solid var(--tsm-border);
+          border-radius: 10px;
+          padding: 10px 12px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          font-size: 13px;
+        }
+        .tsm-transfer-label {
+          color: var(--tsm-text);
+          font-weight: 600;
+        }
+        .tsm-transfer-amount {
+          font-family: 'DM Mono', monospace;
+          color: var(--tsm-accent2);
+          white-space: nowrap;
+        }
+        .tsm-state-item {
+          color: var(--tsm-text);
+          line-height: 1.45;
+        }
+        .tsm-state-index {
+          font-family: 'DM Mono', monospace;
+          color: var(--tsm-muted);
+          flex-shrink: 0;
+        }
+
         /* ── Resources grid ── */
         .tsm-resources {
           display: grid;
@@ -676,6 +738,22 @@ export default function TransactionSimulationModal({
           margin-top: -8px;
           padding: 0 24px 12px;
         }
+
+        .tsm-xlm-warn {
+          margin-top: 14px;
+          padding: 12px 14px;
+          border-radius: 10px;
+          border: 1px solid rgba(245, 158, 11, 0.45);
+          background: rgba(245, 158, 11, 0.1);
+          font-size: 12px;
+          line-height: 1.45;
+          color: var(--tsm-text);
+        }
+        .tsm-xlm-warn strong {
+          display: block;
+          margin-bottom: 4px;
+          color: #f59e0b;
+        }
       `}</style>
 
       <div
@@ -688,7 +766,7 @@ export default function TransactionSimulationModal({
           className="tsm-modal"
           role="dialog"
           aria-modal="true"
-          aria-label="Transaction simulation preview"
+          aria-label={t("transaction.preview_aria")}
         >
           {/* ── Header ── */}
           <div className="tsm-header">
@@ -697,13 +775,17 @@ export default function TransactionSimulationModal({
                 <IconShield />
               </div>
               <div>
-                <div className="tsm-title">Transaction Preview</div>
+                <div className="tsm-title">{t("transaction.modal_title")}</div>
                 <div className="tsm-subtitle">
-                  Simulated before signing · No gas spent
+                  {t("transaction.modal_subtitle")}
                 </div>
               </div>
             </div>
-            <button className="tsm-close" onClick={onCancel} aria-label="Close">
+            <button
+              className="tsm-close"
+              onClick={onCancel}
+              aria-label={t("transaction.close")}
+            >
               <IconX />
             </button>
           </div>
@@ -713,11 +795,15 @@ export default function TransactionSimulationModal({
             <div className="tsm-tx-summary">
               <div className="tsm-tx-desc">{preview.description}</div>
               <div className="tsm-tx-row">
-                <span className="tsm-tx-label">Function</span>
+                <span className="tsm-tx-label">
+                  {t("transaction.function")}
+                </span>
                 <span className="tsm-tx-val">{preview.contractFunction}()</span>
               </div>
               <div className="tsm-tx-row">
-                <span className="tsm-tx-label">Contract</span>
+                <span className="tsm-tx-label">
+                  {t("transaction.contract")}
+                </span>
                 <span className="tsm-tx-val">{preview.contractAddress}</span>
               </div>
             </div>
@@ -726,7 +812,7 @@ export default function TransactionSimulationModal({
             {simLoading && (
               <div className="tsm-loading">
                 <Spinner size={28} />
-                <span>Running simulation on Soroban…</span>
+                <span>{t("transaction.sim_running")}</span>
                 <div className="tsm-loading-bar">
                   <div className="tsm-loading-fill" />
                 </div>
@@ -735,7 +821,7 @@ export default function TransactionSimulationModal({
 
             {simError && !simLoading && (
               <div className="tsm-sim-error">
-                <p>Could not connect to simulation endpoint.</p>
+                <p>{t("transaction.sim_error")}</p>
                 <p style={{ marginTop: 4, fontSize: 11, opacity: 0.6 }}>
                   {simError}
                 </p>
@@ -744,7 +830,7 @@ export default function TransactionSimulationModal({
                     void runSim();
                   }}
                 >
-                  Retry simulation
+                  {t("transaction.retry_simulation")}
                 </button>
               </div>
             )}
@@ -761,12 +847,14 @@ export default function TransactionSimulationModal({
 
                 {/* Gas cost */}
                 <div>
-                  <div className="tsm-section-label">Estimated Gas Cost</div>
+                  <div className="tsm-section-label">
+                    {t("transaction.est_gas_cost")}
+                  </div>
                   <div className="tsm-gas-card">
                     <div className="tsm-gas-item">
                       <span className="tsm-gas-label">
                         <IconGas />
-                        Fee (XLM)
+                        {t("transaction.fee_xlm")}
                       </span>
                       <span className="tsm-gas-val">
                         {simResult.estimatedFeeXLM > 0
@@ -780,29 +868,54 @@ export default function TransactionSimulationModal({
                       </span>
                     </div>
                     <div className="tsm-gas-item">
-                      <span className="tsm-gas-label">Stroops</span>
+                      <span className="tsm-gas-label">
+                        {t("transaction.stroops_label")}
+                      </span>
                       <span className="tsm-gas-val">
                         {simResult.estimatedFeeStroops > 0
                           ? fmtStroops(simResult.estimatedFeeStroops)
                           : "~100"}
                       </span>
                       <span className="tsm-gas-sub">
-                        1 XLM = 10,000,000 stroops
+                        {t("transaction.xlm_stroops_rate")}
                       </span>
                     </div>
                   </div>
                 </div>
 
+                {insufficientXlm &&
+                  simResult &&
+                  nativeXlmBalance !== undefined && (
+                    <div className="tsm-xlm-warn" role="status">
+                      <strong>{t("transaction.xlm_fee_warn_title")}</strong>
+                      <p>
+                        {t("transaction.xlm_fee_warn_body", {
+                          fee: simResult.estimatedFeeXLM.toLocaleString(
+                            "en-US",
+                            {
+                              minimumFractionDigits: 7,
+                              maximumFractionDigits: 7,
+                            },
+                          ),
+                          balance: nativeXlmBalance.toLocaleString("en-US", {
+                            minimumFractionDigits: 7,
+                            maximumFractionDigits: 7,
+                          }),
+                        })}
+                      </p>
+                    </div>
+                  )}
+
                 {/* Resource usage */}
                 {simResult.resources && (
                   <div>
                     <div className="tsm-section-label">
-                      Soroban Resource Usage
+                      {t("transaction.resource_usage")}
                     </div>
                     <div className="tsm-resources">
                       <div className="tsm-resource-item">
                         <span className="tsm-resource-label">
-                          CPU Instructions
+                          {t("transaction.cpu_instructions")}
                         </span>
                         <span className="tsm-resource-val">
                           {simResult.resources.instructions.toLocaleString()}
@@ -810,7 +923,7 @@ export default function TransactionSimulationModal({
                       </div>
                       <div className="tsm-resource-item">
                         <span className="tsm-resource-label">
-                          Memory (bytes)
+                          {t("transaction.memory_bytes")}
                         </span>
                         <span className="tsm-resource-val">
                           {simResult.resources.readBytes.toLocaleString()}
@@ -820,10 +933,59 @@ export default function TransactionSimulationModal({
                   </div>
                 )}
 
+                {preview.expectedTransfers &&
+                  preview.expectedTransfers.length > 0 && (
+                    <div>
+                      <div className="tsm-section-label">
+                        Expected Token Transfers
+                      </div>
+                      <div className="tsm-transfer-list">
+                        {preview.expectedTransfers.map((transfer) => (
+                          <div
+                            key={`${transfer.label}-${transfer.symbol}`}
+                            className="tsm-transfer-item"
+                          >
+                            <span className="tsm-transfer-label">
+                              {transfer.label}
+                            </span>
+                            <span className="tsm-transfer-amount">
+                              {transfer.amount.toLocaleString("en-US", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 6,
+                              })}{" "}
+                              {transfer.symbol}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                {preview.stateChanges && preview.stateChanges.length > 0 && (
+                  <div>
+                    <div className="tsm-section-label">State Changes</div>
+                    <div className="tsm-state-list">
+                      {preview.stateChanges.map((change, index) => (
+                        <div
+                          key={`${index}-${change}`}
+                          className="tsm-state-item"
+                        >
+                          <span className="tsm-state-index">
+                            {String(index + 1).padStart(2, "0")}
+                          </span>
+                          <span>{change}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Resulting balances */}
                 {simResult.balanceChanges.length > 0 && (
                   <div>
-                    <div className="tsm-section-label">Resulting Balances</div>
+                    <div className="tsm-section-label">
+                      {t("transaction.resulting_balances")}
+                    </div>
                     {simResult.balanceChanges.map((b) => (
                       <BalanceRow key={b.token} b={b} />
                     ))}
@@ -838,7 +1000,7 @@ export default function TransactionSimulationModal({
             <>
               <div className="tsm-footer">
                 <button className="tsm-btn tsm-btn-cancel" onClick={onCancel}>
-                  Cancel
+                  {t("transaction.cancel")}
                 </button>
                 {simResult?.status !== "restore_required" && (
                   <button
@@ -847,27 +1009,27 @@ export default function TransactionSimulationModal({
                     disabled={!canConfirm}
                     aria-label={
                       willFail
-                        ? "Sign anyway (transaction may fail)"
-                        : "Confirm and sign transaction"
+                        ? t("transaction.sign_anyway_aria")
+                        : t("transaction.confirm_sign_aria")
                     }
                   >
                     {confirming ? (
                       <>
-                        <Spinner size={16} /> Awaiting wallet…
+                        <Spinner size={16} /> {t("transaction.awaiting_wallet")}
                       </>
                     ) : willFail ? (
-                      "⚠ Sign anyway"
+                      t("transaction.sign_anyway")
                     ) : simResult === null ? (
-                      "Waiting for simulation…"
+                      t("transaction.waiting_simulation")
                     ) : (
-                      "Confirm & Sign →"
+                      t("transaction.confirm_sign")
                     )}
                   </button>
                 )}
               </div>
               {willFail && (
                 <p className="tsm-fail-notice">
-                  Signing may consume gas without completing the transaction.
+                  {t("transaction.sign_gas_warning")}
                 </p>
               )}
             </>
@@ -886,6 +1048,7 @@ export default function TransactionSimulationModal({
  * Remove before shipping.
  */
 export function DemoSimulationButton() {
+  const { addNotification } = useNotification();
   const [open, setOpen] = useState(false);
   const [scenario, setScenario] = useState<"success" | "error" | "restore">(
     "success",
@@ -957,6 +1120,18 @@ export function DemoSimulationButton() {
     currentBalances: [
       { token: "USDC", symbol: "USDC", amount: 1250.0 },
       { token: "XLM", symbol: "XLM", amount: 10.5 },
+    ],
+    expectedTransfers: [
+      {
+        label: "Worker receives",
+        symbol: "USDC",
+        amount: 250,
+      },
+    ],
+    stateChanges: [
+      "Reduce the stream's remaining balance",
+      "Increase the worker's claim history",
+      "Emit a withdrawn event for the stream",
     ],
   };
 
@@ -1043,7 +1218,7 @@ export function DemoSimulationButton() {
         onSimulate={mockSimulate}
         onConfirm={() => {
           setOpen(false);
-          alert("Wallet signing flow triggered!");
+          addNotification("Wallet signing flow triggered!", "info");
         }}
         onCancel={() => setOpen(false)}
       />

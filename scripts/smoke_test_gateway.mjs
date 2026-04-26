@@ -11,18 +11,25 @@ const {
 } = sdk;
 const SorobanRpc = sdk.rpc;
 
-const RPC_URL = "https://soroban-testnet.stellar.org";
-const NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
+const RPC_URL =
+  process.env.STELLAR_RPC_URL || "https://soroban-testnet.stellar.org";
+const NETWORK_PASSPHRASE =
+  process.env.STELLAR_NETWORK_PASSPHRASE || "Test SDF Network ; September 2015";
 
-// Contract IDs from deployment
-const GATEWAY_ID = "CDYO5HXZ7K5XP2U52DW5PCYRTG6NVXDG525ZFYVRGOKD6BRERM44AVRO";
+// Contract IDs from deployment — set via environment variables
+const GATEWAY_ID = process.env.GATEWAY_CONTRACT_ID;
 
-// Admin key for simulation
-// Secret: SD5WWX22AS4JHL7O6Z2XVUYTC52JTMHHAY3PUDNYSUBGIRZRZUB4GSYH
-const adminKey = Keypair.fromSecret(
-  process.env.ADMIN_SECRET ||
-    "SD5WWX22AS4JHL7O6Z2XVUYTC52JTMHHAY3PUDNYSUBGIRZRZUB4GSYH",
-);
+if (!GATEWAY_ID) {
+  console.error("Missing required env var: GATEWAY_CONTRACT_ID");
+  process.exit(1);
+}
+
+// Admin key for simulation — must be provided via ADMIN_SECRET env var
+if (!process.env.ADMIN_SECRET) {
+  console.error("Missing required env var: ADMIN_SECRET");
+  process.exit(1);
+}
+const adminKey = Keypair.fromSecret(process.env.ADMIN_SECRET);
 
 async function main() {
   console.log("Starting AutomationGateway smoke tests...");

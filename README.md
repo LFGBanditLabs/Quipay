@@ -35,6 +35,8 @@ Quipay is a decentralized payroll protocol enabling **continuous salary streamin
 ### For Employers
 
 - **Continuous Payment Streams** - Set up recurring salaries that accrue per second
+- **Stream Cancellation** - Cancel active streams anytime with automated prorated payouts
+- **Direct Treasury Deposits** - Easily fund your payroll vault from the interface
 - **Treasury Solvency Management** - Automatic balance verification prevents overspending
 - **Multi-Token Support** - Pay in XLM, USDC, or any Stellar asset
 - **AI Automation** - Intelligent agents handle payroll scheduling and treasury optimization
@@ -45,6 +47,7 @@ Quipay is a decentralized payroll protocol enabling **continuous salary streamin
 - **Instant Access** - Withdraw earned salary anytime, no waiting for payday
 - **Real-Time Earnings** - See your balance grow every second
 - **Flexible Withdrawals** - Partial or full payouts on demand
+- **Stream History Timeline** - Interactive visual timeline of your stream lifecycle
 - **Multi-Stream Support** - Manage multiple income sources in one place
 - **Payment History** - Complete transaction transparency
 
@@ -109,8 +112,8 @@ Quipay uses a modular smart contract architecture for security, scalability, and
 ### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/LFGBanditLabs/Quipay.git
+# Clone the repository — use --depth 1 for a much faster download
+git clone --depth 1 https://github.com/LFGBanditLabs/Quipay.git
 cd Quipay
 
 # Install dependencies
@@ -126,6 +129,29 @@ The development server will:
 2. ✅ Deploy to local Stellar sandbox
 3. ✅ Generate TypeScript client bindings
 4. ✅ Launch frontend at **http://localhost:5173**
+
+### 🐳 Full Stack (Docker Compose) - Recommended
+
+The easiest way to set up the entire Quipay stack locally (including Postgres, Redis, and Stellar Quickstart) is using Docker Compose:
+
+```bash
+# Start everything with one command
+make dev
+
+# Or directly with Docker Compose
+docker compose up --build
+```
+
+This will:
+
+1.  Spin up **PostgreSQL** (Port 5432)
+2.  Spin up **Redis** (Port 6379)
+3.  Spin up **Stellar Quickstart** in Standalone mode (Port 8000)
+4.  Run migrations and seed the database with test data
+5.  Start the **Backend** with hot-reload (Port 3001)
+6.  Start the **Frontend** with hot-reload (Port 5173)
+
+**Wait for Initialization:** The first start may take a minute while the Stellar network node initializes. Once the backend logs show `✅ Services initialized`, the system is ready.
 
 ### Running Tests
 
@@ -159,6 +185,22 @@ To enable preview deployments:
 
 ---
 
+## ⚙️ Environment Variables
+
+The frontend reads the following environment variables at build time. Copy `.env.example` to `.env` and adjust as needed:
+
+| Variable                     | Default                     | Description                                                   |
+| ---------------------------- | --------------------------- | ------------------------------------------------------------- |
+| `PUBLIC_STELLAR_NETWORK`     | `LOCAL`                     | Stellar network to connect to (`LOCAL`, `TESTNET`, `MAINNET`) |
+| `PUBLIC_STELLAR_RPC_URL`     | `http://localhost:8000/rpc` | Soroban RPC endpoint                                          |
+| `PUBLIC_STELLAR_HORIZON_URL` | `http://localhost:8000`     | Stellar Horizon endpoint                                      |
+| `VITE_SITE_URL`              | `https://quipay.app`        | Canonical site URL for metadata                               |
+| `VITE_API_BASE_URL`          | `http://localhost:3001`     | Backend API base URL used by frontend hooks (e.g. analytics)  |
+
+> **Docker Compose:** When running via `docker compose up`, `VITE_API_BASE_URL` is set automatically in the frontend service configuration. See `docker-compose.yml` for defaults.
+
+---
+
 ## 📁 Project Structure
 
 ```
@@ -186,9 +228,9 @@ Quipay/
 ## 📚 Documentation
 
 - **[Product Requirements (PRD)](docs/PRD.md)** - Complete product specification
+- **[Security Threat Model](docs/SECURITY_THREAT_MODEL.md)** - Formal analysis of protocol risks and mitigations
 - **[DAO Treasury Setup Guide](docs/DAO_TREASURY_SETUP.md)** - Multisig configuration for DAOs and enterprise clients
-- **[Implementation Plan](.gemini/antigravity/brain/2a2ff1d1-92c4-44ca-9e86-2bf558a85165/implementation_plan.md)** - Technical architecture & roadmap
-- **[Design Document](docs/design.md)** - System design overview
+- **[Design Document](docs/design.md)** - Technical architecture, roadmap & system design
 - **[GitHub Issues](https://github.com/LFGBanditLabs/Quipay/issues)** - Development tasks & progress
 
 ---
@@ -274,6 +316,8 @@ Security is paramount for payroll infrastructure. Quipay implements:
 - ✅ **Timestamp Validation** - Protection against manipulation attacks
 - ✅ **Formal Auditing** - Pre-mainnet security review (planned Phase 4)
 
+**Detailed Analysis:** See our [Security Threat Model](docs/SECURITY_THREAT_MODEL.md) for a comprehensive breakdown of risks.
+
 **Found a vulnerability?** See our [Security Policy](SECURITY.md)
 
 ---
@@ -310,7 +354,7 @@ This project is licensed under the **Apache License 2.0** - see the [LICENSE](LI
 
 ---
 
-## 🔗 Links
+## 🔗 Links!
 
 <div align="center">
 

@@ -1,13 +1,30 @@
 import React from "react";
 import { Layout, Text, Button } from "@stellar/design-system";
-import { usePayroll } from "../hooks/usePayroll";
+import { useTranslation } from "react-i18next";
+import { usePayroll, Stream } from "../hooks/usePayroll";
 import { useNavigate } from "react-router-dom";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import WithdrawButton from "../components/WithdrawButton";
 import EmptyState from "../components/EmptyState";
-import { SkeletonCard, SkeletonRow } from "../components/Loading";
+import StreamVisualizer from "../components/StreamVisualizer";
+import { CancelStreamModal } from "../components/CancelStreamModal";
+import {
+  buildCancelStreamTx,
+  buildPauseStreamTx,
+  buildResumeStreamTx,
+} from "../contracts/payroll_stream";
+import { useWallet } from "../hooks/useWallet";
+import { useNotification } from "../hooks/useNotification";
+import { SkeletonRow, StatTileSkeleton } from "../components/Loading";
+import type { SimulationResult } from "../util/simulationUtils";
+import CopyButton from "../components/CopyButton";
+import {
+  type StreamAction,
+  useStreamActionMutation,
+} from "../hooks/useStreamActions";
 
 const EmployerDashboard: React.FC = () => {
+  const { t } = useTranslation();
   const tw = {
     dashboardGrid:
       "mb-[30px] grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-5 max-[768px]:grid-cols-1 max-[768px]:gap-4",
@@ -22,25 +39,92 @@ const EmployerDashboard: React.FC = () => {
     streamItem:
       "flex items-center justify-between gap-3.5 rounded-md border border-[var(--sds-color-neutral-border)] bg-[var(--sds-color-background-primary)] p-[15px] max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:p-4",
   };
-
+  const navigate = useNavigate();
+  const { addNotification } = useNotification();
+  const { address } = useWallet();
   const {
     treasuryBalances,
     totalLiabilities,
     activeStreamsCount,
     activeStreams,
     isLoading,
-  } = usePayroll();
-  const navigate = useNavigate();
+    refreshData,
+    applyOptimisticStreamStatus,
+    restoreStream,
+    clearStreamPending,
+  } = usePayroll(address);
+
+  const [streamToCancel, setStreamToCancel] = React.useState<Stream | null>(
+    null,
+  );
+
+  const streamAction = useStreamActionMutation({
+    employerAddress: address,
+    runAction: async (stream, action) => {
+      if (!address) {
+        throw new Error("Connect your wallet before updating a stream.");
+      }
+
+      const streamIdBigInt = BigInt(stream.id);
+      if (action === "pause") {
+        await buildPauseStreamTx(streamIdBigInt, address);
+      } else if (action === "resume") {
+        await buildResumeStreamTx(streamIdBigInt, address);
+      } else {
+        await buildCancelStreamTx(streamIdBigInt, address);
+      }
+    },
+    onLocalOptimisticUpdate: applyOptimisticStreamStatus,
+    onLocalRollback: restoreStream,
+    onLocalSettled: clearStreamPending,
+  });
+
+  const queueStreamAction = (stream: Stream, action: StreamAction) => {
+    streamAction.mutate(
+      { stream, action },
+      {
+        onSuccess: () => {
+          addNotification(
+            `Successfully requested ${action} for stream ${stream.id}`,
+            "success",
+          );
+          void refreshData();
+        },
+      },
+    );
+  };
+
+  const handleConfirmCancel = () => {
+    if (streamToCancel) {
+      queueStreamAction(streamToCancel, "cancel");
+    }
+    return Promise.resolve();
+  };
+
+  const getActionLabel = (stream: Stream, action: StreamAction) => {
+    if (stream.pendingAction === action) {
+      return action === "cancel"
+        ? "Cancelling..."
+        : action === "pause"
+          ? "Pausing..."
+          : "Resuming...";
+    }
+    return action === "cancel"
+      ? "Cancel Stream"
+      : action === "pause"
+        ? "Pause"
+        : "Resume";
+  };
 
   const seoDescription = isLoading
-    ? "Loading your Quipay dashboard metrics and active stream overview."
-    : `Track ${activeStreamsCount} active streams with total liabilities ${totalLiabilities} in your Quipay employer dashboard.`;
+    ? t("dashboard.loading_description")
+    : t("dashboard.seo_description", { activeStreamsCount, totalLiabilities });
 
   if (isLoading) {
     return (
       <>
         <SeoHelmet
-          title="Employer Dashboard"
+          title={t("dashboard.title")}
           description={seoDescription}
           path="/dashboard"
           imagePath="/social/dashboard-preview.png"
@@ -49,17 +133,17 @@ const EmployerDashboard: React.FC = () => {
         <Layout.Content>
           <Layout.Inset>
             <Text as="h1" size="xl" weight="medium">
-              Employer Dashboard
+              {t("dashboard.title")}
             </Text>
-            <div className={tw.dashboardGrid}>
-              <SkeletonCard lines={3} />
-              <SkeletonCard lines={2} />
-              <SkeletonCard lines={2} />
+            <div className={tw.dashboardGrid} aria-busy="true">
+              <StatTileSkeleton />
+              <StatTileSkeleton />
+              <StatTileSkeleton />
             </div>
             <div className={tw.streamsSection}>
               <div className={tw.streamsHeader}>
                 <Text as="h2" size="lg">
-                  Active Streams
+                  {t("dashboard.active_streams")}
                 </Text>
               </div>
               <div className={tw.streamsList}>
@@ -74,7 +158,7 @@ const EmployerDashboard: React.FC = () => {
   }
 
   const demoContract = {
-    withdrawableAmount: () => {
+    withdrawableAmount: (): Promise<bigint | null> => {
       return Promise.resolve(BigInt("5000000")); // 5.00 USDC (6 decimals)
     },
     withdraw: async () => {
@@ -86,12 +170,99 @@ const EmployerDashboard: React.FC = () => {
     },
   };
 
+  const demoWithdrawSimulation = {
+    getPreview: ({
+      formattedAmount,
+      tokenSymbol,
+    }: {
+      formattedAmount: string;
+      tokenSymbol: string;
+      walletAddress: string;
+    }) => ({
+      description: `Withdraw ${formattedAmount} ${tokenSymbol}`,
+      contractFunction: "withdraw",
+      contractAddress: "PayrollStream (demo)",
+      currentBalances: [
+        { token: "USDC", symbol: "USDC", amount: 1250 },
+        { token: "XLM", symbol: "XLM", amount: 10.5 },
+      ],
+      expectedTransfers: [
+        {
+          label: "Worker receives",
+          symbol: tokenSymbol,
+          amount: Number(formattedAmount),
+        },
+      ],
+      stateChanges: [
+        "Reduce the stream's remaining balance",
+        "Increase the worker's claim history",
+        "Emit a withdraw event for the stream",
+      ],
+    }),
+    nativeXlmBalance: 10.5,
+    onSimulate: async (): Promise<SimulationResult> => {
+      await new Promise((res) => setTimeout(res, 900));
+      const feeXLM = 0.0074821;
+      return {
+        status: "success",
+        estimatedFeeStroops: 74821,
+        estimatedFeeXLM: feeXLM,
+        balanceChanges: [
+          {
+            token: "USDC",
+            symbol: "USDC",
+            before: 1250,
+            after: 1250,
+            delta: 0,
+          },
+          {
+            token: "XLM",
+            symbol: "XLM",
+            before: 10.5,
+            after: Math.round((10.5 - feeXLM) * 1e7) / 1e7,
+            delta: -feeXLM,
+          },
+        ],
+        restoreRequired: false,
+        resources: {
+          instructions: 2_847_326,
+          readBytes: 18_432,
+          writeBytes: 4_096,
+          readEntries: 4,
+          writeEntries: 2,
+        },
+      };
+    },
+  };
+
   return (
     <Layout.Content>
       <Layout.Inset>
         <Text as="h1" size="xl" weight="medium">
-          Employer Dashboard
+          {t("dashboard.title")}
         </Text>
+
+        {/* Topology Visualizer */}
+        <div style={{ marginTop: "24px", marginBottom: "32px" }}>
+          <Text
+            as="h2"
+            size="lg"
+            weight="medium"
+            style={{ marginBottom: "16px" }}
+          >
+            Network Topology
+          </Text>
+          <StreamVisualizer
+            streams={activeStreams}
+            treasuryBalance={
+              treasuryBalances.length > 0
+                ? treasuryBalances
+                    .map((t) => `${t.balance} ${t.tokenSymbol}`)
+                    .join(", ")
+                : "0"
+            }
+          />
+        </div>
 
         <div className={tw.dashboardGrid}>
           <WithdrawButton
@@ -99,6 +270,7 @@ const EmployerDashboard: React.FC = () => {
             contract={demoContract}
             tokenSymbol="USDC"
             tokenDecimals={6}
+            withdrawSimulation={demoWithdrawSimulation}
           />
 
           {/* Treasury Balance */}
@@ -109,7 +281,7 @@ const EmployerDashboard: React.FC = () => {
               weight="semi-bold"
               className={tw.cardHeader}
             >
-              Treasury Balance
+              {t("dashboard.treasury_balance")}
             </Text>
             {treasuryBalances.map((balance) => (
               <div key={balance.tokenSymbol}>
@@ -122,10 +294,10 @@ const EmployerDashboard: React.FC = () => {
               <div style={{ marginTop: "1rem" }}>
                 <EmptyState
                   variant="treasury"
-                  title="No Funds Yet"
-                  description="Your treasury is currently empty. Deposit funds to start paying your workers."
+                  title={t("dashboard.no_funds_title")}
+                  description={t("dashboard.no_funds_description")}
                   icon="💰"
-                  actionLabel="Deposit Funds"
+                  actionLabel={t("dashboard.deposit_funds")}
                   onAction={() => {
                     void navigate("/treasury-management");
                   }}
@@ -141,7 +313,7 @@ const EmployerDashboard: React.FC = () => {
                   void navigate("/treasury-management");
                 }}
               >
-                Manage Treasury
+                {t("dashboard.manage_treasury")}
               </Button>
             </div>
           </div>
@@ -154,13 +326,13 @@ const EmployerDashboard: React.FC = () => {
               weight="semi-bold"
               className={tw.cardHeader}
             >
-              Total Liabilities
+              {t("dashboard.total_liabilities")}
             </Text>
             <Text as="div" size="lg" className={tw.metricValue}>
               {totalLiabilities}
             </Text>
             <Text as="p" size="sm" style={{ color: "var(--muted)" }}>
-              You are projected to pay {totalLiabilities} in the next 30 days.
+              {t("dashboard.projected_pay", { totalLiabilities })}
             </Text>
           </div>
 
@@ -172,7 +344,7 @@ const EmployerDashboard: React.FC = () => {
               weight="semi-bold"
               className={tw.cardHeader}
             >
-              Active Streams
+              {t("dashboard.active_streams")}
             </Text>
             <Text as="div" size="lg" className={tw.metricValue}>
               {activeStreamsCount}
@@ -183,25 +355,36 @@ const EmployerDashboard: React.FC = () => {
         <div className={tw.streamsSection}>
           <div className={tw.streamsHeader}>
             <Text as="h2" size="lg">
-              Active Streams
+              {t("dashboard.active_streams")}
             </Text>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => {
-                void navigate("/create-stream");
-              }}
-            >
-              Create New Stream
-            </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => {
+                  void navigate("/stream-comparison");
+                }}
+              >
+                Compare streams
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => {
+                  void navigate("/create-stream");
+                }}
+              >
+                {t("dashboard.create_new_stream")}
+              </Button>
+            </div>
           </div>
 
           {activeStreams.length === 0 ? (
             <EmptyState
-              title="No active streams"
-              description="You haven't created any payment streams yet. Start by adding your first worker."
+              title={t("dashboard.no_streams_title")}
+              description={t("dashboard.no_streams_description")}
               variant="streams"
-              actionLabel="Create New Stream"
+              actionLabel={t("dashboard.create_new_stream")}
               onAction={() => {
                 void navigate("/create-stream");
               }}
@@ -221,22 +404,73 @@ const EmployerDashboard: React.FC = () => {
                     <Text as="div" size="md" weight="bold">
                       {stream.employeeName}
                     </Text>
-                    <Text as="div" size="sm" style={{ color: "var(--muted)" }}>
-                      {stream.employeeAddress}
-                    </Text>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                    >
+                      <Text
+                        as="span"
+                        size="sm"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        {stream.employeeAddress}
+                      </Text>
+                      <CopyButton
+                        value={stream.employeeAddress}
+                        label="Copy employee address"
+                      />
+                    </div>
                   </div>
                   <div>
                     <Text as="div" size="sm">
-                      Flow Rate: {stream.flowRate} {stream.tokenSymbol}/sec
+                      {t("dashboard.flow_rate")}: {stream.flowRate}{" "}
+                      {stream.tokenSymbol}/sec
                     </Text>
                     <Text as="div" size="sm" style={{ color: "var(--muted)" }}>
-                      Start: {stream.startDate}
+                      {t("dashboard.start")}: {stream.startDate}
                     </Text>
                   </div>
-                  <div>
+                  <div className="flex flex-col items-end justify-center gap-2">
                     <Text as="div" size="md" weight="bold">
                       Total: {stream.totalStreamed} {stream.tokenSymbol}
                     </Text>
+                    {stream.pendingAction && (
+                      <span className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-600">
+                        <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
+                        Pending {stream.pendingAction}
+                      </span>
+                    )}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={!!stream.pendingAction}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        queueStreamAction(
+                          stream,
+                          stream.status === "paused" ? "resume" : "pause",
+                        );
+                      }}
+                    >
+                      {getActionLabel(
+                        stream,
+                        stream.status === "paused" ? "resume" : "pause",
+                      )}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={!!stream.pendingAction}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setStreamToCancel(stream);
+                      }}
+                    >
+                      {getActionLabel(stream, "cancel")}
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -244,6 +478,17 @@ const EmployerDashboard: React.FC = () => {
           )}
         </div>
       </Layout.Inset>
+
+      {streamToCancel && (
+        <CancelStreamModal
+          isOpen={!!streamToCancel}
+          onClose={() => setStreamToCancel(null)}
+          onConfirm={handleConfirmCancel}
+          employeeName={streamToCancel.employeeName}
+          flowRate={streamToCancel.flowRate}
+          tokenSymbol={streamToCancel.tokenSymbol}
+        />
+      )}
     </Layout.Content>
   );
 };

@@ -26,12 +26,18 @@ import React, {
   useReducer,
   useRef,
   useMemo,
+  useState,
 } from "react";
-import { Button } from "@stellar/design-system";
+import { z } from "zod";
+import { TransactionBuilder } from "@stellar/stellar-sdk";
+import { Button, Text } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
 import { useNotification } from "../hooks/useNotification";
 import { translateError } from "../util/errors";
 import { ErrorMessage } from "./ErrorMessage";
+import TransactionSimulationModal, {
+  type TransactionPreview,
+} from "./TransactionSimulationModal";
 import {
   buildCreateStreamTx,
   checkTreasurySolvency,
@@ -39,7 +45,14 @@ import {
   PAYROLL_STREAM_CONTRACT_ID,
   type CreateStreamParams,
 } from "../contracts/payroll_stream";
-import { TransactionProgress } from "./Loading";
+// TransactionProgress removed; wizard uses inline status UI
+import {
+  simulateTransaction,
+  type CurrentBalance,
+  type SimulationResult,
+} from "../util/simulationUtils";
+import { useAddressBook } from "../hooks/useAddressBook";
+import { User, Star } from "lucide-react";
 
 const tw = {
   wrapper: "mx-auto max-w-[680px]",
@@ -62,7 +75,7 @@ const tw = {
   spinner:
     "inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/50 border-t-white align-middle",
   walletNotice:
-    "flex items-start gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-sm text-[var(--muted)]",
+    "flex items-start gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-3 text-sm text-muted",
   walletNoticeIcon: "text-base leading-6",
 };
 
@@ -73,14 +86,14 @@ const SUPPORTED_TOKENS: { label: string; value: string; decimal: number }[] = [
   { label: "XLM (Native)", value: "native", decimal: 7 },
   {
     label: "USDC",
-    value: "USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+    value: `USDC:${import.meta.env.PUBLIC_USDC_ISSUER || ""}`,
     decimal: 7,
   },
 ];
 
 /** PayrollVault contract ID for solvency checks */
 const PAYROLL_VAULT_CONTRACT_ID: string =
-  (import.meta.env.VITE_PAYROLL_VAULT_CONTRACT_ID as string | undefined) ?? "";
+  import.meta.env.VITE_PAYROLL_VAULT_CONTRACT_ID ?? "";
 
 // ─── Form state ───────────────────────────────────────────────────────────────
 
@@ -180,48 +193,58 @@ function isValidStellarAddress(addr: string): boolean {
   return /^G[A-Z2-7]{55}$/.test(addr);
 }
 
+const streamSchema = z
+  .object({
+    workerAddress: z
+      .string()
+      .trim()
+      .min(1, "Worker address is required.")
+      .refine(
+        isValidStellarAddress,
+        "Must be a valid Stellar public key (starts with G, 56 characters).",
+      ),
+    token: z.string().min(1, "Please select a token."),
+    rate: z
+      .string()
+      .trim()
+      .min(1, "Rate is required.")
+      .refine((val) => {
+        const num = parseFloat(val);
+        return !isNaN(num) && num > 0;
+      }, "Rate must be a positive number."),
+    startDate: z
+      .string()
+      .min(1, "Start date is required.")
+      .refine((val) => {
+        const now = Date.now();
+        return new Date(val).getTime() >= now - 60_000;
+      }, "Start date cannot be in the past."),
+    endDate: z.string().min(1, "End date is required."),
+  })
+  .superRefine((data, ctx) => {
+    if (data.startDate && data.endDate) {
+      if (new Date(data.endDate) <= new Date(data.startDate)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "End date must be after the start date.",
+          path: ["endDate"],
+        });
+      }
+    }
+  });
+
 function validate(values: FormValues): FormErrors {
+  const result = streamSchema.safeParse(values);
+  if (result.success) {
+    return {};
+  }
   const errors: FormErrors = {};
-  const now = Date.now();
-
-  if (!values.workerAddress.trim()) {
-    errors.workerAddress = "Worker address is required.";
-  } else if (!isValidStellarAddress(values.workerAddress.trim())) {
-    errors.workerAddress =
-      "Must be a valid Stellar public key (starts with G, 56 characters).";
-  }
-
-  if (!values.token) {
-    errors.token = "Please select a token.";
-  }
-
-  const parsedRate = parseFloat(values.rate);
-  if (!values.rate.trim()) {
-    errors.rate = "Rate is required.";
-  } else if (isNaN(parsedRate) || parsedRate <= 0) {
-    errors.rate = "Rate must be a positive number.";
-  }
-
-  if (!values.startDate) {
-    errors.startDate = "Start date is required.";
-  }
-
-  if (!values.endDate) {
-    errors.endDate = "End date is required.";
-  } else if (
-    values.startDate &&
-    new Date(values.endDate) <= new Date(values.startDate)
-  ) {
-    errors.endDate = "End date must be after the start date.";
-  }
-
-  if (
-    values.startDate &&
-    new Date(values.startDate).getTime() < now - 60_000 /* 1-min grace */
-  ) {
-    errors.startDate = "Start date cannot be in the past.";
-  }
-
+  result.error.issues.forEach((issue) => {
+    const path = issue.path[0] as keyof FormErrors;
+    if (!errors[path]) {
+      errors[path] = issue.message;
+    }
+  });
   return errors;
 }
 
@@ -242,21 +265,76 @@ function todayStr(): string {
   return new Date().toISOString().split("T")[0];
 }
 
+function calculateEstimatedTotal(values: FormValues): number {
+  if (!values.rate || !values.startDate || !values.endDate) return 0;
+  const start = new Date(values.startDate).getTime();
+  const end = new Date(values.endDate).getTime();
+  const durationSeconds = Math.max(0, (end - start) / 1000);
+  return parseFloat(values.rate) * durationSeconds;
+}
+
+function formatTokenAmount(amount: number): string {
+  return amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  });
+}
+
+function shortenContractId(contractId: string): string {
+  if (contractId.length <= 10) return contractId;
+  return `${contractId.slice(0, 5)}...${contractId.slice(-4)}`;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface StreamCreatorProps {
   onSuccess?: (txHash: string) => void;
-  onCancel?: () => void;
 }
 
 const StreamCreator: React.FC<StreamCreatorProps> = ({
   onSuccess,
-  onCancel,
 }: StreamCreatorProps) => {
   const { address, signTransaction, networkPassphrase } = useWallet();
-  const { addNotification } = useNotification();
+  const { addNotification, addStreamNotification } = useNotification();
+  const { contacts } = useAddressBook();
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const autocompleteRef = useRef<HTMLDivElement>(null);
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
+  const [step, setStep] = useState<number>(0);
   const { values, errors, txPhase, solvency } = state;
+  const isBusy =
+    txPhase.kind === "simulating" ||
+    txPhase.kind === "signing" ||
+    txPhase.kind === "submitting" ||
+    isPreviewOpen;
+
+  const filteredContacts = useMemo(() => {
+    const query = (values.workerAddress || "").toLowerCase();
+    if (!query) return [];
+
+    return contacts
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(query) ||
+          c.address.toLowerCase().includes(query),
+      )
+      .slice(0, 5);
+  }, [contacts, values.workerAddress]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        autocompleteRef.current &&
+        !autocompleteRef.current.contains(event.target as Node)
+      ) {
+        setShowAutocomplete(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const uid = useId();
   const id = (field: string) => `${uid}-${field}`;
@@ -266,17 +344,268 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
   // ── Calculated metrics ─────────────────────────────────────────────────────
 
   const estimatedTotal = useMemo(() => {
-    if (!values.rate || !values.startDate || !values.endDate) return 0;
-    const start = new Date(values.startDate).getTime();
-    const end = new Date(values.endDate).getTime();
-    const durationSeconds = Math.max(0, (end - start) / 1000);
-    return parseFloat(values.rate) * durationSeconds;
-  }, [values.rate, values.startDate, values.endDate]);
+    return calculateEstimatedTotal(values);
+  }, [values]);
 
   const tokenSymbol = useMemo(() => {
     const t = SUPPORTED_TOKENS.find((t) => t.value === values.token);
     return t ? t.label.split(" ")[0] : "Tokens";
   }, [values.token]);
+
+  const previewValues = pendingValues ?? values;
+  const previewEstimatedTotal = useMemo(
+    () => calculateEstimatedTotal(previewValues),
+    [previewValues],
+  );
+  const previewTokenSymbol = useMemo(() => {
+    const t = SUPPORTED_TOKENS.find(
+      (token) => token.value === previewValues.token,
+    );
+    return t ? t.label.split(" ")[0] : "Tokens";
+  }, [previewValues.token]);
+
+  const createParamsFromValues = useCallback(
+    (formValues: FormValues): CreateStreamParams => {
+      const tokenDef = SUPPORTED_TOKENS.find(
+        (t) => t.value === formValues.token,
+      );
+      const decimals = tokenDef?.decimal ?? 7;
+      const rateStroops = toStroops(formValues.rate, decimals);
+      const amountStroops = toStroops(
+        calculateEstimatedTotal(formValues),
+        decimals,
+      );
+      const startTs = Math.floor(
+        new Date(formValues.startDate).getTime() / 1000,
+      );
+      const endTs = Math.floor(new Date(formValues.endDate).getTime() / 1000);
+
+      return {
+        employer: address ?? "",
+        worker: formValues.workerAddress.trim(),
+        token: formValues.token === "native" ? "" : formValues.token,
+        rate: rateStroops,
+        amount: amountStroops,
+        startTs,
+        endTs,
+      };
+    },
+    [address],
+  );
+
+  const simulationPreview = useMemo<TransactionPreview | null>(() => {
+    if (!pendingValues || !PAYROLL_STREAM_CONTRACT_ID) {
+      return null;
+    }
+
+    const worker = pendingValues.workerAddress.trim();
+    if (
+      !worker ||
+      !pendingValues.rate ||
+      !pendingValues.startDate ||
+      !pendingValues.endDate
+    ) {
+      return null;
+    }
+
+    return {
+      description: `Create stream for ${worker.slice(0, 6)}...${worker.slice(-4)}`,
+      contractFunction: "create_stream",
+      contractAddress: shortenContractId(PAYROLL_STREAM_CONTRACT_ID),
+      currentBalances: [
+        {
+          token: previewTokenSymbol,
+          symbol: previewTokenSymbol,
+          amount: previewEstimatedTotal,
+        },
+        {
+          token: "XLM",
+          symbol: "XLM",
+          amount: 1,
+        },
+      ],
+      expectedTransfers: [
+        {
+          label: "Payroll vault reserves",
+          symbol: previewTokenSymbol,
+          amount: previewEstimatedTotal,
+        },
+      ],
+      stateChanges: [
+        `Create an active payroll stream for ${worker.slice(0, 6)}...${worker.slice(-4)}`,
+        `Reserve ${formatTokenAmount(previewEstimatedTotal)} ${previewTokenSymbol} as vault liability`,
+        "Store the worker, schedule, and rate on-chain",
+      ],
+    };
+  }, [pendingValues, previewEstimatedTotal, previewTokenSymbol]);
+
+  const runCreateSimulation =
+    useCallback(async (): Promise<SimulationResult> => {
+      if (!pendingValues) {
+        throw new Error("No pending stream submission.");
+      }
+      if (!address) {
+        throw new Error("Please connect your wallet first.");
+      }
+      if (!networkPassphrase) {
+        throw new Error("Network passphrase is not configured.");
+      }
+      if (!PAYROLL_STREAM_CONTRACT_ID) {
+        throw new Error("PayrollStream contract ID not configured.");
+      }
+
+      const { preparedXdr } = await buildCreateStreamTx(
+        createParamsFromValues(pendingValues),
+      );
+      const preparedTx = TransactionBuilder.fromXDR(
+        preparedXdr,
+        networkPassphrase,
+      );
+      const currentBalances: CurrentBalance[] = [
+        {
+          token: previewTokenSymbol,
+          symbol: previewTokenSymbol,
+          amount: previewEstimatedTotal,
+        },
+        {
+          token: "XLM",
+          symbol: "XLM",
+          amount: 1,
+        },
+      ];
+
+      return simulateTransaction(preparedTx, currentBalances);
+    }, [
+      address,
+      createParamsFromValues,
+      networkPassphrase,
+      pendingValues,
+      previewEstimatedTotal,
+      previewTokenSymbol,
+    ]);
+
+  const performStreamCreation = useCallback(
+    async (formValues: FormValues) => {
+      if (!address) {
+        addNotification("Please connect your wallet first.", "warning");
+        return;
+      }
+
+      if (!PAYROLL_STREAM_CONTRACT_ID) {
+        addNotification("PayrollStream contract ID not configured.", "error");
+        return;
+      }
+
+      try {
+        dispatch({ type: "SET_TX_PHASE", phase: { kind: "simulating" } });
+
+        const { preparedXdr } = await buildCreateStreamTx(
+          createParamsFromValues(formValues),
+        );
+
+        dispatch({ type: "SET_TX_PHASE", phase: { kind: "signing" } });
+        const signResult = await signTransaction(preparedXdr, {
+          networkPassphrase,
+        });
+        if (
+          !signResult ||
+          typeof signResult !== "object" ||
+          !("signedTxXdr" in signResult)
+        ) {
+          throw new Error("Invalid response from signTransaction");
+        }
+        const { signedTxXdr } = signResult as { signedTxXdr: string };
+
+        dispatch({ type: "SET_TX_PHASE", phase: { kind: "submitting" } });
+        const submitFn = submitAndAwaitTx as (xdr: string) => Promise<string>;
+        const hash = await submitFn(signedTxXdr);
+
+        dispatch({
+          type: "SET_TX_PHASE",
+          phase: { kind: "success", hash: String(hash) },
+        });
+        addNotification("Stream created successfully!", "success");
+        addStreamNotification("stream_created", {
+          message: `A payroll stream was created (tx ${String(hash).slice(0, 12)}...).`,
+          dedupeKey: `stream-created-${String(hash)}`,
+        });
+        onSuccess?.(String(hash));
+
+        setTimeout(() => dispatch({ type: "RESET" }), 3500);
+      } catch (err: unknown) {
+        let message = "An unknown error occurred.";
+        if (typeof err === "string") {
+          message = err;
+        } else if (err instanceof Error) {
+          message = err.message;
+        }
+
+        const lowerMsg = message.toLowerCase();
+        if (lowerMsg.includes("invalidtimerange")) {
+          message = "Start date cannot be in the past (InvalidTimeRange).";
+        } else if (
+          lowerMsg.includes("1006") ||
+          lowerMsg.includes("insufficientbalance") ||
+          lowerMsg.includes("insufficient balance")
+        ) {
+          message =
+            "Treasury lacks sufficient funds for this stream (InsufficientBalance).";
+        } else if (lowerMsg.includes("invalidcliff")) {
+          message = "The configured cliff is invalid (InvalidCliff).";
+        } else if (
+          lowerMsg.includes("invalidamount") ||
+          lowerMsg.includes("1005")
+        ) {
+          message = "The stream amount or rate is invalid (InvalidAmount).";
+        } else if (lowerMsg.includes("streamnotfound")) {
+          message = "The specified stream could not be found (StreamNotFound).";
+        } else if (
+          lowerMsg.includes("invalidaddress") ||
+          lowerMsg.includes("1010")
+        ) {
+          message = "The provided address is invalid (InvalidAddress).";
+        } else {
+          const appError = translateError(err);
+          message = appError.actionableStep
+            ? `${appError.message} ${appError.actionableStep}`
+            : appError.message;
+        }
+
+        dispatch({ type: "SET_TX_PHASE", phase: { kind: "error", message } });
+        addNotification(`Stream failed: ${message}`, "error");
+      }
+    },
+    [
+      address,
+      addNotification,
+      addStreamNotification,
+      createParamsFromValues,
+      networkPassphrase,
+      onSuccess,
+      signTransaction,
+    ],
+  );
+
+  const openSimulation = useCallback((formValues: FormValues) => {
+    setPendingValues(formValues);
+    setIsPreviewOpen(true);
+  }, []);
+
+  const closeSimulation = useCallback(() => {
+    setIsPreviewOpen(false);
+    setPendingValues(null);
+  }, []);
+
+  const confirmSimulation = useCallback(() => {
+    if (!pendingValues) return;
+    const snapshot = pendingValues;
+    closeSimulation();
+    void performStreamCreation(snapshot);
+  }, [closeSimulation, pendingValues, performStreamCreation]);
+
+  // Step navigation helpers
+  const gotoNext = useCallback(() => setStep((s) => Math.min(2, s + 1)), []);
+  const gotoPrev = useCallback(() => setStep((s) => Math.max(0, s - 1)), []);
 
   // ── Solvency check ─────────────────────────────────────────────────────────
   const runSolvencyCheck = useCallback(
@@ -349,7 +678,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
   };
 
   // ── Submit ──────────────────────────────────────────────────────────────────
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     const formErrors = validate(values);
@@ -371,108 +700,10 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
     if (solvency.kind === "insufficient") {
       addNotification("Treasury lacks funds for this stream total.", "warning");
     }
-
-    try {
-      dispatch({ type: "SET_TX_PHASE", phase: { kind: "simulating" } });
-
-      const tokenDef = SUPPORTED_TOKENS.find((t) => t.value === values.token);
-      const decimals = tokenDef?.decimal ?? 7;
-
-      const rateStroops = toStroops(values.rate, decimals);
-      const amountStroops = toStroops(estimatedTotal, decimals);
-      const startTs = Math.floor(new Date(values.startDate).getTime() / 1000);
-      const endTs = Math.floor(new Date(values.endDate).getTime() / 1000);
-
-      const params: CreateStreamParams = {
-        employer: address,
-        worker: values.workerAddress.trim(),
-        token: values.token === "native" ? "" : values.token,
-        rate: rateStroops,
-        amount: amountStroops,
-        startTs,
-        endTs,
-      };
-
-      const buildFn = buildCreateStreamTx as (
-        p: CreateStreamParams,
-      ) => Promise<{ preparedXdr: string }>;
-      const buildResult = await buildFn(params);
-      if (
-        !buildResult ||
-        typeof buildResult !== "object" ||
-        !("preparedXdr" in buildResult)
-      ) {
-        throw new Error("Invalid response from buildCreateStreamTx");
-      }
-      const { preparedXdr } = buildResult;
-
-      dispatch({ type: "SET_TX_PHASE", phase: { kind: "signing" } });
-      const signResult = await signTransaction(preparedXdr, {
-        networkPassphrase,
-      });
-      if (
-        !signResult ||
-        typeof signResult !== "object" ||
-        !("signedTxXdr" in signResult)
-      ) {
-        throw new Error("Invalid response from signTransaction");
-      }
-      const { signedTxXdr } = signResult as { signedTxXdr: string };
-
-      dispatch({ type: "SET_TX_PHASE", phase: { kind: "submitting" } });
-      const submitFn = submitAndAwaitTx as (xdr: string) => Promise<string>;
-      const hash = await submitFn(signedTxXdr);
-
-      dispatch({
-        type: "SET_TX_PHASE",
-        phase: { kind: "success", hash: String(hash) },
-      });
-      addNotification("Stream created successfully!", "success");
-      onSuccess?.(String(hash));
-
-      setTimeout(() => dispatch({ type: "RESET" }), 3500);
-    } catch (err: unknown) {
-      const appError = translateError(err);
-      dispatch({
-        type: "SET_TX_PHASE",
-        phase: {
-          kind: "error",
-          message: appError.actionableStep
-            ? `${appError.message} ${appError.actionableStep}`
-            : appError.message,
-        },
-      });
-
-      addNotification(
-        appError.message,
-        appError.severity,
-        appError.actionableStep
-          ? {
-              label: "Retry",
-              onClick: () => void handleSubmit(e),
-            }
-          : undefined,
-      );
-    }
+    openSimulation(values);
   };
 
-  const isBusy =
-    txPhase.kind === "simulating" ||
-    txPhase.kind === "signing" ||
-    txPhase.kind === "submitting";
-
-  if (!address) {
-    return (
-      <div className={tw.wrapper}>
-        <div className={tw.card}>
-          <div className={tw.walletNotice}>
-            <span className={tw.walletNoticeIcon}>💼</span>
-            <p>Connect your wallet to create a payroll stream.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const isCurrentFormValid = Object.keys(validate(values)).length === 0;
 
   return (
     <div className={tw.wrapper}>
@@ -482,181 +713,321 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
           <p className={tw.subtitle}>Continuous payment flow for workers.</p>
         </div>
 
-        <form
-          id={id("form")}
-          onSubmit={(e) => void handleSubmit(e)}
-          noValidate
-          className={tw.form}
-        >
-          <div className={tw.fieldGroup}>
-            <label htmlFor={id("workerAddress")} className={tw.label}>
-              Worker Address <span className={tw.required}>*</span>
-            </label>
-            <input
-              id={id("workerAddress")}
-              name="workerAddress"
-              type="text"
-              className={`${tw.input} ${errors.workerAddress ? tw.inputError : ""}`}
-              placeholder="G..."
-              value={values.workerAddress}
-              onChange={handleChange}
-              disabled={isBusy}
-              spellCheck={false}
-              aria-describedby={
-                errors.workerAddress ? id("workerAddress-error") : undefined
-              }
-              aria-invalid={!!errors.workerAddress}
-            />
-            <div aria-live="assertive">
-              <ErrorMessage error={errors.workerAddress || null} />
+        {!address && (
+          <div className={tw.walletNotice}>
+            <span className={tw.walletNoticeIcon}>💼</span>
+            <div>
+              <div style={{ fontWeight: 600 }}>Wallet disconnected</div>
+              <div style={{ marginTop: 6 }}>
+                Please connect your wallet to create streams.
+              </div>
             </div>
           </div>
+        )}
 
-          {/* ... existing token field ... */}
+        <form id={id("form")} onSubmit={handleSubmit} className={tw.form}>
+          {step === 0 && (
+            <div className="flex flex-col gap-4">
+              <div className={tw.fieldGroup}>
+                <label htmlFor={id("workerAddress")} className={tw.label}>
+                  Worker Address <span className={tw.required}>*</span>
+                </label>
+                <div className="relative" ref={autocompleteRef}>
+                  <input
+                    id={id("workerAddress")}
+                    name="workerAddress"
+                    type="text"
+                    className={`${tw.input} ${errors.workerAddress ? tw.inputError : ""}`}
+                    placeholder="Search by name or enter G... address"
+                    value={values.workerAddress}
+                    onChange={(e) => {
+                      handleChange(e);
+                      setShowAutocomplete(true);
+                    }}
+                    onFocus={() => setShowAutocomplete(true)}
+                    disabled={isBusy}
+                    spellCheck={false}
+                    required
+                    aria-required="true"
+                    aria-describedby={
+                      errors.workerAddress
+                        ? id("workerAddress-error")
+                        : undefined
+                    }
+                    aria-invalid={!!errors.workerAddress}
+                    autoComplete="off"
+                  />
 
-          <div className={tw.fieldGroup}>
-            <label htmlFor={id("rate")} className={tw.label}>
-              Flow Rate ({tokenSymbol}/sec){" "}
-              <span className={tw.required}>*</span>
-            </label>
-            <input
-              id={id("rate")}
-              name="rate"
-              type="number"
-              step="any"
-              className={`${tw.input} ${errors.rate ? tw.inputError : ""}`}
-              placeholder="e.g. 0.0001"
-              value={values.rate}
-              onChange={handleChange}
-              disabled={isBusy}
-              aria-describedby={errors.rate ? id("rate-error") : undefined}
-              aria-invalid={!!errors.rate}
-            />
-            <div aria-live="assertive">
-              <ErrorMessage error={errors.rate || null} />
+                  {showAutocomplete && filteredContacts.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-xl border border-white/10 bg-(--surface)/95 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="p-1 space-y-0.5">
+                        {filteredContacts.map((contact) => (
+                          <button
+                            key={contact.id}
+                            type="button"
+                            onClick={() => {
+                              dispatch({
+                                type: "SET_FIELD",
+                                field: "workerAddress",
+                                value: contact.address,
+                              });
+                              setShowAutocomplete(false);
+                            }}
+                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-white/5 transition-colors group"
+                          >
+                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500/20 transition-colors">
+                              <User size={16} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="truncate text-sm font-semibold">
+                                  {contact.name}
+                                </span>
+                                {contact.isFavorite && (
+                                  <Star
+                                    size={12}
+                                    className="text-amber-400 fill-amber-400"
+                                  />
+                                )}
+                              </div>
+                              <div className="truncate text-[10px] font-mono text-muted">
+                                {contact.address}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div aria-live="assertive">
+                  <ErrorMessage error={errors.workerAddress || null} />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between px-1">
+                <Text as="span" size="xs" className="text-muted">
+                  Pick from your saved contacts or enter a new address.
+                </Text>
+                <button
+                  type="button"
+                  onClick={() => window.open("/address-book", "_blank")}
+                  className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1"
+                >
+                  Manage Address Book
+                </button>
+              </div>
+
+              <div className={tw.footer}>
+                <div />
+                <Button
+                  variant="primary"
+                  size="md"
+                  type="button"
+                  onClick={gotoNext}
+                  disabled={!values.workerAddress}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className={tw.fieldRow}>
-            <div className={tw.fieldGroup}>
-              <label htmlFor={id("startDate")} className={tw.label}>
-                Start Date
-              </label>
-              <input
-                id={id("startDate")}
-                name="startDate"
-                type="date"
-                min={todayStr()}
-                className={tw.input}
-                value={values.startDate}
-                onChange={handleChange}
-                disabled={isBusy}
-              />
-            </div>
-            <div className={tw.fieldGroup}>
-              <label htmlFor={id("endDate")} className={tw.label}>
-                End Date
-              </label>
-              <input
-                id={id("endDate")}
-                name="endDate"
-                type="date"
-                min={values.startDate || todayStr()}
-                className={tw.input}
-                value={values.endDate}
-                onChange={handleChange}
-                disabled={isBusy}
-              />
-            </div>
-          </div>
+          {step === 1 && (
+            <div className="flex flex-col gap-4">
+              <div className={tw.fieldGroup}>
+                <label htmlFor={id("token")} className={tw.label}>
+                  Token <span className={tw.required}>*</span>
+                </label>
+                <select
+                  id={id("token")}
+                  name="token"
+                  value={values.token}
+                  onChange={handleChange}
+                  className={tw.input}
+                >
+                  {SUPPORTED_TOKENS.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          {estimatedTotal > 0 && (
-            <div
-              style={{
-                padding: "12px",
-                background: "rgba(var(--text-rgb), 0.03)",
-                borderRadius: "8px",
-                border: "1px dashed var(--border)",
-              }}
-            >
+              <div className={tw.fieldGroup}>
+                <label htmlFor={id("rate")} className={tw.label}>
+                  Flow Rate ({tokenSymbol}/sec){" "}
+                  <span className={tw.required}>*</span>
+                </label>
+                <input
+                  id={id("rate")}
+                  name="rate"
+                  type="number"
+                  step="any"
+                  min="0"
+                  className={`${tw.input} ${errors.rate ? tw.inputError : ""}`}
+                  placeholder="e.g. 0.0001"
+                  value={values.rate}
+                  onChange={handleChange}
+                  disabled={isBusy}
+                  required
+                  aria-required="true"
+                  aria-describedby={errors.rate ? id("rate-error") : undefined}
+                  aria-invalid={!!errors.rate}
+                />
+                <div aria-live="assertive">
+                  <ErrorMessage error={errors.rate || null} />
+                </div>
+              </div>
+
+              <div className={tw.fieldRow}>
+                <div className={tw.fieldGroup}>
+                  <label htmlFor={id("startDate")} className={tw.label}>
+                    Start Date
+                  </label>
+                  <input
+                    id={id("startDate")}
+                    name="startDate"
+                    type="date"
+                    min={todayStr()}
+                    className={tw.input}
+                    value={values.startDate}
+                    onChange={handleChange}
+                    disabled={isBusy}
+                    required
+                    aria-required="true"
+                  />
+                </div>
+                <div className={tw.fieldGroup}>
+                  <label htmlFor={id("endDate")} className={tw.label}>
+                    End Date
+                  </label>
+                  <input
+                    id={id("endDate")}
+                    name="endDate"
+                    type="date"
+                    min={values.startDate || todayStr()}
+                    className={tw.input}
+                    value={values.endDate}
+                    onChange={handleChange}
+                    disabled={isBusy}
+                    required
+                    aria-required="true"
+                  />
+                </div>
+              </div>
+
+              <div className={tw.footer}>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  type="button"
+                  onClick={gotoPrev}
+                  disabled={isBusy}
+                >
+                  Back
+                </Button>
+                <Button
+                  variant="primary"
+                  size="md"
+                  type="button"
+                  onClick={gotoNext}
+                  disabled={!isCurrentFormValid}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="flex flex-col gap-4">
               <div
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "4px",
+                  padding: 12,
+                  borderRadius: 8,
+                  border: "1px dashed var(--border)",
                 }}
               >
-                <span
+                <div
                   style={{
-                    fontSize: "0.8125rem",
-                    color: "var(--muted)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: 4,
                   }}
                 >
-                  Estimated Total Commitment:
-                </span>
-                <span style={{ fontWeight: 600, color: "var(--text)" }}>
-                  {estimatedTotal.toLocaleString(undefined, {
-                    maximumFractionDigits: 4,
-                  })}{" "}
-                  {tokenSymbol}
-                </span>
+                  <span
+                    style={{ fontSize: "0.8125rem", color: "var(--muted)" }}
+                  >
+                    Estimated Total Commitment:
+                  </span>
+                  <span style={{ fontWeight: 600, color: "var(--text)" }}>
+                    {previewEstimatedTotal.toLocaleString(undefined, {
+                      maximumFractionDigits: 4,
+                    })}{" "}
+                    {previewTokenSymbol}
+                  </span>
+                </div>
+                <SolvencyBanner status={solvency} />
               </div>
-              <SolvencyBanner status={solvency} />
+
+              <div>
+                <h3 className="text-sm font-semibold">Review</h3>
+                <p className="text-sm">Worker: {values.workerAddress}</p>
+                <p className="text-sm">
+                  Rate: {values.rate} {tokenSymbol}/sec
+                </p>
+                <p className="text-sm">
+                  Period: {values.startDate} → {values.endDate}
+                </p>
+              </div>
+
+              <div className={tw.footer}>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  type="button"
+                  onClick={gotoPrev}
+                  disabled={isBusy}
+                >
+                  Back
+                </Button>
+                <Button
+                  variant="primary"
+                  size="md"
+                  type="button"
+                  disabled={isBusy || txPhase.kind === "success"}
+                  onClick={() => openSimulation(values)}
+                >
+                  {isBusy ? (
+                    <span className={tw.spinner} />
+                  ) : (
+                    "Simulate & Submit"
+                  )}
+                </Button>
+              </div>
             </div>
           )}
-
-          {txPhase.kind !== "idle" && (
-            <TransactionProgress
-              steps={["Simulating", "Signing", "Submitting"]}
-              currentStep={
-                txPhase.kind === "simulating"
-                  ? 0
-                  : txPhase.kind === "signing"
-                    ? 1
-                    : txPhase.kind === "submitting"
-                      ? 2
-                      : txPhase.kind === "success"
-                        ? 3
-                        : txPhase.kind === "error"
-                          ? 2
-                          : 0
-              }
-              status={
-                txPhase.kind === "success"
-                  ? "success"
-                  : txPhase.kind === "error"
-                    ? "error"
-                    : "loading"
-              }
-              errorMessage={
-                txPhase.kind === "error" ? txPhase.message : undefined
-              }
-              timeoutMs={30_000}
-            />
-          )}
-
-          <div className={tw.footer}>
-            {onCancel && (
-              <Button
-                variant="secondary"
-                size="md"
-                type="button"
-                disabled={isBusy}
-                onClick={onCancel}
-              >
-                Cancel
-              </Button>
-            )}
-            <Button
-              variant="primary"
-              size="md"
-              type="submit"
-              disabled={isBusy || txPhase.kind === "success"}
-            >
-              {isBusy ? <span className={tw.spinner} /> : "Create Stream"}
-            </Button>
-          </div>
         </form>
+
+        <TransactionSimulationModal
+          open={isPreviewOpen}
+          preview={
+            simulationPreview ?? {
+              description: "Create payroll stream",
+              contractFunction: "create_stream",
+              contractAddress: shortenContractId(
+                PAYROLL_STREAM_CONTRACT_ID ?? "",
+              ),
+              currentBalances: [],
+            }
+          }
+          onSimulate={runCreateSimulation}
+          onConfirm={() => {
+            void confirmSimulation();
+          }}
+          onCancel={closeSimulation}
+        />
       </div>
     </div>
   );

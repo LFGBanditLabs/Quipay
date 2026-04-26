@@ -4,6 +4,7 @@ import wasm from "vite-plugin-wasm";
 import tailwindcss from "@tailwindcss/vite";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 import { VitePWA } from "vite-plugin-pwa";
+import path from "path";
 
 // https://vite.dev/config/
 export default defineConfig(() => {
@@ -55,6 +56,11 @@ export default defineConfig(() => {
         },
       }),
     ],
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
+    },
     optimizeDeps: {
       exclude: ["@stellar/stellar-xdr-json"],
     },
@@ -66,6 +72,10 @@ export default defineConfig(() => {
     },
     envPrefix: ["PUBLIC_", "VITE_"],
     server: {
+      headers: {
+        "Content-Security-Policy":
+          "default-src 'self'; script-src 'self'; connect-src 'self' https://horizon.stellar.org; report-uri /csp-report",
+      },
       proxy: {
         "/friendbot": {
           target: "http://localhost:8000/friendbot",

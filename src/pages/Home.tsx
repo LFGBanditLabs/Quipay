@@ -1,6 +1,8 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import SocialProof from "../components/landing/SocialProof";
+import { useTranslation } from "react-i18next";
+import { formatCurrency } from "../util/formatters";
 
 interface Stream {
   id: number;
@@ -119,23 +121,24 @@ const Particle: React.FC<{
 );
 
 const StatusBadge: React.FC<{ status: Stream["status"] }> = ({ status }) => {
+  const { t } = useTranslation();
   const config = {
     streaming: {
       bg: "bg-emerald-500/10",
       text: "text-emerald-400",
-      label: "Streaming",
+      label: t("home.status_streaming"),
       dot: "bg-emerald-400",
     },
     paused: {
       bg: "bg-amber-500/10",
       text: "text-amber-400",
-      label: "Paused",
+      label: t("home.status_paused"),
       dot: "bg-amber-400",
     },
     completed: {
       bg: "bg-blue-500/10",
       text: "text-blue-400",
-      label: "Completed",
+      label: t("home.status_completed"),
       dot: "bg-blue-400",
     },
   };
@@ -282,34 +285,7 @@ interface StatMetric {
   suffix?: string;
 }
 
-const stats: StatMetric[] = [
-  {
-    id: "streams",
-    label: "Total Streams",
-    value: 12480,
-    format: "number",
-  },
-  {
-    id: "value-streamed",
-    label: "Total Value Streamed",
-    value: 3847500,
-    format: "currency",
-    suffix: " USDC",
-  },
-  {
-    id: "active-workers",
-    label: "Active Workers",
-    value: 1820,
-    format: "number",
-  },
-  {
-    id: "avg-duration",
-    label: "Avg. Stream Duration",
-    value: 6.4,
-    format: "duration",
-    suffix: " hrs",
-  },
-];
+// stats is derived inside Home using t() — see useMemo below
 
 const formatStatValue = (value: number, format: StatMetric["format"]) => {
   if (format === "currency") {
@@ -382,7 +358,186 @@ const AnimatedStat: React.FC<{
   );
 };
 
+const NewsletterForm: React.FC = () => {
+  const { t } = useTranslation();
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !email.includes("@")) {
+      setStatus("error");
+      return;
+    }
+    setStatus("loading");
+    // Simulate API call
+    setTimeout(() => {
+      setStatus("success");
+      setEmail("");
+    }, 1200);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="mx-auto mt-10 w-full max-w-md">
+      <div className="group relative">
+        <label htmlFor="newsletter-email" className="sr-only">
+          {t("home.cta_email_placeholder")}
+        </label>
+        <input
+          id="newsletter-email"
+          type="email"
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (status === "error") setStatus("idle");
+          }}
+          placeholder={t("home.cta_email_placeholder")}
+          required
+          className={`w-full rounded-2xl border bg-white/5 px-6 py-4.5 text-white backdrop-blur-xl transition-all duration-500 placeholder:text-white/30 focus:outline-none focus:ring-2 ${
+            status === "error"
+              ? "border-red-500/50 focus:ring-red-500/20"
+              : "border-white/10 focus:border-indigo-400/50 focus:ring-indigo-500/40"
+          }`}
+        />
+        <button
+          type="submit"
+          disabled={status === "loading" || status === "success"}
+          className="absolute bottom-2 right-2 top-2 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-6 text-sm font-bold tracking-wide text-white transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] active:scale-[0.98] disabled:scale-100 disabled:opacity-50 disabled:shadow-none"
+        >
+          {status === "loading" ? (
+            <span className="flex items-center gap-2">
+              <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              {t("common.loading")}
+            </span>
+          ) : status === "success" ? (
+            <span className="flex animate-fade-in items-center gap-1.5">
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Done
+            </span>
+          ) : (
+            t("home.cta_subscribe")
+          )}
+        </button>
+      </div>
+      {status === "error" && (
+        <p className="mt-3 animate-slide-up text-center text-sm font-medium text-red-400">
+          {t("home.cta_error_invalid_email")}
+        </p>
+      )}
+      {status === "success" && (
+        <p className="mt-3 animate-slide-up text-center text-sm font-medium text-emerald-400">
+          {t("home.cta_success")}
+        </p>
+      )}
+    </form>
+  );
+};
+
+const CTASection: React.FC = () => {
+  const { t } = useTranslation();
+
+  return (
+    <section className="relative w-full overflow-hidden px-4 py-24 sm:px-6 lg:px-8">
+      {/* Background Decor */}
+      <div className="pointer-events-none absolute inset-0 z-0">
+        <div className="absolute left-1/2 top-1/2 h-[400px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-500/20 opacity-50 blur-[120px]" />
+        <div className="absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-[var(--border)] to-transparent" />
+        <div className="absolute bottom-0 left-0 h-px w-full bg-gradient-to-r from-transparent via-[var(--border)] to-transparent" />
+      </div>
+
+      <div className="relative z-10 mx-auto max-w-5xl">
+        <div className="group relative overflow-hidden rounded-[3rem] border border-white/10 bg-gradient-to-br from-indigo-950/80 via-slate-900/90 to-purple-950/80 p-12 text-center shadow-[0_40px_100px_-20px_rgba(0,0,0,0.5)] backdrop-blur-3xl sm:p-20">
+          {/* Animated beam effect */}
+          <div className="pointer-events-none absolute -inset-[100%] animate-[spin_10s_linear_infinite] bg-[conic-gradient(from_0deg,transparent,rgba(99,102,241,0.2),transparent_30%)] opacity-30" />
+
+          <div className="relative z-10">
+            <h2 className="mb-6 tracking-tight text-[clamp(2rem,5vw,3.5rem)] font-extrabold leading-tight text-white transition-all duration-300 group-hover:scale-[1.01]">
+              {t("home.cta_title")}
+            </h2>
+            <p className="mx-auto mb-10 max-w-2xl text-lg leading-relaxed text-indigo-100/70 sm:text-xl">
+              {t("home.cta_subtitle")}
+            </p>
+
+            <NewsletterForm />
+
+            <div className="mt-16 flex flex-col items-center justify-center gap-6 border-t border-white/10 pt-12 sm:flex-row">
+              <Link
+                to="/dashboard"
+                className="group relative inline-flex min-h-12 items-center justify-center gap-3 overflow-hidden rounded-2xl bg-white px-10 py-4 text-lg font-bold text-indigo-950 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_40px_-5px_rgba(255,255,255,0.3)] active:scale-[0.98]"
+              >
+                <span className="relative z-10">{t("home.launch_app")}</span>
+                <svg
+                  className="relative z-10 h-5 w-5 transition-transform duration-300 group-hover:translate-x-1"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
+                  <path
+                    d="M5 12H19M19 12L12 5M19 12L12 19"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </Link>
+
+              <Link
+                to="/help"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 px-10 py-4 text-lg font-bold text-white backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-white/40 hover:bg-white/10 active:scale-[0.98]"
+              >
+                {t("home.view_docs")}
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
 const Home: React.FC = () => {
+  const { t } = useTranslation();
+  const stats = useMemo<StatMetric[]>(
+    () => [
+      {
+        id: "streams",
+        label: t("home.stat_total_streams"),
+        value: 12480,
+        format: "number",
+      },
+      {
+        id: "value-streamed",
+        label: t("home.stat_total_value"),
+        value: 3847500,
+        format: "currency",
+        suffix: " USDC",
+      },
+      {
+        id: "active-workers",
+        label: t("home.stat_active_workers"),
+        value: 1820,
+        format: "number",
+      },
+      {
+        id: "avg-duration",
+        label: t("home.stat_avg_duration"),
+        value: 6.4,
+        format: "duration",
+        suffix: " hrs",
+      },
+    ],
+    [t],
+  );
   const [scrollY, setScrollY] = useState(0);
   const [featuresVisible, setFeaturesVisible] = useState(false);
   const [workflowVisible, setWorkflowVisible] = useState(false);
@@ -469,15 +624,15 @@ const Home: React.FC = () => {
       />
 
       <div
-        className="absolute -top-[10%] -left-[10%] w-[50vw] h-[50vw] rounded-full blur-[100px] bg-[radial-gradient(circle,var(--accent-transparent-strong),transparent_70%)] opacity-30 z-0 animate-float"
+        className="absolute -top-[10%] -start-[10%] w-[50vw] h-[50vw] rounded-full blur-[100px] bg-[radial-gradient(circle,var(--accent-transparent-strong),transparent_70%)] opacity-30 z-0 animate-float"
         style={{ transform: `translateY(${scrollY * 0.05}px)` }}
       />
       <div
-        className="absolute -bottom-[20%] -right-[10%] w-[60vw] h-[60vw] rounded-full blur-[100px] bg-[radial-gradient(circle,rgba(236,72,153,0.15),transparent_70%)] opacity-20 z-0 animate-float"
+        className="absolute -bottom-[20%] -end-[10%] w-[60vw] h-[60vw] rounded-full blur-[100px] bg-[radial-gradient(circle,rgba(236,72,153,0.15),transparent_70%)] opacity-20 z-0 animate-float"
         style={{ transform: `translateY(${scrollY * -0.03}px)` }}
       />
       <div
-        className="absolute top-[40%] left-[30%] w-[40vw] h-[40vw] rounded-full blur-[100px] bg-[radial-gradient(circle,var(--success-transparent-strong),transparent_70%)] opacity-20 z-0 animate-float"
+        className="absolute top-[40%] start-[30%] w-[40vw] h-[40vw] rounded-full blur-[100px] bg-[radial-gradient(circle,var(--success-transparent-strong),transparent_70%)] opacity-20 z-0 animate-float"
         style={{ transform: `translateY(${scrollY * 0.02}px)` }}
       />
 
@@ -493,7 +648,7 @@ const Home: React.FC = () => {
         ))}
       </div>
 
-      <div className="absolute top-1/4 right-0 w-96 h-96 opacity-20 pointer-events-none z-0 hidden xl:block animate-spin-slow">
+      <div className="absolute top-1/4 end-0 w-96 h-96 opacity-20 pointer-events-none z-0 hidden xl:block animate-spin-slow">
         <svg viewBox="0 0 200 200" className="w-full h-full">
           <defs>
             <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -536,18 +691,18 @@ const Home: React.FC = () => {
           <div className="flex justify-center mb-6">
             <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--surface-subtle)] border border-[var(--border)] backdrop-blur-md shadow-[0_4px_20px_var(--shadow-color),inset_0_0_0_1px_var(--border)] transition-all duration-300 hover:bg-[var(--surface)] hover:border-[var(--accent-transparent)] hover:-translate-y-[2px]">
               <span className="animate-bounce-subtle">✨</span>
-              <span className="text-sm font-medium tracking-wide text-[var(--muted)]">
-                Welcome to Quipay 2.0
+              <span className="text-sm font-medium text-[var(--muted)] tracking-wide">
+                {t("common.welcome")}
               </span>
             </div>
           </div>
 
           <h1 className="text-[clamp(2.5rem,7vw,5rem)] font-extrabold leading-[1.1] tracking-tight mb-6 text-[var(--text)]">
-            The Future of
+            {t("home.title")}
             <br />
             <span className="relative inline-block">
               <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                Decentralized Payroll
+                {t("home.subtitle")}
               </span>
               <svg
                 className="absolute -bottom-2 left-0 w-full h-3 text-indigo-400/30"
@@ -565,10 +720,8 @@ const Home: React.FC = () => {
             </span>
           </h1>
 
-          <p className="mx-auto mb-10 max-w-2xl text-[clamp(1rem,2vw,1.25rem)] leading-relaxed text-[var(--muted)]">
-            Experience seamless, continuous streaming payments built on Stellar.
-            Manage your treasury automatically with AI-driven compliance.
-            Empower your workforce with real-time capital access.
+          <p className="text-[clamp(1rem,2vw,1.25rem)] leading-relaxed text-[var(--muted)] max-w-2xl mx-auto mb-10">
+            {t("home.description")}
           </p>
 
           <div className="flex flex-col justify-center gap-4 sm:flex-row">
@@ -577,7 +730,7 @@ const Home: React.FC = () => {
               className="group relative inline-flex min-h-11 items-center justify-center gap-3 overflow-hidden rounded-xl bg-gradient-to-br from-indigo-600 to-pink-500 px-8 py-4 text-lg font-semibold text-white transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_20px_40px_-10px_rgba(236,72,153,0.6)] shadow-[0_10px_30px_-10px_rgba(236,72,153,0.5)]"
             >
               <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-indigo-500 to-pink-400 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-              <span className="relative z-10">Launch App</span>
+              <span className="relative z-10">{t("home.launch_app")}</span>
               <svg
                 className="relative z-10 w-5 h-5 transition-transform duration-300 group-hover:translate-x-1"
                 viewBox="0 0 24 24"
@@ -597,7 +750,7 @@ const Home: React.FC = () => {
               to="/help"
               className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] px-8 py-4 text-lg font-semibold text-[var(--text)] backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-[var(--accent-transparent)] hover:bg-[var(--surface)] hover:shadow-[0_10px_30px_-10px_var(--shadow-color)]"
             >
-              View Documentation
+              {t("home.view_docs")}
             </Link>
           </div>
         </section>
@@ -609,16 +762,16 @@ const Home: React.FC = () => {
         >
           <div className="hidden w-full max-w-2xl animate-float-panel overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)]/80 shadow-[0_30px_60px_-15px_var(--shadow-color),inset_0_1px_0_var(--border)] backdrop-blur-xl transition-all duration-500 hover:-translate-y-2 hover:border-[var(--accent-transparent)] hover:shadow-[0_40px_80px_-20px_var(--shadow-color)] md:block">
             <div className="flex items-center px-5 py-3 bg-[var(--surface-subtle)] border-b border-[var(--border)]">
-              <div className="flex gap-1.5 mr-auto">
+              <div className="flex gap-1.5 me-auto">
                 <div className="w-2.5 h-2.5 rounded-full bg-[var(--sds-color-feedback-error)]" />
                 <div className="w-2.5 h-2.5 rounded-full bg-[var(--sds-color-feedback-warning)]" />
                 <div className="w-2.5 h-2.5 rounded-full bg-[var(--sds-color-feedback-success)]" />
               </div>
-              <div className="text-xs font-medium text-[var(--muted)] tracking-wide uppercase mx-auto -translate-x-[24px]">
-                Active Streams
+              <div className="text-xs font-medium text-[var(--muted)] tracking-wide uppercase mx-auto -translate-x-[24px] rtl:translate-x-[24px]">
+                {t("home.active_streams")}
               </div>
               <span className="text-xs font-mono text-emerald-400 animate-counter-pulse">
-                ● LIVE
+                ● {t("home.live")}
               </span>
             </div>
 
@@ -631,10 +784,10 @@ const Home: React.FC = () => {
             <div className="px-4 pb-4">
               <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-indigo-500/5 to-pink-500/5 border border-[var(--border)]">
                 <span className="text-xs text-[var(--muted)]">
-                  Total streaming this month
+                  {t("home.total_streaming")}
                 </span>
                 <span className="font-mono text-sm font-semibold bg-gradient-to-r from-indigo-400 to-pink-400 bg-clip-text text-transparent">
-                  $12,847.50 USDC
+                  {formatCurrency(12847.5, "USD")} USDC
                 </span>
               </div>
             </div>
@@ -818,11 +971,10 @@ const Home: React.FC = () => {
         <section ref={featuresRef} className="w-full pb-24 pt-12 sm:pt-16">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-[var(--text)] mb-4">
-              Why Choose Quipay?
+              {t("home.why_choose")}
             </h2>
             <p className="text-[var(--muted)] max-w-xl mx-auto">
-              Built for the future of work, powered by cutting-edge blockchain
-              technology
+              {t("home.why_choose_desc")}
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -840,8 +992,8 @@ const Home: React.FC = () => {
                   <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                 </svg>
               }
-              title="Continuous Streaming"
-              description="Money flows fluidly into wallets, eliminating the painful wait for payday. Watch earnings grow by the second."
+              title={t("home.feature_1_title")}
+              description={t("home.feature_1_desc")}
             />
             <FeatureCard
               index={1}
@@ -858,8 +1010,8 @@ const Home: React.FC = () => {
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                 </svg>
               }
-              title="On-Chain Treasury"
-              description="Fully transparent smart contract vaults powered by Soroban. Self-custody with zero counterparty risk."
+              title={t("home.feature_2_title")}
+              description={t("home.feature_2_desc")}
             />
             <FeatureCard
               index={2}
@@ -877,11 +1029,13 @@ const Home: React.FC = () => {
                   <line x1="12" y1="22.08" x2="12" y2="12" />
                 </svg>
               }
-              title="Automated AI Agent"
-              description="Autonomous AI handles stream calculations, dynamic pause rules, and real-time solvency checks."
+              title={t("home.feature_3_title")}
+              description={t("home.feature_3_desc")}
             />
           </div>
         </section>
+
+        <CTASection />
       </main>
     </div>
   );

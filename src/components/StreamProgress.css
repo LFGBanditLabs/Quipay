@@ -1,0 +1,152 @@
+/* ── Stream Progress Bar Shimmer ────────────────────────────────────────────── */
+
+@keyframes stream-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.stream-progress-bar {
+  position: relative;
+  height: var(--token-space-2);
+  overflow: hidden;
+  border-radius: var(--token-radius-pill);
+  background: var(--surface);
+}
+
+.stream-progress-fill {
+  height: 100%;
+  border-radius: var(--token-radius-pill);
+  background: linear-gradient(
+    90deg,
+    var(--token-color-accent),
+    var(--token-color-brand-500),
+    var(--token-color-accent)
+  );
+  background-size: 200% 100%;
+  animation: stream-shimmer 2.4s ease-in-out infinite;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Stat Rows ─────────────────────────────────────────────────────────────── */
+
+.stream-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--token-space-2);
+  margin-top: var(--token-space-3);
+}
+
+.stream-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--token-space-1);
+}
+
+.stream-stat-label {
+  font-size: var(--token-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--token-letter-spacing-caps);
+  color: var(--muted);
+}
+
+.stream-stat-value {
+  font-size: var(--token-font-size-sm);
+  font-weight: var(--token-font-weight-semibold);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Withdrawal Countdown ──────────────────────────────────────────────────── */
+
+.stream-countdown {
+  display: flex;
+  align-items: center;
+  gap: var(--token-space-2);
+  margin-top: var(--token-space-4);
+  padding: var(--token-space-2) var(--token-space-3);
+  border-radius: var(--token-radius-lg);
+  font-size: var(--token-font-size-caption);
+}
+
+.stream-countdown--locked {
+  border: var(--token-size-hairline) solid
+    var(--token-color-warning-soft-strong);
+  background: var(--token-color-warning-soft);
+  color: var(--token-color-warning-500);
+}
+
+.stream-countdown--available {
+  border: var(--token-size-hairline) solid
+    var(--token-color-success-soft-strong);
+  background: var(--token-color-success-soft);
+  color: var(--token-color-success-500);
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.stream-countdown-dot {
+  width: var(--token-space-2);
+  height: var(--token-space-2);
+  border-radius: var(--token-radius-pill);
+  background: currentColor;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.stream-countdown-label {
+  font-weight: var(--token-font-weight-semibold);
+}
+
+.stream-countdown-time {
+  margin-left: auto;
+  font-family: var(--token-font-family-mono);
+  font-weight: var(--token-font-weight-semibold);
+}
+
+.stream-progress-card {
+  padding: var(--token-space-4);
+  border-radius: var(--token-radius-lg);
+  border: var(--token-size-hairline) solid var(--sds-color-neutral-border);
+  background: var(--sds-color-background-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--token-space-2);
+}
+
+.stream-progress-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stream-progress-card-title {
+  font-size: var(--token-font-size-sm);
+  font-weight: var(--token-font-weight-semibold);
+  color: var(--text);
+}
+
+.stream-progress-card-status {
+  font-size: var(--token-font-size-xs);
+  color: var(--muted);
+  font-weight: var(--token-font-weight-regular);
+}
+
+.stream-progress-card-status--complete {
+  color: var(--token-color-success-500);
+  font-weight: var(--token-font-weight-semibold);
+}
+
+.stream-progress-fill--complete {
+  background: var(--token-color-success-500);
+}

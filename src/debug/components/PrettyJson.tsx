@@ -1,4 +1,3 @@
-/* eslint-disable react-x/no-nested-component-definitions */
 import React, { useState } from "react";
 import { Icon, Link, Loader } from "@stellar/design-system";
 
@@ -117,6 +116,72 @@ const isValidUrl = (url: string) => {
   }
 };
 
+const getItemSizeLabel = (items: unknown[]) => {
+  const size = items.length;
+  return size === 1 ? `${size} item` : `${size} items`;
+};
+
+const ItemCount = ({ itemList }: { itemList: unknown[] }) => (
+  <div style={styles.expandSize}>{getItemSizeLabel(itemList)}</div>
+);
+
+const Collapsible = ({
+  itemKey,
+  itemList,
+  char,
+  children,
+  isCollapsible,
+  customKeyRenderer,
+}: {
+  itemKey?: string;
+  itemList: unknown[];
+  char: Char;
+  children: React.ReactNode;
+  isCollapsible: boolean;
+  customKeyRenderer?: (item: unknown, key: string) => React.ReactNode | null;
+}) => {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const customRender =
+    itemKey && customKeyRenderer ? customKeyRenderer(children, itemKey) : null;
+
+  return (
+    <div style={styles.nested}>
+      <div
+        style={{
+          ...styles.inline,
+          ...(isCollapsible ? styles.clickable : {}),
+        }}
+        {...(isCollapsible
+          ? {
+              onClick: () => setIsExpanded(!isExpanded),
+            }
+          : {})}
+      >
+        {isCollapsible ? (
+          <div style={styles.expandIcon}>
+            <div style={styles.expandIconSvg}>
+              {isExpanded ? <Icon.MinusSquare /> : <Icon.PlusSquare />}
+            </div>
+          </div>
+        ) : null}
+        {itemKey ? <Key>{itemKey}</Key> : null}
+        <Bracket char={char} isCollapsed={!isExpanded} />
+        {isCollapsible ? <ItemCount itemList={itemList} /> : null}
+        {customRender}
+      </div>
+      {isExpanded ? (
+        <div>
+          {children}
+          <div>
+            <Bracket char={getClosingChar(char)} />
+            <Comma />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
 export const PrettyJson = ({
   json,
   customKeyValueLinkMap,
@@ -130,70 +195,6 @@ export const PrettyJson = ({
   }
 
   const isRpcResponse = Object.keys(json as AnyObject)[0] === "jsonrpc";
-
-  const ItemCount = ({ itemList }: { itemList: unknown[] }) => (
-    <div style={styles.expandSize}>{getItemSizeLabel(itemList)}</div>
-  );
-
-  const Collapsible = ({
-    itemKey,
-    itemList,
-    char,
-    children,
-  }: {
-    itemKey?: string;
-    itemList: unknown[];
-    char: Char;
-    children: React.ReactNode;
-  }) => {
-    const [isExpanded, setIsExpanded] = useState(true);
-    const customRender =
-      itemKey && customKeyRenderer
-        ? customKeyRenderer(children, itemKey)
-        : null;
-
-    return (
-      <div style={styles.nested}>
-        <div
-          style={{
-            ...styles.inline,
-            ...(isCollapsible ? styles.clickable : {}),
-          }}
-          {...(isCollapsible
-            ? {
-                onClick: () => setIsExpanded(!isExpanded),
-              }
-            : {})}
-        >
-          {isCollapsible ? (
-            <div style={styles.expandIcon}>
-              <div style={styles.expandIconSvg}>
-                {isExpanded ? <Icon.MinusSquare /> : <Icon.PlusSquare />}
-              </div>
-            </div>
-          ) : null}
-          {itemKey ? <Key>{itemKey}</Key> : null}
-          <Bracket char={char} isCollapsed={!isExpanded} />
-          {isCollapsible ? <ItemCount itemList={itemList} /> : null}
-          {customRender}
-        </div>
-        {isExpanded ? (
-          <div>
-            {children}
-            <div>
-              <Bracket char={getClosingChar(char)} />
-              <Comma />
-            </div>
-          </div>
-        ) : null}
-      </div>
-    );
-  };
-
-  const getItemSizeLabel = (items: unknown[]) => {
-    const size = items.length;
-    return size === 1 ? `${size} item` : `${size} items`;
-  };
 
   const render = (item: unknown, parentKey?: string): React.ReactElement => {
     const renderValue = (item: unknown, key: string, parentKey?: string) => {
@@ -273,13 +274,14 @@ export const PrettyJson = ({
                       itemKey={key}
                       itemList={value}
                       char="["
+                      isCollapsible={isCollapsible}
+                      customKeyRenderer={customKeyRenderer}
                     >
                       {value.map((v, index) => {
                         if (typeof v === "object") {
                           if (v === null) {
                             return (
                               <div
-                                // eslint-disable-next-line react-x/no-array-index-key -- No stable ID available for JSON values
                                 key={`${keyProp}-${index}`}
                                 style={styles.nested}
                               >
@@ -294,10 +296,11 @@ export const PrettyJson = ({
                           if (Array.isArray(v)) {
                             return (
                               <Collapsible
-                                // eslint-disable-next-line react-x/no-array-index-key -- No stable ID available for JSON values
                                 key={`${keyProp}-${index}`}
                                 itemList={Object.keys(v)}
                                 char="["
+                                isCollapsible={isCollapsible}
+                                customKeyRenderer={customKeyRenderer}
                               >
                                 {v.map((v2) => {
                                   return render(v2);
@@ -307,10 +310,11 @@ export const PrettyJson = ({
                           }
                           return (
                             <Collapsible
-                              // eslint-disable-next-line react-x/no-array-index-key -- No stable ID available for JSON values
                               key={`${keyProp}-${index}`}
                               itemList={Object.keys(v as AnyObject)}
                               char="{"
+                              isCollapsible={isCollapsible}
+                              customKeyRenderer={customKeyRenderer}
                             >
                               {render(v, key)}
                             </Collapsible>
@@ -343,6 +347,8 @@ export const PrettyJson = ({
                     itemKey={key}
                     itemList={Object.keys(value as AnyObject)}
                     char="{"
+                    isCollapsible={isCollapsible}
+                    customKeyRenderer={customKeyRenderer}
                   >
                     {render(value, key)}
                   </Collapsible>

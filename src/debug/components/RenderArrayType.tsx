@@ -1,4 +1,3 @@
-/* eslint-disable react-x/no-array-index-key */
 import type { JSONSchema7 } from "json-schema";
 import { Button, Card, Icon, Text } from "@stellar/design-system";
 import { get } from "lodash";

@@ -4,8 +4,19 @@ import React, {
   ReactNode,
   useMemo,
   useCallback,
+  useEffect,
 } from "react";
 import "./NotificationProvider.css"; // Import CSS for sliding effect
+import { useWallet } from "../hooks/useWallet";
+import {
+  type NotificationCenterType,
+  type PersistedNotification,
+  type PersistentNotificationType,
+  loadPersistedNotifications,
+  persistNotifications,
+  normalizeNotificationType,
+  MAX_PERSISTED_NOTIFICATIONS,
+} from "./notificationStorage";
 
 type NotificationType =
   | "primary"
@@ -19,12 +30,18 @@ interface NotificationAction {
   onClick: () => void;
 }
 
-interface Notification {
+interface ToastNotification {
   id: string;
   message: string;
   type: NotificationType;
   isVisible: boolean;
   action?: NotificationAction;
+}
+
+interface StreamNotificationOptions {
+  title?: string;
+  message?: string;
+  dedupeKey?: string;
 }
 
 interface NotificationContextType {
@@ -33,20 +50,58 @@ interface NotificationContextType {
     type: NotificationType,
     action?: NotificationAction,
   ) => void;
+  addStreamNotification: (
+    type: NotificationCenterType,
+    options?: StreamNotificationOptions,
+  ) => void;
+  streamNotifications: PersistedNotification[];
+  unreadCount: number;
+  markNotificationAsRead: (id: string) => void;
+  markAllNotificationsAsRead: () => void;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(
   undefined,
 );
 
+const streamNotificationDefaults: Record<
+  PersistentNotificationType,
+  { title: string; message: string }
+> = {
+  tx_confirmed: {
+    title: "Transaction confirmed",
+    message: "The transaction was confirmed successfully.",
+  },
+  tx_failed: {
+    title: "Transaction failed",
+    message: "The transaction could not be completed.",
+  },
+  stream_started: {
+    title: "Stream started",
+    message: "A payroll stream was started successfully.",
+  },
+  stream_completed: {
+    title: "Stream completed",
+    message: "A payroll stream has reached completion.",
+  },
+  payroll_disbursed: {
+    title: "Payroll disbursed",
+    message: "Payroll funds were disbursed successfully.",
+  },
+};
+
 export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const { address } = useWallet();
+  const [notifications, setNotifications] = useState<ToastNotification[]>([]);
+  const [streamNotifications, setStreamNotifications] = useState<
+    PersistedNotification[]
+  >([]);
 
   const addNotification = useCallback(
     (message: string, type: NotificationType, action?: NotificationAction) => {
-      const newNotification: Notification = {
+      const newNotification: ToastNotification = {
         id: `${type}-${Date.now().toString()}`,
         message,
         type,
@@ -77,7 +132,80 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
     [],
   );
 
-  const contextValue = useMemo(() => ({ addNotification }), [addNotification]);
+  const addStreamNotification = useCallback(
+    (type: NotificationCenterType, options?: StreamNotificationOptions) => {
+      const normalizedType = normalizeNotificationType(type);
+      const defaults = streamNotificationDefaults[normalizedType];
+      const timestamp = new Date().toISOString();
+      const dedupeKey = options?.dedupeKey;
+
+      const newNotification: PersistedNotification = {
+        id: `${normalizedType}-${Date.now().toString()}-${Math.random().toString(16).slice(2, 8)}`,
+        type: normalizedType,
+        title: options?.title ?? defaults.title,
+        message: options?.message ?? defaults.message,
+        timestamp,
+        read: false,
+        dedupeKey,
+      };
+
+      setStreamNotifications((prev) => {
+        if (dedupeKey && prev.some((item) => item.dedupeKey === dedupeKey)) {
+          return prev;
+        }
+        return [newNotification, ...prev].slice(0, MAX_PERSISTED_NOTIFICATIONS);
+      });
+    },
+    [],
+  );
+
+  const markNotificationAsRead = useCallback((id: string) => {
+    setStreamNotifications((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, read: true } : item)),
+    );
+  }, []);
+
+  const markAllNotificationsAsRead = useCallback(() => {
+    setStreamNotifications((prev) =>
+      prev.map((item) => ({ ...item, read: true })),
+    );
+  }, []);
+
+  const unreadCount = useMemo(
+    () => streamNotifications.filter((item) => !item.read).length,
+    [streamNotifications],
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setStreamNotifications(
+      loadPersistedNotifications(window.localStorage, address),
+    );
+  }, [address]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    persistNotifications(window.localStorage, address, streamNotifications);
+  }, [address, streamNotifications]);
+
+  const contextValue = useMemo(
+    () => ({
+      addNotification,
+      addStreamNotification,
+      streamNotifications,
+      unreadCount,
+      markNotificationAsRead,
+      markAllNotificationsAsRead,
+    }),
+    [
+      addNotification,
+      addStreamNotification,
+      streamNotifications,
+      unreadCount,
+      markNotificationAsRead,
+      markAllNotificationsAsRead,
+    ],
+  );
 
   return (
     <NotificationContext.Provider value={contextValue}>
@@ -111,4 +239,8 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
 };
 
 export { NotificationContext };
-export type { NotificationContextType };
+export type {
+  NotificationContextType,
+  PersistedNotification as StreamNotification,
+  NotificationCenterType as StreamNotificationType,
+};

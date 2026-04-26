@@ -9,6 +9,11 @@
 
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import QRCode from "qrcode";
+import {
+  getTokenSymbol,
+  type ContractPaymentReceipt,
+} from "../contracts/payroll_stream";
 import type {
   PayrollTransaction,
   MonthlySummary,
@@ -34,7 +39,7 @@ function formatDate(iso: string): string {
   });
 }
 
-function shortHash(hash: string): string {
+export function shortHash(hash: string): string {
   if (hash.length <= 16) return hash;
   return `${hash.slice(0, 8)}…${hash.slice(-8)}`;
 }
@@ -50,8 +55,12 @@ function triggerDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function amountToDisplayUnits(amount: bigint): number {
+  return Number(amount) / 1e7;
+}
+
 /* ------------------------------------------------------------------ */
-/*  CSV Export                                                        */
+/*  CSV Exportt                                                 */
 /* ------------------------------------------------------------------ */
 
 export function exportTransactionsCSV(
@@ -99,6 +108,76 @@ export function exportTransactionsCSV(
   const csv = [headers.join(","), ...rows].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   triggerDownload(blob, filename);
+}
+
+export function exportPayrollStreamsCSV(
+  streams: {
+    streamId: string;
+    worker: string;
+    total_amount: bigint;
+    withdrawn_amount: bigint;
+    start_ts: bigint;
+    end_ts: bigint;
+    status: number;
+  }[],
+  filename?: string,
+) {
+  const today = new Date().toISOString().split("T")[0];
+  const defaultFilename = `quipay-report-${today}.csv`;
+  const finalFilename = filename || defaultFilename;
+
+  const headers = [
+    "worker address",
+    "stream ID",
+    "amount",
+    "start date",
+    "end date",
+    "status",
+    "withdrawn",
+  ];
+
+  const escapeCSV = (val: string | number): string => {
+    const str = String(val);
+    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const formatStatus = (status: number): string => {
+    switch (status) {
+      case 0:
+        return "active";
+      case 1:
+        return "canceled";
+      case 2:
+        return "completed";
+      default:
+        return "unknown";
+    }
+  };
+
+  const formatDate = (timestamp: bigint): string => {
+    return new Date(Number(timestamp) * 1000).toISOString().split("T")[0];
+  };
+
+  const rows = streams.map((stream) =>
+    [
+      stream.worker,
+      stream.streamId,
+      (Number(stream.total_amount) / 1e7).toFixed(7),
+      formatDate(stream.start_ts),
+      formatDate(stream.end_ts),
+      formatStatus(stream.status),
+      (Number(stream.withdrawn_amount) / 1e7).toFixed(7),
+    ]
+      .map(escapeCSV)
+      .join(","),
+  );
+
+  const csv = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  triggerDownload(blob, finalFilename);
 }
 
 /* ------------------------------------------------------------------ */
@@ -302,7 +381,10 @@ export function exportTransactionsPDF(
 /*  PDF – Professional Paycheck Stub                                  */
 /* ------------------------------------------------------------------ */
 
-export function exportPaycheckPDF(tx: PayrollTransaction, filename?: string) {
+export async function exportPaycheckPDF(
+  tx: PayrollTransaction,
+  filename?: string,
+) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -400,12 +482,81 @@ export function exportPaycheckPDF(tx: PayrollTransaction, filename?: string) {
     { align: "center" },
   );
 
+  // Attempt to generate a QR code linking to a Stellar explorer for quick verification.
+  try {
+    const looksLikeTxHash = /^[0-9a-f]{64}$/i.test(tx.txHash);
+    if (!looksLikeTxHash) {
+      throw new Error("Skipping QR for non-transaction receipt reference");
+    }
+
+    const explorerUrl = `https://stellar.expert/explorer/public/tx/${tx.txHash}`;
+    const dataUrl = await QRCode.toDataURL(explorerUrl);
+
+    // Add QR to the lower-right area of the document (before footer)
+    const qrSize = 34; // mm
+    const qrX = pageWidth - qrSize - 16; // right margin 16mm
+    const qrY = finalY + 8;
+    doc.addImage(dataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(...BRAND.muted);
+    doc.text(
+      "Scan to view on Stellar Explorer",
+      qrX + qrSize / 2,
+      qrY + qrSize + 6,
+      {
+        align: "center",
+      },
+    );
+  } catch (err) {
+    // QR generation failed; don't block PDF generation
+    console.warn("Failed to generate QR for paycheck PDF:", err);
+  }
+
   addFooter(doc, 1, 1);
 
   const fname =
     filename ??
     `quipay-paycheck-${tx.employeeName.replace(/\s+/g, "-").toLowerCase()}-${tx.date.slice(0, 10)}.pdf`;
   doc.save(fname);
+}
+
+export async function exportOnChainReceiptPDF(
+  receipt: ContractPaymentReceipt,
+  options?: {
+    employeeName?: string;
+    employeeId?: string;
+    tokenSymbol?: string;
+    sourceAddress?: string;
+    filename?: string;
+  },
+) {
+  const sourceAddress = options?.sourceAddress ?? receipt.worker;
+  const tokenSymbol =
+    options?.tokenSymbol ??
+    (await getTokenSymbol(sourceAddress, receipt.token).catch(() =>
+      receipt.token.slice(0, 6),
+    ));
+
+  const payrollTransaction: PayrollTransaction = {
+    id: `RECEIPT-${receipt.receipt_id.toString()}`,
+    date: new Date(Number(receipt.finalized_at) * 1000).toISOString(),
+    employeeName:
+      options?.employeeName ?? `Worker ${receipt.worker.slice(0, 8)}`,
+    employeeId: options?.employeeId ?? `STREAM-${receipt.stream_id.toString()}`,
+    walletAddress: receipt.worker,
+    amount: amountToDisplayUnits(receipt.total_paid),
+    currency: tokenSymbol,
+    txHash: `receipt:${receipt.receipt_id.toString()}`,
+    status: receipt.status === 0 ? "completed" : "failed",
+    description:
+      receipt.status === 0
+        ? `On-chain payroll receipt for completed stream #${receipt.stream_id.toString()}`
+        : `On-chain payroll receipt for cancelled stream #${receipt.stream_id.toString()}`,
+  };
+
+  await exportPaycheckPDF(payrollTransaction, options?.filename);
 }
 
 /* ------------------------------------------------------------------ */

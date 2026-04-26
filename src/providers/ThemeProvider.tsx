@@ -9,7 +9,7 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const STORAGE_KEY = "quipay-theme";
+const STORAGE_KEY = "quipay_theme";
 
 const getInitialTheme = (): Theme => {
   if (typeof window === "undefined") {

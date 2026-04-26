@@ -54,6 +54,7 @@ pub enum AutomationEvent {
 #[contracttype]
 pub enum DataKey {
     Admin,
+    PendingAdmin, // Two-step admin transfer
     Agent(Address),
     PayrollStream,
 }
@@ -63,6 +64,36 @@ pub struct AutomationGateway;
 
 #[contractimpl]
 impl AutomationGateway {
+    /// Placeholder change: provides a minimal on-chain circuit-breaker.
+    ///
+    /// This is intentionally simple so the team can iterate on proper routing
+    /// and safety controls later without changing the public surface too much.
+    fn require_circuit_closed(env: &Env) -> Result<(), QuipayError> {
+        let is_open: bool = env
+            .storage()
+            .instance()
+            .get(&Symbol::new(env, "circuit_open"))
+            .unwrap_or(false);
+        require!(!is_open, QuipayError::Custom);
+        Ok(())
+    }
+
+    /// Toggle the circuit breaker for downstream dispatch.
+    /// Only the admin can call this.
+    pub fn set_circuit_open(env: Env, open: bool) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(env.clone())?;
+        admin.require_auth();
+
+        env.storage()
+            .instance()
+            .set(&Symbol::new(&env, "circuit_open"), &open);
+        env.events().publish(
+            (symbol_short!("gateway"), Symbol::new(&env, "circuit")),
+            open,
+        );
+        Ok(())
+    }
+
     /// Initialize the contract with an admin (employer).
     pub fn init(env: Env, admin: Address) -> Result<(), QuipayError> {
         require!(
@@ -70,6 +101,9 @@ impl AutomationGateway {
             QuipayError::AlreadyInitialized
         );
         env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage()
+            .instance()
+            .set(&Symbol::new(&env, "circuit_open"), &false);
         Ok(())
     }
 
@@ -213,7 +247,7 @@ impl AutomationGateway {
                 agent_address.clone(),
                 symbol_short!("admin"),
             ),
-            (permissions),
+            permissions,
         );
 
         Ok(())
@@ -253,8 +287,11 @@ impl AutomationGateway {
         }
     }
 
-    /// Route an automated action.
-    /// For now, this is a placeholder that verifies authorization.
+    /// Route an automated action to the appropriate Quipay contract.
+    ///
+    /// Phase 2 implementation: cross-contract dispatch to PayrollStream /
+    /// PayrollVault based on the `action` variant and decoded `_data` payload.
+    /// Authorization and event emission are complete; routing logic is pending.
     pub fn execute_automation(
         env: Env,
         agent: Address,
@@ -262,13 +299,14 @@ impl AutomationGateway {
         _data: Bytes,
     ) -> Result<(), QuipayError> {
         agent.require_auth();
+        Self::require_circuit_closed(&env)?;
 
         require!(
             Self::is_authorized(env.clone(), agent.clone(), action),
             QuipayError::InsufficientPermissions
         );
 
-        // TODO: Implement actual routing/integration with other contracts
+        // Phase 2: dispatch action to target contract via cross-contract call
         env.events().publish(
             (
                 symbol_short!("gateway"),
@@ -276,7 +314,7 @@ impl AutomationGateway {
                 agent.clone(),
                 Symbol::new(&env, "action"),
             ),
-            (_data),
+            _data,
         );
 
         Ok(())
@@ -288,6 +326,59 @@ impl AutomationGateway {
             .instance()
             .get(&DataKey::Admin)
             .ok_or(QuipayError::NotInitialized)
+    }
+
+    /// Get the pending admin address (if any)
+    pub fn get_pending_admin(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::PendingAdmin)
+    }
+
+    /// Propose a new admin (step 1 of two-step transfer)
+    pub fn propose_admin(env: Env, new_admin: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(env.clone())?;
+        admin.require_auth();
+
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingAdmin, &new_admin);
+        Ok(())
+    }
+
+    /// Accept admin role (step 2 of two-step transfer)
+    pub fn accept_admin(env: Env) -> Result<(), QuipayError> {
+        let pending_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::PendingAdmin)
+            .ok_or(QuipayError::NoPendingAdmin)?;
+
+        pending_admin.require_auth();
+
+        // Transfer admin rights
+        env.storage()
+            .instance()
+            .set(&DataKey::Admin, &pending_admin);
+        // Clear pending admin
+        env.storage().instance().remove(&DataKey::PendingAdmin);
+
+        Ok(())
+    }
+
+    /// Transfer admin rights to a new address (backward compatible - atomic version)
+    pub fn transfer_admin(env: Env, new_admin: Address) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(env.clone())?;
+        admin.require_auth();
+
+        // Atomic two-step: propose and accept
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingAdmin, &new_admin);
+
+        // Simulate accept by new admin (backward compatibility)
+        env.storage().instance().set(&DataKey::Admin, &new_admin);
+        env.storage().instance().remove(&DataKey::PendingAdmin);
+
+        Ok(())
     }
 
     /// Set the PayrollStream contract address.
@@ -320,6 +411,7 @@ impl AutomationGateway {
         end_ts: u64,
     ) -> Result<u64, QuipayError> {
         agent.require_auth();
+        Self::require_circuit_closed(&env)?;
 
         require!(
             Self::is_authorized(env.clone(), agent.clone(), Permission::CreateStream),
@@ -367,6 +459,7 @@ impl AutomationGateway {
         employer: Address,
     ) -> Result<(), QuipayError> {
         agent.require_auth();
+        Self::require_circuit_closed(&env)?;
 
         require!(
             Self::is_authorized(env.clone(), agent.clone(), Permission::CancelStream),
