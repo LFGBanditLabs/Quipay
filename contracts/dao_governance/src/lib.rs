@@ -105,6 +105,7 @@ const VOTE_CAST: Symbol = symbol_short!("voted");
 const PROPOSAL_EXECUTED: Symbol = symbol_short!("prop_exec");
 const PROPOSAL_FINALIZED: Symbol = symbol_short!("prop_fin");
 const PROPOSAL_CANCELLED: Symbol = symbol_short!("prop_can");
+const QUORUM_CHECK_FAILED: Symbol = symbol_short!("qrm_fail");
 
 #[contract]
 pub struct DaoGovernance;
@@ -478,6 +479,29 @@ impl DaoGovernance {
             if now > proposal.voting_ends_at {
                 proposal.status = Self::compute_status(&env, &proposal);
             }
+        }
+
+        // Explicit quorum enforcement: if the proposal hasn't passed due to
+        // insufficient quorum, emit a QuorumCheckFailed event and return early
+        // instead of silently rejecting with InsufficientPermissions.
+        if proposal.status == ProposalStatus::Rejected {
+            let total_votes = proposal.votes_for.saturating_add(proposal.votes_against);
+            let total_voting_power: i128 = env
+                .storage()
+                .instance()
+                .get(&DataKey::TotalSupply)
+                .unwrap_or(0);
+            let required_bps: u32 = env
+                .storage()
+                .instance()
+                .get(&DataKey::QuorumBps)
+                .unwrap_or(DEFAULT_QUORUM_BPS);
+
+            env.events().publish(
+                (QUORUM_CHECK_FAILED, proposal_id),
+                (total_votes, total_voting_power, required_bps),
+            );
+            return Err(QuipayError::QuorumNotMet);
         }
 
         require!(

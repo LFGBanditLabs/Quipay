@@ -74,9 +74,9 @@ pub enum QuipayError {
     /// An arithmetic operation overflowed `i128`.
     Overflow = 1024,
     /// Checked arithmetic operation failed (overflow, underflow, or division by zero).
-    ArithmeticOverflow = 1046,
+    ArithmeticOverflow = 1048,
     /// Stream release halted due to slippage beyond tolerated basis points.
-    SlippageExceeded = 1047,
+    SlippageExceeded = 1049,
 
     // ── Compliance ────────────────────────────────────────────────────────────
     /// The minimum retention period for funds has not elapsed.
@@ -131,6 +131,12 @@ pub enum QuipayError {
     ReceiptNotFound = 1044,
     /// Downstream contract calls are temporarily blocked by a circuit breaker.
     CircuitOpen = 1045,
+
+    // ── Cancellation & Governance ─────────────────────────────────────────────
+    /// Cancellation attempted before the minimum notice period elapsed.
+    CancellationTooEarly = 1046,
+    /// Proposal execution failed due to insufficient quorum.
+    QuorumNotMet = 1047,
 
     // ── Catch-all ─────────────────────────────────────────────────────────────
     /// A custom error condition not covered by the above codes.

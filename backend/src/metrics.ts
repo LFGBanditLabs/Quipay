@@ -95,6 +95,44 @@ export const employerRunwayGauge = new Gauge({
   labelNames: ["employer_address"],
 });
 
+// --- Stellar RPC instrumentation (#933) ---
+
+export const stellarRpcDuration = new Histogram({
+  name: "stellar_rpc_duration_seconds",
+  help: "Latency of Stellar RPC calls in seconds, labelled by method and status.",
+  labelNames: ["method", "status"],
+  buckets: [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10],
+});
+
+export const stellarRpcErrorTotal = new Counter({
+  name: "stellar_rpc_error_total",
+  help: "Total number of failed Stellar RPC calls, labelled by method and error class.",
+  labelNames: ["method", "error"],
+});
+
+/**
+ * Wrap a Stellar RPC call so that its latency lands in the
+ * `stellar_rpc_duration_seconds` histogram and any failure increments the
+ * `stellar_rpc_error_total` counter (#933).
+ */
+export async function instrumentStellarRpc<T>(
+  method: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const endTimer = stellarRpcDuration.startTimer({ method });
+  try {
+    const result = await fn();
+    endTimer({ status: "success" });
+    return result;
+  } catch (err) {
+    endTimer({ status: "error" });
+    const errorClass =
+      err instanceof Error ? err.constructor.name : "UnknownError";
+    stellarRpcErrorTotal.inc({ method, error: errorClass });
+    throw err;
+  }
+}
+
 export class MetricsManager {
   public register: Registry;
   public processedTransactions: Counter;
@@ -136,6 +174,8 @@ export class MetricsManager {
     this.register.registerMetric(dbPoolMaxConnections);
     this.register.registerMetric(dbPoolMinConnections);
     this.register.registerMetric(employerRunwayGauge);
+    this.register.registerMetric(stellarRpcDuration);
+    this.register.registerMetric(stellarRpcErrorTotal);
   }
 
   public trackTransaction(

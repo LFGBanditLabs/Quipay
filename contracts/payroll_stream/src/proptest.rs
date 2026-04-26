@@ -347,6 +347,7 @@ fn construct_stream(
         total_paused_duration: 0,
         metadata_hash: None,
         cancel_effective_at: 0,
+        start_ledger: 0,
         speed_curve: SpeedCurve::Linear,
         clawback_authority: None,
         expected_exchange_rate_bps: 10_000,

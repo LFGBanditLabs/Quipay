@@ -50,8 +50,10 @@ import { inputSanitizationMiddleware } from "./middleware/inputSanitization";
 import { getHealthResponse } from "./health";
 import { stopSyncer } from "./syncer";
 import { createCorsOptions, getAllowedOrigins } from "./config/cors";
+import { logger, patchConsoleWithLogger } from "./logger";
 
 dotenv.config();
+patchConsoleWithLogger();
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -63,7 +65,7 @@ const ALLOWED_ORIGINS = getAllowedOrigins();
 
 // In production, ALLOWED_ORIGINS must be explicitly set
 if (process.env.NODE_ENV === "production" && !process.env.ALLOWED_ORIGINS) {
-  console.error(
+  logger.fatal(
     "FATAL: ALLOWED_ORIGINS environment variable must be set in production",
   );
   process.exit(1);
@@ -72,7 +74,7 @@ if (process.env.NODE_ENV === "production" && !process.env.ALLOWED_ORIGINS) {
 // JWT_SECRET must be set in production — a missing or weak secret leaves WebSocket
 // connections unauthenticated.
 if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
-  console.error(
+  logger.fatal(
     "FATAL: JWT_SECRET environment variable must be set in production",
   );
   process.exit(1);
@@ -84,7 +86,7 @@ if (
   process.env.NODE_ENV === "production" &&
   !process.env.QUIPAY_WEBHOOK_SIGNING_SECRET
 ) {
-  console.error(
+  logger.fatal(
     "FATAL: QUIPAY_WEBHOOK_SIGNING_SECRET environment variable must be set in production",
   );
   process.exit(1);
@@ -96,7 +98,7 @@ if (
   process.env.NODE_ENV === "production" &&
   !process.env.MONITOR_STATUS_ADMIN_TOKEN
 ) {
-  console.error(
+  logger.fatal(
     "FATAL: MONITOR_STATUS_ADMIN_TOKEN environment variable must be set in production",
   );
   process.exit(1);
