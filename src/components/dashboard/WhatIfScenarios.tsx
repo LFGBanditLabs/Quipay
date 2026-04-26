@@ -4,11 +4,32 @@
  */
 
 import React, { useState } from "react";
-import type {
-  WhatIfScenario,
-  ScenarioVariable,
-  ScenarioResult,
-} from "../../types/treasuryAnalytics";
+export interface ScenarioResult {
+  projectedRunway: number;
+  projectedBuildup: number;
+  projectedYield: number;
+  timeToGoal: number | null;
+  riskFactors: string[];
+}
+
+export interface ScenarioVariable {
+  key: string;
+  label: string;
+  value: number;
+  unit: string;
+  originalValue: number;
+  min: number;
+  max: number;
+}
+
+export interface WhatIfScenario {
+  id: string;
+  name: string;
+  description: string;
+  variables: ScenarioVariable[];
+  results: ScenarioResult;
+  createdAt: number;
+}
 
 interface WhatIfScenariosProps {
   currentScenarios: WhatIfScenario[];

@@ -4,7 +4,12 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import type { PriceData } from "../types/treasuryAnalytics";
+export interface PriceData {
+  symbol: string;
+  usdPrice: number;
+  timestamp: number;
+  source: string;
+}
 
 // Fallback prices for common tokens (update regularly in production)
 const FALLBACK_PRICES: Record<string, number> = {

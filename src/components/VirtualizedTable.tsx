@@ -26,11 +26,8 @@ export interface VirtualizedTableProps<T> {
  * - No jank during scroll
  * - Smooth virtualization with buffer
  */
-export const VirtualizedTable = React.forwardRef<
-  HTMLDivElement,
-  VirtualizedTableProps<any>
->(
-  (
+export const VirtualizedTable = React.forwardRef(
+  <T,>(
     {
       items,
       columns,
@@ -39,10 +36,11 @@ export const VirtualizedTable = React.forwardRef<
       rowHeight = 48,
       onRowClick,
       className = "",
-    },
-    ref
+    }: VirtualizedTableProps<T>,
+    ref: React.ForwardedRef<HTMLDivElement>
   ) => {
     // Virtualize rows
+    // eslint-disable-next-line react-hooks/incompatible-library
     const rowVirtualizer = useVirtualizer({
       count: items.length,
       getScrollElement: () =>

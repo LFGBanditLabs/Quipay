@@ -17,7 +17,7 @@ type CacheEntry<T> = {
   timestamp: number;
 };
 
-const requestCache = new Map<string, CacheEntry<any>>();
+const requestCache = new Map<string, CacheEntry<unknown>>();
 const TTL = 2000; // 2 seconds
 
 async function dedupRequest<T>(key: string, fn: () => Promise<T>): Promise<T> {
@@ -25,7 +25,7 @@ async function dedupRequest<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const existing = requestCache.get(key);
 
   if (existing && now - existing.timestamp < TTL) {
-    return existing.promise;
+    return existing.promise as Promise<T>;
   }
 
   const promise = fn();

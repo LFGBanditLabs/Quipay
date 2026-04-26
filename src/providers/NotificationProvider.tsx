@@ -178,6 +178,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setStreamNotifications(
       loadPersistedNotifications(window.localStorage, address),
     );

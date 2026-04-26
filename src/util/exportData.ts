@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import autoTable, { RowInput } from "jspdf-autotable";
 import { calculateStreamProgress, Stream } from "../lib/streams";
 
 export interface ExportRow {
@@ -185,7 +185,7 @@ export const generatePayrollReport = (
       30,
     );
 
-    const tableData: any[] = [];
+    const tableData: RowInput[] = [];
     Object.entries(grouped).forEach(([worker, rows]) => {
       let workerTotal = 0;
       rows.forEach((row) => {
