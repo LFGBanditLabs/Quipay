@@ -100,6 +100,7 @@ streamsRouter.post(
       endTs: body.endTs,
       status: body.status,
       ledger: body.ledger,
+      changedBy: req.user.stellarAddress ?? req.user.id,
     });
 
     const stream = await getStreamById(body.streamId);
