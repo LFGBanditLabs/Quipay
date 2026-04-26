@@ -17,6 +17,7 @@ type CacheEntry<T> = {
   timestamp: number;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const requestCache = new Map<string, CacheEntry<any>>();
 const TTL = 2000; // 2 seconds
 

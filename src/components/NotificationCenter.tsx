@@ -60,7 +60,7 @@ const NotificationItem: React.FC<{
   notification: PersistentNotification;
   onRead: (id: string) => void;
 }> = ({ notification, onRead }) => {
-  const config = TYPE_CONFIG[notification.type as NotificationType];
+  const config = TYPE_CONFIG[notification.type];
 
   return (
     <div

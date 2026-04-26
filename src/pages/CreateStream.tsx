@@ -1,21 +1,15 @@
 // Updated CreateStream.tsx with draft persistence
 import React, { useState, useEffect } from "react";
 import { Layout, Text } from "@stellar/design-system";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Wizard from "../components/Wizard";
 import { useNotification } from "../hooks/useNotification";
-import Tooltip from "../components/Tooltip";
-import CollapsibleSection from "../components/CollapsibleSection";
-import { useStreamTemplates } from "../hooks/useStreamTemplates";
-import BulkStreamCreator from "../components/BulkStreamCreator";
 
 const STORAGE_KEY = "quipay_stream_draft_default"; // replace with orgId if available
 
 const CreateStream: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const { addNotification, addStreamNotification } = useNotification();
-  const { templates, addTemplate } = useStreamTemplates();
 
   const [showRestoreBanner, setShowRestoreBanner] = useState(false);
   const [hasRestored, setHasRestored] = useState(false);

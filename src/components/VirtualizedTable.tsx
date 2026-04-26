@@ -28,6 +28,7 @@ export interface VirtualizedTableProps<T> {
  */
 export const VirtualizedTable = React.forwardRef<
   HTMLDivElement,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   VirtualizedTableProps<any>
 >(
   (
