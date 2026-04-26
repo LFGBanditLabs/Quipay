@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useCallback,
   useEffect,
+  startTransition,
 } from "react";
 import "./NotificationProvider.css"; // Import CSS for sliding effect
 import { useWallet } from "../hooks/useWallet";
@@ -99,6 +100,19 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
     PersistedNotification[]
   >([]);
 
+  useEffect(() => {
+    if (!address) return;
+    const persisted = loadPersistedNotifications(window.localStorage, address);
+    startTransition(() => {
+      setStreamNotifications(persisted);
+    });
+  }, [address]);
+
+  useEffect(() => {
+    if (!address) return;
+    persistNotifications(window.localStorage, address, streamNotifications);
+  }, [address, streamNotifications]);
+
   const addNotification = useCallback(
     (message: string, type: NotificationType, action?: NotificationAction) => {
       const newNotification: ToastNotification = {
@@ -177,14 +191,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
   );
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    setStreamNotifications(
-      loadPersistedNotifications(window.localStorage, address),
-    );
-  }, [address]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !address) return;
     persistNotifications(window.localStorage, address, streamNotifications);
   }, [address, streamNotifications]);
 

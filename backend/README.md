@@ -17,14 +17,14 @@ The Quipay automation engine — an Express/TypeScript API server that orchestra
 
 ## Prerequisites
 
-| Dependency | Minimum version | Notes |
-|---|---|---|
-| **Node.js** | 22 (LTS) | Matches the `node:22-alpine` Docker image |
-| **npm** | 10+ | Bundled with Node 22 |
-| **PostgreSQL** | 16 | Schema is in `src/db/schema.sql`; migrations via Drizzle Kit |
-| **Redis** | 7 *(optional)* | Required only for distributed rate-limiting. Falls back to in-memory if `REDIS_URL` is absent |
-| **Docker + Docker Compose** | 24+ | For the containerised stack and integration-test containers |
-| **TypeScript** | 5.8 | Installed as a dev dependency — no global install needed |
+| Dependency                  | Minimum version | Notes                                                                                         |
+| --------------------------- | --------------- | --------------------------------------------------------------------------------------------- |
+| **Node.js**                 | 22 (LTS)        | Matches the `node:22-alpine` Docker image                                                     |
+| **npm**                     | 10+             | Bundled with Node 22                                                                          |
+| **PostgreSQL**              | 16              | Schema is in `src/db/schema.sql`; migrations via Drizzle Kit                                  |
+| **Redis**                   | 7 _(optional)_  | Required only for distributed rate-limiting. Falls back to in-memory if `REDIS_URL` is absent |
+| **Docker + Docker Compose** | 24+             | For the containerised stack and integration-test containers                                   |
+| **TypeScript**              | 5.8             | Installed as a dev dependency — no global install needed                                      |
 
 > **Stellar / Soroban access** — A Soroban-compatible RPC endpoint is required at runtime (`STELLAR_RPC_URL`). The public testnet endpoint (`https://soroban-testnet.stellar.org`) works for local development and is the default.
 
@@ -178,12 +178,12 @@ The syncer polls every `SYNCER_POLL_MS` (default **10 s**) and uses an advisory 
 
 Socket.IO server mounted on the same HTTP server at path `/socket.io`. Clients authenticate via a JWT passed in `socket.handshake.auth.token`. After auth, clients are placed into rooms:
 
-| Room pattern | Receives |
-|---|---|
-| `employer:<id>` | All stream events for that employer |
-| `worker:<address>` | All stream events for that worker |
-| `stream:<id>` | Events for a specific stream |
-| `admin` | All events (admin role) |
+| Room pattern       | Receives                            |
+| ------------------ | ----------------------------------- |
+| `employer:<id>`    | All stream events for that employer |
+| `worker:<address>` | All stream events for that worker   |
+| `stream:<id>`      | Events for a specific stream        |
+| `admin`            | All events (admin role)             |
 
 Clients can also subscribe/unsubscribe to individual streams with `subscribe:stream` / `unsubscribe:stream` events.
 
@@ -195,74 +195,74 @@ Full list with defaults in [`backend/.env.example`](.env.example). The most impo
 
 ### Server
 
-| Variable | Default | Description |
-|---|---|---|
-| `PORT` | `3001` | HTTP listen port |
-| `ALLOWED_ORIGINS` | *(see example)* | Comma-separated CORS whitelist. **Required in production** — the server exits at startup if missing when `NODE_ENV=production` |
-| `NODE_ENV` | — | `development` disables certain strict guards (e.g. `HOT_WALLET_ACCOUNT` placeholder check) |
+| Variable          | Default         | Description                                                                                                                    |
+| ----------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `PORT`            | `3001`          | HTTP listen port                                                                                                               |
+| `ALLOWED_ORIGINS` | _(see example)_ | Comma-separated CORS whitelist. **Required in production** — the server exits at startup if missing when `NODE_ENV=production` |
+| `NODE_ENV`        | —               | `development` disables certain strict guards (e.g. `HOT_WALLET_ACCOUNT` placeholder check)                                     |
 
 ### Database
 
-| Variable | Required | Description |
-|---|---|---|
-| `DATABASE_URL` | **Yes** | PostgreSQL connection string, e.g. `postgresql://user:password@localhost:5432/quipay` |
+| Variable       | Required | Description                                                                           |
+| -------------- | -------- | ------------------------------------------------------------------------------------- |
+| `DATABASE_URL` | **Yes**  | PostgreSQL connection string, e.g. `postgresql://user:password@localhost:5432/quipay` |
 
 ### Stellar / Soroban
 
-| Variable | Default | Description |
-|---|---|---|
-| `STELLAR_NETWORK` | `TESTNET` | `TESTNET` or `PUBLIC` |
-| `STELLAR_RPC_URL` | `https://soroban-testnet.stellar.org` | Soroban RPC endpoint |
-| `PUBLIC_STELLAR_RPC_URL` | same as above | Used by the syncer and listener |
-| `QUIPAY_CONTRACT_ID` | — | Soroban contract address. When absent, the listener runs in simulation mode |
-| `HOT_WALLET_ACCOUNT` | — | Stellar account for the nonce manager. **Required outside development** |
-| `AUTOMATION_GATEWAY_ADDRESS` | — | On-chain automation gateway contract address |
-| `PAYROLL_STREAM_ADDRESS` | — | On-chain payroll stream contract address |
-| `SYNC_START_LEDGER` | `0` | Ledger to begin historical backfill from (0 = full history) |
+| Variable                     | Default                               | Description                                                                 |
+| ---------------------------- | ------------------------------------- | --------------------------------------------------------------------------- |
+| `STELLAR_NETWORK`            | `TESTNET`                             | `TESTNET` or `PUBLIC`                                                       |
+| `STELLAR_RPC_URL`            | `https://soroban-testnet.stellar.org` | Soroban RPC endpoint                                                        |
+| `PUBLIC_STELLAR_RPC_URL`     | same as above                         | Used by the syncer and listener                                             |
+| `QUIPAY_CONTRACT_ID`         | —                                     | Soroban contract address. When absent, the listener runs in simulation mode |
+| `HOT_WALLET_ACCOUNT`         | —                                     | Stellar account for the nonce manager. **Required outside development**     |
+| `AUTOMATION_GATEWAY_ADDRESS` | —                                     | On-chain automation gateway contract address                                |
+| `PAYROLL_STREAM_ADDRESS`     | —                                     | On-chain payroll stream contract address                                    |
+| `SYNC_START_LEDGER`          | `0`                                   | Ledger to begin historical backfill from (0 = full history)                 |
 
 ### Redis (optional)
 
-| Variable | Default | Description |
-|---|---|---|
-| `REDIS_URL` | — | Redis connection URL. When unset, rate-limiting uses an in-memory store |
+| Variable    | Default | Description                                                             |
+| ----------- | ------- | ----------------------------------------------------------------------- |
+| `REDIS_URL` | —       | Redis connection URL. When unset, rate-limiting uses an in-memory store |
 
 ### Scheduler tuning
 
-| Variable | Default | Description |
-|---|---|---|
-| `SCHEDULER_POLL_MS` | `60000` | How often the scheduler reconciles active jobs (ms) |
-| `WEBHOOK_RETRY_POLL_MS` | `10000` | How often failed webhooks are retried (ms) |
-| `WEBHOOK_RETRY_BATCH_SIZE` | `50` | Max webhook events retried per cycle |
-| `MONITOR_INTERVAL_MS` | `300000` | Treasury monitor cycle interval (ms) |
-| `TREASURY_RUNWAY_ALERT_DAYS` | `7` | Runway threshold that triggers a treasury alert |
-| `SYNCER_POLL_MS` | `10000` | Syncer poll interval (ms) |
+| Variable                     | Default  | Description                                         |
+| ---------------------------- | -------- | --------------------------------------------------- |
+| `SCHEDULER_POLL_MS`          | `60000`  | How often the scheduler reconciles active jobs (ms) |
+| `WEBHOOK_RETRY_POLL_MS`      | `10000`  | How often failed webhooks are retried (ms)          |
+| `WEBHOOK_RETRY_BATCH_SIZE`   | `50`     | Max webhook events retried per cycle                |
+| `MONITOR_INTERVAL_MS`        | `300000` | Treasury monitor cycle interval (ms)                |
+| `TREASURY_RUNWAY_ALERT_DAYS` | `7`      | Runway threshold that triggers a treasury alert     |
+| `SYNCER_POLL_MS`             | `10000`  | Syncer poll interval (ms)                           |
 
 ### Secrets / Vault
 
-| Variable | Default | Description |
-|---|---|---|
-| `VAULT_ADDR` | `http://localhost:8200` | HashiCorp Vault address |
-| `VAULT_TOKEN` | — | Vault token |
-| `VAULT_SECRET_PATH` | `quipay/keys` | Path to secrets in Vault |
-| `KEY_ROTATION_ENABLED` | `false` | Enable the key rotation scheduler |
+| Variable               | Default                 | Description                       |
+| ---------------------- | ----------------------- | --------------------------------- |
+| `VAULT_ADDR`           | `http://localhost:8200` | HashiCorp Vault address           |
+| `VAULT_TOKEN`          | —                       | Vault token                       |
+| `VAULT_SECRET_PATH`    | `quipay/keys`           | Path to secrets in Vault          |
+| `KEY_ROTATION_ENABLED` | `false`                 | Enable the key rotation scheduler |
 
 ### Notifications / Integrations
 
-| Variable | Description |
-|---|---|
-| `SENDGRID_API_KEY` | SendGrid API key for email delivery |
-| `SENDGRID_FROM_EMAIL` | Sender address (default `noreply@quipay.com`) |
-| `DISCORD_PUBLIC_KEY` | Discord slash-command verification key |
-| `SLACK_SIGNING_SECRET` | Slack webhook signing secret |
-| `OPENAI_API_KEY` | OpenAI API key used by the `/ai` router |
+| Variable                      | Description                                                               |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| `SENDGRID_API_KEY`            | SendGrid API key for email delivery                                       |
+| `SENDGRID_FROM_EMAIL`         | Sender address (default `noreply@quipay.com`)                             |
+| `DISCORD_PUBLIC_KEY`          | Discord slash-command verification key                                    |
+| `SLACK_SIGNING_SECRET`        | Slack webhook signing secret                                              |
+| `OPENAI_API_KEY`              | OpenAI API key used by the `/ai` router                                   |
 | `KYB_API_URL` / `KYB_API_KEY` | External KYB provider. When absent, a deterministic mock verifier is used |
 
 ### WebSocket
 
-| Variable | Default | Description |
-|---|---|---|
-| `JWT_SECRET` | `dev-secret-key-change-in-production` | Secret used to verify WebSocket JWTs. **Must be changed in production** |
-| `FRONTEND_URL` | `http://localhost:5173` | Allowed CORS origin for Socket.IO |
+| Variable       | Default                               | Description                                                             |
+| -------------- | ------------------------------------- | ----------------------------------------------------------------------- |
+| `JWT_SECRET`   | `dev-secret-key-change-in-production` | Secret used to verify WebSocket JWTs. **Must be changed in production** |
+| `FRONTEND_URL` | `http://localhost:5173`               | Allowed CORS origin for Socket.IO                                       |
 
 ---
 
@@ -303,7 +303,7 @@ import {
   setupTestDatabase,
   cleanTestDatabase,
   teardownTestDatabase,
-} from '../helpers/testcontainer';
+} from "../helpers/testcontainer";
 
 beforeAll(async () => {
   await setupTestDatabase();
@@ -335,14 +335,14 @@ npm run test:watch
 
 ## Useful Scripts
 
-| Script | Description |
-|---|---|
-| `npm run dev` | Start dev server with hot reload (`ts-node-dev`) |
-| `npm run build` | Compile TypeScript to `dist/` |
-| `npm start` | Run compiled output (`dist/index.js`) |
-| `npm run migrate` | Apply pending Drizzle migrations |
-| `npm run migrate:status` | Show migration status |
-| `npm run migrate:rollback` | Roll back the last migration |
-| `npm run migration:generate` | Generate a new migration from schema changes |
-| `npm run migration:push` | Push schema directly (dev only) |
-| `npm run seed` | Seed the database with sample data |
+| Script                       | Description                                      |
+| ---------------------------- | ------------------------------------------------ |
+| `npm run dev`                | Start dev server with hot reload (`ts-node-dev`) |
+| `npm run build`              | Compile TypeScript to `dist/`                    |
+| `npm start`                  | Run compiled output (`dist/index.js`)            |
+| `npm run migrate`            | Apply pending Drizzle migrations                 |
+| `npm run migrate:status`     | Show migration status                            |
+| `npm run migrate:rollback`   | Roll back the last migration                     |
+| `npm run migration:generate` | Generate a new migration from schema changes     |
+| `npm run migration:push`     | Push schema directly (dev only)                  |
+| `npm run seed`               | Seed the database with sample data               |

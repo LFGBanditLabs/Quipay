@@ -7,7 +7,14 @@
  *   - Uses real PostgreSQL container via testcontainers
  */
 
-import { describe, it, expect, beforeAll, afterEach, afterAll } from "@jest/globals";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterEach,
+  afterAll,
+} from "@jest/globals";
 import express, { Express } from "express";
 import request from "supertest";
 import { streamsRouter } from "../../routes/streams";

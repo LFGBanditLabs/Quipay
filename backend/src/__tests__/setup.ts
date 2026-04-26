@@ -3,7 +3,10 @@
  * Global configuration for all tests including testcontainers
  */
 
-import { setupTestDatabase, teardownTestDatabase } from "./__tests__/helpers/testcontainer";
+import {
+  setupTestDatabase,
+  teardownTestDatabase,
+} from "./__tests__/helpers/testcontainer";
 
 jest.setTimeout(60000);
 
@@ -21,7 +24,9 @@ afterAll(async () => {
 }, 30000);
 
 afterEach(async () => {
-  const { cleanTestDatabase } = await import("./__tests__/helpers/testcontainer");
+  const { cleanTestDatabase } = await import(
+    "./__tests__/helpers/testcontainer"
+  );
   await cleanTestDatabase();
 });
 

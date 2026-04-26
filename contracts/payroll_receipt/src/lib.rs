@@ -1,7 +1,7 @@
 #![no_std]
 
 use quipay_common::{QuipayError, require};
-use soroban_sdk::{Address, Env, String, contract, contractimpl, contracttype, symbol_short};
+use soroban_sdk::{Address, Bytes, Env, String, contract, contractimpl, contracttype, symbol_short};
 
 #[cfg(test)]
 mod test;
@@ -243,22 +243,22 @@ impl PayrollReceiptContract {
             .storage()
             .instance()
             .get(&DataKey::BaseUri)
-            .unwrap_or_else(|| String::new(&env));
+            .unwrap_or_else(|| String::from_str(&env, ""));
 
         if base_uri.is_empty() {
-            return String::new(&env);
+            return String::from_str(&env, "");
         }
 
-        let mut uri = base_uri;
-        uri.push_back(b'/');
+        let mut uri_bytes = base_uri.to_bytes();
+        uri_bytes.push_back(b'/');
 
-        let id_bytes = receipt_id.to_le_bytes();
-        for b in id_bytes.iter() {
+        let id_bytes_arr = receipt_id.to_le_bytes();
+        for b in id_bytes_arr.iter() {
             let hex = if *b < 10 { b'0' + *b } else { b'a' + (*b - 10) };
-            uri.push_back(hex);
+            uri_bytes.push_back(hex);
         }
 
-        uri
+        String::from(&uri_bytes)
     }
 
     pub fn get_receipt_metadata(
@@ -267,19 +267,21 @@ impl PayrollReceiptContract {
     ) -> Result<ReceiptMetadata, QuipayError> {
         let receipt = Self::get_receipt(env.clone(), receipt_id)?;
 
-        let mut name = String::from(&env, "Payroll Receipt #");
-        let id_bytes = receipt_id.to_le_bytes();
-        for b in id_bytes.iter() {
+        let mut name_bytes = Bytes::from_slice(&env, b"Payroll Receipt #");
+        let id_bytes_arr = receipt_id.to_le_bytes();
+        for b in id_bytes_arr.iter() {
             let hex = if *b < 10 { b'0' + *b } else { b'a' + (*b - 10) };
-            name.push_back(hex);
+            name_bytes.push_back(hex);
         }
+        let name = String::from(&name_bytes);
 
-        let mut description = String::from(&env, "Receipt for stream ");
-        let stream_bytes = receipt.stream_id.to_le_bytes();
-        for b in stream_bytes.iter() {
+        let mut desc_bytes = Bytes::from_slice(&env, b"Receipt for stream ");
+        let stream_bytes_arr = receipt.stream_id.to_le_bytes();
+        for b in stream_bytes_arr.iter() {
             let hex = if *b < 10 { b'0' + *b } else { b'a' + (*b - 10) };
-            description.push_back(hex);
+            desc_bytes.push_back(hex);
         }
+        let description = String::from(&desc_bytes);
 
         Ok(ReceiptMetadata {
             name,

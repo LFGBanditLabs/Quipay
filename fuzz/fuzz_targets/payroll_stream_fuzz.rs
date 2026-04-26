@@ -136,7 +136,7 @@ fuzz_target!(|actions: Vec<StreamAction>| {
                 };
 
                 let result = client.try_create_stream(
-                    &employer, &worker, &token, &rate, &cliff_ts, &start_ts, &end_ts, &None,
+                    &employer, &worker, &token, &rate, &cliff_ts, &start_ts, &end_ts, &None, &None,
                 );
 
                 let expected_valid =

@@ -55,6 +55,7 @@ fuzz_target!(|input: BatchInput| {
             metadata_hash: None,
             speed_curve: MaybeSpeedCurve::None,
             clawback_authority: None,
+            max_slippage_bps: 0,
         });
     }
 

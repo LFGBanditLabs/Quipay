@@ -513,7 +513,7 @@ impl AutomationGateway {
             .set(&DataKey::NextRetryJobId, &(next_job_id + 1));
 
         env.events().publish(
-            (symbol_short!("gateway"), symbol_short!("retry_queued")),
+            (symbol_short!("gateway"), symbol_short!("retry_q")),
             (next_job_id, target_contract),
         );
 
@@ -554,13 +554,14 @@ impl AutomationGateway {
                             job.job_id,
                         );
                     } else {
-                        job.attempt += 1;
-                        job.next_retry_at = current_time + BACKOFF_DELAYS[job.attempt as usize - 1];
+                        let job_id = job.job_id;
+                        let next_attempt = job.attempt + 1;
+                        job.next_retry_at = current_time + BACKOFF_DELAYS[next_attempt as usize - 1];
                         remaining.push_back(job);
 
                         env.events().publish(
-                            (symbol_short!("gateway"), symbol_short!("retry_attempt")),
-                            (job.job_id, job.attempt),
+                            (symbol_short!("gateway"), symbol_short!("retry_atm")),
+                            (job_id, next_attempt),
                         );
                     }
                     processed += 1;

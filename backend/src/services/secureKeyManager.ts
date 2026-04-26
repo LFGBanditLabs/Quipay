@@ -56,7 +56,9 @@ export class SecureKeyManager {
         );
 
         if (new Date() > gracePeriodEnd) {
-          throw new ServiceUnavailableError(`Key ${keyName} has exceeded rotation grace period`);
+          throw new ServiceUnavailableError(
+            `Key ${keyName} has exceeded rotation grace period`,
+          );
         }
       }
     }

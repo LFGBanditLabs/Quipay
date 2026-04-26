@@ -1,5 +1,9 @@
 import { useState, useCallback } from "react";
-import { exportToCSV, exportToXLSX } from "../util/exportData";
+import {
+  exportToCSV,
+  exportToXLSX,
+  generatePayrollReport,
+} from "../util/exportData";
 import type { ExportFilters, StreamRecord } from "../util/exportData";
 import toast from "react-hot-toast";
 
@@ -22,7 +26,7 @@ export const useExport = (streams: StreamRecord[]) => {
   const [isExporting, setIsExporting] = useState(false);
 
   const handleExport = useCallback(
-    async (format: "csv" | "xlsx", filters: ExportFilters) => {
+    async (format: "csv" | "xlsx" | "pdf", filters: ExportFilters) => {
       if (streams.length === 0) {
         toast.error("No data to export");
         return;
@@ -36,7 +40,12 @@ export const useExport = (streams: StreamRecord[]) => {
         } else if (format === "xlsx") {
           exportToXLSX(streams, filters);
         } else if (format === "pdf") {
-          generatePayrollReport(streams, filters.from || new Date(0), filters.to || new Date(), "pdf");
+          generatePayrollReport(
+            streams,
+            filters.from || new Date(0),
+            filters.to || new Date(),
+            "pdf",
+          );
         }
         toast.success(`Exported as ${format.toUpperCase()} successfully`);
       } catch (error: unknown) {

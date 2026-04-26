@@ -3274,7 +3274,7 @@ mod pause_timelock_test;
 mod stream_extension;
 mod stream_pause;
 
-mod stream_curve;
+pub mod stream_curve;
 mod test;
 
 #[cfg(test)]
