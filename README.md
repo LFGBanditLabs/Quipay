@@ -112,8 +112,8 @@ Quipay uses a modular smart contract architecture for security, scalability, and
 ### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/LFGBanditLabs/Quipay.git
+# Clone the repository — use --depth 1 for a much faster download
+git clone --depth 1 https://github.com/LFGBanditLabs/Quipay.git
 cd Quipay
 
 # Install dependencies

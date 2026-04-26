@@ -31,13 +31,45 @@ Optional but recommended:
 
 ## Development Setup
 
+### Cloning the repository
+
+**Recommended — shallow clone (fastest, ~90% less data):**
+
+```bash
+git clone --depth 1 https://github.com/LFGBanditLabs/Quipay.git
+cd Quipay
+```
+
+> Full history clone (only needed for `git blame` / history browsing):
+> ```bash
+> git clone https://github.com/LFGBanditLabs/Quipay.git
+> ```
+
+**Working on just one area? Use sparse checkout:**
+
+```bash
+git clone --filter=blob:none --sparse --depth 1 https://github.com/LFGBanditLabs/Quipay.git
+cd Quipay
+
+# Frontend only
+git sparse-checkout set src public
+
+# Backend only
+git sparse-checkout set backend
+
+# Contracts only
+git sparse-checkout set contracts packages
+```
+
+---
+
 ### Quick Start (Docker)
 
 The fastest way to get the full stack running:
 
 ```bash
-# Clone the repository
-git clone https://github.com/LFGBanditLabs/Quipay.git
+# Clone the repository (shallow is recommended)
+git clone --depth 1 https://github.com/LFGBanditLabs/Quipay.git
 cd Quipay
 
 # Start the full stack (frontend + backend + database)
