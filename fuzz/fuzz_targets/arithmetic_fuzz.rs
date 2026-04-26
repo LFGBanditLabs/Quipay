@@ -1,8 +1,8 @@
 #![no_main]
 
-use libfuzzer_sys::fuzz_target;
-use payroll_stream::stream_curve::{compute_vested, SpeedCurve};
 use arbitrary::Arbitrary;
+use libfuzzer_sys::fuzz_target;
+use payroll_stream::stream_curve::{SpeedCurve, compute_vested};
 
 #[derive(Arbitrary, Debug)]
 struct FuzzInput {
@@ -19,7 +19,7 @@ fuzz_target!(|input: FuzzInput| {
         2 => SpeedCurve::BackLoaded,
         _ => unreachable!(),
     };
-    
+
     let vested = compute_vested(input.elapsed, input.duration, input.total_amount, curve);
 
     // Invariants

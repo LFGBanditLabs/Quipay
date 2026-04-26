@@ -15,10 +15,10 @@
 //!   Proposal(u64), VoteCast(u64, Address)
 
 #![no_std]
-use quipay_common::{QuipayError, require};
+use quipay_common::{require, QuipayError};
 use soroban_sdk::{
-    Address, Bytes, BytesN, Env, IntoVal, Symbol, contract, contractimpl, contracttype,
-    symbol_short, token,
+    contract, contractimpl, contracttype, symbol_short, token, Address, Bytes, BytesN, Env,
+    IntoVal, Symbol,
 };
 
 // ─── Storage keys ─────────────────────────────────────────────────────────────

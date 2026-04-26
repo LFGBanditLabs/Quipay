@@ -1,7 +1,9 @@
 #![no_std]
 
-use quipay_common::{QuipayError, require};
-use soroban_sdk::{Address, Bytes, Env, String, contract, contractimpl, contracttype, symbol_short};
+use quipay_common::{require, QuipayError};
+use soroban_sdk::{
+    contract, contractimpl, contracttype, symbol_short, Address, Bytes, Env, String,
+};
 
 #[cfg(test)]
 mod test;
@@ -231,10 +233,8 @@ impl PayrollReceiptContract {
     pub fn set_base_uri(env: Env, admin: Address, uri: String) -> Result<(), QuipayError> {
         admin.require_auth();
         env.storage().instance().set(&DataKey::BaseUri, &uri);
-        env.events().publish(
-            (symbol_short!("receipt"), symbol_short!("uri_set")),
-            (),
-        );
+        env.events()
+            .publish((symbol_short!("receipt"), symbol_short!("uri_set")), ());
         Ok(())
     }
 
@@ -261,10 +261,7 @@ impl PayrollReceiptContract {
         String::from(&uri_bytes)
     }
 
-    pub fn get_receipt_metadata(
-        env: Env,
-        receipt_id: u64,
-    ) -> Result<ReceiptMetadata, QuipayError> {
+    pub fn get_receipt_metadata(env: Env, receipt_id: u64) -> Result<ReceiptMetadata, QuipayError> {
         let receipt = Self::get_receipt(env.clone(), receipt_id)?;
 
         let mut name_bytes = Bytes::from_slice(&env, b"Payroll Receipt #");

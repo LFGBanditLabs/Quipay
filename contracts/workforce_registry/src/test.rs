@@ -4,7 +4,7 @@ extern crate std;
 
 use super::*;
 use quipay_common::QuipayError;
-use soroban_sdk::{Address, Env, String, testutils::Address as _};
+use soroban_sdk::{testutils::Address as _, Address, Env, String};
 use std::vec::Vec as StdVec;
 
 #[test]

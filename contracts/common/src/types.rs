@@ -8,4 +8,3 @@ pub struct StreamEvent {
     pub amount: i128,
     pub actor: Address,
 }
-

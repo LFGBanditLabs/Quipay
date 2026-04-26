@@ -1,8 +1,8 @@
 use crate::{PayrollVault, PayrollVaultClient, StateKey};
 use quipay_common::QuipayError;
 use soroban_sdk::{
-    Address, Env, Vec,
     testutils::{Address as _, Ledger},
+    Address, Env, Vec,
 };
 
 #[test]

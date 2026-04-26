@@ -1,9 +1,9 @@
 #![no_main]
 
+use arbitrary::Arbitrary;
 use libfuzzer_sys::fuzz_target;
 use payroll_stream::{PayrollStream, PayrollStreamClient};
 use soroban_sdk::{Address, Env, testutils::Address as _, testutils::Ledger};
-use arbitrary::Arbitrary;
 
 mod dummy_vault {
     use soroban_sdk::{Address, Env, contract, contractimpl};
@@ -11,9 +11,13 @@ mod dummy_vault {
     pub struct DummyVault;
     #[contractimpl]
     impl DummyVault {
-        pub fn check_solvency(_env: Env, _token: Address, _additional_liability: i128) -> bool { true }
+        pub fn check_solvency(_env: Env, _token: Address, _additional_liability: i128) -> bool {
+            true
+        }
         pub fn add_liability(_env: Env, _token: Address, _amount: i128) {}
-        pub fn get_balance(_env: Env, _token: Address) -> i128 { 1_000_000_000_000 }
+        pub fn get_balance(_env: Env, _token: Address) -> i128 {
+            1_000_000_000_000
+        }
     }
 }
 
@@ -59,7 +63,8 @@ fuzz_target!(|input: ClaimableInput| {
     );
 
     if let Ok(Ok(stream_id)) = result {
-        env.ledger().set_timestamp(now.saturating_add(input.time_advance as u64));
+        env.ledger()
+            .set_timestamp(now.saturating_add(input.time_advance as u64));
         let _ = client.get_claimable(&stream_id);
     }
 });

@@ -1,9 +1,9 @@
 #![no_main]
 
-use libfuzzer_sys::fuzz_target;
-use payroll_stream::{PayrollStream, PayrollStreamClient, StreamParams, MaybeSpeedCurve};
-use soroban_sdk::{Address, Env, testutils::Address as _, testutils::Ledger, Vec};
 use arbitrary::Arbitrary;
+use libfuzzer_sys::fuzz_target;
+use payroll_stream::{MaybeSpeedCurve, PayrollStream, PayrollStreamClient, StreamParams};
+use soroban_sdk::{Address, Env, Vec, testutils::Address as _, testutils::Ledger};
 
 mod dummy_vault {
     use soroban_sdk::{Address, Env, contract, contractimpl};
@@ -11,7 +11,9 @@ mod dummy_vault {
     pub struct DummyVault;
     #[contractimpl]
     impl DummyVault {
-        pub fn check_solvency(_env: Env, _token: Address, _additional_liability: i128) -> bool { true }
+        pub fn check_solvency(_env: Env, _token: Address, _additional_liability: i128) -> bool {
+            true
+        }
         pub fn add_liability(_env: Env, _token: Address, _amount: i128) {}
     }
 }
@@ -41,7 +43,7 @@ fuzz_target!(|input: BatchInput| {
     let token = Address::generate(&env);
 
     let mut params = Vec::new(&env);
-    let count = (input.params_count % 30) as u32; 
+    let count = (input.params_count % 30) as u32;
 
     for _ in 0..count {
         params.push_back(StreamParams {

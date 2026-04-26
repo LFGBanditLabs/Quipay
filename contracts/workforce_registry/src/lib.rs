@@ -1,6 +1,6 @@
 #![no_std]
-use quipay_common::{QuipayError, require};
-use soroban_sdk::{Address, Env, String, Vec, contract, contractimpl, contracttype, symbol_short};
+use quipay_common::{require, QuipayError};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, String, Vec};
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -426,7 +426,11 @@ impl WorkforceRegistryContract {
         Ok(())
     }
 
-    pub fn archive_employee(e: Env, employer: Address, employee: Address) -> Result<(), QuipayError> {
+    pub fn archive_employee(
+        e: Env,
+        employer: Address,
+        employee: Address,
+    ) -> Result<(), QuipayError> {
         employer.require_auth();
         let key = DataKey::Worker(employee.clone());
         let mut profile: WorkerProfile = e
@@ -452,10 +456,17 @@ impl WorkforceRegistryContract {
         let mut archived = Self::get_archived_workers_index(&e);
         if !archived.contains(employee.clone()) {
             archived.push_back(employee.clone());
-            e.storage().persistent().set(&DataKey::ArchivedWorkers, &archived);
+            e.storage()
+                .persistent()
+                .set(&DataKey::ArchivedWorkers, &archived);
         }
         e.events().publish(
-            (symbol_short!("w_reg"), symbol_short!("arch"), employer, employee),
+            (
+                symbol_short!("w_reg"),
+                symbol_short!("arch"),
+                employer,
+                employee,
+            ),
             (),
         );
         Ok(())
@@ -480,7 +491,12 @@ impl WorkforceRegistryContract {
         e.storage().persistent().set(&key, &profile);
         Self::remove_from_archived_workers(&e, &employee);
         e.events().publish(
-            (symbol_short!("w_reg"), symbol_short!("unarch"), employer, employee),
+            (
+                symbol_short!("w_reg"),
+                symbol_short!("unarch"),
+                employer,
+                employee,
+            ),
             (),
         );
         Ok(())
@@ -493,7 +509,8 @@ impl WorkforceRegistryContract {
         while i < archived.len() {
             if let Some(worker) = archived.get(i) {
                 let key = DataKey::Worker(worker);
-                if let Some(profile) = e.storage().persistent().get::<DataKey, WorkerProfile>(&key) {
+                if let Some(profile) = e.storage().persistent().get::<DataKey, WorkerProfile>(&key)
+                {
                     if profile.is_archived {
                         out.push_back(profile);
                     }
@@ -579,7 +596,9 @@ impl WorkforceRegistryContract {
             }
             i += 1;
         }
-        e.storage().persistent().set(&DataKey::ArchivedWorkers, &filtered);
+        e.storage()
+            .persistent()
+            .set(&DataKey::ArchivedWorkers, &filtered);
     }
 }
 

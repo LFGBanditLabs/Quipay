@@ -5,8 +5,8 @@ use super::*;
 use quipay_common::QuipayError;
 use soroban_sdk::xdr::{ReadXdr, ToXdr};
 use soroban_sdk::{
-    Address, BytesN, Env, Symbol, TryFromVal, TryIntoVal, testutils::Address as _,
-    testutils::Events as _, testutils::Ledger as _, token, xdr,
+    testutils::Address as _, testutils::Events as _, testutils::Ledger as _, token, xdr, Address,
+    BytesN, Env, Symbol, TryFromVal, TryIntoVal,
 };
 
 fn register_native_token_contract(env: &Env, admin: Address) -> Address {

@@ -1211,32 +1211,35 @@ impl PayrollStream {
                             success: false,
                         })
                     } else {
-                        if Self::enforce_slippage_guard(&env, stream_id, &mut stream, now).unwrap_or(false) {
+                        if Self::enforce_slippage_guard(&env, stream_id, &mut stream, now)
+                            .unwrap_or(false)
+                        {
                             BatchWithdrawalPlan::Result(WithdrawResult {
                                 stream_id,
                                 amount: 0,
                                 success: false,
                             })
                         } else {
-                        let vested = Self::vested_amount(&stream, now);
-                        let available = checked_sub_i128(vested, stream.withdrawn_amount).unwrap_or(0);
+                            let vested = Self::vested_amount(&stream, now);
+                            let available =
+                                checked_sub_i128(vested, stream.withdrawn_amount).unwrap_or(0);
 
-                        if available <= 0 {
-                            // Keep the stream state and worker index entry alive
-                            // even if there's nothing available to withdraw yet.
-                            Self::bump_stream_storage_ttl(&env, stream_id, &caller);
-                            BatchWithdrawalPlan::Result(WithdrawResult {
-                                stream_id,
-                                amount: 0,
-                                success: true,
-                            })
-                        } else {
-                            BatchWithdrawalPlan::Payout(BatchWithdrawalCandidate {
-                                stream_id,
-                                stream,
-                                amount: available,
-                            })
-                        }
+                            if available <= 0 {
+                                // Keep the stream state and worker index entry alive
+                                // even if there's nothing available to withdraw yet.
+                                Self::bump_stream_storage_ttl(&env, stream_id, &caller);
+                                BatchWithdrawalPlan::Result(WithdrawResult {
+                                    stream_id,
+                                    amount: 0,
+                                    success: true,
+                                })
+                            } else {
+                                BatchWithdrawalPlan::Payout(BatchWithdrawalCandidate {
+                                    stream_id,
+                                    stream,
+                                    amount: available,
+                                })
+                            }
                         }
                     }
                 }

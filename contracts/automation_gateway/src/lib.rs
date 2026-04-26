@@ -1,8 +1,8 @@
 #![no_std]
-use quipay_common::{QuipayError, require};
+use quipay_common::{require, QuipayError};
 use soroban_sdk::{
-    Address, Bytes, Env, IntoVal, Map, Symbol, Vec, contract, contractimpl, contracttype, symbol_short,
-    vec,
+    contract, contractimpl, contracttype, symbol_short, vec, Address, Bytes, Env, IntoVal, Map,
+    Symbol, Vec,
 };
 
 #[contracttype]
@@ -505,9 +505,7 @@ impl AutomationGateway {
             .get(&DataKey::RetryQueue)
             .unwrap_or_else(|| Vec::new(&env));
         queue.push_back(job);
-        env.storage()
-            .instance()
-            .set(&DataKey::RetryQueue, &queue);
+        env.storage().instance().set(&DataKey::RetryQueue, &queue);
         env.storage()
             .instance()
             .set(&DataKey::NextRetryJobId, &(next_job_id + 1));
@@ -556,7 +554,8 @@ impl AutomationGateway {
                     } else {
                         let job_id = job.job_id;
                         let next_attempt = job.attempt + 1;
-                        job.next_retry_at = current_time + BACKOFF_DELAYS[next_attempt as usize - 1];
+                        job.next_retry_at =
+                            current_time + BACKOFF_DELAYS[next_attempt as usize - 1];
                         remaining.push_back(job);
 
                         env.events().publish(

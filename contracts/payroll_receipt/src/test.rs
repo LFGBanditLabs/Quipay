@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use soroban_sdk::{Address, Env, String, testutils::Address as _};
+use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
 use crate::{ClosureReason, PayrollReceiptContract, PayrollReceiptContractClient};
 
