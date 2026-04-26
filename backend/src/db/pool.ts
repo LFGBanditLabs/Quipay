@@ -2,7 +2,14 @@ import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
 import path from "path";
 import { Pool, PoolClient, QueryResult, QueryResultRow } from "pg";
 import { serviceLogger } from "../audit/serviceLogger";
-import { DbPoolMetricSnapshot, setDbPoolMetricsProvider } from "../metrics";
+import {
+  DbPoolMetricSnapshot,
+  setDbPoolMetricsProvider,
+  pgPoolActiveConnections,
+  pgPoolIdleConnections,
+  pgPoolWaitQueue,
+  pgPoolCheckoutDuration,
+} from "../metrics";
 import { MigrationRunner } from "./migrationRunner";
 import * as schema from "./schema";
 import { DatabaseError } from "../errors/AppError";
@@ -10,6 +17,7 @@ import { DatabaseError } from "../errors/AppError";
 let pool: Pool | null = null;
 let db: NodePgDatabase<typeof schema> | null = null;
 let resolvedPoolConfig: ResolvedPoolConfig | null = null;
+let metricsInterval: NodeJS.Timeout | null = null;
 
 interface ResolvedPoolConfig {
   min: number;
@@ -198,6 +206,26 @@ const createConfiguredPool = (
   });
 
   attachPoolObservers(activePool, config);
+
+  const originalConnect = activePool.connect.bind(activePool);
+  activePool.connect = (...args: any[]): any => {
+    const endTimer = pgPoolCheckoutDuration.startTimer();
+    if (args.length > 0 && typeof args[0] === 'function') {
+      const cb = args[0];
+      return originalConnect((err: Error, client: PoolClient, done: any) => {
+        endTimer();
+        cb(err, client, done);
+      });
+    }
+    return originalConnect().then((client: PoolClient) => {
+      endTimer();
+      return client;
+    }).catch((err: Error) => {
+      endTimer();
+      throw err;
+    });
+  };
+
   return activePool;
 };
 
@@ -271,6 +299,18 @@ export const initDb = async (): Promise<void> => {
       db = drizzle(createdPool, { schema });
       resolvedPoolConfig = config;
       setDbPoolMetricsProvider(getPoolStats);
+
+      if (metricsInterval) {
+        clearInterval(metricsInterval);
+      }
+      metricsInterval = setInterval(() => {
+        if (pool) {
+          pgPoolActiveConnections.set(pool.totalCount - pool.idleCount);
+          pgPoolIdleConnections.set(pool.idleCount);
+          pgPoolWaitQueue.set(pool.waitingCount);
+        }
+      }, 10000);
+      metricsInterval.unref();
 
       await serviceLogger.info(
         "DbPool",
@@ -349,6 +389,11 @@ export const closeDb = async (): Promise<void> => {
   db = null;
   resolvedPoolConfig = null;
   setDbPoolMetricsProvider(null);
+
+  if (metricsInterval) {
+    clearInterval(metricsInterval);
+    metricsInterval = null;
+  }
 
   await activePool.end();
   console.log("[DB] ✅ Database pool closed");
