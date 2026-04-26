@@ -2,13 +2,22 @@ import React from "react";
 import renderer, { act } from "react-test-renderer";
 import { TransactionProgressOverlay } from "../TransactionProgressOverlay";
 
-const nodeText = (value: React.ReactNode): string => {
+const nodeText = (value: unknown): string => {
   if (typeof value === "string" || typeof value === "number") {
     return String(value);
   }
 
   if (Array.isArray(value)) {
     return value.map((child) => nodeText(child)).join("");
+  }
+
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "children" in value &&
+    Array.isArray((value as { children: unknown }).children)
+  ) {
+    return nodeText((value as { children: unknown[] }).children);
   }
 
   return "";
