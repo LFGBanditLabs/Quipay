@@ -1,7 +1,7 @@
 #![no_std]
 use quipay_common::{QuipayError, require};
 use soroban_sdk::{
-    Address, Bytes, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype, symbol_short,
+    Address, Bytes, Env, IntoVal, Map, Symbol, Vec, contract, contractimpl, contracttype, symbol_short,
     vec,
 };
 
@@ -26,12 +26,28 @@ pub struct Agent {
 }
 
 #[contracttype]
+#[derive(Clone, Debug)]
+pub struct RetryJob {
+    pub job_id: u64,
+    pub target_contract: Address,
+    pub calldata: Bytes,
+    pub attempt: u32,
+    pub next_retry_at: u64,
+}
+
+#[contracttype]
 pub enum DataKey {
     Admin,
-    PendingAdmin, // Two-step admin transfer
+    PendingAdmin,
     Agent(Address),
     PayrollStream,
+    RetryQueue,
+    DeadLetterQueue,
+    NextRetryJobId,
 }
+
+const BACKOFF_DELAYS: [u64; 3] = [30, 120, 600];
+const MAX_RETRY_ATTEMPTS: u32 = 3;
 
 #[contract]
 pub struct AutomationGateway;
@@ -462,6 +478,111 @@ impl AutomationGateway {
 
         Ok(())
     }
-}
 
-mod test;
+    /// Push a failed job to the retry queue
+    pub fn push_to_retry_queue(
+        env: Env,
+        target_contract: Address,
+        calldata: Bytes,
+    ) -> Result<u64, QuipayError> {
+        let next_job_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::NextRetryJobId)
+            .unwrap_or(1u64);
+
+        let job = RetryJob {
+            job_id: next_job_id,
+            target_contract: target_contract.clone(),
+            calldata: calldata.clone(),
+            attempt: 1,
+            next_retry_at: env.ledger().timestamp() + BACKOFF_DELAYS[0],
+        };
+
+        let mut queue: Vec<RetryJob> = env
+            .storage()
+            .instance()
+            .get(&DataKey::RetryQueue)
+            .unwrap_or_else(|| Vec::new(&env));
+        queue.push_back(job);
+        env.storage()
+            .instance()
+            .set(&DataKey::RetryQueue, &queue);
+        env.storage()
+            .instance()
+            .set(&DataKey::NextRetryJobId, &(next_job_id + 1));
+
+        env.events().publish(
+            (symbol_short!("gateway"), symbol_short!("retry_queued")),
+            (next_job_id, target_contract),
+        );
+
+        Ok(next_job_id)
+    }
+
+    /// Process eligible jobs in the retry queue
+    pub fn process_retry_queue(env: Env, caller: Address) -> Result<u32, QuipayError> {
+        caller.require_auth();
+
+        let queue: Vec<RetryJob> = env
+            .storage()
+            .instance()
+            .get(&DataKey::RetryQueue)
+            .unwrap_or_else(|| Vec::new(&env));
+
+        let current_time = env.ledger().timestamp();
+        let mut processed: u32 = 0;
+        let mut remaining: Vec<RetryJob> = Vec::new(&env);
+        let mut i = 0u32;
+
+        while i < queue.len() {
+            if let Some(mut job) = queue.get(i) {
+                if job.next_retry_at <= current_time {
+                    if job.attempt >= MAX_RETRY_ATTEMPTS {
+                        let mut dlq: Vec<RetryJob> = env
+                            .storage()
+                            .instance()
+                            .get(&DataKey::DeadLetterQueue)
+                            .unwrap_or_else(|| Vec::new(&env));
+                        dlq.push_back(job.clone());
+                        env.storage()
+                            .instance()
+                            .set(&DataKey::DeadLetterQueue, &dlq);
+
+                        env.events().publish(
+                            (symbol_short!("gateway"), symbol_short!("job_dead")),
+                            job.job_id,
+                        );
+                    } else {
+                        job.attempt += 1;
+                        job.next_retry_at = current_time + BACKOFF_DELAYS[job.attempt as usize - 1];
+                        remaining.push_back(job);
+
+                        env.events().publish(
+                            (symbol_short!("gateway"), symbol_short!("retry_attempt")),
+                            (job.job_id, job.attempt),
+                        );
+                    }
+                    processed += 1;
+                } else {
+                    remaining.push_back(job);
+                }
+            }
+            i += 1;
+        }
+
+        env.storage()
+            .instance()
+            .set(&DataKey::RetryQueue, &remaining);
+
+        Ok(processed)
+    }
+
+    /// Get jobs in the dead letter queue
+    pub fn get_dead_letter_queue(env: Env) -> Vec<RetryJob> {
+        env.storage()
+            .instance()
+            .get(&DataKey::DeadLetterQueue)
+            .unwrap_or_else(|| Vec::new(&env))
+    }
+}

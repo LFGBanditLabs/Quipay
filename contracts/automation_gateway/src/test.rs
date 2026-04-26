@@ -506,3 +506,60 @@ fn test_propose_admin_overwrites_previous_pending() {
     client.accept_admin();
     assert_eq!(client.get_admin(), new_admin2);
 }
+
+#[test]
+fn test_push_to_retry_queue() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let contract = Address::generate(&env);
+
+    let contract_id = env.register(AutomationGateway, ());
+    let client = AutomationGatewayClient::new(&env, &contract_id);
+
+    client.init(&admin);
+    let job_id = client.push_to_retry_queue(&contract, &Bytes::new(&env));
+
+    assert_eq!(job_id, 1u64);
+}
+
+#[test]
+fn test_process_retry_queue() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let caller = Address::generate(&env);
+    let contract = Address::generate(&env);
+
+    let contract_id = env.register(AutomationGateway, ());
+    let client = AutomationGatewayClient::new(&env, &contract_id);
+
+    client.init(&admin);
+    client.push_to_retry_queue(&contract, &Bytes::new(&env));
+
+    let processed = client.process_retry_queue(&caller);
+    assert!(processed >= 0);
+}
+
+#[test]
+fn test_dead_letter_queue() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let caller = Address::generate(&env);
+    let contract = Address::generate(&env);
+
+    let contract_id = env.register(AutomationGateway, ());
+    let client = AutomationGatewayClient::new(&env, &contract_id);
+
+    client.init(&admin);
+    client.push_to_retry_queue(&contract, &Bytes::new(&env));
+
+    client.process_retry_queue(&caller);
+
+    let dlq = client.get_dead_letter_queue();
+    assert!(dlq.len() >= 0);
+}

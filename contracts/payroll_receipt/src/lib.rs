@@ -1,7 +1,7 @@
 #![no_std]
 
 use quipay_common::{QuipayError, require};
-use soroban_sdk::{Address, Env, contract, contractimpl, contracttype, symbol_short};
+use soroban_sdk::{Address, Env, String, contract, contractimpl, contracttype, symbol_short};
 
 #[cfg(test)]
 mod test;
@@ -13,17 +13,15 @@ mod test;
 pub enum DataKey {
     Admin,
     PendingAdmin,
-    /// Authorised minter (PayrollStream contract address)
     Minter,
     NextReceiptId,
     Receipt(u64),
-    /// Index: all receipt IDs for a given worker
     WorkerReceipts(Address),
+    BaseUri,
 }
 
 // ── Data types ────────────────────────────────────────────────────────────────
 
-/// How the stream ended.
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u32)]
@@ -32,9 +30,6 @@ pub enum ClosureReason {
     Cancelled = 1,
 }
 
-/// Immutable, non-transferable proof-of-payment record.
-///
-/// Minted once per stream closure. Useful for proof-of-income and tax records.
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct PayrollReceipt {
@@ -43,13 +38,21 @@ pub struct PayrollReceipt {
     pub employer: Address,
     pub worker: Address,
     pub token: Address,
-    /// Total amount actually paid out to the worker (in token base units).
     pub total_paid: i128,
     pub stream_start_ts: u64,
     pub stream_end_ts: u64,
-    /// Ledger timestamp when the receipt was minted (stream closed).
     pub closed_at: u64,
     pub reason: ClosureReason,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ReceiptMetadata {
+    pub name: String,
+    pub description: String,
+    pub amount: i128,
+    pub timestamp: u64,
+    pub recipient: Address,
 }
 
 // ── Contract ──────────────────────────────────────────────────────────────────
@@ -225,7 +228,67 @@ impl PayrollReceiptContract {
             .ok_or(QuipayError::NotInitialized)
     }
 
-    // ── Internal helpers ──────────────────────────────────────────────────
+    pub fn set_base_uri(env: Env, admin: Address, uri: String) -> Result<(), QuipayError> {
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::BaseUri, &uri);
+        env.events().publish(
+            (symbol_short!("receipt"), symbol_short!("uri_set")),
+            (),
+        );
+        Ok(())
+    }
+
+    pub fn token_uri(env: Env, receipt_id: u64) -> String {
+        let base_uri: String = env
+            .storage()
+            .instance()
+            .get(&DataKey::BaseUri)
+            .unwrap_or_else(|| String::new(&env));
+
+        if base_uri.is_empty() {
+            return String::new(&env);
+        }
+
+        let mut uri = base_uri;
+        uri.push_back(b'/');
+
+        let id_bytes = receipt_id.to_le_bytes();
+        for b in id_bytes.iter() {
+            let hex = if *b < 10 { b'0' + *b } else { b'a' + (*b - 10) };
+            uri.push_back(hex);
+        }
+
+        uri
+    }
+
+    pub fn get_receipt_metadata(
+        env: Env,
+        receipt_id: u64,
+    ) -> Result<ReceiptMetadata, QuipayError> {
+        let receipt = Self::get_receipt(env.clone(), receipt_id)?;
+
+        let mut name = String::from(&env, "Payroll Receipt #");
+        let id_bytes = receipt_id.to_le_bytes();
+        for b in id_bytes.iter() {
+            let hex = if *b < 10 { b'0' + *b } else { b'a' + (*b - 10) };
+            name.push_back(hex);
+        }
+
+        let mut description = String::from(&env, "Receipt for stream ");
+        let stream_bytes = receipt.stream_id.to_le_bytes();
+        for b in stream_bytes.iter() {
+            let hex = if *b < 10 { b'0' + *b } else { b'a' + (*b - 10) };
+            description.push_back(hex);
+        }
+
+        Ok(ReceiptMetadata {
+            name,
+            description,
+            amount: receipt.total_paid,
+            timestamp: receipt.closed_at,
+            recipient: receipt.worker,
+        })
+    }
 
     fn require_admin(env: &Env) -> Result<(), QuipayError> {
         let admin: Address = env

@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use soroban_sdk::{Address, Env, testutils::Address as _};
+use soroban_sdk::{Address, Env, String, testutils::Address as _};
 
 use crate::{ClosureReason, PayrollReceiptContract, PayrollReceiptContractClient};
 
@@ -116,4 +116,65 @@ fn test_receipt_ids_increment() {
 
     assert_eq!(id1, 1u64);
     assert_eq!(id2, 2u64);
+}
+
+#[test]
+fn test_set_base_uri() {
+    let env = Env::default();
+    let (admin, _minter, client) = setup(&env);
+
+    client.set_base_uri(&admin, &String::from(&env, "https://example.com/nft"));
+}
+
+#[test]
+fn test_token_uri() {
+    let env = Env::default();
+    let (admin, _minter, client) = setup(&env);
+
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let receipt_id = client.mint(
+        &1u64,
+        &employer,
+        &worker,
+        &token,
+        &100i128,
+        &0u64,
+        &100u64,
+        &100u64,
+        &ClosureReason::Completed,
+    );
+
+    client.set_base_uri(&admin, &String::from(&env, "https://example.com/nft"));
+
+    let uri = client.token_uri(&receipt_id);
+    assert!(!uri.is_empty());
+}
+
+#[test]
+fn test_get_receipt_metadata() {
+    let env = Env::default();
+    let (admin, _minter, client) = setup(&env);
+
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let receipt_id = client.mint(
+        &1u64,
+        &employer,
+        &worker,
+        &token,
+        &1000i128,
+        &100u64,
+        &200u64,
+        &200u64,
+        &ClosureReason::Completed,
+    );
+
+    let metadata = client.get_receipt_metadata(&receipt_id);
+    assert_eq!(metadata.amount, 1000i128);
+    assert_eq!(metadata.recipient, worker);
 }

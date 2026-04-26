@@ -34,6 +34,7 @@ import { Button, Text } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
 import { useNotification } from "../hooks/useNotification";
 import { translateError } from "../util/errors";
+import { sanitizeText } from "../util/sanitize";
 import { ErrorMessage } from "./ErrorMessage";
 import TransactionSimulationModal, {
   type TransactionPreview,
@@ -681,7 +682,11 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const formErrors = validate(values);
+    const sanitized = {
+      ...values,
+      workerAddress: sanitizeText(values.workerAddress),
+    };
+    const formErrors = validate(sanitized);
     if (Object.keys(formErrors).length > 0) {
       dispatch({ type: "SET_ERRORS", errors: formErrors });
       return;
@@ -700,7 +705,7 @@ const StreamCreator: React.FC<StreamCreatorProps> = ({
     if (solvency.kind === "insufficient") {
       addNotification("Treasury lacks funds for this stream total.", "warning");
     }
-    openSimulation(values);
+    openSimulation(sanitized);
   };
 
   const isCurrentFormValid = Object.keys(validate(values)).length === 0;
