@@ -10,40 +10,55 @@ import {
   ContractStream,
 } from "../contracts/payroll_stream";
 
+/** ---------------- REQUEST DEDUP ---------------- */
+
+type CacheEntry<T> = {
+  promise: Promise<T>;
+  timestamp: number;
+};
+
+const requestCache = new Map<string, CacheEntry<any>>();
+const TTL = 2000; // 2 seconds
+
+async function dedupRequest<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const now = Date.now();
+  const existing = requestCache.get(key);
+
+  if (existing && now - existing.timestamp < TTL) {
+    return existing.promise;
+  }
+
+  const promise = fn();
+  requestCache.set(key, { promise, timestamp: now });
+
+  try {
+    const result = await promise;
+    return result;
+  } catch (err) {
+    requestCache.delete(key);
+    throw err;
+  }
+}
+
 /** Stellar uses 7 decimal places (10^7 stroops = 1 token unit). */
 const STROOPS_PER_UNIT = 1e7;
 
-/** Normalised view of a payroll stream as seen by the employer dashboard. */
 export interface Stream {
-  /** On-chain stream ID (stringified `u64`). */
   id: string;
-  /** Placeholder display name for the employee (derived from the stream ID). */
   employeeName: string;
-  /** Stellar account ID of the worker receiving this stream. */
   employeeAddress: string;
-  /** Accrual rate formatted to 7 decimal places in token units per second. */
   flowRate: string;
-  /** Token symbol, e.g. `"USDC"` or `"XLM"`. */
   tokenSymbol: string;
-  /** ISO 8601 date string (date portion only) for the stream start. */
   startDate: string;
-  /** ISO 8601 date string (date portion only) for the stream end. */
   endDate: string;
-  /** Total allocated amount formatted to 2 decimal places in token units. */
   totalAmount: string;
-  /** Amount already streamed (withdrawn) formatted to 2 decimal places in token units. */
   totalStreamed: string;
-  /** Lifecycle status of the stream. */
   status: "active" | "paused" | "completed" | "cancelled";
-  /** Client-side action currently waiting for confirmation. */
   pendingAction?: "pause" | "resume" | "cancel";
 }
 
-/** Token balance as reported by the PayrollVault contract. */
 export interface TokenBalance {
-  /** Token symbol, e.g. `"USDC"` or `"XLM"`. */
   tokenSymbol: string;
-  /** Available balance as a plain string (raw bigint value from the contract). */
   balance: string;
 }
 
@@ -58,14 +73,9 @@ export interface PayrollSummary {
   streams_active: number;
 }
 
-// Default tokens to monitor (XLM and USDC)
 const USDC_ISSUER = import.meta.env.PUBLIC_USDC_ISSUER || "";
 
-const DEFAULT_TOKENS: Array<{
-  token: string;
-  tokenSymbol: string;
-  monthlyBurnRate: bigint;
-}> = [
+const DEFAULT_TOKENS = [
   { token: "", tokenSymbol: "XLM", monthlyBurnRate: BigInt(0) },
   {
     token: USDC_ISSUER,
@@ -74,26 +84,6 @@ const DEFAULT_TOKENS: Array<{
   },
 ];
 
-/**
- * Fetches vault balances and payroll streams for an employer.
- *
- * Combines data from two on-chain sources: the PayrollVault contract
- * (treasury balances and liabilities) and the PayrollStream contract
- * (per-stream metadata and status). Falls back gracefully if the vault is
- * not yet configured.
- *
- * @param employerAddress - Stellar account ID of the employer, or `undefined`
- *   while the wallet is disconnected. Passing `undefined` resets all state.
- * @param options.offset - Index offset for paginating stream results.
- * @param options.limit - Maximum number of streams to return per fetch.
- * @returns Treasury balances, liabilities, stream list, loading state, error
- *   message, and callbacks to refresh data.
- *
- * @example
- * ```tsx
- * const { streams, treasuryBalances, isLoading, refreshData } = usePayroll(address);
- * ```
- */
 export const usePayroll = (
   employerAddress: string | undefined,
   options?: {
@@ -105,19 +95,20 @@ export const usePayroll = (
   const [totalLiabilities, setTotalLiabilities] = useState<string>("0");
   const [streams, setStreams] = useState<Stream[]>([]);
   const [vaultData, setVaultData] = useState<TokenVaultData[]>([]);
-  const [payrollSummary, setPayrollSummary] = useState<PayrollSummary | null>(
-    null,
-  );
+  const [payrollSummary, setPayrollSummary] = useState<PayrollSummary | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isVaultLoading, setIsVaultLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fetchTick, setFetchTick] = useState(0);
 
   const fetchVaultData = useCallback(async () => {
     setIsVaultLoading(true);
     try {
-      const data = await getAllVaultData(DEFAULT_TOKENS);
-      setVaultData(data);
+      const data = await dedupRequest("vaultData", () =>
+        getAllVaultData(DEFAULT_TOKENS),
+      );
 
-      // Update treasury balances from vault data
+      setVaultData(data);
       setTreasuryBalances(
         data.map((v: TokenVaultData) => ({
           tokenSymbol: v.tokenSymbol,
@@ -125,7 +116,6 @@ export const usePayroll = (
         })),
       );
 
-      // Calculate total liabilities (simplified - sum across all tokens)
       const totalLiability = data.reduce(
         (sum: bigint, v: TokenVaultData) => sum + v.liability,
         BigInt(0),
@@ -133,60 +123,34 @@ export const usePayroll = (
       setTotalLiabilities(totalLiability.toString());
     } catch (error) {
       console.error("Failed to fetch vault data:", error);
-      // Fall back to mock data if vault is not configured
       setVaultData([]);
     } finally {
       setIsVaultLoading(false);
     }
   }, []);
 
-  const [error, setError] = useState<string | null>(null);
-  const [fetchTick, setFetchTick] = useState(0);
-
   const fetchPayrollSummary = useCallback(async (address: string) => {
     const backendUrl =
       import.meta.env.PUBLIC_BACKEND_URL || "http://localhost:3001";
-    const authToken = localStorage.getItem("auth_token");
-    const headers: HeadersInit = authToken
-      ? {
-          Authorization: `Bearer ${authToken}`,
-        }
-      : {
-          "x-user-role": "user",
-          "x-user-id": address,
-        };
 
-    try {
+    await dedupRequest(`summary-${address}`, async () => {
       const response = await fetch(
         `${backendUrl}/api/v1/analytics/payroll-summary?org_id=${encodeURIComponent(address)}&period=ytd`,
-        { headers },
       );
 
-      if (!response.ok) {
-        throw new Error("Failed to load payroll summary");
-      }
+      if (!response.ok) throw new Error("Failed to load payroll summary");
 
-      const payload = (await response.json()) as {
-        data?: PayrollSummary;
-      };
+      const payload = await response.json();
       setPayrollSummary(payload.data ?? null);
-    } catch (summaryError) {
-      console.warn("Failed to fetch payroll summary:", summaryError);
-      setPayrollSummary(null);
-    }
-  }, []);
-
-  const refetch = useCallback(() => {
-    setFetchTick((t) => t + 1);
+    });
   }, []);
 
   const fetchStreams = useCallback(
     async (address: string) => {
       try {
-        const streamPage = await getStreamsByEmployer(
-          address,
-          options?.offset,
-          options?.limit,
+        const streamPage = await dedupRequest(
+          `streams-${address}-${options?.offset}-${options?.limit}`,
+          () => getStreamsByEmployer(address, options?.offset, options?.limit),
         );
 
         const employerStreams: Stream[] = await Promise.all(
@@ -194,64 +158,48 @@ export const usePayroll = (
             const streamId = String((options?.offset ?? 0) + index + 1);
             const tokenSymbol = await getTokenSymbol(address, s.token);
 
-            const flowRate = (Number(s.rate) / STROOPS_PER_UNIT).toFixed(7);
-            const totalAmount = (
-              Number(s.total_amount) / STROOPS_PER_UNIT
-            ).toFixed(2);
-            const totalStreamed = (
-              Number(s.withdrawn_amount) / STROOPS_PER_UNIT
-            ).toFixed(2);
-
-            const startDate = new Date(Number(s.start_ts) * 1000)
-              .toISOString()
-              .split("T")[0];
-            const endDate = new Date(Number(s.end_ts) * 1000)
-              .toISOString()
-              .split("T")[0];
-
-            let status: Stream["status"];
-            switch (s.status) {
-              case 0:
-                status = "active";
-                break;
-              case 1:
-                status = "cancelled";
-                break;
-              case 2:
-                status = "completed";
-                break;
-              case 3:
-                status = "paused";
-                break;
-              default:
-                status = "active";
-            }
-
             return {
               id: streamId,
               employeeName: `Worker ${streamId.slice(0, 8)}`,
               employeeAddress: s.worker,
-              flowRate,
+              flowRate: (Number(s.rate) / STROOPS_PER_UNIT).toFixed(7),
               tokenSymbol,
-              startDate,
-              endDate,
-              totalAmount,
-              totalStreamed,
-              status,
+              startDate: new Date(Number(s.start_ts) * 1000)
+                .toISOString()
+                .split("T")[0],
+              endDate: new Date(Number(s.end_ts) * 1000)
+                .toISOString()
+                .split("T")[0],
+              totalAmount: (
+                Number(s.total_amount) / STROOPS_PER_UNIT
+              ).toFixed(2),
+              totalStreamed: (
+                Number(s.withdrawn_amount) / STROOPS_PER_UNIT
+              ).toFixed(2),
+              status:
+                s.status === 1
+                  ? "cancelled"
+                  : s.status === 2
+                  ? "completed"
+                  : s.status === 3
+                  ? "paused"
+                  : "active",
             };
           }),
         );
 
         setStreams(employerStreams);
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Failed to load stream data";
-        setError(message);
+        setError(err instanceof Error ? err.message : "Failed to load stream data");
         setStreams([]);
       }
     },
     [options?.offset, options?.limit],
   );
+
+  const refetch = useCallback(() => {
+    setFetchTick((t) => t + 1);
+  }, []);
 
   const refreshData = useCallback(async () => {
     await fetchVaultData();
@@ -268,26 +216,17 @@ export const usePayroll = (
 
     const WS_URL =
       import.meta.env.PUBLIC_BACKEND_URL || "http://localhost:3001";
-    // Connect to WebSocket server using a dummy token or from localStorage if available
-    const token = localStorage.getItem("auth_token") || "dummy";
+
     const socket = io(WS_URL, {
       path: "/socket.io",
-      query: { token },
+      query: { token: localStorage.getItem("auth_token") || "dummy" },
     });
 
-    socket.on("connect", () => {
-      console.log("[Payroll WS] Connected for real-time updates");
-      if (employerAddress) socket.emit("subscribe:stream", employerAddress);
+    socket.on("stream:event", () => {
+      refetch();
     });
 
-    socket.on("stream:event", (event: unknown) => {
-      console.log("[Payroll WS] Received real-time event:", event);
-      refetch(); // Automatically update all streams
-    });
-
-    return () => {
-      socket.disconnect();
-    };
+    return () => socket.disconnect();
   }, [employerAddress, refetch]);
 
   useEffect(() => {
@@ -304,18 +243,13 @@ export const usePayroll = (
       setError(null);
 
       try {
-        // Try to fetch real vault data
         await fetchVaultData();
-
-        // Fetch real stream data from contract
         await Promise.all([
           fetchStreams(employerAddress),
           fetchPayrollSummary(employerAddress),
         ]);
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Failed to load payroll data";
-        setError(message);
+        setError(err instanceof Error ? err.message : "Failed to load payroll data");
         setStreams([]);
       } finally {
         setIsLoading(false);
@@ -334,51 +268,18 @@ export const usePayroll = (
   const activeStreams = useMemo(
     () =>
       streams.filter(
-        (stream) =>
-          stream.status === "active" ||
-          stream.status === "paused" ||
-          stream.pendingAction !== undefined,
+        (s) =>
+          s.status === "active" ||
+          s.status === "paused" ||
+          s.pendingAction !== undefined,
       ),
     [streams],
   );
 
   const activeStreamsCount = useMemo(
-    () => streams.filter((stream) => stream.status === "active").length,
+    () => streams.filter((s) => s.status === "active").length,
     [streams],
   );
-
-  const applyOptimisticStreamStatus = useCallback(
-    (
-      streamId: string,
-      status: Stream["status"],
-      pendingAction: NonNullable<Stream["pendingAction"]>,
-    ) => {
-      setStreams((current) =>
-        current.map((stream) =>
-          stream.id === streamId
-            ? { ...stream, status, pendingAction }
-            : stream,
-        ),
-      );
-    },
-    [],
-  );
-
-  const restoreStream = useCallback((previous: Stream) => {
-    setStreams((current) =>
-      current.map((stream) => (stream.id === previous.id ? previous : stream)),
-    );
-  }, []);
-
-  const clearStreamPending = useCallback((streamId: string) => {
-    setStreams((current) =>
-      current.map((stream) =>
-        stream.id === streamId
-          ? { ...stream, pendingAction: undefined }
-          : stream,
-      ),
-    );
-  }, []);
 
   return {
     treasuryBalances,
@@ -394,8 +295,5 @@ export const usePayroll = (
     refreshData,
     refreshVaultData: fetchVaultData,
     refetch,
-    applyOptimisticStreamStatus,
-    restoreStream,
-    clearStreamPending,
   };
 };
