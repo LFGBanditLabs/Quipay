@@ -3,8 +3,15 @@ import { VaultClient } from "../services/vaultClient";
 import { SecretsBootstrap } from "../services/secretsBootstrap";
 import { vaultService } from "../services/vaultService";
 
+jest.mock("../utils/circuitBreaker", () => ({
+  createCircuitBreaker: () => ({
+    fire: (...args: unknown[]) =>
+      (global.fetch as (...fetchArgs: unknown[]) => Promise<unknown>)(...args),
+  }),
+}));
+
 // Mock fetch globally
-const mockFetch = jest.fn() as jest.MockedFunction<typeof fetch>;
+const mockFetch = jest.fn() as unknown as jest.MockedFunction<typeof fetch>;
 global.fetch = mockFetch;
 
 // Mock audit logger to avoid noise
@@ -20,6 +27,8 @@ describe("Vault Integration", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.VAULT_ADDR = "http://vault:8200";
+    process.env.VAULT_TOKEN = "test-token";
     vaultClient = new VaultClient({
       url: "http://vault:8200",
       token: "test-token",
