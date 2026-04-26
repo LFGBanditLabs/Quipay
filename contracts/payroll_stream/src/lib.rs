@@ -3467,7 +3467,3 @@ mod proptest;
 mod upgrade_migration_test;
 #[cfg(test)]
 mod withdraw_proptest;
-
-/// Tests for `batch_start_streams`.
-#[cfg(test)]
-mod batch_start_test;

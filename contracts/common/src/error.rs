@@ -129,8 +129,8 @@ pub enum QuipayError {
     // ── Receipts ──────────────────────────────────────────────────────────────
     /// No receipt exists for the given receipt ID.
     ReceiptNotFound = 1044,
-    /// Downstream contract calls are temporarily blocked by a circuit breaker.
-    CircuitOpen = 1045,
+    /// The receipt has already been burned and cannot be modified or burned again.
+    AlreadyBurned = 1050,
 
     // ── Cancellation & Governance ─────────────────────────────────────────────
     /// Cancellation attempted before the minimum notice period elapsed.

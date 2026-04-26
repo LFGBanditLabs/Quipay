@@ -101,6 +101,7 @@ fn setup_with_counting_vault(
     client.set_vault(&vault_id);
     client.set_withdrawal_cooldown(&0u64);
     client.set_min_stream_duration(&0u64);
+    client.set_min_cancel_notice(&0u32);
 
     (client, vault_client, employer, worker, token, admin)
 }

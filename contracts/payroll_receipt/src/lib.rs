@@ -30,6 +30,7 @@ pub enum DataKey {
 pub enum ClosureReason {
     Completed = 0,
     Cancelled = 1,
+    Burned = 2,
 }
 
 /// Immutable, non-transferable proof-of-payment record.
@@ -176,7 +177,46 @@ impl PayrollReceiptContract {
             (receipt_id, stream_id, token, total_paid, reason),
         );
 
-        Ok(receipt_id)
+    Ok(receipt_id)
+    }
+
+    /// Burn a receipt to mark it as invalid/reversed.
+    ///
+    /// Only the receipt owner (worker) or the contract admin can burn.
+    /// Mark the receipt as Burned rather than deleting storage for auditability.
+    pub fn burn_receipt(env: Env, receipt_id: u64, caller: Address) -> Result<(), QuipayError> {
+        caller.require_auth();
+
+        let mut receipt = Self::get_receipt(env.clone(), receipt_id)?;
+
+        require!(
+            receipt.reason != ClosureReason::Burned,
+            QuipayError::AlreadyBurned
+        );
+
+        let admin = Self::get_admin(env.clone())?;
+        require!(
+            caller == receipt.worker || caller == admin,
+            QuipayError::Unauthorized
+        );
+
+        receipt.reason = ClosureReason::Burned;
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::Receipt(receipt_id), &receipt);
+
+        env.events().publish(
+            (
+                symbol_short!("receipt"),
+                symbol_short!("burned"),
+                receipt_id,
+                caller,
+            ),
+            env.ledger().timestamp(),
+        );
+
+        Ok(())
     }
 
     // ── Queries ───────────────────────────────────────────────────────────
