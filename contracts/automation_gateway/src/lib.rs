@@ -1,8 +1,8 @@
 #![no_std]
 use quipay_common::{QuipayError, require};
 use soroban_sdk::{
-    Address, Bytes, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype, symbol_short,
-    vec,
+    Address, Bytes, Env, IntoVal, Symbol, Vec, contract, contractimpl, contracttype,
+    symbol_short, vec,
 };
 
 #[contracttype]
@@ -24,6 +24,32 @@ pub struct Agent {
     pub permissions: Vec<Permission>,
     pub registered_at: u64,
 }
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct StreamCreateParams {
+    pub employer: Address,
+    pub worker: Address,
+    pub token: Address,
+    pub rate: i128,
+    pub cliff_ts: u64,
+    pub start_ts: u64,
+    pub end_ts: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum AutomationEvent {
+    PermSet(Address),
+    PermAdd(Address, Permission),
+    PermRev(Address, Permission),
+    AgentReg(Address),
+    AgentRev(Address),
+    Executed(Address, Symbol),
+    StreamCreated(Address, Address, u64),
+    StreamCanceled(Address, Address, u64),
+}
+
 
 #[contracttype]
 pub enum DataKey {

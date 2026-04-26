@@ -28,6 +28,11 @@ pub enum QuipayError {
     StreamClosed = 1018,
     NotEmployer = 1019,
     StreamNotClosed = 1020,
+    WithdrawalNotFound = 1021,
+    AlreadyApproved = 1022,
+    NotGuardian = 1023,
+    LargeWithdrawalRequiresApproval = 1024,
+    WithdrawalCooldownActive = 1025,
     Custom = 1999,
 }
 

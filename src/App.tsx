@@ -1,107 +1,233 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { Routes, Route, useLocation } from "react-router-dom";
+import { lazy, Suspense } from "react";
+import { Routes, Route, Outlet } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import Navbar from "./components/layout/Navbar";
 import OnboardingTour from "./components/OnboardingTour";
 import Footer from "./components/layout/Footer";
+import WalletGuard from "./components/WalletGuard";
+import { TooltipProvider } from "./components/ui";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import KeyboardShortcutsModal from "./components/KeyboardShortcutsModal";
 
 const Home = lazy(() => import("./pages/Home"));
 const Debugger = lazy(() => import("./pages/Debugger"));
 const EmployerDashboard = lazy(() => import("./pages/EmployerDashboard"));
 const GovernanceOverview = lazy(() => import("./pages/GovernanceOverview"));
+const Settings = lazy(() => import("./pages/Settings"));
 const CreateStream = lazy(() => import("./pages/CreateStream"));
 const HelpPage = lazy(() => import("./pages/HelpPage"));
 const PayrollDashboard = lazy(() => import("./pages/PayrollDashboard"));
 const TreasuryManager = lazy(() => import("./pages/TreasuryManager"));
-const WithdrawPage = lazy(() => import("./pages/withdrawPage"));
+const WithdrawPage = lazy(() => import("./pages/WithdrawPage"));
 const Reports = lazy(() => import("./pages/Reports"));
 const NotFound = lazy(() => import("./pages/NotFound"));
-
-const TRANSITION_MS = 280;
+const WorkerDashboard = lazy(() => import("./pages/WorkerDashboard"));
+const Analytics = lazy(() => import("./pages/Analytics"));
+const TreasuryAnalytics = lazy(() => import("./pages/TreasuryAnalytics"));
+const WorkforceRegistry = lazy(() => import("./pages/WorkforceRegistry"));
+const AddressBook = lazy(() => import("./pages/AddressBook.tsx"));
+const DashboardCustomization = lazy(
+  () => import("./pages/DashboardCustomization"),
+);
+const StreamTemplates = lazy(() => import("./pages/StreamTemplates"));
+const StreamComparison = lazy(() => import("./pages/StreamComparison"));
+const UIPrimitivesPreview = lazy(
+  () => import("./pages/UIPrimitivesPreview.tsx"),
+);
 
 function AppLoadingFallback() {
+  const { t } = useTranslation();
   return (
     <div className="flex min-h-[50vh] w-full items-center justify-center px-4 py-16">
-      <div className="rounded-2xl border border-white/15 bg-[var(--surface)]/80 px-6 py-5 text-center shadow-[0_18px_40px_-20px_var(--shadow-color)] backdrop-blur-md">
+      <div className="rounded-2xl border border-white/15 bg-(--surface)/80 px-6 py-5 text-center shadow-[0_18px_40px_-20px_var(--shadow-color)] backdrop-blur-md">
         <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full border-2 border-indigo-400/30 border-t-indigo-400 animate-spin" />
-        <p className="bg-gradient-to-r from-indigo-400 to-pink-400 bg-clip-text text-sm font-semibold text-transparent">
-          Loading Quipay Experience
+        <p className="bg-linear-to-r from-indigo-400 to-pink-400 bg-clip-text text-sm font-semibold text-transparent">
+          {t("common.loading") || "Loading Quipay Experience"}
         </p>
       </div>
     </div>
   );
 }
 
-function AppRoutes({ location }: { location: ReturnType<typeof useLocation> }) {
-  return (
-    <Routes location={location}>
-      <Route path="/" element={<Home />} />
-      <Route path="/dashboard" element={<EmployerDashboard />} />
-      <Route path="/payroll" element={<PayrollDashboard />} />
-      <Route path="/withdraw" element={<WithdrawPage />} />
-      <Route path="/treasury-management" element={<TreasuryManager />} />
-      <Route path="/create-stream" element={<CreateStream />} />
-      <Route path="/governance" element={<GovernanceOverview />} />
-      <Route path="/reports" element={<Reports />} />
-      <Route path="/help" element={<HelpPage />} />
-      <Route path="/debug" element={<Debugger />} />
-      <Route path="/debug/:contractName" element={<Debugger />} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
-  );
-}
-
 function AppLayout() {
-  const location = useLocation();
-  const [displayLocation, setDisplayLocation] = useState(location);
-
-  const locationKey = useMemo(
-    () => `${location.pathname}${location.search}${location.hash}`,
-    [location.hash, location.pathname, location.search],
-  );
-  const displayLocationKey = useMemo(
-    () =>
-      `${displayLocation.pathname}${displayLocation.search}${displayLocation.hash}`,
-    [displayLocation.hash, displayLocation.pathname, displayLocation.search],
-  );
-  const isTransitioning = locationKey !== displayLocationKey;
-
-  useEffect(() => {
-    if (!isTransitioning) return;
-    const timer = window.setTimeout(() => {
-      setDisplayLocation(location);
-      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    }, TRANSITION_MS);
-
-    return () => window.clearTimeout(timer);
-  }, [isTransitioning, location]);
+  const { t } = useTranslation();
+  const { isHelpModalOpen, toggleHelpModal } = useKeyboardShortcuts();
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <a href="#main-content" className="skip-link">
-        Skip to main content
-      </a>
-      <Navbar />
-      <main id="main-content" tabIndex={-1} className="flex-1 outline-none">
-        <OnboardingTour />
-        <div
-          className={`w-full transform transition-all duration-300 ease-out motion-reduce:transform-none motion-reduce:transition-none ${
-            isTransitioning
-              ? "pointer-events-none translate-y-2 opacity-0"
-              : "translate-y-0 opacity-100"
-          }`}
-        >
+    <TooltipProvider>
+      <div className="flex min-h-screen flex-col">
+        <a href="#main-content" className="skip-link">
+          {t("common.skip_to_content")}
+        </a>
+        <Navbar />
+        <main id="main-content" tabIndex={-1} className="flex-1 outline-none">
+          <OnboardingTour />
           <Suspense fallback={<AppLoadingFallback />}>
-            <AppRoutes location={displayLocation} />
+            <Outlet />
           </Suspense>
-        </div>
-      </main>
-      <Footer />
-    </div>
+        </main>
+        <Footer />
+        <KeyboardShortcutsModal
+          isOpen={isHelpModalOpen}
+          onClose={toggleHelpModal}
+        />
+      </div>
+    </TooltipProvider>
   );
 }
 
 function App() {
-  return <AppLayout />;
+  const { t } = useTranslation();
+  return (
+    <Suspense
+      fallback={<div className="p-8 text-center">{t("common.loading")}</div>}
+    >
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<Home />} />
+
+          {/* Protected Routes */}
+          <Route
+            path="/dashboard"
+            element={
+              <WalletGuard>
+                <EmployerDashboard />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/payroll"
+            element={
+              <WalletGuard>
+                <PayrollDashboard />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/withdraw"
+            element={
+              <WalletGuard>
+                <WithdrawPage />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/treasury-management"
+            element={
+              <WalletGuard>
+                <TreasuryManager />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/create-stream"
+            element={
+              <WalletGuard>
+                <CreateStream />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/governance"
+            element={
+              <WalletGuard>
+                <GovernanceOverview />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <WalletGuard>
+                <Reports />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              <WalletGuard>
+                <Analytics />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/treasury-analytics"
+            element={
+              <WalletGuard>
+                <TreasuryAnalytics />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <WalletGuard>
+                <Settings />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/dashboard-customization"
+            element={
+              <WalletGuard>
+                <DashboardCustomization />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/templates"
+            element={
+              <WalletGuard>
+                <StreamTemplates />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/stream-comparison"
+            element={
+              <WalletGuard>
+                <StreamComparison />
+              </WalletGuard>
+            }
+          />
+
+          <Route
+            path="/worker"
+            element={
+              <WalletGuard>
+                <WorkerDashboard />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/workforce"
+            element={
+              <WalletGuard>
+                <WorkforceRegistry />
+              </WalletGuard>
+            }
+          />
+
+          <Route
+            path="/address-book"
+            element={
+              <WalletGuard>
+                <AddressBook />
+              </WalletGuard>
+            }
+          />
+
+          {/* Public Routes */}
+          <Route path="/help" element={<HelpPage />} />
+          <Route path="/ui-primitives" element={<UIPrimitivesPreview />} />
+          <Route path="/debug" element={<Debugger />} />
+          <Route path="/debug/:contractName" element={<Debugger />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Routes>
+    </Suspense>
+  );
 }
 
 export default App;

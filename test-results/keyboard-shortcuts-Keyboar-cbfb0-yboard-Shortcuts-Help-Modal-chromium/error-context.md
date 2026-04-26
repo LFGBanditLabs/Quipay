@@ -1,0 +1,393 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - link [ref=e4] [cursor=pointer]:
+      - /url: "#main-content"
+      - text: Skip to main content
+    - banner [ref=e5]:
+      - navigation [ref=e6]:
+        - generic [ref=e7]:
+          - generic [ref=e8]:
+            - generic [ref=e9]: Q
+            - generic [ref=e10]: Quipay
+          - generic [ref=e11]:
+            - button [ref=e12]:
+              - link [ref=e13] [cursor=pointer]:
+                - /url: /dashboard
+                - text: Dashboard
+            - button [ref=e14]:
+              - link [ref=e15] [cursor=pointer]:
+                - /url: /payroll
+                - text: Payroll
+            - button [ref=e16]:
+              - link [ref=e17] [cursor=pointer]:
+                - /url: /treasury-management
+                - text: Treasury
+            - button [ref=e18]:
+              - link [ref=e19] [cursor=pointer]:
+                - /url: /worker
+                - text: Worker
+            - button [ref=e20]:
+              - link [ref=e21] [cursor=pointer]:
+                - /url: /workforce
+                - text: Workforce
+            - button [ref=e22]:
+              - link [ref=e23] [cursor=pointer]:
+                - /url: /address-book
+                - text: Address Book
+            - button [ref=e24]:
+              - link [ref=e25] [cursor=pointer]:
+                - /url: /reports
+                - text: Reports
+            - button [ref=e26]:
+              - link [ref=e27] [cursor=pointer]:
+                - /url: /analytics
+                - text: Analytics
+            - button [ref=e28]:
+              - link [ref=e29] [cursor=pointer]:
+                - /url: /templates
+                - text: Templates
+            - button [ref=e30]:
+              - link [ref=e31] [cursor=pointer]:
+                - /url: /governance
+                - text: Governance
+            - button [ref=e32]:
+              - link [ref=e33] [cursor=pointer]:
+                - /url: /withdraw
+                - text: nav.withdraw
+            - button [ref=e34]:
+              - link [ref=e35] [cursor=pointer]:
+                - /url: /create-stream
+                - text: nav.create_stream
+            - button [ref=e36]:
+              - link [ref=e37] [cursor=pointer]:
+                - /url: /settings
+                - text: nav.settings
+          - generic [ref=e39]:
+            - combobox [ref=e41]
+            - button [ref=e42]:
+              - img [ref=e43]
+            - generic [ref=e45]:
+              - button [ref=e47]: Connect Wallet
+              - status [ref=e49]:
+                - img [ref=e50]
+                - generic [ref=e52]: Local
+    - main [ref=e54]:
+      - generic [ref=e55]:
+        - generic:
+          - generic:
+            - generic:
+              - generic: "+0.0024"
+          - generic:
+            - generic:
+              - generic: "+0.0024"
+          - generic:
+            - generic:
+              - generic: "+0.0024"
+          - generic:
+            - generic:
+              - generic: "+0.0024"
+          - generic:
+            - generic:
+              - generic: "+0.0024"
+          - generic:
+            - generic:
+              - generic: "+0.0024"
+        - generic:
+          - img
+        - main [ref=e59]:
+          - generic [ref=e60]:
+            - generic [ref=e62]:
+              - generic [ref=e63]: ✨
+              - generic [ref=e64]: Welcome to Quipay 2.0
+            - heading [level=1] [ref=e65]:
+              - text: The Future of
+              - generic [ref=e66]:
+                - text: Decentralized Payroll
+                - img [ref=e67]
+            - paragraph [ref=e69]: Experience seamless, continuous streaming payments built on Stellar. Manage your treasury automatically with AI-driven compliance. Empower your workforce with real-time capital access.
+            - generic [ref=e70]:
+              - link [ref=e71] [cursor=pointer]:
+                - /url: /dashboard
+                - generic [ref=e73]: Launch App
+                - img [ref=e74]
+              - link [ref=e76] [cursor=pointer]:
+                - /url: /help
+                - text: View Documentation
+          - generic [ref=e77]:
+            - generic [ref=e78]:
+              - img [ref=e79]
+              - generic [ref=e81]:
+                - text: Built on
+                - strong [ref=e82]: Stellar Network
+            - generic [ref=e83]:
+              - generic [ref=e84] [cursor=pointer]:
+                - img [ref=e85]
+                - generic [ref=e87]: Soroban
+              - generic [ref=e88] [cursor=pointer]:
+                - img [ref=e89]
+                - generic [ref=e91]: Freighter
+              - generic [ref=e92] [cursor=pointer]:
+                - img [ref=e93]
+                - generic [ref=e95]: Albedo
+              - generic [ref=e96] [cursor=pointer]:
+                - img [ref=e97]
+                - generic [ref=e99]: Stellar Aid
+            - generic [ref=e100]:
+              - generic [ref=e101]:
+                - generic [ref=e102]: 0+
+                - generic [ref=e103]: Total Streams
+              - generic [ref=e104]:
+                - generic [ref=e105]: $0
+                - generic [ref=e106]: Total Value Streamed
+          - generic [ref=e108]:
+            - generic [ref=e109]:
+              - generic [ref=e114]: Active Streams
+              - generic [ref=e115]: ● LIVE
+            - generic [ref=e116]:
+              - generic [ref=e117]:
+                - generic [ref=e118]: AC
+                - generic [ref=e119]:
+                  - generic [ref=e120]:
+                    - heading [level=4] [ref=e121]: Alice Chen
+                    - generic [ref=e122]: Streaming
+                  - paragraph [ref=e124]: Senior Engineer
+                - generic [ref=e125]:
+                  - generic [ref=e126]: + 1250.0238
+                  - text: USDC
+              - generic [ref=e127]:
+                - generic [ref=e128]: BM
+                - generic [ref=e129]:
+                  - generic [ref=e130]:
+                    - heading [level=4] [ref=e131]: Bob Martinez
+                    - generic [ref=e132]: Streaming
+                  - paragraph [ref=e134]: Product Designer
+                - generic [ref=e135]:
+                  - generic [ref=e136]: + 980.0189
+                  - text: USDC
+              - generic [ref=e137]:
+                - generic [ref=e138]: CW
+                - generic [ref=e139]:
+                  - generic [ref=e140]:
+                    - heading [level=4] [ref=e141]: Carol Wu
+                    - generic [ref=e142]: Paused
+                  - paragraph [ref=e144]: DevOps Lead
+                - generic [ref=e145]:
+                  - generic [ref=e146]: + 1420.0000
+                  - text: USDC
+            - generic [ref=e148]:
+              - generic [ref=e149]: Total streaming this month
+              - generic [ref=e150]: $12,847.50 USDC
+          - generic [ref=e151]:
+            - generic [ref=e152]:
+              - heading [level=2] [ref=e153]: Protocol By The Numbers
+              - paragraph [ref=e154]: Real-time metrics from Quipay streams across teams, treasuries, and active contributors.
+            - generic [ref=e155]:
+              - article [ref=e156]:
+                - generic [ref=e160]:
+                  - paragraph [ref=e161]: Total Streams
+                  - paragraph [ref=e162]: "0"
+              - article [ref=e163]:
+                - generic [ref=e167]:
+                  - paragraph [ref=e168]: Total Value Streamed
+                  - paragraph [ref=e169]: $0 USDC
+              - article [ref=e170]:
+                - generic [ref=e174]:
+                  - paragraph [ref=e175]: Active Workers
+                  - paragraph [ref=e176]: "0"
+              - article [ref=e177]:
+                - generic [ref=e181]:
+                  - paragraph [ref=e182]: Avg. Stream Duration
+                  - paragraph [ref=e183]: 0.0 hrs
+          - generic [ref=e184]:
+            - generic [ref=e185]:
+              - heading [level=2] [ref=e186]: How Quipay Works
+              - paragraph [ref=e187]: A streamlined, automated payroll experience in 4 simple steps
+            - generic [ref=e188]:
+              - generic [ref=e190]:
+                - generic [ref=e191]:
+                  - img [ref=e193]
+                  - generic [ref=e197]: "01"
+                - heading [level=3] [ref=e198]: Fund Your Treasury
+                - paragraph [ref=e199]: Securely deposit assets into our audited multi-sig smart contract vaults.
+              - generic [ref=e200]:
+                - generic [ref=e201]:
+                  - img [ref=e203]
+                  - generic [ref=e207]: "02"
+                - heading [level=3] [ref=e208]: Create Payment Streams
+                - paragraph [ref=e209]: Set up continuous, real-time token flows for your global contributors.
+              - generic [ref=e210]:
+                - generic [ref=e211]:
+                  - img [ref=e213]
+                  - generic [ref=e217]: "03"
+                - heading [level=3] [ref=e218]: Workers Withdraw Anytime
+                - paragraph [ref=e219]: Empower your team with instant access to their earned capital, 24/7.
+              - generic [ref=e220]:
+                - generic [ref=e221]:
+                  - img [ref=e223]
+                  - generic [ref=e226]: "04"
+                - heading [level=3] [ref=e227]: AI Manages Everything
+                - paragraph [ref=e228]: Autonomous agents handle tax rules, solvency, and payroll compliance.
+          - generic [ref=e229]:
+            - generic [ref=e230]:
+              - heading [level=2] [ref=e231]: Why Choose Quipay?
+              - paragraph [ref=e232]: Built for the future of work, powered by cutting-edge blockchain technology
+            - generic [ref=e233]:
+              - generic [ref=e234]:
+                - img [ref=e236]
+                - heading [level=3] [ref=e238]: Continuous Streaming
+                - paragraph [ref=e239]: Money flows fluidly into wallets, eliminating the painful wait for payday. Watch earnings grow by the second.
+              - generic [ref=e240]:
+                - img [ref=e242]
+                - heading [level=3] [ref=e245]: On-Chain Treasury
+                - paragraph [ref=e246]: Fully transparent smart contract vaults powered by Soroban. Self-custody with zero counterparty risk.
+              - generic [ref=e247]:
+                - img [ref=e249]
+                - heading [level=3] [ref=e252]: Automated AI Agent
+                - paragraph [ref=e253]: Autonomous AI handles stream calculations, dynamic pause rules, and real-time solvency checks.
+          - generic [ref=e257]:
+            - heading [level=2] [ref=e258]: Ready to automate your payroll?
+            - paragraph [ref=e259]: Join hundreds of forward-thinking teams using Quipay to stream real-time payments globally.
+            - generic [ref=e261]:
+              - generic [ref=e262]: Enter your work email
+              - textbox [ref=e263]:
+                - /placeholder: Enter your work email
+              - button [ref=e264]: Get Early Access
+            - generic [ref=e265]:
+              - link [ref=e266] [cursor=pointer]:
+                - /url: /dashboard
+                - generic [ref=e267]: Launch App
+                - img [ref=e268]
+              - link [ref=e270] [cursor=pointer]:
+                - /url: /help
+                - text: View Documentation
+    - contentinfo [ref=e271]:
+      - generic [ref=e272]:
+        - generic [ref=e273]:
+          - generic [ref=e274]:
+            - generic [ref=e275]:
+              - generic [ref=e276]: Q
+              - generic [ref=e277]: Quipay
+            - paragraph [ref=e278]: Payroll on Autopilot. Seamless, continuous streaming payments built on Stellar.
+            - generic [ref=e279]:
+              - img [ref=e280]
+              - generic [ref=e282]: Built on Stellar
+          - generic [ref=e283]:
+            - heading [level=4] [ref=e284]: Product
+            - list [ref=e285]:
+              - listitem [ref=e286]:
+                - link [ref=e287] [cursor=pointer]:
+                  - /url: /dashboard
+                  - text: Dashboard
+              - listitem [ref=e288]:
+                - link [ref=e289] [cursor=pointer]:
+                  - /url: /payroll
+                  - text: Payroll
+              - listitem [ref=e290]:
+                - link [ref=e291] [cursor=pointer]:
+                  - /url: /treasury-management
+                  - text: Treasury
+              - listitem [ref=e292]:
+                - link [ref=e293] [cursor=pointer]:
+                  - /url: /governance
+                  - text: Governance
+          - generic [ref=e294]:
+            - heading [level=4] [ref=e295]: Resources
+            - list [ref=e296]:
+              - listitem [ref=e297]:
+                - link [ref=e298] [cursor=pointer]:
+                  - /url: /help
+                  - text: Documentation
+              - listitem [ref=e299]:
+                - link [ref=e300] [cursor=pointer]:
+                  - /url: /debug
+                  - text: Debugger
+              - listitem [ref=e301]:
+                - link [ref=e302] [cursor=pointer]:
+                  - /url: https://developers.stellar.org
+                  - text: API Reference
+              - listitem [ref=e303]:
+                - link [ref=e304] [cursor=pointer]:
+                  - /url: https://soroban.stellar.org
+                  - text: Soroban Docs
+          - generic [ref=e305]:
+            - heading [level=4] [ref=e306]: Company
+            - list [ref=e307]:
+              - listitem [ref=e308]:
+                - link [ref=e309] [cursor=pointer]:
+                  - /url: "#"
+                  - text: About
+              - listitem [ref=e310]:
+                - link [ref=e311] [cursor=pointer]:
+                  - /url: "#"
+                  - text: Blog
+              - listitem [ref=e312]:
+                - link [ref=e313] [cursor=pointer]:
+                  - /url: "#"
+                  - text: Careers
+              - listitem [ref=e314]:
+                - link [ref=e315] [cursor=pointer]:
+                  - /url: "#"
+                  - text: Contact
+        - generic [ref=e317]:
+          - paragraph [ref=e318]:
+            - text: © 2026 Quipay. Licensed under the
+            - link [ref=e319] [cursor=pointer]:
+              - /url: https://opensource.org/license/mit
+              - text: MIT License
+            - text: .
+          - generic [ref=e320]:
+            - link [ref=e321] [cursor=pointer]:
+              - /url: https://github.com/LFGBanditLabs/Quipay
+              - img [ref=e322]
+            - link [ref=e324] [cursor=pointer]:
+              - /url: https://twitter.com/Quipay
+              - img [ref=e325]
+            - link [ref=e327] [cursor=pointer]:
+              - /url: https://discord.gg/Quipay
+              - img [ref=e328]
+  - alertdialog [ref=e332]:
+    - generic [ref=e335]:
+      - generic [ref=e336]: 👋
+      - heading [level=3] [ref=e337]: Welcome to Quipay!
+      - paragraph [ref=e338]: "This quick tour will walk you through the four steps to get started as an employer: connect your wallet, fund your treasury, register a worker, and create your first payment stream."
+    - generic [ref=e339]:
+      - button "Skip tour" [ref=e341] [cursor=pointer]
+      - button [ref=e342] [cursor=pointer]: Next (Step 1 of 5)
+    - button [ref=e343] [cursor=pointer]:
+      - img [ref=e344]
+  - dialog "shortcuts.title" [ref=e350]:
+    - generic [ref=e351]:
+      - heading "shortcuts.title" [level=2] [ref=e352]
+      - paragraph [ref=e353]: shortcuts.description
+    - generic [ref=e354]:
+      - generic [ref=e355]:
+        - heading "shortcuts.navigation_group" [level=3] [ref=e356]
+        - generic [ref=e357]:
+          - generic [ref=e358]:
+            - generic [ref=e359]: shortcuts.dashboard
+            - generic [ref=e360]: Ctrl + D
+          - generic [ref=e361]:
+            - generic [ref=e362]: shortcuts.new_stream
+            - generic [ref=e363]: Ctrl + N
+          - generic [ref=e364]:
+            - generic [ref=e365]: shortcuts.withdraw
+            - generic [ref=e366]: Ctrl + W
+          - generic [ref=e367]:
+            - generic [ref=e368]: shortcuts.settings
+            - generic [ref=e369]: Ctrl + ,
+      - generic [ref=e370]:
+        - heading "shortcuts.general_group" [level=3] [ref=e371]
+        - generic [ref=e372]:
+          - generic [ref=e373]:
+            - generic [ref=e374]: shortcuts.show_help
+            - generic [ref=e375]: Ctrl + /
+          - generic [ref=e376]:
+            - generic [ref=e377]: common.close
+            - generic [ref=e378]: Esc
+    - button "Close" [active] [ref=e379]:
+      - img
+      - generic [ref=e380]: Close
+```

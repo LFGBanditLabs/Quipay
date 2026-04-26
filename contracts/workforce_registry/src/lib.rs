@@ -11,6 +11,15 @@ pub struct WorkerProfile {
     pub metadata_hash: String,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum WorkforceEvent {
+    Register(Address, Address, String),
+    Updated(Address, Address, String),
+    StreamActive(Address, Address),
+    StreamInactive(Address, Address),
+}
+
 #[derive(Clone)]
 #[contracttype]
 pub enum DataKey {
