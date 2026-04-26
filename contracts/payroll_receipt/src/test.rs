@@ -123,7 +123,7 @@ fn test_set_base_uri() {
     let env = Env::default();
     let (admin, _minter, client) = setup(&env);
 
-    client.set_base_uri(&admin, &String::from(&env, "https://example.com/nft"));
+    client.set_base_uri(&admin, &String::from_str(&env, "https://example.com/nft"));
 }
 
 #[test]
@@ -147,7 +147,7 @@ fn test_token_uri() {
         &ClosureReason::Completed,
     );
 
-    client.set_base_uri(&admin, &String::from(&env, "https://example.com/nft"));
+    client.set_base_uri(&admin, &String::from_str(&env, "https://example.com/nft"));
 
     let uri = client.token_uri(&receipt_id);
     assert!(!uri.is_empty());
