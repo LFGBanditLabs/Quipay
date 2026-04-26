@@ -1,10 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 const TICK_INTERVAL_MS = 1000;
 
@@ -44,6 +38,7 @@ export const useSharedClockMs = () => {
 
 export const useElapsedTime = (startTimestamp: number) => {
   const nowMs = useSharedClockMs();
-  const startMs = startTimestamp > 1e12 ? startTimestamp : startTimestamp * 1000;
+  const startMs =
+    startTimestamp > 1e12 ? startTimestamp : startTimestamp * 1000;
   return Math.max(0, Math.floor((nowMs - startMs) / 1000));
 };

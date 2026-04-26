@@ -1,9 +1,6 @@
 import React from "react";
 import renderer, { act } from "react-test-renderer";
-import {
-  SharedClockProvider,
-  useElapsedTime,
-} from "../SharedClockContext";
+import { SharedClockProvider, useElapsedTime } from "../SharedClockContext";
 
 const ElapsedConsumer: React.FC<{ startTimestamp: number }> = ({
   startTimestamp,

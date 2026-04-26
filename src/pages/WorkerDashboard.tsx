@@ -20,7 +20,10 @@ import { Skeleton } from "../components/Loading/Skeleton";
 import { TableVirtuoso } from "react-virtuoso";
 import { shortHash } from "../services/reportService";
 import PayslipDownloadButton from "../components/PayslipDownloadButton";
-import { useElapsedTime, useSharedClockMs } from "../context/SharedClockContext";
+import {
+  useElapsedTime,
+  useSharedClockMs,
+} from "../context/SharedClockContext";
 
 const StreamCard: React.FC<{
   stream: WorkerStream;

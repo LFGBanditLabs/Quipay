@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { DatabaseValidationError, validateRow, validateRows } from "./validation";
+import {
+  DatabaseValidationError,
+  validateRow,
+  validateRows,
+} from "./validation";
 
 const userSchema = z.object({
   id: z.number(),

@@ -141,8 +141,11 @@ app.use(httpLoggerMiddleware);
 async function initializeServices() {
   await secretsBootstrap.initialize();
   await initDb();
-  
-  if (process.env.NODE_ENV === "production" || process.env.RUN_MIGRATIONS === "true") {
+
+  if (
+    process.env.NODE_ENV === "production" ||
+    process.env.RUN_MIGRATIONS === "true"
+  ) {
     try {
       await runMigrations();
     } catch (err) {

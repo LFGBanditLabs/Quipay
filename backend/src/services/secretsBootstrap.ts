@@ -54,7 +54,7 @@ export class SecretsBootstrap {
     await logServiceInfo("SecretsBootstrap", "Starting secrets bootstrapping");
 
     await this.checkVaultHealth();
-    
+
     // If Vault is healthy, also check token validity
     if (this.isVaultAvailable) {
       const tokenValid = await vaultService.isTokenValid();

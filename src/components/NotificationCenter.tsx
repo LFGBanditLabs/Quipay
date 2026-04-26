@@ -58,7 +58,8 @@ class AlertStore {
 
   addAlert(alert: Omit<ProtocolAlert, "id" | "timestamp" | "read">) {
     const recent = this.alerts.find(
-      (item) => item.title === alert.title && Date.now() - item.timestamp < 60_000,
+      (item) =>
+        item.title === alert.title && Date.now() - item.timestamp < 60_000,
     );
     if (recent) return recent.id;
 
@@ -176,10 +177,22 @@ const ALERT_META: Record<
   AlertSeverity,
   { accent: string; label: string; icon: string }
 > = {
-  critical: { accent: "var(--token-color-error-500)", label: "Critical", icon: "!" },
-  warning: { accent: "var(--token-color-warning-500)", label: "Warning", icon: "!" },
+  critical: {
+    accent: "var(--token-color-error-500)",
+    label: "Critical",
+    icon: "!",
+  },
+  warning: {
+    accent: "var(--token-color-warning-500)",
+    label: "Warning",
+    icon: "!",
+  },
   info: { accent: "var(--token-color-accent)", label: "Info", icon: "i" },
-  success: { accent: "var(--token-color-success-500)", label: "Success", icon: "OK" },
+  success: {
+    accent: "var(--token-color-success-500)",
+    label: "Success",
+    icon: "OK",
+  },
 };
 
 const PERSISTED_META: Record<
@@ -441,7 +454,11 @@ const NotificationCenter = () => {
           >
             <div>
               <div
-                style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  color: "var(--text)",
+                }}
               >
                 {t("notifications.title", "Notifications")}
               </div>
