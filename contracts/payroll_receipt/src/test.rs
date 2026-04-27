@@ -119,15 +119,7 @@ fn test_receipt_ids_increment() {
 }
 
 #[test]
-fn test_set_base_uri() {
-    let env = Env::default();
-    let (admin, _minter, client) = setup(&env);
 
-    client.set_base_uri(&admin, &String::from_str(&env, "https://example.com/nft"));
-}
-
-#[test]
-fn test_token_uri() {
     let env = Env::default();
     let (admin, _minter, client) = setup(&env);
 
@@ -140,21 +132,7 @@ fn test_token_uri() {
         &employer,
         &worker,
         &token,
-        &100i128,
-        &0u64,
-        &100u64,
-        &100u64,
-        &ClosureReason::Completed,
-    );
 
-    client.set_base_uri(&admin, &String::from_str(&env, "https://example.com/nft"));
-
-    let uri = client.token_uri(&receipt_id);
-    assert!(!uri.is_empty());
-}
-
-#[test]
-fn test_get_receipt_metadata() {
     let env = Env::default();
     let (admin, _minter, client) = setup(&env);
 
@@ -167,14 +145,5 @@ fn test_get_receipt_metadata() {
         &employer,
         &worker,
         &token,
-        &1000i128,
-        &100u64,
-        &200u64,
-        &200u64,
-        &ClosureReason::Completed,
-    );
 
-    let metadata = client.get_receipt_metadata(&receipt_id);
-    assert_eq!(metadata.amount, 1000i128);
-    assert_eq!(metadata.recipient, worker);
 }

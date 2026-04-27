@@ -425,8 +425,8 @@ mod tests {
         let at_full = compute_vested(DURATION, DURATION, TOTAL, SpeedCurve::BackLoaded);
         let at_qtr = compute_vested(DURATION / 4, DURATION, TOTAL, SpeedCurve::BackLoaded);
 
-        let first_quarter_gain = at_qtr;
-        let last_quarter_gain = at_full - at_half;
+        let _first_quarter_gain = at_qtr;
+        let _last_quarter_gain = at_full - at_half;
         // second half gain is smaller than first half gain (sqrt is concave)
         let first_half_gain = at_half;
         let second_half_gain = at_full - at_half;
