@@ -5,6 +5,7 @@
  */
 
 import { AuditLoggerConfig, LogLevel } from "./types";
+import { config as appConfig } from "../config";
 
 /**
  * Parse log level from string, with fallback to INFO
@@ -77,10 +78,7 @@ export function loadConfig(): AuditLoggerConfig {
     },
     redaction: {
       enabled: parseBoolean(process.env.LOG_REDACTION_ENABLED, true),
-      customFields: (process.env.LOG_REDACT_FIELDS || "")
-        .split(",")
-        .map((f) => f.trim())
-        .filter(Boolean),
+      customFields: [...appConfig.audit.redactedFields],
     },
     performance: {
       maxWriteTimeMs: parseInteger(process.env.LOG_MAX_WRITE_TIME, 5),
