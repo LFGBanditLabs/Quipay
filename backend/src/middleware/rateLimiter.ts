@@ -241,7 +241,6 @@ function createIdentityAwareRateLimiter(): RequestHandler {
   };
 }
 
-
 export function resetWalletRateLimiterStore(): void {
   identitySlidingWindowStore.clear();
 }

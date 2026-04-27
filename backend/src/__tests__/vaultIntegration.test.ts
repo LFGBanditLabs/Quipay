@@ -3,8 +3,15 @@ import { VaultClient } from "../services/vaultClient";
 import { SecretsBootstrap } from "../services/secretsBootstrap";
 import { vaultService } from "../services/vaultService";
 
+jest.mock("../utils/circuitBreaker", () => ({
+  createCircuitBreaker: () => ({
+    fire: (...args: unknown[]) =>
+      (global.fetch as (...fetchArgs: unknown[]) => Promise<unknown>)(...args),
+  }),
+}));
+
 // Mock fetch globally
-const mockFetch = jest.fn() as jest.MockedFunction<typeof fetch>;
+const mockFetch = jest.fn() as unknown as jest.MockedFunction<typeof fetch>;
 global.fetch = mockFetch;
 
 // Mock audit logger to avoid noise
@@ -20,14 +27,16 @@ describe("Vault Integration", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.VAULT_ADDR = "http://vault:8200";
+    process.env.VAULT_TOKEN = "test-token";
     vaultClient = new VaultClient({
       url: "http://vault:8200",
       token: "test-token",
     });
-    
+
     // Create a new instance for testing to avoid side effects
     secretsBootstrap = new SecretsBootstrap();
-    
+
     // Clear process.env secrets we might test
     delete process.env.HOT_WALLET_SECRET;
     delete process.env.PAYSLIP_SIGNING_KEY_PRIVATE;
@@ -44,7 +53,10 @@ describe("Vault Integration", () => {
 
       const isHealthy = await vaultClient.healthCheck();
       expect(isHealthy).toBe(true);
-      expect(mockFetch).toHaveBeenCalledWith("http://vault:8200/v1/sys/health", expect.any(Object));
+      expect(mockFetch).toHaveBeenCalledWith(
+        "http://vault:8200/v1/sys/health",
+        expect.any(Object),
+      );
     });
 
     test("healthCheck returns false when Vault is unhealthy", async () => {
@@ -66,7 +78,10 @@ describe("Vault Integration", () => {
 
       const isValid = await vaultClient.lookupSelfToken();
       expect(isValid).toBe(true);
-      expect(mockFetch).toHaveBeenCalledWith("http://vault:8200/v1/auth/token/lookup-self", expect.any(Object));
+      expect(mockFetch).toHaveBeenCalledWith(
+        "http://vault:8200/v1/auth/token/lookup-self",
+        expect.any(Object),
+      );
     });
   });
 
@@ -77,7 +92,7 @@ describe("Vault Integration", () => {
         ok: true,
         status: 200,
       } as Response);
-      
+
       // Mock token validation
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -87,7 +102,7 @@ describe("Vault Integration", () => {
       // Mock individual secret fetches
       // First, required secrets (DATABASE_URL, OPENAI_API_KEY, STELLAR_RPC_URL)
       // Then optional secrets (HOT_WALLET_SECRET, PAYSLIP_SIGNING_KEY_PRIVATE, etc.)
-      
+
       // I'll mock vaultService.getSecret instead of multiple fetch calls for simplicity
       const getSecretSpy = jest.spyOn(vaultService, "getSecret");
       getSecretSpy.mockImplementation(async (key: string) => {
@@ -106,16 +121,16 @@ describe("Vault Integration", () => {
       expect(process.env.HOT_WALLET_SECRET).toBe("vault-hot-secret");
       expect(process.env.PAYSLIP_SIGNING_KEY_PRIVATE).toBe("vault-signing-key");
       expect(process.env.DATABASE_URL).toBe("vault-db-url");
-      
+
       getSecretSpy.mockRestore();
     });
 
     test("bootstrapSecrets falls back to process.env if Vault is unavailable", async () => {
       // Mock health check failure
       jest.spyOn(vaultService, "isHealthy").mockResolvedValue(false);
-      
+
       process.env.DATABASE_URL = "env-db-url";
-      
+
       await secretsBootstrap.bootstrapSecrets();
 
       expect(process.env.DATABASE_URL).toBe("env-db-url");

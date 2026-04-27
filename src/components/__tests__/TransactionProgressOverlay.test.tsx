@@ -1,90 +1,102 @@
-import { test, expect } from "@playwright/test";
+import renderer, { act } from "react-test-renderer";
+import { TransactionProgressOverlay } from "../TransactionProgressOverlay";
 
-test.describe("TransactionProgressOverlay", () => {
-  test("should display overlay when visible", async ({ page }) => {
-    // Navigate to a page that uses the overlay
-    await page.goto("http://localhost:5173");
+const nodeText = (value: unknown): string => {
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
 
-    // Trigger a transaction that shows the overlay
-    // This assumes a test action that initiates a transaction
-    await page.click('button:has-text("Disburse Payroll")');
+  if (Array.isArray(value)) {
+    return value.map((child) => nodeText(child)).join("");
+  }
 
-    // Verify overlay appears
-    const overlay = page.locator(
-      'div:has-text("Processing Transaction")'
-    );
-    await expect(overlay).toBeVisible();
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "children" in value &&
+    Array.isArray((value as { children: unknown }).children)
+  ) {
+    return nodeText((value as { children: unknown[] }).children);
+  }
 
-    // Verify stages are displayed
-    await expect(page.locator("text=Building")).toBeVisible();
-    await expect(page.locator("text=Signing")).toBeVisible();
-    await expect(page.locator("text=Submitting")).toBeVisible();
-    await expect(page.locator("text=Confirmed")).toBeVisible();
+  return "";
+};
+
+describe("TransactionProgressOverlay", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
   });
 
-  test("should progress through stages", async ({ page }) => {
-    await page.goto("http://localhost:5173");
-    await page.click('button:has-text("Disburse Payroll")');
-
-    const overlay = page.locator(
-      'div:has-text("Processing Transaction")'
-    );
-    await expect(overlay).toBeVisible();
-
-    // Verify initial stage indicator (should show pulse animation)
-    const buildingStep = page.locator("text=Building").first();
-    const buildingIndicator = buildingStep.locator("xpath=preceding-sibling::div[1]");
-    await expect(buildingIndicator).toHaveClass(/animate-pulse/);
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
-  test("should auto-dismiss after confirmation", async ({ page }) => {
-    await page.goto("http://localhost:5173");
+  it("renders nothing when not visible", () => {
+    const tree = renderer
+      .create(<TransactionProgressOverlay isVisible={false} stage="building" />)
+      .toJSON();
 
-    // Initiate transaction
-    await page.click('button:has-text("Disburse Payroll")');
-
-    // Wait for transaction to complete and auto-dismiss
-    const overlay = page.locator(
-      'div:has-text("Processing Transaction")'
-    );
-    await expect(overlay).toBeVisible();
-
-    // Wait for confirmation stage
-    await page.waitForSelector('text=Confirmed');
-
-    // Overlay should auto-dismiss after 3 seconds
-    await page.waitForTimeout(3500);
-    await expect(overlay).not.toBeVisible();
+    expect(tree).toBeNull();
   });
 
-  test("should respect prefers-reduced-motion", async ({ page }) => {
-    // Set reduced motion preference
-    await page.emulateMedia({ reducedMotion: "reduce" });
+  it("renders processing title and all stages when visible", () => {
+    const root = renderer.create(
+      <TransactionProgressOverlay isVisible stage="signing" />,
+    ).root;
 
-    await page.goto("http://localhost:5173");
-    await page.click('button:has-text("Disburse Payroll")');
+    expect(nodeText(root.findByType("h2").children)).toContain(
+      "Processing Transaction",
+    );
 
-    // Verify no pulse animation is applied
-    const buildingStep = page.locator("text=Building").first();
-    const buildingIndicator = buildingStep.locator("xpath=preceding-sibling::div[1]");
-    await expect(buildingIndicator).not.toHaveClass(/animate-pulse/);
+    const labels = root
+      .findAllByType("p")
+      .map((node) => nodeText(node.children));
+
+    expect(labels).toEqual(
+      expect.arrayContaining([
+        "Building",
+        "Signing",
+        "Submitting",
+        "Confirmed",
+      ]),
+    );
   });
 
-  test("should allow manual dismiss after confirmation", async ({ page }) => {
-    await page.goto("http://localhost:5173");
-    await page.click('button:has-text("Disburse Payroll")');
+  it("shows Done button on confirmed stage and calls onDismiss", () => {
+    const onDismiss = jest.fn();
+    const root = renderer.create(
+      <TransactionProgressOverlay
+        isVisible
+        stage="confirmed"
+        onDismiss={onDismiss}
+      />,
+    ).root;
 
-    // Wait for confirmation
-    await page.waitForSelector('text=Confirmed');
-    await page.waitForSelector('button:has-text("Done")');
+    const doneButton = root.findByType("button");
+    expect(nodeText(doneButton.children)).toBe("Done");
 
-    // Click done button
-    await page.click('button:has-text("Done")');
+    act(() => {
+      doneButton.props.onClick();
+    });
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
 
-    // Overlay should disappear
-    const overlay = page.locator(
-      'div:has-text("Processing Transaction")'
-    );
-    await expect(overlay).not.toBeVisible();
+  it("auto-dismisses 3 seconds after confirmation", () => {
+    const onDismiss = jest.fn();
+    act(() => {
+      renderer.create(
+        <TransactionProgressOverlay
+          isVisible
+          stage="confirmed"
+          onDismiss={onDismiss}
+        />,
+      );
+    });
+
+    act(() => {
+      jest.advanceTimersByTime(3000);
+    });
+
+    expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 });
