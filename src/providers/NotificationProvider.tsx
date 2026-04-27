@@ -191,7 +191,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
   );
 
   useEffect(() => {
-    if (typeof window === "undefined" || !address) return;
+
     persistNotifications(window.localStorage, address, streamNotifications);
   }, [address, streamNotifications]);
 

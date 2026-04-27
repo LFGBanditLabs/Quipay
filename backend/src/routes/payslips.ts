@@ -55,7 +55,10 @@ const workersFieldSelectionSchema = z.object({
     .number()
     .int()
     .min(1)
-    .max(WORKERS_LIST_MAX_LIMIT, `limit cannot exceed ${WORKERS_LIST_MAX_LIMIT}`)
+    .max(
+      WORKERS_LIST_MAX_LIMIT,
+      `limit cannot exceed ${WORKERS_LIST_MAX_LIMIT}`,
+    )
     .optional(),
   cursor: z.string().optional(),
 });
@@ -138,9 +141,8 @@ payslipsRouter.get(
         baseParams,
       );
       const total = Number(countResult.rows[0]?.count ?? 0);
-      const totalPages = effectiveLimit > 0
-        ? Math.max(1, Math.ceil(total / effectiveLimit))
-        : 1;
+      const totalPages =
+        effectiveLimit > 0 ? Math.max(1, Math.ceil(total / effectiveLimit)) : 1;
 
       // Cursor pagination: caller passes the last-seen worker name (URL-safe).
       // When a cursor is supplied we ignore page/offset and stream the next slice.
@@ -192,7 +194,9 @@ payslipsRouter.get(
           : workersResult.rows.map(mapWorkerRowToSummary);
 
       const lastName: string | null =
-        data.length > 0 ? (data[data.length - 1] as { name: string }).name : null;
+        data.length > 0
+          ? (data[data.length - 1] as { name: string }).name
+          : null;
       const meta = {
         total,
         page: usingCursor ? null : effectivePage,

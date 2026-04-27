@@ -45,26 +45,6 @@ export class RedactionEngine {
 
     // Generic bearer tokens
     this.patterns.set("bearer_token", /Bearer\s+[A-Za-z0-9-_]+/gi);
-
-    // Default sensitive field names
-    const defaultSensitiveFields = [
-      "password",
-      "secret",
-      "privatekey",
-      "private_key",
-      "seedphrase",
-      "seed_phrase",
-      "mnemonic",
-      "token",
-      "apikey",
-      "api_key",
-      "auth",
-      "authorization",
-    ];
-
-    defaultSensitiveFields.forEach((field) => {
-      this.sensitiveFields.add(field.toLowerCase());
-    });
   }
 
   /**

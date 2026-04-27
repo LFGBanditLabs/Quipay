@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from "react";
 
-export type TransactionStage = "building" | "signing" | "submitting" | "confirmed";
+export type TransactionStage =
+  | "building"
+  | "signing"
+  | "submitting"
+  | "confirmed";
 
 export interface TransactionProgressOverlayProps {
   isVisible: boolean;
@@ -40,11 +44,16 @@ export const TransactionProgressOverlay: React.FC<
 
   if (!isVisible) return null;
 
-  const stages: TransactionStage[] = ["building", "signing", "submitting", "confirmed"];
+  const stages: TransactionStage[] = [
+    "building",
+    "signing",
+    "submitting",
+    "confirmed",
+  ];
   const currentStageIndex = stages.indexOf(stage);
 
   const prefersReducedMotion = window.matchMedia(
-    "(prefers-reduced-motion: reduce)"
+    "(prefers-reduced-motion: reduce)",
   ).matches;
 
   return (

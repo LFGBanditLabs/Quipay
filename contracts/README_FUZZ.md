@@ -5,6 +5,7 @@ This guide explains how to run fuzz targets for Quipay smart contracts.
 ## Overview
 
 Fuzz testing helps find edge cases and potential bugs in critical contract functions:
+
 - `payroll_vault::deposit` - arbitrary i128 amounts
 - `payroll_stream::create` - arbitrary start/end timestamps
 - `payroll_stream::claim` - arbitrary vesting percentages
@@ -84,6 +85,7 @@ SUMMARY: libFuzzer: crash on unknown (slow unit)
 ```
 
 If fuzzing finds a crash:
+
 1. The crashing input is saved to `artifacts/`
 2. Run the failing input again with `-artifact_prefix=artifacts/`
 3. Inspect and fix the underlying bug
@@ -96,6 +98,7 @@ runtime error: signed integer overflow
 ```
 
 Fuzz detected an unchecked arithmetic operation. Common causes:
+
 - Adding two i128 values without bounds checking
 - Multiplying percentages or amounts without overflow protection
 
@@ -143,6 +146,7 @@ The fuzzer will immediately execute the crashing input and pause at the error.
 ### fuzz_vault_deposit
 
 Tests the deposit function with arbitrary i128 amounts:
+
 - Overflow scenarios (i128::MAX)
 - Underflow scenarios (i128::MIN)
 - Zero amounts
@@ -152,6 +156,7 @@ Tests the deposit function with arbitrary i128 amounts:
 ### fuzz_stream_create
 
 Tests stream creation with arbitrary start/end timestamps:
+
 - Start > end (invalid)
 - Start == end (invalid)
 - Large gaps (duration overflows)
@@ -161,6 +166,7 @@ Tests stream creation with arbitrary start/end timestamps:
 ### fuzz_stream_claim
 
 Tests claim function with arbitrary percentages:
+
 - Percentage > 100 (over-claim)
 - Percentage == 0 (no claim)
 - Percentage == 100 (full claim)
@@ -176,6 +182,7 @@ Install cargo-fuzz: `cargo install cargo-fuzz`
 ### "failed to build target fuzz"
 
 Ensure the fuzz workspace member is in `Cargo.toml`:
+
 ```toml
 [workspace]
 members = ["contracts/*", "fuzz"]

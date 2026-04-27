@@ -109,6 +109,7 @@ e.events().publish(event);
 ### 4. Add Fee Collection Function
 
 If not already present, add a new public function to emit fee collection events. This function should:
+
 - Require admin authorization
 - Update fees collected (tracked in contract state)
 - Emit the VaultFeeCollected event
@@ -117,8 +118,8 @@ If not already present, add a new public function to emit fee collection events.
 /// Collect accumulated protocol fees
 /// Requires admin authorization
 pub fn collect_fees(
-    e: Env, 
-    token: Address, 
+    e: Env,
+    token: Address,
     fee_amount: i128
 ) -> Result<(), QuipayError> {
     let admin: Address = e
@@ -127,12 +128,12 @@ pub fn collect_fees(
         .get(&StateKey::Admin)
         .ok_or(QuipayError::NotInitialized)?;
     admin.require_auth();
-    
+
     require_positive_amount!(fee_amount)?;
-    
+
     // Update collected fees state (implement if needed)
     // ...
-    
+
     // Emit structured event
     let event = VaultFeeCollected {
         employer: admin.clone(),
@@ -140,7 +141,7 @@ pub fn collect_fees(
         fee_amount,
     };
     e.events().publish(event);
-    
+
     Ok(())
 }
 ```
@@ -155,17 +156,17 @@ Create snapshot tests in `contracts/payroll_vault/src/test.rs`:
 #[test]
 fn test_vault_deposited_event() {
     let (env, vault, admin, token_id) = setup();
-    
+
     let employer = Address::generate(&env);
     let amount = 1000;
-    
+
     // Perform deposit
     vault.deposit(&employer, &token_id, &amount);
-    
+
     // Check event was published
     let events = env.events().all();
     assert!(!events.is_empty());
-    
+
     // Snapshot test for event structure
     insta::assert_debug_snapshot!(events.last().unwrap());
 }
@@ -173,16 +174,16 @@ fn test_vault_deposited_event() {
 #[test]
 fn test_vault_withdrawn_event() {
     let (env, vault, admin, token_id) = setup();
-    
+
     let recipient = Address::generate(&env);
     let amount = 1000;
-    
+
     // Setup: deposit first
     vault.deposit(&admin, &token_id, &amount);
-    
+
     // Perform withdrawal
     vault.withdraw(&recipient, &token_id, &amount);
-    
+
     // Snapshot test for event structure
     let events = env.events().all();
     insta::assert_debug_snapshot!(events.last().unwrap());
@@ -191,12 +192,12 @@ fn test_vault_withdrawn_event() {
 #[test]
 fn test_vault_fee_collected_event() {
     let (env, vault, admin, token_id) = setup();
-    
+
     let fee_amount = 100;
-    
+
     // Collect fees
     vault.collect_fees(&admin, &token_id, &fee_amount);
-    
+
     // Snapshot test for event structure
     let events = env.events().all();
     insta::assert_debug_snapshot!(events.last().unwrap());
@@ -206,6 +207,7 @@ fn test_vault_fee_collected_event() {
 ### Event Format Verification
 
 Events emitted should be queryable by indexers. The structured format provides:
+
 - Clear event topic (contract + event name)
 - Strong typing for parameters
 - ABI-compatible encoding for external tools
@@ -222,6 +224,7 @@ Events emitted should be queryable by indexers. The structured format provides:
 ## Verification
 
 After implementation, verify that:
+
 - Events are published synchronously after successful state mutations
 - Events include all required fields (employer, token, amount/fee_amount)
 - Events are NOT published on error paths (before state mutation or after recovery)
@@ -231,6 +234,7 @@ After implementation, verify that:
 ## Documentation Updates
 
 Update `contracts/payroll_vault/README.md` to document:
+
 - Event types and when they're emitted
 - Event field meanings
 - Examples of subscribing to events

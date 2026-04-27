@@ -33,6 +33,17 @@ export interface StreamRecord {
   curve?: "Linear" | "FrontLoaded" | "BackLoaded";
 }
 
+type PdfTableCell =
+  | string
+  | {
+      content: string;
+      colSpan?: number;
+      styles?: {
+        halign?: "left" | "center" | "right" | "justify";
+        fontStyle?: "normal" | "bold" | "italic" | "bolditalic";
+      };
+    };
+
 const formatRow = (stream: StreamRecord): ExportRow => ({
   "Stream ID": stream.id,
   "Worker Address": stream.recipient,
@@ -186,7 +197,7 @@ export const generatePayrollReport = (
       30,
     );
 
-    const tableData: RowInput[] = [];
+
     Object.entries(grouped).forEach(([worker, rows]) => {
       let workerTotal = 0;
       rows.forEach((row) => {
