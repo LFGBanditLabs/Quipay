@@ -376,3 +376,4 @@ _Empowering the future of work, one stream at a time_
 [⭐ Star us on GitHub](https://github.com/LFGBanditLabs/Quipay) • [🐦 Follow updates](#) • [💬 Join our community](#)
 
 </div>
+# README update
