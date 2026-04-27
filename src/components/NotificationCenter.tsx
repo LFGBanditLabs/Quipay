@@ -1,12 +1,4 @@
-/* eslint-disable react-refresh/only-export-components */
-import {
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-  useMemo,
-  type KeyboardEvent as ReactKeyboardEvent,
-} from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useNotification } from "../hooks/useNotification";
 import type { PersistentNotificationType } from "../providers/notificationStorage";
@@ -157,21 +149,7 @@ const IconBell = () => (
   </svg>
 );
 
-const IconX = () => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <line x1="18" y1="6" x2="6" y2="18" />
-    <line x1="6" y1="6" x2="18" y2="18" />
-  </svg>
-);
+/* ── UI Constants ── */
 
 const ALERT_META: Record<
   AlertSeverity,
@@ -200,247 +178,162 @@ const PERSISTED_META: Record<
   { accent: string; label: string; icon: string }
 > = {
   tx_confirmed: {
-    accent: "var(--token-color-success-500)",
+    icon: <CheckCircle2 className="w-4 h-4" />,
     label: "Confirmed",
-    icon: "OK",
+    color: "var(--token-color-success-500)",
   },
   tx_failed: {
-    accent: "var(--token-color-error-500)",
+    icon: <AlertCircle className="w-4 h-4" />,
     label: "Failed",
-    icon: "!",
+    color: "var(--token-color-error-500)",
   },
   stream_started: {
-    accent: "var(--token-color-accent)",
-    label: "Started",
-    icon: "S",
+    icon: <Play className="w-4 h-4" />,
+    label: "Stream Started",
+    color: "var(--token-color-accent)",
   },
   stream_completed: {
-    accent: "var(--token-color-success-500)",
-    label: "Completed",
-    icon: "DONE",
+    icon: <Check className="w-4 h-4" />,
+    label: "Stream Completed",
+    color: "var(--token-color-success-500)",
   },
   payroll_disbursed: {
-    accent: "var(--token-color-warning-500)",
-    label: "Payroll",
-    icon: "$",
+    icon: <LayoutList className="w-4 h-4" />,
+    label: "Payroll Disbursed",
+    color: "var(--token-color-warning-500)",
   },
 };
 
-const formatAge = (timestamp: number) => {
-  const age = Date.now() - timestamp;
-  if (age < 60_000) return "just now";
-  if (age < 3_600_000) return `${Math.floor(age / 60_000)}m ago`;
-  if (age < 86_400_000) return `${Math.floor(age / 3_600_000)}h ago`;
-  return `${Math.floor(age / 86_400_000)}d ago`;
+/* ── Utility ── */
+
+const formatTimeAgo = (timestamp: number): string => {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 };
 
-const NotificationCenter = () => {
-  const { t } = useTranslation();
-  const {
-    alerts,
-    unreadCount: alertUnreadCount,
-    markAsRead,
-    markAllRead,
-    dismissAlert,
-  } = useAlertStore();
-  const {
-    streamNotifications,
-    unreadCount: persistedUnreadCount,
-    markNotificationAsRead,
-    markAllNotificationsAsRead,
-  } = useNotification();
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
+/* ── Components ── */
 
-  const items = useMemo<UnifiedNotification[]>(
-    () =>
-      [
-        ...streamNotifications.map((notification) => {
-          const meta = PERSISTED_META[notification.type];
-          return {
-            id: notification.id,
-            title: notification.title,
-            message: notification.message,
-            timestamp: Date.parse(notification.timestamp),
-            read: notification.read,
-            accent: meta.accent,
-            label: meta.label,
-            icon: meta.icon,
-            onOpen: () => {
-              if (!notification.read) {
-                markNotificationAsRead(notification.id);
-              }
-            },
-          };
-        }),
-        ...alerts.map((alert) => {
-          const meta = ALERT_META[alert.severity];
-          return {
-            id: alert.id,
-            title: alert.title,
-            message: alert.message,
-            timestamp: alert.timestamp,
-            read: alert.read,
-            accent: meta.accent,
-            label: meta.label,
-            icon: meta.icon,
-            onOpen: () => {
-              if (!alert.read) {
-                markAsRead(alert.id);
-              }
-              alert.action?.onClick();
-            },
-            onDismiss: () => dismissAlert(alert.id),
-          };
-        }),
-      ].sort((left, right) => right.timestamp - left.timestamp),
-    [
-      alerts,
-      dismissAlert,
-      markAsRead,
-      markNotificationAsRead,
-      streamNotifications,
-    ],
-  );
-
-  const totalUnread = alertUnreadCount + persistedUnreadCount;
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleOutsideClick = (event: MouseEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleOutsideClick);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handleOutsideClick);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [isOpen]);
-
-  const focusListItem = useCallback((index: number) => {
-    const nodes =
-      listRef.current?.querySelectorAll<HTMLButtonElement>(
-        "[data-notification-item='true']",
-      ) ?? [];
-    if (nodes.length === 0) return;
-    const safeIndex = Math.max(0, Math.min(index, nodes.length - 1));
-    nodes[safeIndex]?.focus();
-  }, []);
-
-  const handleListKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      const nodes =
-        listRef.current?.querySelectorAll<HTMLButtonElement>(
-          "[data-notification-item='true']",
-        ) ?? [];
-      if (nodes.length === 0) return;
-
-      const activeIndex = Array.from(nodes).findIndex(
-        (node) => node === document.activeElement,
-      );
-
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        focusListItem(activeIndex < 0 ? 0 : activeIndex + 1);
-      }
-      if (event.key === "ArrowUp") {
-        event.preventDefault();
-        focusListItem(activeIndex <= 0 ? 0 : activeIndex - 1);
-      }
-      if (event.key === "Home") {
-        event.preventDefault();
-        focusListItem(0);
-      }
-      if (event.key === "End") {
-        event.preventDefault();
-        focusListItem(nodes.length - 1);
-      }
-    },
-    [focusListItem],
-  );
-
-  const handleMarkAllRead = useCallback(() => {
-    markAllNotificationsAsRead();
-    markAllRead();
-  }, [markAllNotificationsAsRead, markAllRead]);
+const NotificationItem: React.FC<{
+  notification: PersistentNotification;
+  onRead: (id: string) => void;
+}> = ({ notification, onRead }) => {
+  const config = TYPE_CONFIG[notification.type];
 
   return (
-    <div ref={containerRef} style={{ position: "relative" }}>
-      <button
-        onClick={() => setIsOpen((current) => !current)}
-        aria-label={t("notifications.title", "Notifications")}
-        aria-expanded={isOpen}
-        style={{
-          position: "relative",
-          width: "40px",
-          height: "40px",
-          borderRadius: "999px",
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          boxShadow: "0 4px 12px var(--shadow-color, rgba(0,0,0,0.15))",
-          cursor: "pointer",
-          color: "var(--text)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
+    <div
+      role="listitem"
+      onClick={() => !notification.read && onRead(notification.id)}
+      className={`relative flex gap-1 p-4 border-b border-border transition-colors cursor-pointer hover:bg-surface-subtle/50 ${
+        !notification.read ? "bg-surface-subtle/30" : ""
+      }`}
+    >
+      <div
+        className="mt-1 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-surface-subtle text-muted"
+        style={{ color: config.color }}
       >
-        <IconBell />
-        {totalUnread > 0 && (
-          <span
-            style={{
-              position: "absolute",
-              top: "-2px",
-              right: "-2px",
-              minWidth: 18,
-              height: 18,
-              borderRadius: "999px",
-              background: "var(--token-color-error-500)",
-              color: "#fff",
-              fontSize: "10px",
-              fontWeight: 800,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "0 5px",
-            }}
-          >
-            {totalUnread > 99 ? "99+" : totalUnread}
+        {config.icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <span className="text-xs font-bold uppercase tracking-wider text-muted">
+            {config.label}
+          </span>
+          <span className="text-[10px] text-muted whitespace-nowrap">
+            {formatTimeAgo(notification.timestamp)}
+          </span>
+        </div>
+        <p className="text-sm font-medium text-text leading-snug break-words">
+          {notification.message}
+        </p>
+      </div>
+      {!notification.read && (
+        <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-accent animate-pulse" title="Unread" />
+      )}
+    </div>
+  );
+};
+
+const NotificationCenter: React.FC = () => {
+  const { t } = useTranslation();
+  const { address } = useWallet();
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+  } = usePersistentNotifications(address);
+
+  const [isOpen, setIsOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  // Toggle panel
+  const togglePanel = useCallback(() => {
+    setIsOpen((prev: boolean) => !prev);
+  }, []);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        panelRef.current &&
+        !panelRef.current.contains(event.target as Node) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  // Handle Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
+
+  return (
+    <div className="relative inline-block text-left">
+      {/* Trigger Button */}
+      <button
+        ref={triggerRef}
+        onClick={togglePanel}
+        aria-label={t("notifications.aria_bell", "Notification Center")}
+        aria-haspopup="true"
+        aria-expanded={isOpen}
+        className="relative group min-h-11 min-w-11 flex items-center justify-center rounded-xl p-2 text-muted transition-all hover:bg-surface-subtle hover:text-text focus:outline-none focus:ring-2 focus:ring-accent"
+      >
+        <Bell className={`w-5 h-5 transition-transform ${isOpen ? "scale-110" : ""}`} />
+        {unreadCount > 0 && (
+          <span className="absolute top-2 right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-error-500 px-1 text-[10px] font-bold text-white shadow-sm ring-1 ring-background">
+            {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
 
+      {/* Dropdown Panel */}
       {isOpen && (
         <div
-          style={{
-            position: "absolute",
-            bottom: "calc(100% + 10px)",
-            right: 0,
-            width: "min(92vw, 380px)",
-            maxHeight: "480px",
-            overflow: "hidden",
-            borderRadius: "16px",
-            border: "1px solid var(--border)",
-            background: "var(--surface)",
-            boxShadow: "0 18px 40px -18px var(--shadow-color)",
-            zIndex: 1000,
-            display: "flex",
-            flexDirection: "column",
-          }}
+          ref={panelRef}
           role="status"
           aria-live="polite"
+          className="absolute right-0 mt-2 w-80 sm:w-96 max-h-[500px] flex flex-col rounded-2xl border border-border bg-surface shadow-2xl z-[100] animate-in fade-in zoom-in-95 duration-200"
         >
           <div
             style={{
@@ -468,152 +361,46 @@ const NotificationCenter = () => {
             </div>
             {totalUnread > 0 && (
               <button
-                onClick={handleMarkAllRead}
-                style={{
-                  border: "none",
-                  background: "none",
-                  cursor: "pointer",
-                  color: "var(--accent)",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                }}
+                onClick={markAllAsRead}
+                className="text-xs font-semibold text-accent hover:underline focus:outline-none"
               >
                 Mark all read
               </button>
             )}
           </div>
 
-          <div
-            ref={listRef}
-            onKeyDown={handleListKeyDown}
-            style={{
-              overflowY: "auto",
-              padding: "8px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-            }}
-          >
-            {items.length === 0 ? (
-              <div
-                style={{
-                  padding: "36px 18px",
-                  textAlign: "center",
-                  color: "var(--muted)",
-                  fontSize: "13px",
-                }}
-              >
-                {t("notifications.empty", "No notifications yet")}
+          {/* List Content */}
+          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+            {notifications.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+                <div className="w-12 h-12 rounded-full bg-surface-subtle flex items-center justify-center mb-3">
+                  <Bell className="w-6 h-6 text-muted/40" />
+                </div>
+                <p className="text-sm font-medium text-muted">
+                  {t("notifications.empty", "No notifications found")}
+                </p>
+                <p className="text-xs text-muted/60 mt-1">
+                  We'll notify you here when anything important happens.
+                </p>
               </div>
             ) : (
-              items.map((item) => (
-                <div
-                  key={item.id}
-                  style={{
-                    position: "relative",
-                    border: "1px solid var(--border)",
-                    borderLeft: `3px solid ${item.accent}`,
-                    borderRadius: "12px",
-                    background: item.read
-                      ? "var(--surface)"
-                      : "color-mix(in srgb, var(--surface) 92%, white 8%)",
-                  }}
-                >
-                  <button
-                    data-notification-item="true"
-                    onClick={item.onOpen}
-                    style={{
-                      width: "100%",
-                      textAlign: "left",
-                      background: "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                      padding: "12px 14px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: "10px",
-                        marginBottom: "6px",
-                      }}
-                    >
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          fontSize: "11px",
-                          fontWeight: 700,
-                          color: item.accent,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.05em",
-                        }}
-                      >
-                        <span aria-hidden="true">{item.icon}</span>
-                        <span>{item.label}</span>
-                      </span>
-                      <time style={{ fontSize: "11px", color: "var(--muted)" }}>
-                        {formatAge(item.timestamp)}
-                      </time>
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: 700,
-                        color: "var(--text)",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      {item.title}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "12px",
-                        lineHeight: 1.45,
-                        color: "var(--muted)",
-                      }}
-                    >
-                      {item.message}
-                    </div>
-                  </button>
-                  {!item.read && (
-                    <span
-                      aria-hidden="true"
-                      style={{
-                        position: "absolute",
-                        top: "12px",
-                        right: item.onDismiss ? "36px" : "12px",
-                        width: "8px",
-                        height: "8px",
-                        borderRadius: "999px",
-                        background: item.accent,
-                      }}
-                    />
-                  )}
-                  {item.onDismiss && (
-                    <button
-                      onClick={item.onDismiss}
-                      aria-label="Dismiss notification"
-                      style={{
-                        position: "absolute",
-                        top: "8px",
-                        right: "8px",
-                        border: "none",
-                        background: "none",
-                        color: "var(--muted)",
-                        cursor: "pointer",
-                        padding: "4px",
-                      }}
-                    >
-                      <IconX />
-                    </button>
-                  )}
-                </div>
-              ))
+              <div role="list" className="divide-y divide-border">
+                {notifications.map((notif) => (
+                  <NotificationItem
+                    key={notif.id}
+                    notification={notif}
+                    onRead={markAsRead}
+                  />
+                ))}
+              </div>
             )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-3 bg-surface-subtle/10 border-t border-border rounded-b-2xl text-center">
+            <span className="text-[10px] uppercase font-bold tracking-widest text-muted/40">
+              Auto-clears after 7 days
+            </span>
           </div>
         </div>
       )}

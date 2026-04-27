@@ -5,7 +5,7 @@ import ConnectAccount from "../ConnectAccount";
 import ThemeToggle from "../ThemeToggle";
 import LanguageSwitcher from "../LanguageSwitcher";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui";
-import NotificationCenter from "./NotificationCenter";
+import NotificationCenter from "../NotificationCenter";
 
 const Navbar: React.FC = () => {
   const { t } = useTranslation();
