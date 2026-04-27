@@ -12,6 +12,8 @@ export interface DLQItem {
   updated_at: Date;
 }
 
+export const WEBHOOK_DLQ_JOB_TYPE = "webhook_delivery";
+
 /**
  * Pushes a terminally failed job to the Dead Letter Queue.
  */
@@ -38,6 +40,65 @@ export const pushToDLQ = async (
 
   const result = await pool.query(query, values);
   return result.rows[0].id;
+};
+
+/**
+ * Returns due webhook DLQ items ordered by next retry timestamp.
+ */
+export const listDueWebhookDLQItems = async (
+  limit: number = 50,
+): Promise<DLQItem[]> => {
+  const pool = getPool();
+  if (!pool) throw new DatabaseError("Database pool not initialized");
+
+  const query = `
+    SELECT id, job_type, payload, error_stack, context, status, created_at, updated_at
+    FROM dead_letter_queue
+    WHERE status = 'pending'
+      AND job_type = $1
+      AND (
+        CASE
+          WHEN (context->>'nextRetryAtMs') ~ '^[0-9]+$'
+            THEN (context->>'nextRetryAtMs')::BIGINT
+          ELSE 0
+        END
+      ) <= FLOOR(EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT
+    ORDER BY
+      CASE
+        WHEN (context->>'nextRetryAtMs') ~ '^[0-9]+$'
+          THEN (context->>'nextRetryAtMs')::BIGINT
+        ELSE 0
+      END ASC,
+      created_at ASC
+    LIMIT $2;
+  `;
+
+  const result = await pool.query(query, [WEBHOOK_DLQ_JOB_TYPE, limit]);
+  return result.rows as DLQItem[];
+};
+
+/**
+ * Updates DLQ context metadata for retry scheduling.
+ */
+export const patchDLQItemContext = async (
+  id: string,
+  contextPatch: Record<string, unknown>,
+  errorStack?: string | null,
+): Promise<void> => {
+  const pool = getPool();
+  if (!pool) throw new DatabaseError("Database pool not initialized");
+
+  const query = `
+    UPDATE dead_letter_queue
+    SET context = COALESCE(context, '{}'::jsonb) || $2::jsonb,
+        error_stack = CASE
+          WHEN $3::text IS NULL THEN error_stack
+          ELSE $3
+        END,
+        updated_at = NOW()
+    WHERE id = $1;
+  `;
+  await pool.query(query, [id, JSON.stringify(contextPatch), errorStack ?? null]);
 };
 
 /**

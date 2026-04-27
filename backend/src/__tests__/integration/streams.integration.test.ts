@@ -76,6 +76,34 @@ describe("Stream Creation Integration Tests", () => {
   let app: Express;
   let testDb: TestDatabase;
 
+  const insertRawStream = async (params: {
+    streamId: number;
+    employerAddress: string;
+    workerAddress: string;
+    totalAmount: string;
+    status: string;
+  }): Promise<void> => {
+    const now = Math.floor(Date.now() / 1000);
+
+    await testDb.getPool().query(
+      `INSERT INTO payroll_streams
+         (stream_id, employer_address, worker_address, total_amount, withdrawn_amount,
+          start_ts, end_ts, status, ledger_created)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [
+        params.streamId,
+        params.employerAddress,
+        params.workerAddress,
+        params.totalAmount,
+        "0",
+        now,
+        now + 3600,
+        params.status,
+        90_000_000 + params.streamId,
+      ],
+    );
+  };
+
   beforeAll(async () => {
     testDb = await setupTestDatabase();
     app = buildApp();
@@ -339,6 +367,88 @@ describe("Stream Creation Integration Tests", () => {
 
       expect(response.status).toBe(201);
       expect(response.body.stream.status).toBe("cancelled");
+    });
+
+    it("should create stream with paused status", async () => {
+      const streamPayload = {
+        streamId: 12352,
+        employerAddress: "GAEMPLOYER823456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        workerAddress: "GAWORKER823456789ABCDEFGHIJKLMNOPQRSTUVWXYZ12",
+        totalAmount: "10000000000",
+        withdrawnAmount: "1500000000",
+        startTs: Math.floor(Date.now() / 1000) - 86400 * 2,
+        endTs: Math.floor(Date.now() / 1000) + 86400 * 28,
+        status: "paused" as const,
+        ledger: 50000007,
+      };
+
+      const response = await request(app)
+        .post("/streams")
+        .set("x-user-id", "GAEMPLOYER823456789ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+        .send(streamPayload);
+
+      expect(response.status).toBe(201);
+      expect(response.body.stream.status).toBe("paused");
+    });
+  });
+
+  describe("payroll_streams DB constraints", () => {
+    it("should reject negative total_amount at the database level", async () => {
+      await expect(
+        insertRawStream({
+          streamId: 22353,
+          employerAddress: "GAEMPLOYER923456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+          workerAddress: "GAWORKER923456789ABCDEFGHIJKLMNOPQRSTUVWXYZ12",
+          totalAmount: "-1",
+          status: "active",
+        }),
+      ).rejects.toMatchObject({
+        code: "23514",
+        constraint: "payroll_streams_total_amount_positive_check",
+      });
+    });
+
+    it("should reject invalid status strings at the database level", async () => {
+      await expect(
+        insertRawStream({
+          streamId: 22354,
+          employerAddress: "GAEMPLOYERA23456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+          workerAddress: "GAWORKERA23456789ABCDEFGHIJKLMNOPQRSTUVWXYZ12",
+          totalAmount: "1000",
+          status: "unknown_status",
+        }),
+      ).rejects.toMatchObject({
+        code: "23514",
+        constraint: "payroll_streams_status_check",
+      });
+    });
+
+    it("should reject duplicate active streams for the same employer and worker", async () => {
+      const employerAddress =
+        "GAEMPLOYERB23456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      const workerAddress = "GAWORKERB23456789ABCDEFGHIJKLMNOPQRSTUVWXYZ12";
+
+      await insertRawStream({
+        streamId: 22355,
+        employerAddress,
+        workerAddress,
+        totalAmount: "1000",
+        status: "active",
+      });
+
+      await expect(
+        insertRawStream({
+          streamId: 22356,
+          employerAddress,
+          workerAddress,
+          totalAmount: "2000",
+          status: "active",
+        }),
+      ).rejects.toMatchObject({
+        code: "23505",
+        constraint: "ux_payroll_streams_active_employer_worker",
+        message: expect.stringContaining("duplicate key value"),
+      });
     });
   });
 });

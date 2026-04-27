@@ -32,7 +32,7 @@ const mockInsertAttempt = insertWebhookOutboundAttempt as jest.Mock;
 const mockUpdateEvent = updateWebhookOutboundEventAfterAttempt as jest.Mock;
 const mockPushToDLQ = pushToDLQ as jest.Mock;
 
-describe("webhook delivery logging + retry scheduling", () => {
+describe("webhook delivery logging + DLQ enqueue", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     webhookStore.clear();
@@ -94,7 +94,7 @@ describe("webhook delivery logging + retry scheduling", () => {
     );
   });
 
-  it("schedules retry for HTTP 500", async () => {
+  it("marks HTTP 500 as failed and enqueues it in DLQ", async () => {
     webhookStore.set("sub-1", {
       id: "sub-1",
       ownerId: "merchant-1",
@@ -112,15 +112,27 @@ describe("webhook delivery logging + retry scheduling", () => {
 
     expect(mockUpdateEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: "pending",
+        status: "failed",
         attemptCount: 1,
         lastResponseCode: 500,
-        nextRetryAt: expect.any(Date),
+        nextRetryAt: null,
+      }),
+    );
+    expect(mockPushToDLQ).toHaveBeenCalledWith(
+      "webhook_delivery",
+      expect.objectContaining({
+        eventType: "withdrawal",
+        targetUrl: "https://example.com/webhook",
+      }),
+      expect.any(String),
+      expect.objectContaining({
+        retryCount: 0,
+        nextRetryAtMs: expect.any(Number),
       }),
     );
   });
 
-  it("does not schedule retry for HTTP 400", async () => {
+  it("marks HTTP 400 as failed and enqueues it in DLQ", async () => {
     webhookStore.set("sub-1", {
       id: "sub-1",
       ownerId: "merchant-1",
@@ -142,6 +154,18 @@ describe("webhook delivery logging + retry scheduling", () => {
         attemptCount: 1,
         lastResponseCode: 400,
         nextRetryAt: null,
+      }),
+    );
+    expect(mockPushToDLQ).toHaveBeenCalledWith(
+      "webhook_delivery",
+      expect.objectContaining({
+        eventType: "withdrawal",
+        targetUrl: "https://example.com/webhook",
+      }),
+      expect.any(String),
+      expect.objectContaining({
+        retryCount: 0,
+        nextRetryAtMs: expect.any(Number),
       }),
     );
   });
@@ -192,11 +216,14 @@ describe("webhook delivery logging + retry scheduling", () => {
       expect.objectContaining({
         eventId: "event-1",
         eventType: "withdrawal",
+        targetUrl: "https://example.com/webhook",
       }),
       expect.any(String),
       expect.objectContaining({
         attemptNumber: 6,
         statusCode: 500,
+        retryCount: 0,
+        nextRetryAtMs: expect.any(Number),
       }),
     );
   });

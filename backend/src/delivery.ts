@@ -28,15 +28,26 @@ webhookBreaker.fallback((url: string) => {
   };
 });
 
-// One initial attempt plus five retries with backoff: 1s, 2s, 4s, 8s, 16s.
-const MAX_RETRY_ATTEMPTS = 5;
-const MAX_ATTEMPTS = MAX_RETRY_ATTEMPTS + 1;
+export const WEBHOOK_DLQ_MAX_RETRIES = 5;
+export const WEBHOOK_DLQ_BACKOFF_SCHEDULE_MS = [
+  30_000,
+  2 * 60_000,
+  10 * 60_000,
+  60 * 60_000,
+  6 * 60 * 60_000,
+] as const;
 
-const computeBackoffMs = (attemptNumber: number): number => {
-  const baseMs = 1_000;
-  const maxMs = 10 * 60 * 1_000;
-  const exponential = Math.pow(2, Math.max(0, attemptNumber - 1)) * baseMs;
-  return Math.min(exponential, maxMs);
+export const computeWebhookDlqNextRetryAtMs = (
+  retryCount: number,
+): number | null => {
+  if (
+    retryCount < 0 ||
+    retryCount >= WEBHOOK_DLQ_BACKOFF_SCHEDULE_MS.length
+  ) {
+    return null;
+  }
+
+  return Date.now() + WEBHOOK_DLQ_BACKOFF_SCHEDULE_MS[retryCount];
 };
 
 const getErrorMessage = (err: unknown): string => {
@@ -58,17 +69,6 @@ const getResponseBodyFromAxiosError = (err: any): string | null => {
   } catch {
     return null;
   }
-};
-
-const isRetryableServerFailure = (
-  statusCode: number | null,
-  err: any,
-): boolean => {
-  if (statusCode !== null) {
-    return statusCode >= 500;
-  }
-  // Network / timeout / DNS errors etc. Treat as retryable.
-  return Boolean(err);
 };
 
 const buildOutgoingPayload = (
@@ -127,23 +127,27 @@ const computeQuipayWebhookSignatureHex = (
     .digest("hex");
 };
 
-const attemptDeliveryOnce = async (params: {
-  eventId: string;
-  url: string;
-  eventType: string;
-  outgoingPayload: any;
-  attemptNumber: number;
-}): Promise<void> => {
+export interface WebhookDeliveryResult {
+  statusCode: number | null;
+  responseBody: string | null;
+  errorMessage: string | null;
+  durationMs: number;
+  succeeded: boolean;
+}
+
+export const deliverWebhookRequest = async (
+  url: string,
+  outgoingPayload: unknown,
+): Promise<WebhookDeliveryResult> => {
   const startTime = Date.now();
   let statusCode: number | null = null;
   let responseBody: string | null = null;
   let errorMessage: string | null = null;
-  let rawError: any = null;
 
   try {
     const signingSecret = process.env.QUIPAY_WEBHOOK_SIGNING_SECRET;
 
-    const requestBodyString = JSON.stringify(params.outgoingPayload);
+    const requestBodyString = JSON.stringify(outgoingPayload);
     const signatureHex = signingSecret
       ? computeQuipayWebhookSignatureHex(
           Buffer.from(requestBodyString, "utf8"),
@@ -151,19 +155,15 @@ const attemptDeliveryOnce = async (params: {
         )
       : null;
 
-    const response: any = await webhookBreaker.fire(
-      params.url,
-      params.outgoingPayload,
-      {
-        timeout: 5000,
-        validateStatus: () => true,
-        headers: signatureHex
-          ? {
-              "X-Quipay-Signature": signatureHex,
-            }
-          : undefined,
-      },
-    );
+    const response: any = await webhookBreaker.fire(url, outgoingPayload, {
+      timeout: 5000,
+      validateStatus: () => true,
+      headers: signatureHex
+        ? {
+            "X-Quipay-Signature": signatureHex,
+          }
+        : undefined,
+    });
     statusCode = response.status;
     if (response.data !== undefined) {
       responseBody =
@@ -172,7 +172,6 @@ const attemptDeliveryOnce = async (params: {
           : JSON.stringify(response.data);
     }
   } catch (err: any) {
-    rawError = err;
     statusCode = getHttpStatusFromAxiosError(err);
     responseBody = getResponseBodyFromAxiosError(err);
     errorMessage = getErrorMessage(err);
@@ -181,73 +180,84 @@ const attemptDeliveryOnce = async (params: {
   const durationMs = Date.now() - startTime;
   const succeeded =
     statusCode !== null && statusCode >= 200 && statusCode < 300;
-  const retryable =
-    !succeeded && isRetryableServerFailure(statusCode, rawError);
-  const hasMoreRetries = params.attemptNumber < MAX_ATTEMPTS;
-  const nextRetryAt =
-    retryable && hasMoreRetries
-      ? new Date(Date.now() + computeBackoffMs(params.attemptNumber))
-      : null;
+
+  return {
+    statusCode,
+    responseBody,
+    errorMessage,
+    durationMs,
+    succeeded,
+  };
+};
+
+const attemptDeliveryOnce = async (params: {
+  eventId: string;
+  url: string;
+  eventType: string;
+  outgoingPayload: any;
+  attemptNumber: number;
+}): Promise<void> => {
+  const result = await deliverWebhookRequest(params.url, params.outgoingPayload);
+  const failureReason = result.succeeded
+    ? null
+    : result.errorMessage ??
+      (result.statusCode !== null ? `HTTP ${result.statusCode}` : null) ??
+      result.responseBody ??
+      "Webhook delivery failed";
 
   if (getPool()) {
     await insertWebhookOutboundAttempt({
       eventId: params.eventId,
       attemptNumber: params.attemptNumber,
-      responseCode: statusCode,
-      responseBody,
-      errorMessage,
-      durationMs,
+      responseCode: result.statusCode,
+      responseBody: result.responseBody,
+      errorMessage: result.errorMessage,
+      durationMs: result.durationMs,
     });
 
     await updateWebhookOutboundEventAfterAttempt({
       eventId: params.eventId,
-      status: succeeded ? "success" : nextRetryAt ? "pending" : "failed",
+      status: result.succeeded ? "success" : "failed",
       attemptCount: params.attemptNumber,
-      lastResponseCode: statusCode,
-      lastError: errorMessage,
-      nextRetryAt,
+      lastResponseCode: result.statusCode,
+      lastError: failureReason,
+      nextRetryAt: null,
     });
   }
 
-  if (succeeded) {
-    metricsManager.trackTransaction("success", durationMs / 1000);
+  if (result.succeeded) {
+    metricsManager.trackTransaction("success", result.durationMs / 1000);
     console.log(
       `[Webhooks] ✅ Successfully delivered '${params.eventType}' to ${params.url}`,
     );
     return;
   }
 
-  if (retryable && hasMoreRetries) {
-    console.error(
-      `[Webhooks] ❌ Delivery failed '${params.eventType}' to ${params.url}. Scheduled retry ${params.attemptNumber}/${MAX_ATTEMPTS} at ${nextRetryAt?.toISOString()}.`,
-    );
-    metricsManager.trackTransaction("failure", 0);
-    return;
-  }
-
   console.error(
-    `[Webhooks] 🚫 Delivery permanently failed '${params.eventType}' to ${params.url} after ${params.attemptNumber}/${MAX_ATTEMPTS}.`,
+    `[Webhooks] 🚫 Delivery failed '${params.eventType}' to ${params.url}. Enqueued for DLQ retries.`,
   );
   if (getPool()) {
+    const nextRetryAtMs = computeWebhookDlqNextRetryAtMs(0);
     await pushToDLQ(
       "webhook_delivery",
       {
         eventId: params.eventId,
-        url: params.url,
+        targetUrl: params.url,
         eventType: params.eventType,
         requestPayload: params.outgoingPayload,
       },
-      errorMessage ?? responseBody ?? "Webhook delivery failed",
+      failureReason ?? "Webhook delivery failed",
       {
+        targetUrl: params.url,
+        retryCount: 0,
+        nextRetryAtMs,
+        statusCode: result.statusCode,
         attemptNumber: params.attemptNumber,
-        statusCode,
       },
     );
   }
   metricsManager.trackTransaction("failure", 0);
 };
-
-import { enqueueJob } from "./queue/asyncQueue";
 
 /**
  * Sends a notification payload to all webhook URLs subscribed to the event type.
@@ -318,12 +328,15 @@ export const retryWebhookEvent = async (eventId: string): Promise<void> => {
       "webhook_delivery",
       {
         eventId,
-        url: ev.url,
+        targetUrl: ev.url,
         eventType: ev.event_type,
         requestPayload: ev.request_payload,
       },
       "Subscription not found (deleted or not loaded)",
       {
+        targetUrl: ev.url,
+        retryCount: 0,
+        nextRetryAtMs: computeWebhookDlqNextRetryAtMs(0),
         attemptCount: ev.attempt_count,
       },
     );
