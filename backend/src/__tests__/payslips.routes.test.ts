@@ -177,7 +177,9 @@ describe("Payslips Router", () => {
 
   describe("POST /api/verify-signature", () => {
     it("should return 400 when signature is missing", async () => {
-      const response = await request(app).post("/api/verify-signature").send({});
+      const response = await request(app)
+        .post("/api/verify-signature")
+        .send({});
 
       expect(response.status).toBe(400);
       expect(response.body.valid).toBe(false);

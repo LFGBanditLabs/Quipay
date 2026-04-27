@@ -11,10 +11,10 @@ test.describe("Reports Page Table Virtualization", () => {
     // Measure time to interactive
     const navigationTiming = await page.evaluate(() => {
       const timing = performance.getEntriesByType(
-        "navigation"
+        "navigation",
       )[0] as PerformanceNavigationTiming;
       return {
-        domContentLoaded: timing.domContentLoaded,
+        domContentLoaded: timing.domContentLoadedEventEnd,
         loadEventEnd: timing.loadEventEnd,
       };
     });

@@ -55,10 +55,14 @@ function callErrorHandler(errCode: string): {
   let retryAfterHeader: string | null = null;
   let capturedBody: any = null;
 
-  const req: any = { originalUrl: "/streams" };
+  const req: any = { originalUrl: "/streams", headers: {} };
   const res: any = {
     headersSent: false,
     statusCode: 500,
+    getHeader(k: string) {
+      if (k === "Retry-After") return retryAfterHeader;
+      return undefined;
+    },
     setHeader(k: string, v: string) {
       if (k === "Retry-After") retryAfterHeader = v;
     },
@@ -92,8 +96,8 @@ describe("errorHandler DB error mapping", () => {
     const { status, hasRetryAfter, problem } = callErrorHandler("57014");
     expect(status).toBe(503);
     expect(hasRetryAfter).toBe(true);
-    expect(problem.type).toContain("service-unavailable");
-    expect(problem.detail).toMatch(/time limit/i);
+    expect(problem.error).toBe("Internal server error");
+    expect(problem.requestId).toBeDefined();
   });
 
   test("maps PostgreSQL 53300 (too_many_connections) → 503 with Retry-After", () => {

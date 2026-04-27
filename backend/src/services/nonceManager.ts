@@ -31,7 +31,12 @@ export class NonceManager {
           this.server.loadAccount(this.accountId),
           new Promise<never>((_, reject) =>
             setTimeout(
-              () => reject(new Error(`Nonce initialization timeout after ${timeoutMs}ms`)),
+              () =>
+                reject(
+                  new Error(
+                    `Nonce initialization timeout after ${timeoutMs}ms`,
+                  ),
+                ),
               timeoutMs,
             ),
           ),
@@ -41,7 +46,8 @@ export class NonceManager {
         this.isInitialized = true;
         this.initializationError = null;
       } catch (error) {
-        this.initializationError = error instanceof Error ? error : new Error(String(error));
+        this.initializationError =
+          error instanceof Error ? error : new Error(String(error));
         this.isInitialized = false;
         throw this.initializationError;
       }
@@ -118,7 +124,8 @@ export class NonceManager {
         this.server.loadAccount(this.accountId),
         new Promise<never>((_, reject) =>
           setTimeout(
-            () => reject(new Error("Nonce initialization timeout after 10000ms")),
+            () =>
+              reject(new Error("Nonce initialization timeout after 10000ms")),
             10000,
           ),
         ),
@@ -128,7 +135,8 @@ export class NonceManager {
       this.isInitialized = true;
       this.initializationError = null;
     } catch (error) {
-      this.initializationError = error instanceof Error ? error : new Error(String(error));
+      this.initializationError =
+        error instanceof Error ? error : new Error(String(error));
       this.isInitialized = false;
       throw this.initializationError;
     }

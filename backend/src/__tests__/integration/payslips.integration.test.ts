@@ -68,9 +68,11 @@ jest.mock("../../middleware/validation", () => ({
 
 // Mock PDF generator service
 jest.mock("../../services/pdfGeneratorService", () => ({
-  generatePayslip: jest.fn<() => Promise<Buffer>>().mockResolvedValue(
-    Buffer.from("%PDF-1.4\n%Mock PDF content for testing\n%%EOF"),
-  ),
+  generatePayslip: jest
+    .fn<() => Promise<Buffer>>()
+    .mockResolvedValue(
+      Buffer.from("%PDF-1.4\n%Mock PDF content for testing\n%%EOF"),
+    ),
 }));
 
 // Mock signature service
@@ -149,7 +151,13 @@ describe("Payslip Generation Integration Tests", () => {
       `INSERT INTO withdrawals
         (stream_id, worker, amount, ledger, ledger_ts, created_at)
        VALUES ($1, $2, $3, $4, $5, NOW())`,
-      [params.streamId, params.workerAddress, params.amount, 50000000, params.ledgerTs],
+      [
+        params.streamId,
+        params.workerAddress,
+        params.amount,
+        50000000,
+        params.ledgerTs,
+      ],
     );
   }
 
@@ -241,7 +249,9 @@ describe("Payslip Generation Integration Tests", () => {
 
       expect(response.status).toBe(403);
       expect(response.body.error).toBe("Forbidden");
-      expect(response.body.message).toContain("You can only access your own payslips");
+      expect(response.body.message).toContain(
+        "You can only access your own payslips",
+      );
     });
 
     it("should handle multiple streams in same period", async () => {

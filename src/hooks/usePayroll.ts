@@ -17,8 +17,7 @@ type CacheEntry<T> = {
   timestamp: number;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const requestCache = new Map<string, CacheEntry<any>>();
+const requestCache = new Map<string, CacheEntry<unknown>>();
 const TTL = 2000; // 2 seconds
 
 async function dedupRequest<T>(key: string, fn: () => Promise<T>): Promise<T> {
@@ -26,7 +25,7 @@ async function dedupRequest<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const existing = requestCache.get(key);
 
   if (existing && now - existing.timestamp < TTL) {
-    return existing.promise;
+    return existing.promise as Promise<T>;
   }
 
   const promise = fn();
@@ -96,7 +95,9 @@ export const usePayroll = (
   const [totalLiabilities, setTotalLiabilities] = useState<string>("0");
   const [streams, setStreams] = useState<Stream[]>([]);
   const [vaultData, setVaultData] = useState<TokenVaultData[]>([]);
-  const [payrollSummary, setPayrollSummary] = useState<PayrollSummary | null>(null);
+  const [payrollSummary, setPayrollSummary] = useState<PayrollSummary | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isVaultLoading, setIsVaultLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -171,9 +172,9 @@ export const usePayroll = (
               endDate: new Date(Number(s.end_ts) * 1000)
                 .toISOString()
                 .split("T")[0],
-              totalAmount: (
-                Number(s.total_amount) / STROOPS_PER_UNIT
-              ).toFixed(2),
+              totalAmount: (Number(s.total_amount) / STROOPS_PER_UNIT).toFixed(
+                2,
+              ),
               totalStreamed: (
                 Number(s.withdrawn_amount) / STROOPS_PER_UNIT
               ).toFixed(2),
@@ -181,17 +182,19 @@ export const usePayroll = (
                 s.status === 1
                   ? "cancelled"
                   : s.status === 2
-                  ? "completed"
-                  : s.status === 3
-                  ? "paused"
-                  : "active",
+                    ? "completed"
+                    : s.status === 3
+                      ? "paused"
+                      : "active",
             };
           }),
         );
 
         setStreams(employerStreams);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load stream data");
+        setError(
+          err instanceof Error ? err.message : "Failed to load stream data",
+        );
         setStreams([]);
       }
     },
@@ -200,6 +203,53 @@ export const usePayroll = (
 
   const refetch = useCallback(() => {
     setFetchTick((t) => t + 1);
+  }, []);
+
+  const applyOptimisticStreamStatus = useCallback(
+    (
+      streamId: string,
+      status: Stream["status"],
+      action: "pause" | "resume" | "cancel",
+    ) => {
+      setStreams((prev) =>
+        prev.map((stream) =>
+          stream.id === streamId
+            ? {
+                ...stream,
+                status,
+                pendingAction: action,
+              }
+            : stream,
+        ),
+      );
+    },
+    [],
+  );
+
+  const restoreStream = useCallback((snapshot: Stream) => {
+    setStreams((prev) =>
+      prev.map((stream) =>
+        stream.id === snapshot.id
+          ? {
+              ...snapshot,
+              pendingAction: undefined,
+            }
+          : stream,
+      ),
+    );
+  }, []);
+
+  const clearStreamPending = useCallback((streamId: string) => {
+    setStreams((prev) =>
+      prev.map((stream) =>
+        stream.id === streamId
+          ? {
+              ...stream,
+              pendingAction: undefined,
+            }
+          : stream,
+      ),
+    );
   }, []);
 
   const refreshData = useCallback(async () => {
@@ -227,7 +277,9 @@ export const usePayroll = (
       refetch();
     });
 
-    return () => socket.disconnect();
+    return () => {
+      socket.disconnect();
+    };
   }, [employerAddress, refetch]);
 
   useEffect(() => {
@@ -250,7 +302,9 @@ export const usePayroll = (
           fetchPayrollSummary(employerAddress),
         ]);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load payroll data");
+        setError(
+          err instanceof Error ? err.message : "Failed to load payroll data",
+        );
         setStreams([]);
       } finally {
         setIsLoading(false);
@@ -296,5 +350,8 @@ export const usePayroll = (
     refreshData,
     refreshVaultData: fetchVaultData,
     refetch,
+    applyOptimisticStreamStatus,
+    restoreStream,
+    clearStreamPending,
   };
 };

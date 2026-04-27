@@ -11,9 +11,12 @@ describe("instrumentStellarRpc (#933)", () => {
   });
 
   it("records a success observation in the duration histogram", async () => {
-    const result = await instrumentStellarRpc("simulateTransaction", async () => {
-      return { ok: true };
-    });
+    const result = await instrumentStellarRpc(
+      "simulateTransaction",
+      async () => {
+        return { ok: true };
+      },
+    );
 
     expect(result).toEqual({ ok: true });
 
@@ -47,8 +50,7 @@ describe("instrumentStellarRpc (#933)", () => {
     const errorCounter = await stellarRpcErrorTotal.get();
     const counterSample = errorCounter.values.find(
       (v) =>
-        v.labels.method === "getLatestLedger" &&
-        v.labels.error === "TypeError",
+        v.labels.method === "getLatestLedger" && v.labels.error === "TypeError",
     );
     expect(counterSample?.value).toBe(1);
   });

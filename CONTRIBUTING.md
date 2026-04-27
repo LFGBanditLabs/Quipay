@@ -41,6 +41,7 @@ cd Quipay
 ```
 
 > Full history clone (only needed for `git blame` / history browsing):
+>
 > ```bash
 > git clone https://github.com/LFGBanditLabs/Quipay.git
 > ```
