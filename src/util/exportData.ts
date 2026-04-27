@@ -2,7 +2,7 @@ import * as XLSX from "xlsx";
 import { format } from "date-fns";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { RowInput } from "jspdf-autotable";
+import type { PdfTableCell } from "./types";
 import { calculateStreamProgress, Stream } from "../lib/streams";
 
 export interface ExportRow {
@@ -33,16 +33,7 @@ export interface StreamRecord {
   curve?: "Linear" | "FrontLoaded" | "BackLoaded";
 }
 
-type PdfTableCell =
-  | string
-  | {
-      content: string;
-      colSpan?: number;
-      styles?: {
-        halign?: "left" | "center" | "right" | "justify";
-        fontStyle?: "normal" | "bold" | "italic" | "bolditalic";
-      };
-    };
+import type { PdfTableCell } from "./types";
 
 const formatRow = (stream: StreamRecord): ExportRow => ({
   "Stream ID": stream.id,
@@ -197,7 +188,7 @@ export const generatePayrollReport = (
       30,
     );
 
-
+    const tableData: PdfTableCell[][] = [];
     Object.entries(grouped).forEach(([worker, rows]) => {
       let workerTotal = 0;
       rows.forEach((row) => {

@@ -1,4 +1,4 @@
-import DOMPurify from "isomorphic-dompurify";
+import DOMPurify from "dompurify";
 
 export const sanitizeText = (input: string): string => {
   if (!input) return "";
