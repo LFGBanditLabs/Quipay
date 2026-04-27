@@ -41,9 +41,17 @@ pub enum StateKey {
     // Multisig Withdrawal Security
     Guardians,
     GuardianThreshold,
-    WithdrawalThreshold(Address), // Token -> Threshold
+    Signers,
+    Threshold,
+    Paused,
+    WithdrawalThreshold, // Global threshold amount
+    WithdrawalThresholdForToken(Address), // Token -> Threshold override
     PendingWithdrawal(u64),
     WithdrawalNonce,
+    PendingUpgrade,
+    PendingUpgradeApprovals,
+    PendingDrain,
+    TokenList,
     // Additional state that should persist across upgrades
     TreasuryBalance(Address), // Funds held for payroll (Token -> Amount)
     TotalLiability(Address),  // Amount owed to recipients (Token -> Amount)
@@ -69,6 +77,32 @@ pub struct VersionInfo {
     pub minor: u32,
     pub patch: u32,
     pub upgraded_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PendingUpgrade {
+    pub wasm_hash: BytesN<32>,
+    pub execute_after: u64,
+    pub proposed_at: u64,
+    pub proposed_by: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TreasuryTokenSummary {
+    pub token: Address,
+    pub balance: i128,
+    pub liability: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PendingDrain {
+    pub recipient: Address,
+    pub execute_after: u64,
+    pub proposed_at: u64,
+    pub proposed_by: Address,
 }
 
 #[contracttype]
@@ -732,11 +766,18 @@ impl PayrollVault {
         }
 
         // Check if withdrawal threshold is set and exceeded
-        let threshold_key = StateKey::WithdrawalThreshold(token.clone());
-        if let Some(threshold) = e.storage().persistent().get::<_, i128>(&threshold_key) {
-            if amount > threshold {
-                return Err(QuipayError::LargeWithdrawalRequiresApproval);
-            }
+        let threshold: i128 = e
+            .storage()
+            .persistent()
+            .get::<_, i128>(&StateKey::WithdrawalThresholdForToken(token.clone()))
+            .unwrap_or_else(|| {
+                e.storage()
+                    .persistent()
+                    .get(&StateKey::WithdrawalThreshold)
+                    .unwrap_or(0)
+            });
+        if amount > threshold {
+            return Err(QuipayError::LargeWithdrawalRequiresApproval);
         }
 
         let available = Self::get_available_balance(e.clone(), token.clone());
@@ -797,11 +838,17 @@ impl PayrollVault {
     }
 
     /// Set the immediate withdrawal threshold for a specific token
-    pub fn set_withdrawal_threshold(e: Env, token: Address, threshold: i128) -> Result<(), QuipayError> {
+    pub fn set_token_withdrawal_threshold(
+        e: Env,
+        token: Address,
+        threshold: i128,
+    ) -> Result<(), QuipayError> {
         let admin = Self::get_admin(e.clone())?;
         admin.require_auth();
         
-        e.storage().persistent().set(&StateKey::WithdrawalThreshold(token), &threshold);
+        e.storage()
+            .persistent()
+            .set(&StateKey::WithdrawalThresholdForToken(token), &threshold);
         Ok(())
     }
 
@@ -811,8 +858,11 @@ impl PayrollVault {
         require_positive_amount!(amount);
 
         // Verify it exceeds threshold (otherwise they should just use withdraw)
-        let threshold_key = StateKey::WithdrawalThreshold(token.clone());
-        let threshold = e.storage().persistent().get::<_, i128>(&threshold_key).unwrap_or(i128::MAX);
+        let threshold_key = StateKey::WithdrawalThresholdForToken(token.clone());
+        let threshold = e.storage()
+            .persistent()
+            .get::<_, i128>(&threshold_key)
+            .unwrap_or(i128::MAX);
         if amount <= threshold {
             return Err(QuipayError::InvalidAmount); // Should use normal withdraw
         }

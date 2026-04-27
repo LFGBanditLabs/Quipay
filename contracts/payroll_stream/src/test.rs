@@ -1,18 +1,4 @@
-#904 [Contract] Add withdrawal cooldown to payroll_vault
-Repo Avatar
-LFGBanditLabs/Quipay
-Description
-The payroll_vault contract has no mechanism to enforce a withdrawal cooldown, allowing an attacker who briefly controls an employer key to drain the vault immediately. A minimum time between consecutive withdrawals from the same account reduces this risk.
-
-Tasks
- Add DataKey::LastWithdrawal(Address) storing the ledger timestamp of the last withdrawal
- Add DataKey::WithdrawalCooldown (configurable by admin, default 86400 seconds = 1 day)
- In withdraw, reject with WithdrawalCooldownActive if now - last_withdrawal < cooldown
- Add set_withdrawal_cooldown(env, admin, seconds) admin function
- Write tests for: first withdrawal passes, second within cooldown rejected, second after cooldown passes
-Acceptance Criteria
- Cooldown enforced per employer address
- Admin can adjust cooldown duration#![cfg(test)]
+#![cfg(test)]
 use super::*;
 use crate::stream_curve::SpeedCurve;
 use quipay_common::QuipayError;

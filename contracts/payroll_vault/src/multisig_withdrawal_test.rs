@@ -36,7 +36,7 @@ fn test_multisig_withdrawal_flow() {
     client.set_guardians(&guardians, &2);
 
     // Set threshold for token: 1000
-    client.set_withdrawal_threshold(&token_id, &1000);
+    client.set_token_withdrawal_threshold(&token_id, &1000);
 
     // Fund vault
     token_admin_client.mint(&employer, &5000);
@@ -103,7 +103,7 @@ fn test_multisig_errors() {
     let token_id = env.register_stellar_asset_contract_v2(token_admin.clone()).address();
     token::StellarAssetClient::new(&env, &token_id).mint(&employer, &10000);
     client.deposit(&employer, &token_id, &10000);
-    client.set_withdrawal_threshold(&token_id, &1000);
+    client.set_token_withdrawal_threshold(&token_id, &1000);
 
     let mut guardians = Vec::new(&env);
     guardians.push_back(guardian.clone());
