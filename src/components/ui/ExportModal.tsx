@@ -4,7 +4,7 @@ import type { ExportFilters } from "../../util/exportData";
 interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: (format: "csv" | "xlsx", filters: ExportFilters) => void;
+  onExport: (format: "csv" | "xlsx" | "pdf", filters: ExportFilters) => void;
   isExporting: boolean;
 }
 
