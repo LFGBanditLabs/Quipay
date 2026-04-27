@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import {
   exportToCSV,
-  exportToXLSX,
+  exportToXLSX as exportToXlsx,
   generatePayrollReport,
 } from "../util/exportData";
 import type { ExportFilters, StreamRecord } from "../util/exportData";
@@ -38,7 +38,7 @@ export const useExport = (streams: StreamRecord[]) => {
         if (format === "csv") {
           exportToCSV(streams, filters);
         } else if (format === "xlsx") {
-          exportToXLSX(streams, filters);
+          exportToXlsx(streams, filters);
         } else if (format === "pdf") {
           generatePayrollReport(
             streams,
