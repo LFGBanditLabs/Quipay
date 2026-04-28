@@ -205,6 +205,53 @@ export const usePayroll = (
     setFetchTick((t) => t + 1);
   }, []);
 
+  const applyOptimisticStreamStatus = useCallback(
+    (
+      streamId: string,
+      status: Stream["status"],
+      action: "pause" | "resume" | "cancel",
+    ) => {
+      setStreams((prev) =>
+        prev.map((stream) =>
+          stream.id === streamId
+            ? {
+                ...stream,
+                status,
+                pendingAction: action,
+              }
+            : stream,
+        ),
+      );
+    },
+    [],
+  );
+
+  const restoreStream = useCallback((snapshot: Stream) => {
+    setStreams((prev) =>
+      prev.map((stream) =>
+        stream.id === snapshot.id
+          ? {
+              ...snapshot,
+              pendingAction: undefined,
+            }
+          : stream,
+      ),
+    );
+  }, []);
+
+  const clearStreamPending = useCallback((streamId: string) => {
+    setStreams((prev) =>
+      prev.map((stream) =>
+        stream.id === streamId
+          ? {
+              ...stream,
+              pendingAction: undefined,
+            }
+          : stream,
+      ),
+    );
+  }, []);
+
   const refreshData = useCallback(async () => {
     await fetchVaultData();
     if (employerAddress) {
@@ -304,5 +351,8 @@ export const usePayroll = (
     refreshData,
     refreshVaultData: fetchVaultData,
     refetch,
+    applyOptimisticStreamStatus,
+    restoreStream,
+    clearStreamPending,
   };
 };

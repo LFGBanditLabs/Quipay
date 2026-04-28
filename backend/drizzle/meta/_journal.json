@@ -8,6 +8,13 @@
       "when": 1772928027562,
       "tag": "0000_quick_landau",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777205516286,
+      "tag": "0001_colossal_khan",
+      "breakpoints": true
     }
   ]
 }

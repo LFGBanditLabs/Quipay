@@ -34,7 +34,7 @@ export const payrollStreams = pgTable(
     withdrawnAmount: numeric("withdrawn_amount").notNull().default("0"),
     startTs: bigint("start_ts", { mode: "number" }).notNull(), // unix seconds (on-chain ledger timestamp)
     endTs: bigint("end_ts", { mode: "number" }).notNull(),
-    status: text("status").notNull().default("active"), // active | completed | cancelled
+    status: text("status").notNull().default("active"), // active | paused | completed | cancelled
     closedAt: bigint("closed_at", { mode: "number" }),
     ledgerCreated: bigint("ledger_created", { mode: "number" }).notNull(),
     metadata: jsonb("metadata"),
@@ -72,6 +72,17 @@ export const payrollStreams = pgTable(
       table.employerAddress,
       table.workerAddress,
     ),
+    check(
+      "payroll_streams_total_amount_positive_check",
+      sql`${table.totalAmount} > 0`,
+    ),
+    check(
+      "payroll_streams_status_check",
+      sql`${table.status} IN ('active', 'paused', 'cancelled', 'completed')`,
+    ),
+    uniqueIndex("ux_payroll_streams_active_employer_worker")
+      .on(table.employerAddress, table.workerAddress)
+      .where(sql`${table.status} = 'active'`),
   ],
 );
 
