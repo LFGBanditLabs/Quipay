@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Layout, Text } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
@@ -20,6 +20,10 @@ import { Skeleton } from "../components/Loading/Skeleton";
 import { TableVirtuoso } from "react-virtuoso";
 import { shortHash } from "../services/reportService";
 import PayslipDownloadButton from "../components/PayslipDownloadButton";
+import {
+  useElapsedTime,
+  useSharedClockMs,
+} from "../context/SharedClockContext";
 
 const StreamCard: React.FC<{
   stream: WorkerStream;
@@ -27,11 +31,9 @@ const StreamCard: React.FC<{
 }> = ({ stream, withdrawals }) => {
   const { addNotification, addStreamNotification } = useNotification();
   const { t } = useTranslation();
-  const [currentEarnings, setCurrentEarnings] = useState(0);
-  const [timeUntilCliff, setTimeUntilCliff] = useState<string>("");
-  const [isBeforeCliff, setIsBeforeCliff] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [lastEventAmount, setLastEventAmount] = useState<number | null>(null);
+  const nowMs = useSharedClockMs();
 
   useStreamSubscription((update) => {
     // Make sure the withdrawal event matches this specific stream card
@@ -41,61 +43,54 @@ const StreamCard: React.FC<{
   });
   const previousAvailableRef = useRef<number | null>(null);
 
+  const nowSeconds = Math.floor(nowMs / 1000);
+  const timeToCliff = stream.cliffTime - nowSeconds;
+  const isBeforeCliff = timeToCliff > 0;
+
+  const timeUntilCliff = useMemo(() => {
+    if (!isBeforeCliff) {
+      return "Unlocked";
+    }
+
+    const days = Math.floor(timeToCliff / 86400);
+    const hours = Math.floor((timeToCliff % 86400) / 3600);
+    const minutes = Math.floor((timeToCliff % 3600) / 60);
+    const seconds = Math.floor(timeToCliff % 60);
+    return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+  }, [isBeforeCliff, timeToCliff]);
+
+  const elapsedAfterCliff = useElapsedTime(stream.cliffTime);
+  const currentEarnings = isBeforeCliff
+    ? 0
+    : Math.min(elapsedAfterCliff * stream.flowRate, stream.totalAmount);
+
   useEffect(() => {
-    const calculate = () => {
-      const now = Date.now() / 1000;
-      const timeToCliff = stream.cliffTime - now;
+    if (isBeforeCliff) {
+      previousAvailableRef.current = 0;
+      return;
+    }
 
-      // Check if we're before the cliff
-      setIsBeforeCliff(timeToCliff > 0);
+    const nextAvailable = Math.max(0, currentEarnings - stream.claimedAmount);
 
-      // Update countdown timer
-      if (timeToCliff > 0) {
-        const days = Math.floor(timeToCliff / 86400);
-        const hours = Math.floor((timeToCliff % 86400) / 3600);
-        const minutes = Math.floor((timeToCliff % 3600) / 60);
-        const seconds = Math.floor(timeToCliff % 60);
-        setTimeUntilCliff(`${days}d ${hours}h ${minutes}m ${seconds}s`);
-      } else {
-        setTimeUntilCliff("Unlocked");
-      }
+    if (
+      previousAvailableRef.current !== null &&
+      previousAvailableRef.current <= 0 &&
+      nextAvailable > 0
+    ) {
+      addStreamNotification("withdrawal_available", {
+        message: `Funds are now available for stream ${stream.id}.`,
+        dedupeKey: `withdrawal-available-${stream.id}`,
+      });
+    }
 
-      // Calculate earnings (only start accruing after cliff)
-      if (timeToCliff > 0) {
-        setCurrentEarnings(0);
-        previousAvailableRef.current = 0;
-        return;
-      }
-
-      const elapsedAfterCliff = now - stream.cliffTime;
-      if (elapsedAfterCliff < 0) {
-        setCurrentEarnings(0);
-        previousAvailableRef.current = 0;
-        return;
-      }
-      const earned = elapsedAfterCliff * stream.flowRate;
-      const boundedEarnings = Math.min(earned, stream.totalAmount);
-      const nextAvailable = Math.max(0, boundedEarnings - stream.claimedAmount);
-
-      if (
-        previousAvailableRef.current !== null &&
-        previousAvailableRef.current <= 0 &&
-        nextAvailable > 0
-      ) {
-        addStreamNotification("withdrawal_available", {
-          message: `Funds are now available for stream ${stream.id}.`,
-          dedupeKey: `withdrawal-available-${stream.id}`,
-        });
-      }
-
-      previousAvailableRef.current = nextAvailable;
-      setCurrentEarnings(boundedEarnings);
-    };
-
-    calculate();
-    const interval = setInterval(calculate, 1000);
-    return () => clearInterval(interval);
-  }, [addStreamNotification, stream]);
+    previousAvailableRef.current = nextAvailable;
+  }, [
+    addStreamNotification,
+    currentEarnings,
+    isBeforeCliff,
+    stream.claimedAmount,
+    stream.id,
+  ]);
 
   const percentage =
     stream.totalAmount > 0 ? (currentEarnings / stream.totalAmount) * 100 : 0;

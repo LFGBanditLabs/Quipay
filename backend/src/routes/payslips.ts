@@ -55,7 +55,10 @@ const workersFieldSelectionSchema = z.object({
     .number()
     .int()
     .min(1)
-    .max(WORKERS_LIST_MAX_LIMIT, `limit cannot exceed ${WORKERS_LIST_MAX_LIMIT}`)
+    .max(
+      WORKERS_LIST_MAX_LIMIT,
+      `limit cannot exceed ${WORKERS_LIST_MAX_LIMIT}`,
+    )
     .optional(),
   cursor: z.string().optional(),
 });
@@ -138,9 +141,8 @@ payslipsRouter.get(
         baseParams,
       );
       const total = Number(countResult.rows[0]?.count ?? 0);
-      const totalPages = effectiveLimit > 0
-        ? Math.max(1, Math.ceil(total / effectiveLimit))
-        : 1;
+      const totalPages =
+        effectiveLimit > 0 ? Math.max(1, Math.ceil(total / effectiveLimit)) : 1;
 
       // Cursor pagination: caller passes the last-seen worker name (URL-safe).
       // When a cursor is supplied we ignore page/offset and stream the next slice.
@@ -192,7 +194,9 @@ payslipsRouter.get(
           : workersResult.rows.map(mapWorkerRowToSummary);
 
       const lastName: string | null =
-        data.length > 0 ? (data[data.length - 1] as { name: string }).name : null;
+        data.length > 0
+          ? (data[data.length - 1] as { name: string }).name
+          : null;
       const meta = {
         total,
         page: usingCursor ? null : effectivePage,
@@ -517,7 +521,6 @@ payslipsRouter.post(
   },
 );
 
-
 /**
  * GET /api/workers/:address/notifications
  * Retrieve worker notification preferences
@@ -558,10 +561,14 @@ payslipsRouter.get(
 
       return res.json(response);
     } catch (error) {
-      logServiceError("payslipRouter", "Failed to retrieve notification preferences", {
-        error: error instanceof Error ? error.message : String(error),
-        workerAddress: req.params.address,
-      });
+      logServiceError(
+        "payslipRouter",
+        "Failed to retrieve notification preferences",
+        {
+          error: error instanceof Error ? error.message : String(error),
+          workerAddress: req.params.address,
+        },
+      );
 
       return res.status(500).json({
         error: "Internal Server Error",
@@ -592,10 +599,14 @@ payslipsRouter.patch(
         });
       }
 
-      logServiceInfo("payslipRouter", "Notification preferences update requested", {
-        workerAddress: address,
-        updates: req.body,
-      });
+      logServiceInfo(
+        "payslipRouter",
+        "Notification preferences update requested",
+        {
+          workerAddress: address,
+          updates: req.body,
+        },
+      );
 
       // Get current preferences to merge with updates
       const current = await getWorkerNotificationSettings(address);
@@ -609,18 +620,37 @@ payslipsRouter.patch(
 
       const merged = {
         worker: address,
-        emailEnabled: req.body.emailEnabled ?? current?.email_enabled ?? defaults.emailEnabled,
-        inAppEnabled: req.body.inAppEnabled ?? current?.in_app_enabled ?? defaults.inAppEnabled,
-        cliffUnlockAlerts: req.body.cliffUnlockAlerts ?? current?.cliff_unlock_alerts ?? defaults.cliffUnlockAlerts,
-        streamEndingAlerts: req.body.streamEndingAlerts ?? current?.stream_ending_alerts ?? defaults.streamEndingAlerts,
-        lowRunwayAlerts: req.body.lowRunwayAlerts ?? current?.low_runway_alerts ?? defaults.lowRunwayAlerts,
+        emailEnabled:
+          req.body.emailEnabled ??
+          current?.email_enabled ??
+          defaults.emailEnabled,
+        inAppEnabled:
+          req.body.inAppEnabled ??
+          current?.in_app_enabled ??
+          defaults.inAppEnabled,
+        cliffUnlockAlerts:
+          req.body.cliffUnlockAlerts ??
+          current?.cliff_unlock_alerts ??
+          defaults.cliffUnlockAlerts,
+        streamEndingAlerts:
+          req.body.streamEndingAlerts ??
+          current?.stream_ending_alerts ??
+          defaults.streamEndingAlerts,
+        lowRunwayAlerts:
+          req.body.lowRunwayAlerts ??
+          current?.low_runway_alerts ??
+          defaults.lowRunwayAlerts,
       };
 
       await upsertWorkerNotificationSettings(merged);
 
-      logServiceInfo("payslipRouter", "Notification preferences updated successfully", {
-        workerAddress: address,
-      });
+      logServiceInfo(
+        "payslipRouter",
+        "Notification preferences updated successfully",
+        {
+          workerAddress: address,
+        },
+      );
 
       return res.json({
         message: "Notification preferences updated",
@@ -628,10 +658,14 @@ payslipsRouter.patch(
         updatedAt: new Date().toISOString(),
       });
     } catch (error) {
-      logServiceError("payslipRouter", "Failed to update notification preferences", {
-        error: error instanceof Error ? error.message : String(error),
-        workerAddress: req.params.address,
-      });
+      logServiceError(
+        "payslipRouter",
+        "Failed to update notification preferences",
+        {
+          error: error instanceof Error ? error.message : String(error),
+          workerAddress: req.params.address,
+        },
+      );
 
       return res.status(500).json({
         error: "Internal Server Error",

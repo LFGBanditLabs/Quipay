@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { describe, it, expect, beforeEach, jest } from "@jest/globals";
-import { getHealthResponse } from "../health";
+
+let getHealthResponse: typeof import("../health").getHealthResponse;
 
 const mockGetPool: jest.Mock = jest.fn();
 const mockIsHealthy: jest.Mock = jest.fn();
@@ -15,6 +16,14 @@ jest.mock("../services/vaultService", () => ({
   vaultService: {
     isHealthy: () => mockIsHealthy(),
     isTokenValid: () => mockIsTokenValid(),
+  },
+}));
+
+jest.mock("../index", () => ({
+  nonceManager: {
+    isHealthy: () => true,
+    getCurrentState: () => ({ currentSequence: 1n, availableNonces: [] }),
+    getInitializationError: () => null,
   },
 }));
 
@@ -37,6 +46,8 @@ describe("getHealthResponse", () => {
       VAULT_ADDR: "http://localhost:8200",
       VAULT_TOKEN: "test-token",
     };
+
+    ({ getHealthResponse } = require("../health"));
   });
 
   it("returns 200 and ok when all dependencies are healthy", async () => {

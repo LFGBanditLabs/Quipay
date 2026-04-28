@@ -10,7 +10,10 @@ import { getPool, initDb } from "../../src/db/pool";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "../../src/db/schema";
 
-describe("Admin Audit Trail", () => {
+const describeWithDb =
+  process.env.RUN_DB_TESTS === "true" ? describe : describe.skip;
+
+describeWithDb("Admin Audit Trail", () => {
   let app: express.Express;
 
   beforeAll(async () => {
