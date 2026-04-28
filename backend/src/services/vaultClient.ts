@@ -46,12 +46,16 @@ export class VaultClient {
       )) as Response;
 
       if (!response.ok && response.status !== 429) {
-        // 429 is "unsealed and standby", which might be okay depending on config, 
+        // 429 is "unsealed and standby", which might be okay depending on config,
         // but generally 200 is what we want for "healthy and active"
-        await logServiceWarn("VaultClient", "Vault health check returned non-OK status", {
-          status: response.status,
-          statusText: response.statusText,
-        });
+        await logServiceWarn(
+          "VaultClient",
+          "Vault health check returned non-OK status",
+          {
+            status: response.status,
+            statusText: response.statusText,
+          },
+        );
       }
 
       return response.ok;
@@ -80,7 +84,11 @@ export class VaultClient {
 
       return response.ok;
     } catch (error) {
-      await logServiceError("VaultClient", "Vault token validation failed with error", error);
+      await logServiceError(
+        "VaultClient",
+        "Vault token validation failed with error",
+        error,
+      );
       return false;
     }
   }
@@ -95,7 +103,9 @@ export class VaultClient {
     );
 
     if (!response.ok) {
-      throw new ServiceUnavailableError(`Failed to read secret: ${response.statusText}`);
+      throw new ServiceUnavailableError(
+        `Failed to read secret: ${response.statusText}`,
+      );
     }
 
     return response.json();
@@ -116,7 +126,9 @@ export class VaultClient {
     );
 
     if (!response.ok) {
-      throw new ServiceUnavailableError(`Failed to write secret: ${response.statusText}`);
+      throw new ServiceUnavailableError(
+        `Failed to write secret: ${response.statusText}`,
+      );
     }
 
     return response.json();
@@ -135,7 +147,9 @@ export class VaultClient {
     );
 
     if (!response.ok) {
-      throw new ServiceUnavailableError(`Failed to delete secret: ${response.statusText}`);
+      throw new ServiceUnavailableError(
+        `Failed to delete secret: ${response.statusText}`,
+      );
     }
 
     return response.json();
@@ -192,7 +206,9 @@ export class VaultClient {
     );
 
     if (!response.ok) {
-      throw new ServiceUnavailableError(`Failed to create policy: ${response.statusText}`);
+      throw new ServiceUnavailableError(
+        `Failed to create policy: ${response.statusText}`,
+      );
     }
 
     return response.json();
@@ -209,7 +225,9 @@ export class VaultClient {
     });
 
     if (!response.ok) {
-      throw new ServiceUnavailableError(`Failed to enable secret engine: ${response.statusText}`);
+      throw new ServiceUnavailableError(
+        `Failed to enable secret engine: ${response.statusText}`,
+      );
     }
 
     return response.json();
@@ -234,7 +252,9 @@ export class VaultClient {
     );
 
     if (!response.ok) {
-      throw new ServiceUnavailableError(`Failed to create AppRole: ${response.statusText}`);
+      throw new ServiceUnavailableError(
+        `Failed to create AppRole: ${response.statusText}`,
+      );
     }
 
     return response.json();
@@ -252,7 +272,9 @@ export class VaultClient {
     );
 
     if (!roleIdResponse.ok) {
-      throw new ServiceUnavailableError(`Failed to get role ID: ${roleIdResponse.statusText}`);
+      throw new ServiceUnavailableError(
+        `Failed to get role ID: ${roleIdResponse.statusText}`,
+      );
     }
 
     const roleIdData = await roleIdResponse.json();

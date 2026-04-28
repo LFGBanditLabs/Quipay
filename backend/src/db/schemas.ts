@@ -18,7 +18,9 @@ import { z } from "zod";
  * schemas here so the Drizzle schema and the runtime guard stay in lockstep.
  */
 
-const numericText = z.union([z.string(), z.number()]).transform((v) => String(v));
+const numericText = z
+  .union([z.string(), z.number()])
+  .transform((v) => String(v));
 
 export const overallStatsSchema = z.object({
   total_streams: z.union([z.number(), z.string()]),
@@ -38,13 +40,17 @@ export const employerPayrollSummarySchema = z.object({
   total_volume: numericText,
   total_withdrawn: numericText,
 });
-export type EmployerPayrollSummaryRow = z.infer<typeof employerPayrollSummarySchema>;
+export type EmployerPayrollSummaryRow = z.infer<
+  typeof employerPayrollSummarySchema
+>;
 
 export const trendPointSchema = z.object({
   bucket: z.string(),
   volume: numericText,
   stream_count: z.union([z.number(), z.string()]).transform((v) => Number(v)),
-  withdrawal_count: z.union([z.number(), z.string()]).transform((v) => Number(v)),
+  withdrawal_count: z
+    .union([z.number(), z.string()])
+    .transform((v) => Number(v)),
 });
 export type TrendPointRow = z.infer<typeof trendPointSchema>;
 

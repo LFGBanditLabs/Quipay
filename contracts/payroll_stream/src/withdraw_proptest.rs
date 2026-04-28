@@ -44,6 +44,7 @@ fn setup_stream(rate: i128, duration: u64, start_padding: u64) -> (Env, Address,
     client.set_cancellation_grace_period(&0u64);
     client.set_withdrawal_cooldown(&0u64);
     client.set_min_stream_duration(&0u64);
+    client.set_min_cancel_notice(&0u32);
 
     let initial_time = 1_000_000_000u64;
     env.ledger().set_timestamp(initial_time);
@@ -77,6 +78,7 @@ fn setup_stream_custom(
     client.set_cancellation_grace_period(&0u64);
     client.set_withdrawal_cooldown(&0u64);
     client.set_min_stream_duration(&0u64);
+    client.set_min_cancel_notice(&0u32);
 
     let initial_time = 1_000_000_000u64;
     env.ledger().set_timestamp(initial_time);
@@ -129,6 +131,7 @@ proptest! {
         client.set_cancellation_grace_period(&0u64);
         client.set_withdrawal_cooldown(&0u64);
         client.set_min_stream_duration(&0u64);
+        client.set_min_cancel_notice(&0u32);
 
         env.ledger().set_timestamp(initial_time);
 

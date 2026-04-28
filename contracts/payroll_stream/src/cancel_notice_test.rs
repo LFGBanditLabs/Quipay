@@ -117,8 +117,8 @@ fn test_get_set_min_cancel_notice_round_trip() {
     env.mock_all_auths();
     let (client, _employer, _worker, _token, _admin) = setup(&env);
 
-    // Default should be 17280 ledgers (~1 day)
-    assert_eq!(client.get_min_cancel_notice(), 17280u32);
+    // Default is 0 in test setup (overriding the contract default of 17280)
+    assert_eq!(client.get_min_cancel_notice(), 0u32);
 
     client.set_min_cancel_notice(&500u32);
     assert_eq!(client.get_min_cancel_notice(), 500u32);

@@ -48,7 +48,7 @@ impl AutomationGateway {
             .instance()
             .get(&Symbol::new(env, "circuit_open"))
             .unwrap_or(false);
-        require!(!is_open, QuipayError::CircuitOpen);
+        require!(!is_open, QuipayError::Custom);
         Ok(())
     }
 
