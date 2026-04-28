@@ -76,13 +76,9 @@ proptest! {
             env.ledger().set_timestamp(current_time);
 
             if actions[i] == 0 {
-                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    client.withdraw(&stream_id, &worker);
-                }));
+                client.withdraw(&stream_id, &worker);
             } else {
-                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    client.cancel_stream(&stream_id, &employer, &None);
-                }));
+                client.cancel_stream(&stream_id, &employer, &None);
             }
 
             if let Some(stream) = client.get_stream(&stream_id) {

@@ -95,7 +95,9 @@ export const usePayroll = (
   const [totalLiabilities, setTotalLiabilities] = useState<string>("0");
   const [streams, setStreams] = useState<Stream[]>([]);
   const [vaultData, setVaultData] = useState<TokenVaultData[]>([]);
-  const [payrollSummary, setPayrollSummary] = useState<PayrollSummary | null>(null);
+  const [payrollSummary, setPayrollSummary] = useState<PayrollSummary | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isVaultLoading, setIsVaultLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -170,9 +172,9 @@ export const usePayroll = (
               endDate: new Date(Number(s.end_ts) * 1000)
                 .toISOString()
                 .split("T")[0],
-              totalAmount: (
-                Number(s.total_amount) / STROOPS_PER_UNIT
-              ).toFixed(2),
+              totalAmount: (Number(s.total_amount) / STROOPS_PER_UNIT).toFixed(
+                2,
+              ),
               totalStreamed: (
                 Number(s.withdrawn_amount) / STROOPS_PER_UNIT
               ).toFixed(2),
@@ -180,21 +182,23 @@ export const usePayroll = (
                 s.status === 1
                   ? "cancelled"
                   : s.status === 2
-                  ? "completed"
-                  : s.status === 3
-                  ? "paused"
-                  : "active",
+                    ? "completed"
+                    : s.status === 3
+                      ? "paused"
+                      : "active",
             };
           }),
         );
 
         setStreams(employerStreams);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load stream data");
+        setError(
+          err instanceof Error ? err.message : "Failed to load stream data",
+        );
         setStreams([]);
       }
     },
-    [options?.offset, options?.limit],
+    [options],
   );
 
   const refetch = useCallback(() => {
@@ -226,11 +230,14 @@ export const usePayroll = (
       refetch();
     });
 
-    return () => socket.disconnect();
+    return () => {
+      socket.disconnect();
+    };
   }, [employerAddress, refetch]);
 
   useEffect(() => {
     if (!employerAddress) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStreams([]);
       setPayrollSummary(null);
       setIsLoading(false);
@@ -249,7 +256,9 @@ export const usePayroll = (
           fetchPayrollSummary(employerAddress),
         ]);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load payroll data");
+        setError(
+          err instanceof Error ? err.message : "Failed to load payroll data",
+        );
         setStreams([]);
       } finally {
         setIsLoading(false);

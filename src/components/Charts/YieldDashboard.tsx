@@ -294,11 +294,13 @@ export const YieldDashboard: React.FC<YieldDashboardProps> = ({
                       </span>
                     </div>
 
-                    {opportunity.lockupPeriod > 0 && (
+                    {Number(opportunity.lockupPeriod) > 0 && (
                       <div className={tw.metricRow}>
                         <span className={tw.metricLabel}>Lockup</span>
                         <span className={tw.metricValue}>
-                          {opportunity.lockupPeriod} days
+                          {typeof opportunity.lockupPeriod === "number"
+                            ? `${opportunity.lockupPeriod} days`
+                            : opportunity.lockupPeriod}
                         </span>
                       </div>
                     )}

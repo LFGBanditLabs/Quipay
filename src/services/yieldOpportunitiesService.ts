@@ -17,6 +17,10 @@ const YIELD_OPPORTUNITIES: YieldOpportunity[] = [
       "Supply USDC to earn interest from borrowing activity on Soroban",
     protocol: "Soroban Lending",
     supportedAssets: ["USDC", "EURC"],
+    supportedNetworks: ["mainnet"],
+    symbol: "USDC",
+    idleFunds: 0,
+    potentialYield: 0,
     apy: 0.045, // 4.5%
     tvl: 50000000, // $50M
     riskLevel: "medium",
@@ -33,6 +37,10 @@ const YIELD_OPPORTUNITIES: YieldOpportunity[] = [
       "Provide liquidity to XLM-USDC pair and earn trading fees + rewards",
     protocol: "Soroban Liquidity Pool",
     supportedAssets: ["XLM", "USDC"],
+    supportedNetworks: ["mainnet"],
+    symbol: "USDC",
+    idleFunds: 0,
+    potentialYield: 0,
     apy: 0.062, // 6.2%
     tvl: 35000000,
     riskLevel: "high", // Impermanent loss risk
@@ -49,6 +57,10 @@ const YIELD_OPPORTUNITIES: YieldOpportunity[] = [
       "Lock funds in time-bound Stellar operations earning interest yields",
     protocol: "Stellar Path Payment",
     supportedAssets: ["USDC", "BTC"],
+    supportedNetworks: ["mainnet"],
+    symbol: "USDC",
+    idleFunds: 0,
+    potentialYield: 0,
     apy: 0.035, // 3.5%
     tvl: 100000000,
     riskLevel: "low",
@@ -65,6 +77,10 @@ const YIELD_OPPORTUNITIES: YieldOpportunity[] = [
       "Automatically routes funds to highest-yielding opportunities, rebalancing daily",
     protocol: "Yield Aggregator",
     supportedAssets: ["USDC", "EURC"],
+    supportedNetworks: ["mainnet"],
+    symbol: "USDC",
+    idleFunds: 0,
+    potentialYield: 0,
     apy: 0.055, // 5.5%
     tvl: 25000000,
     riskLevel: "high", // Complex strategy
@@ -81,6 +97,10 @@ const YIELD_OPPORTUNITIES: YieldOpportunity[] = [
       "Earn yield on XLM through validator rewards while maintaining liquidity",
     protocol: "Staking",
     supportedAssets: ["XLM"],
+    supportedNetworks: ["mainnet"],
+    symbol: "XLM",
+    idleFunds: 0,
+    potentialYield: 0,
     apy: 0.08, // 8%
     tvl: 15000000,
     riskLevel: "medium",

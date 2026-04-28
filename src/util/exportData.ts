@@ -218,4 +218,3 @@ export const generatePayrollReport = (
     doc.save(`payroll-report-${format(new Date(), "yyyy-MM-dd")}.pdf`);
   }
 };
-

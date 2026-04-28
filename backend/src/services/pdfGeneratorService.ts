@@ -120,11 +120,15 @@ export async function generatePayslip(
             streamId,
           });
         } catch (err) {
-          logServiceWarn("pdfGenerator", "Logo retrieval failed — using default branding", {
-            error: err instanceof Error ? err.message : String(err),
-            logoUrl: branding.logoUrl,
-            streamId,
-          });
+          logServiceWarn(
+            "pdfGenerator",
+            "Logo retrieval failed — using default branding",
+            {
+              error: err instanceof Error ? err.message : String(err),
+              logoUrl: branding.logoUrl,
+              streamId,
+            },
+          );
         }
       }
 

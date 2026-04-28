@@ -49,9 +49,6 @@ const EmployerDashboard: React.FC = () => {
     activeStreams,
     isLoading,
     refreshData,
-    applyOptimisticStreamStatus,
-    restoreStream,
-    clearStreamPending,
   } = usePayroll(address);
 
   const [streamToCancel, setStreamToCancel] = React.useState<Stream | null>(
@@ -74,9 +71,6 @@ const EmployerDashboard: React.FC = () => {
         await buildCancelStreamTx(streamIdBigInt, address);
       }
     },
-    onLocalOptimisticUpdate: applyOptimisticStreamStatus,
-    onLocalRollback: restoreStream,
-    onLocalSettled: clearStreamPending,
   });
 
   const queueStreamAction = (stream: Stream, action: StreamAction) => {

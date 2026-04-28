@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import ConnectAccount from "../ConnectAccount";
 import ThemeToggle from "../ThemeToggle";
 import LanguageSwitcher from "../LanguageSwitcher";
+import NotificationCenter from "../NotificationCenter";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui";
 
 const Navbar: React.FC = () => {

@@ -21,7 +21,7 @@ import {
 import type {
   AssetAnalytics,
   BurnRateHistory,
-} from "../types/treasuryAnalytics";
+} from "../../types/treasuryAnalytics";
 
 interface BurnRateCalculatorProps {
   assets: AssetAnalytics[];

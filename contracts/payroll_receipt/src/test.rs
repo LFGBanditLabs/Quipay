@@ -173,7 +173,7 @@ fn test_burn_receipt_admin() {
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #1050)")]
+#[should_panic(expected = "HostError: Error(Contract, #1028)")]
 fn test_double_burn_fails() {
     let env = Env::default();
     let (admin, _minter, client) = setup(&env);

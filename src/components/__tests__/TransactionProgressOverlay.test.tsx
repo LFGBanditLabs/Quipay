@@ -10,9 +10,7 @@ test.describe("TransactionProgressOverlay", () => {
     await page.click('button:has-text("Disburse Payroll")');
 
     // Verify overlay appears
-    const overlay = page.locator(
-      'div:has-text("Processing Transaction")'
-    );
+    const overlay = page.locator('div:has-text("Processing Transaction")');
     await expect(overlay).toBeVisible();
 
     // Verify stages are displayed
@@ -26,14 +24,14 @@ test.describe("TransactionProgressOverlay", () => {
     await page.goto("http://localhost:5173");
     await page.click('button:has-text("Disburse Payroll")');
 
-    const overlay = page.locator(
-      'div:has-text("Processing Transaction")'
-    );
+    const overlay = page.locator('div:has-text("Processing Transaction")');
     await expect(overlay).toBeVisible();
 
     // Verify initial stage indicator (should show pulse animation)
     const buildingStep = page.locator("text=Building").first();
-    const buildingIndicator = buildingStep.locator("xpath=preceding-sibling::div[1]");
+    const buildingIndicator = buildingStep.locator(
+      "xpath=preceding-sibling::div[1]",
+    );
     await expect(buildingIndicator).toHaveClass(/animate-pulse/);
   });
 
@@ -44,13 +42,11 @@ test.describe("TransactionProgressOverlay", () => {
     await page.click('button:has-text("Disburse Payroll")');
 
     // Wait for transaction to complete and auto-dismiss
-    const overlay = page.locator(
-      'div:has-text("Processing Transaction")'
-    );
+    const overlay = page.locator('div:has-text("Processing Transaction")');
     await expect(overlay).toBeVisible();
 
     // Wait for confirmation stage
-    await page.waitForSelector('text=Confirmed');
+    await page.waitForSelector("text=Confirmed");
 
     // Overlay should auto-dismiss after 3 seconds
     await page.waitForTimeout(3500);
@@ -66,7 +62,9 @@ test.describe("TransactionProgressOverlay", () => {
 
     // Verify no pulse animation is applied
     const buildingStep = page.locator("text=Building").first();
-    const buildingIndicator = buildingStep.locator("xpath=preceding-sibling::div[1]");
+    const buildingIndicator = buildingStep.locator(
+      "xpath=preceding-sibling::div[1]",
+    );
     await expect(buildingIndicator).not.toHaveClass(/animate-pulse/);
   });
 
@@ -75,16 +73,14 @@ test.describe("TransactionProgressOverlay", () => {
     await page.click('button:has-text("Disburse Payroll")');
 
     // Wait for confirmation
-    await page.waitForSelector('text=Confirmed');
+    await page.waitForSelector("text=Confirmed");
     await page.waitForSelector('button:has-text("Done")');
 
     // Click done button
     await page.click('button:has-text("Done")');
 
     // Overlay should disappear
-    const overlay = page.locator(
-      'div:has-text("Processing Transaction")'
-    );
+    const overlay = page.locator('div:has-text("Processing Transaction")');
     await expect(overlay).not.toBeVisible();
   });
 });

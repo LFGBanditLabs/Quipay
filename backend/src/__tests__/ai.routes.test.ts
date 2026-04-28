@@ -93,9 +93,7 @@ describe("AI router (#929)", () => {
 
   it("marks the job 'timed_out' when parseCommand never resolves", async () => {
     // Hangs forever — the worker's withTimeout should fire.
-    parseCommandMock.mockImplementation(
-      () => new Promise(() => undefined),
-    );
+    parseCommandMock.mockImplementation(() => new Promise(() => undefined));
 
     const enqueue = await request(app)
       .post("/ai/parse")

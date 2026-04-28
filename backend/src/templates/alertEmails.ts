@@ -1,4 +1,7 @@
-import { TreasuryAlertPayload, WorkerNotificationPayload } from "../notifier/notifier";
+import {
+  TreasuryAlertPayload,
+  WorkerNotificationPayload,
+} from "../notifier/notifier";
 
 const escapeHtml = (value: string): string =>
   value
@@ -33,7 +36,9 @@ export const renderTreasuryLowRunwayEmail = (
   payload: TreasuryAlertPayload,
 ): { subject: string; html: string } => {
   const runway =
-    payload.runway_days !== null ? `${payload.runway_days.toFixed(1)} days` : "unlimited";
+    payload.runway_days !== null
+      ? `${payload.runway_days.toFixed(1)} days`
+      : "unlimited";
 
   const body = `
     <p><strong>Employer:</strong> ${escapeHtml(payload.employer)}</p>
@@ -98,10 +103,14 @@ export const renderWorkerLowRunwayEmail = (
     <p><strong>Stream ID:</strong> ${escapeHtml(String(payload.stream_id))}</p>
     <p><strong>Token:</strong> ${escapeHtml(payload.token)}</p>
     <p><strong>Runway:</strong> ${
-      payload.runway_days != null ? escapeHtml(payload.runway_days.toFixed(1)) : "N/A"
+      payload.runway_days != null
+        ? escapeHtml(payload.runway_days.toFixed(1))
+        : "N/A"
     } days</p>
     <p><strong>Threshold:</strong> ${
-      payload.threshold_days != null ? escapeHtml(String(payload.threshold_days)) : "N/A"
+      payload.threshold_days != null
+        ? escapeHtml(String(payload.threshold_days))
+        : "N/A"
     } days</p>
     <p style="margin-top: 16px;"><strong>Timestamp:</strong> ${escapeHtml(formatDate(payload.timestamp))}</p>
   `;
@@ -111,4 +120,3 @@ export const renderWorkerLowRunwayEmail = (
     html: baseLayout("Low Runway Alert", body),
   };
 };
-

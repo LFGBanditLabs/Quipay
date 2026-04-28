@@ -63,7 +63,9 @@ describe("notificationStorage", () => {
 
   it("purges notifications older than seven days", () => {
     const now = Date.parse("2026-04-25T12:00:00.000Z");
-    const freshTimestamp = new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const freshTimestamp = new Date(
+      now - 2 * 24 * 60 * 60 * 1000,
+    ).toISOString();
     const expiredTimestamp = new Date(
       now - 8 * 24 * 60 * 60 * 1000,
     ).toISOString();

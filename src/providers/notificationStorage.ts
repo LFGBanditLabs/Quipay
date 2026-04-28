@@ -62,9 +62,14 @@ export const purgeExpiredNotifications = (
   notifications
     .filter((item) => {
       const timestamp = Date.parse(item.timestamp);
-      return Number.isFinite(timestamp) && now - timestamp <= NOTIFICATION_RETENTION_MS;
+      return (
+        Number.isFinite(timestamp) &&
+        now - timestamp <= NOTIFICATION_RETENTION_MS
+      );
     })
-    .sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))
+    .sort(
+      (left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp),
+    )
     .slice(0, MAX_PERSISTED_NOTIFICATIONS);
 
 const isPersistedNotification = (
@@ -98,12 +103,10 @@ export const loadPersistedNotifications = (
     if (!Array.isArray(parsed)) return [];
 
     return purgeExpiredNotifications(
-      parsed
-        .filter(isPersistedNotification)
-        .map((item) => ({
-          ...item,
-          type: normalizeNotificationType(item.type),
-        })),
+      parsed.filter(isPersistedNotification).map((item) => ({
+        ...item,
+        type: normalizeNotificationType(item.type),
+      })),
       now,
     );
   } catch {

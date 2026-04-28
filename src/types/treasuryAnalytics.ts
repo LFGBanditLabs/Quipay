@@ -36,17 +36,42 @@ export interface BurnRateHistory {
 export interface YieldOpportunity {
   id: string;
   name: string;
-  description: string;
+  description?: string;
   protocol: string; // e.g., "Soroban Lending", "Stellar Path Payment", "LP Pool"
   supportedAssets: string[]; // Token symbols like ["USDC", "EURC"]
+  supportedNetworks: string[];
+  symbol: string;
   apy: number; // Annual Percentage Yield
   tvl: number; // Total Value Locked in USD
   riskLevel: "low" | "medium" | "high";
-  lockupPeriod: number; // Days (0 = no lockup)
+  lockupPeriod: number | string; // Days (0 = no lockup) or descriptive string
   minDeposit: number;
-  maxDeposit: number | null;
-  verified: boolean; // Has passed security audit
+  maxDeposit?: number | null;
+  idleFunds: number;
+  potentialYield: number;
+  verified?: boolean; // Has passed security audit
   url?: string; // Link to protocol
+}
+
+export interface BurnRateData {
+  id: string;
+  token: string;
+  symbol: string;
+  dailyBurnRate: number;
+  monthlyBurnRate: number;
+  annualBurnRate: number;
+  runwayDays: number;
+  runwayMonths: number;
+  timeToInsolvency: string;
+  trend: "increasing" | "decreasing" | "stable";
+  trendPercentage: number;
+  burnRateHistory?: BurnRateHistory[];
+}
+
+export interface PriceData {
+  usdPrice: number;
+  timestamp?: string;
+  source?: string;
 }
 
 /** What-if scenario parameters */

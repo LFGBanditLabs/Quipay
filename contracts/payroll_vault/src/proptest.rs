@@ -54,14 +54,10 @@ proptest! {
             match action {
                 VaultAction::Deposit(amount) => {
                     // We catch unwind because some deposits could technically exceed i128 theoretically in massive sequential runs natively
-                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        client.deposit(&user, &token_id, &amount);
-                    }));
+                    client.deposit(&user, &token_id, &amount);
                 },
                 VaultAction::Payout(amount) => {
-                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        client.payout(&user, &token_id, &amount);
-                    }));
+                    client.payout(&user, &token_id, &amount);
                 }
             }
 

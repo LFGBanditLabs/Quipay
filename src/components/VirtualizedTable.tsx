@@ -37,22 +37,24 @@ export const VirtualizedTable = React.forwardRef(
       onRowClick,
       className = "",
     }: VirtualizedTableProps<T>,
-    ref: React.ForwardedRef<HTMLDivElement>
+    ref: React.ForwardedRef<HTMLDivElement>,
   ) => {
     // Virtualize rows
-    // eslint-disable-next-line react-hooks/incompatible-library
     const rowVirtualizer = useVirtualizer({
       count: items.length,
       getScrollElement: () =>
-        ref instanceof HTMLDivElement ? ref : document.getElementById("table-container"),
+        ref instanceof HTMLDivElement
+          ? ref
+          : document.getElementById("table-container"),
       estimateSize: () => rowHeight,
       overscan: 10, // Render 10 rows outside viewport for smoother scrolling
     });
 
-    const virtualRows = rowVirtualizer.getVirtualItems();
+    const virtualRows = rowVirtualizer.getVirtualItems() as VirtualItem[];
     const totalSize = rowVirtualizer.getTotalSize();
 
-    const paddingTop = virtualRows.length > 0 ? virtualRows?.[0]?.start || 0 : 0;
+    const paddingTop =
+      virtualRows.length > 0 ? virtualRows?.[0]?.start || 0 : 0;
     const paddingBottom =
       virtualRows.length > 0
         ? totalSize - (virtualRows?.[virtualRows.length - 1]?.end || 0)
@@ -109,9 +111,7 @@ export const VirtualizedTable = React.forwardRef(
                     key={keyExtractor(item)}
                     onClick={() => onRowClick?.(item)}
                     className={`border-b border-indigo-500/10 transition ${
-                      onRowClick
-                        ? "cursor-pointer hover:bg-indigo-500/10"
-                        : ""
+                      onRowClick ? "cursor-pointer hover:bg-indigo-500/10" : ""
                     }`}
                   >
                     {columns.map((col, colIdx) => (
@@ -129,7 +129,10 @@ export const VirtualizedTable = React.forwardRef(
 
               {paddingBottom > 0 && (
                 <tr>
-                  <td colSpan={columns.length} style={{ height: paddingBottom }} />
+                  <td
+                    colSpan={columns.length}
+                    style={{ height: paddingBottom }}
+                  />
                 </tr>
               )}
             </tbody>
@@ -137,7 +140,7 @@ export const VirtualizedTable = React.forwardRef(
         </div>
       </div>
     );
-  }
+  },
 );
 
 VirtualizedTable.displayName = "VirtualizedTable";

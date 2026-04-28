@@ -50,8 +50,11 @@ jest.mock("../middleware/rbac", () => ({
     SuperAdmin: 4,
   },
   authenticateRequest: (req: any, _res: any, next: any) => {
-    const roleHeader = String(req.headers["x-user-role"] || "user").toLowerCase();
-    const role = roleHeader === "admin" ? 2 : roleHeader === "superadmin" ? 4 : 1;
+    const roleHeader = String(
+      req.headers["x-user-role"] || "user",
+    ).toLowerCase();
+    const role =
+      roleHeader === "admin" ? 2 : roleHeader === "superadmin" ? 4 : 1;
     req.user = { id: req.headers["x-user-id"] || "ORG_1", role };
     next();
   },
