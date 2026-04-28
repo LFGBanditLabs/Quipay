@@ -1,11 +1,15 @@
 import { test, expect } from "./fixtures/test-base";
 
 test.describe("Stream Withdrawal Happy Path", () => {
-  test("should withdraw from an active stream successfully", async ({ authenticatedPage: page }) => {
+  test("should withdraw from an active stream successfully", async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto("/withdraw");
 
     // Wait for streams to load (authenticatedPage already mocks contract API with default streams)
-    await expect(page.getByText(/Stream #1001/i).first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Stream #1001/i).first()).toBeVisible({
+      timeout: 15000,
+    });
 
     // Click withdraw on the first stream
     await page.click('button:has-text("Withdraw")');
@@ -15,7 +19,9 @@ test.describe("Stream Withdrawal Happy Path", () => {
     await expect(page.getByText(/Transaction Simulation/i)).toBeVisible();
 
     // Confirm withdrawal
-    const confirmButton = page.getByRole("button", { name: /confirm withdrawal/i });
+    const confirmButton = page.getByRole("button", {
+      name: /confirm withdrawal/i,
+    });
     await expect(confirmButton).toBeEnabled();
     await confirmButton.click();
 

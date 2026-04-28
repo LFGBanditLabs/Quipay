@@ -1,5 +1,4 @@
-import React, { useMemo } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import React, { useMemo, useState } from "react";
 
 export interface VirtualizedTableColumn<T> {
   header: string;
@@ -52,19 +51,17 @@ export const VirtualizedTable = React.forwardRef(
     const virtualRows = rowVirtualizer.getVirtualItems();
     const totalSize = rowVirtualizer.getTotalSize();
 
-    const paddingTop = virtualRows.length > 0 ? virtualRows?.[0]?.start || 0 : 0;
-    const paddingBottom =
-      virtualRows.length > 0
-        ? totalSize - (virtualRows?.[virtualRows.length - 1]?.end || 0)
-        : 0;
+    const visibleItems = items.slice(startIndex, endIndex);
+    const paddingTop = startIndex * rowHeight;
+    const paddingBottom = Math.max(0, (items.length - endIndex) * rowHeight);
 
     // Row count indicator
     const rowCountText = useMemo(() => {
       if (items.length === 0) return "No rows";
-      const visibleStart = 1;
-      const visibleEnd = Math.min(virtualRows.length, items.length);
+      const visibleStart = startIndex + 1;
+      const visibleEnd = endIndex;
       return `Showing ${visibleStart}–${visibleEnd} of ${items.length} rows`;
-    }, [items.length, virtualRows.length]);
+    }, [endIndex, items.length, startIndex]);
 
     return (
       <div className="flex flex-col gap-3">
@@ -75,6 +72,7 @@ export const VirtualizedTable = React.forwardRef(
         <div
           ref={ref}
           id="table-container"
+          onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
           className={`overflow-y-auto overflow-x-hidden rounded-xl border border-indigo-500/15 bg-slate-900/45 ${className}`}
           style={{ height: `${containerHeight}px` }}
         >
@@ -102,16 +100,13 @@ export const VirtualizedTable = React.forwardRef(
                 </tr>
               )}
 
-              {virtualRows.map((virtualRow) => {
-                const item = items[virtualRow.index];
+              {visibleItems.map((item) => {
                 return (
                   <tr
                     key={keyExtractor(item)}
                     onClick={() => onRowClick?.(item)}
                     className={`border-b border-indigo-500/10 transition ${
-                      onRowClick
-                        ? "cursor-pointer hover:bg-indigo-500/10"
-                        : ""
+                      onRowClick ? "cursor-pointer hover:bg-indigo-500/10" : ""
                     }`}
                   >
                     {columns.map((col, colIdx) => (
@@ -129,7 +124,10 @@ export const VirtualizedTable = React.forwardRef(
 
               {paddingBottom > 0 && (
                 <tr>
-                  <td colSpan={columns.length} style={{ height: paddingBottom }} />
+                  <td
+                    colSpan={columns.length}
+                    style={{ height: paddingBottom }}
+                  />
                 </tr>
               )}
             </tbody>
@@ -137,7 +135,7 @@ export const VirtualizedTable = React.forwardRef(
         </div>
       </div>
     );
-  }
+  },
 );
 
 VirtualizedTable.displayName = "VirtualizedTable";

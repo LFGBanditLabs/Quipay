@@ -29,7 +29,10 @@ let inFlightSyncCycle: Promise<number> | null = null;
 
 // ─── Event parsers ────────────────────────────────────────────────────────────
 
-type StreamEventKind = "stream_created" | "stream_cancelled" | "funds_withdrawn";
+type StreamEventKind =
+  | "stream_created"
+  | "stream_cancelled"
+  | "funds_withdrawn";
 
 interface SyncedStreamEvent {
   kind: StreamEventKind;
@@ -138,7 +141,9 @@ const asNumber = (value: unknown): number | null => {
   return null;
 };
 
-const decodeStreamEvent = (event: rpc.Api.EventResponse): SyncedStreamEvent | null => {
+const decodeStreamEvent = (
+  event: rpc.Api.EventResponse,
+): SyncedStreamEvent | null => {
   const topics = event.topic as unknown[];
   if (!topics || topics.length < 2) return null;
 

@@ -11,8 +11,7 @@ import {
 import { getPool } from "../db/pool";
 import { getAuditLogger, isAuditLoggerInitialized } from "../audit/init";
 import { withAdvisoryLock } from "../utils/lock";
-import { listDueWebhookOutboundEvents } from "../db/queries";
-import { retryWebhookEvent } from "../delivery";
+import { runWebhookDLQRetryBatch } from "../webhookDlqWorker";
 import { InternalError } from "../errors/AppError";
 
 interface SchedulerScheduledTask {
@@ -58,13 +57,10 @@ const SOROBAN_RPC_URL =
 const NETWORK_PASSPHRASE =
   process.env.STELLAR_NETWORK_PASSPHRASE || "Test SDF Network ; September 2015";
 
-const WEBHOOK_RETRY_POLL_INTERVAL_MS = parseInt(
-  process.env.WEBHOOK_RETRY_POLL_MS || "10000",
-  10,
-);
-
-const WEBHOOK_RETRY_BATCH_SIZE = parseInt(
-  process.env.WEBHOOK_RETRY_BATCH_SIZE || "50",
+const WEBHOOK_DLQ_RETRY_CRON =
+  process.env.WEBHOOK_DLQ_RETRY_CRON || "*/30 * * * * *";
+const WEBHOOK_DLQ_RETRY_BATCH_SIZE = parseInt(
+  process.env.WEBHOOK_DLQ_RETRY_BATCH_SIZE || "50",
   10,
 );
 
@@ -92,7 +88,7 @@ interface ScheduledJob {
 const activeJobs: Map<number, ScheduledJob> = new Map();
 let schedulerStarted = false;
 let refreshIntervalId: NodeJS.Timeout | null = null;
-let webhookRetryIntervalId: NodeJS.Timeout | null = null;
+let webhookDlqRetryTask: SchedulerScheduledTask | null = null;
 let healthCheckIntervalId: NodeJS.Timeout | null = null;
 
 const log = (message: string, ...args: unknown[]) => {
@@ -485,32 +481,29 @@ const startHealthCheck = (): void => {
   );
 };
 
-const startWebhookRetryRunner = (): void => {
+const startWebhookDLQRetryWorker = (): void => {
   const LOCK_ID = 424242;
-  const taskName = "webhook-retry-runner";
+  const taskName = "webhook-dlq-retry-runner";
 
-  webhookRetryIntervalId = setInterval(async () => {
-    if (!getPool()) return;
-    await withAdvisoryLock(
-      LOCK_ID,
-      async () => {
-        const due = await listDueWebhookOutboundEvents({
-          limit: WEBHOOK_RETRY_BATCH_SIZE,
-        });
-        if (due.length === 0) return;
+  webhookDlqRetryTask = cron.schedule(
+    WEBHOOK_DLQ_RETRY_CRON,
+    async () => {
+      if (!getPool()) return;
 
-        log(`Retry runner processing ${due.length} due webhook event(s)`);
-        for (const ev of due) {
-          try {
-            await retryWebhookEvent(ev.id);
-          } catch (err) {
-            logError(`Webhook retry failed for event ${ev.id}`, err);
+      await withAdvisoryLock(
+        LOCK_ID,
+        async () => {
+          const processed = await runWebhookDLQRetryBatch(
+            WEBHOOK_DLQ_RETRY_BATCH_SIZE,
+          );
+          if (processed > 0) {
+            log(`DLQ webhook retry worker processed ${processed} item(s)`);
           }
-        }
-      },
-      taskName,
-    );
-  }, WEBHOOK_RETRY_POLL_INTERVAL_MS);
+        },
+        taskName,
+      );
+    },
+  );
 };
 
 const runCliffUnlockChecker = async (): Promise<void> => {
@@ -762,7 +755,7 @@ export const startScheduler = async (): Promise<void> => {
 
   refreshIntervalId = setInterval(refreshJobs, SCHEDULER_POLL_INTERVAL_MS);
 
-  startWebhookRetryRunner();
+  startWebhookDLQRetryWorker();
   startWorkerNotificationSchedulers();
 
   startHealthCheck();
@@ -781,9 +774,9 @@ export const stopScheduler = (): void => {
     refreshIntervalId = null;
   }
 
-  if (webhookRetryIntervalId) {
-    clearInterval(webhookRetryIntervalId);
-    webhookRetryIntervalId = null;
+  if (webhookDlqRetryTask) {
+    webhookDlqRetryTask.stop();
+    webhookDlqRetryTask = null;
   }
 
   if (healthCheckIntervalId) {

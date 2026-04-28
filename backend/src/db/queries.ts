@@ -15,7 +15,7 @@ export interface StreamRecord {
   withdrawn_amount: string;
   start_ts: number;
   end_ts: number;
-  status: "active" | "completed" | "cancelled";
+  status: "active" | "paused" | "completed" | "cancelled";
   closed_at?: number;
   ledger_created: number;
   created_at: Date;
@@ -201,7 +201,7 @@ export const upsertStream = async (params: {
   withdrawnAmount: bigint;
   startTs: number;
   endTs: number;
-  status: "active" | "completed" | "cancelled";
+  status: "active" | "paused" | "completed" | "cancelled";
   closedAt?: number;
   ledger: number;
 }): Promise<void> => {

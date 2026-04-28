@@ -20,7 +20,11 @@ const aiGateway = new AIGateway();
 /** AI gateway timeout inside the queue worker, in milliseconds (#929). */
 export const AI_GATEWAY_TIMEOUT_MS = 30_000;
 
-function withTimeout<T>(label: string, ms: number, work: Promise<T>): Promise<T> {
+function withTimeout<T>(
+  label: string,
+  ms: number,
+  work: Promise<T>,
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error(`${label} timed out after ${ms}ms`));

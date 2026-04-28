@@ -46,7 +46,9 @@ const createStreamSchema = z.object({
     .transform((v) => BigInt(v)),
   startTs: z.number().int().positive(),
   endTs: z.number().int().positive(),
-  status: z.enum(["active", "completed", "cancelled"]).default("active"),
+  status: z
+    .enum(["active", "paused", "completed", "cancelled"])
+    .default("active"),
   ledger: z.number().int().positive(),
   metadata: z.record(z.string(), z.string()).optional(),
 });
