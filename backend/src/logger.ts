@@ -20,5 +20,5 @@ export const patchConsoleWithLogger = (): void => {
   console.log = (...args: unknown[]) => logger.info({ args }, toMessage(args));
   console.info = (...args: unknown[]) => logger.info({ args }, toMessage(args));
   console.warn = (...args: unknown[]) => logger.warn({ args }, toMessage(args));
-  console.error = (...args: unknown[]) => logger.error({ args }, toMessage(args));
+
 };
