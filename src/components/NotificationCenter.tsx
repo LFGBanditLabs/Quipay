@@ -9,7 +9,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useNotification } from "../hooks/useNotification";
 import type { PersistentNotificationType } from "../providers/notificationStorage";
-import { useAlertStore } from "../hooks/useAlertStore";
+import { useAlertStore, type AlertSeverity } from "../hooks/useAlertStore";
 
 type UnifiedNotification = {
   id: string;

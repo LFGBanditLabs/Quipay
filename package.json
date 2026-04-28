@@ -140,5 +140,8 @@
     "follow-redirects": ">=1.15.12",
     "axios": ">=1.15.0",
     "defu": ">=6.1.5"
+  },
+  "optionalDependencies": {
+    "@esbuild/linux-x64": "^0.28.0"
   }
 }

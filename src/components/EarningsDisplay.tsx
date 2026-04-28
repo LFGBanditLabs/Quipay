@@ -96,10 +96,12 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
                     fontSize: "12px",
                   }}
                   itemStyle={{ color: "var(--text)" }}
-                  formatter={(value: number | string | undefined) => [
+                  formatter={(value) => [
                     typeof value === "number"
                       ? formatTokenAmount(value, activeToken)
-                      : value || "",
+                      : Array.isArray(value)
+                        ? value.join(", ")
+                        : value || "",
                     t("earnings.earned"),
                   ]}
                 />

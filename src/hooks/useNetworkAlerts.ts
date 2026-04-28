@@ -8,7 +8,7 @@
 
 import { useEffect, useRef } from "react";
 import { useNetworkStatus } from "../providers/NetworkStatusProvider";
-import { alertStore } from "../components/NotificationCenter";
+import { alertStore } from "../hooks/useAlertStore";
 import type { HorizonStatus, CongestionLevel } from "../util/networkStatus";
 
 export function useNetworkAlerts() {

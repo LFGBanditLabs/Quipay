@@ -50,7 +50,7 @@ export const VirtualizedTable = React.forwardRef(
       overscan: 10, // Render 10 rows outside viewport for smoother scrolling
     });
 
-    const virtualRows = rowVirtualizer.getVirtualItems() as VirtualItem[];
+    const virtualRows = rowVirtualizer.getVirtualItems();
     const totalSize = rowVirtualizer.getTotalSize();
 
     const paddingTop =
