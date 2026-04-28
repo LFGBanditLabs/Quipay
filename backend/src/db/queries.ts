@@ -3,6 +3,7 @@ import { globalCache } from "../utils/cache";
 import { DatabaseError } from "../errors/AppError";
 import { invalidatePayrollSummaryCache } from "../services/payrollSummaryCache";
 import { PoolClient } from "pg";
+import { validateRow, overallStatsSchema } from "./validation";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
