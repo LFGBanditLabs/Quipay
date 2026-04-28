@@ -121,7 +121,10 @@ reportsRouter.delete(
         });
       }
 
-      const deletedSchedule = await deleteReportSchedule(scheduleId, employerId);
+      const deletedSchedule = await deleteReportSchedule(
+        scheduleId,
+        employerId,
+      );
 
       if (!deletedSchedule) {
         return res.status(404).json({

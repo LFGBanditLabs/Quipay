@@ -1,2 +1,52 @@
-Cargo.lock text -merge eol=lf linguist-generated=true -diff
-package-lock.json linguist-generated=true -diff
+# ── Generated / lock files ───────────────────────────────────────────────────
+Cargo.lock                             text -merge eol=lf linguist-generated=true -diff
+package-lock.json                      linguist-generated=true -diff
+backend/package-lock.json              linguist-generated=true -diff
+developer-hub/package-lock.json        linguist-generated=true -diff
+*.lock                                 linguist-generated=true -diff
+
+# ── Binary files (no line-ending normalisation or text diffs) ────────────────
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.wasm   binary
+*.pdf    binary
+*.zip    binary
+*.tar    binary
+*.gz     binary
+
+# ── Line endings ─────────────────────────────────────────────────────────────
+* text=auto eol=lf
+*.sh     text eol=lf
+*.ts     text eol=lf
+*.tsx    text eol=lf
+*.rs     text eol=lf
+*.toml   text eol=lf
+Makefile text eol=lf
+
+# ── Linguist (GitHub language stats) ─────────────────────────────────────────
+# Exclude documentation site and infra from code language stats
+developer-hub/**   linguist-documentation=true
+infra/**           linguist-other=true
+monitoring/**      linguist-other=true
+docs/**            linguist-documentation=true
+
+# ── export-ignore (GitHub "Download ZIP" and git archive) ────────────────────
+# Files and directories listed here are omitted from the ZIP download,
+# making it significantly smaller for users who just want the source code.
+.github              export-ignore
+developer-hub        export-ignore
+docs                 export-ignore
+infra                export-ignore
+monitoring           export-ignore
+scripts              export-ignore
+deploy               export-ignore
+fuzz                 export-ignore
+tests                export-ignore
+.dockerignore        export-ignore
+docker-compose*.yml  export-ignore
+Makefile             export-ignore
+.eslintcache         export-ignore
+*.config.kiro        export-ignore

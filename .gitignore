@@ -73,3 +73,57 @@ src/contracts/*
 !src/contracts/automation_gateway.ts
 !src/contracts/payroll_vault.ts
 !src/contracts/workforce_registry.ts
+
+# ── Build / cache artifacts (reduce clone / checkout size) ───────────────────
+
+# Vite / Rollup cache
+.vite/
+.rollup.cache/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Jest / Vitest cache
+.jest-cache/
+coverage/
+.nyc_output/
+
+# Next.js (if ever adopted)
+.next/
+out/
+
+# Storybook
+storybook-static/
+
+# Docusaurus build (developer-hub)
+developer-hub/.docusaurus/
+developer-hub/build/
+
+# Turbo cache
+.turbo/
+
+# ESLint cache
+.eslintcache
+
+# Prettier cache
+.prettiercache
+
+# SWC / Babel cache
+.babel_cache/
+.swc/
+
+# WASM build artifacts (only commit when intentional)
+contracts/**/*.wasm
+
+# Cargo registry cache (can be large in CI-generated clones)
+.cargo/registry/
+.cargo/git/
+
+# Docker build context files
+docker-buildkit-output/
+
+# OS artifacts
+Thumbs.db
+*.swp
+*.swo
+*~

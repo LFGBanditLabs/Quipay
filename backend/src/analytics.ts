@@ -39,9 +39,7 @@ const requireDb = (_req: Request, res: Response, next: () => void) => {
 
 analyticsRouter.use(requireDb);
 
-const isValidPayrollPeriod = (
-  value: unknown,
-): value is "ytd" | "qtd" | "mtd" =>
+const isValidPayrollPeriod = (value: unknown): value is "ytd" | "qtd" | "mtd" =>
   value === "ytd" || value === "qtd" || value === "mtd";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -80,7 +78,9 @@ analyticsRouter.get(
         return res.set("X-Cache", "HIT").json({ ok: true, data: cached });
       }
 
-      const { data, ms } = await timed(() => getPayrollSummaryByOrg(orgId, period));
+      const { data, ms } = await timed(() =>
+        getPayrollSummaryByOrg(orgId, period),
+      );
       await setCachedPayrollSummary(cacheKey, data, 5 * 60 * 1000);
 
       return res

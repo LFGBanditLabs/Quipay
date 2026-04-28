@@ -147,6 +147,131 @@ fn test_get_workers_by_employer_pagination() {
     assert_eq!(empty2.len(), 0);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// #944 — get_employees_paginated tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_get_employees_paginated_first_page() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
+
+    let employer = Address::generate(&e);
+    let preferred_token = Address::generate(&e);
+
+    let mut workers: StdVec<Address> = StdVec::new();
+    let mut i: u32 = 0;
+    while i < 10 {
+        let worker = Address::generate(&e);
+        let metadata_hash = String::from_str(&e, "QmHash");
+        client
+            .try_register_worker(&worker, &preferred_token, &metadata_hash)
+            .unwrap();
+        client
+            .try_set_stream_active(&employer, &worker, &true)
+            .unwrap();
+        workers.push(worker);
+        i += 1;
+    }
+
+    // First page (offset=0, limit=3) → 3 profiles starting from index 0
+    let page = client.get_employees_paginated(&employer, &0u32, &3u32);
+    assert_eq!(page.len(), 3);
+    assert_eq!(page.get(0).unwrap().wallet, workers.get(0).unwrap().clone());
+    assert_eq!(page.get(2).unwrap().wallet, workers.get(2).unwrap().clone());
+}
+
+#[test]
+fn test_get_employees_paginated_last_page() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
+
+    let employer = Address::generate(&e);
+    let preferred_token = Address::generate(&e);
+
+    let mut workers: StdVec<Address> = StdVec::new();
+    let mut i: u32 = 0;
+    while i < 5 {
+        let worker = Address::generate(&e);
+        let metadata_hash = String::from_str(&e, "QmHash");
+        client
+            .try_register_worker(&worker, &preferred_token, &metadata_hash)
+            .unwrap();
+        client
+            .try_set_stream_active(&employer, &worker, &true)
+            .unwrap();
+        workers.push(worker);
+        i += 1;
+    }
+
+    // Last page (offset=4, limit=10) → only 1 entry at index 4
+    let page = client.get_employees_paginated(&employer, &4u32, &10u32);
+    assert_eq!(page.len(), 1);
+    assert_eq!(page.get(0).unwrap().wallet, workers.get(4).unwrap().clone());
+}
+
+#[test]
+fn test_get_employees_paginated_offset_exceeds_total() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
+
+    let employer = Address::generate(&e);
+    let preferred_token = Address::generate(&e);
+
+    // Register 3 workers
+    let mut i: u32 = 0;
+    while i < 3 {
+        let worker = Address::generate(&e);
+        let metadata_hash = String::from_str(&e, "QmHash");
+        client
+            .try_register_worker(&worker, &preferred_token, &metadata_hash)
+            .unwrap();
+        client
+            .try_set_stream_active(&employer, &worker, &true)
+            .unwrap();
+        i += 1;
+    }
+
+    // offset=10 > total(3) → empty Vec without error
+    let empty = client.get_employees_paginated(&employer, &10u32, &5u32);
+    assert_eq!(empty.len(), 0);
+}
+
+#[test]
+fn test_get_employees_paginated_limit_capped_at_50() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let contract_id = e.register(WorkforceRegistryContract, ());
+    let client = WorkforceRegistryContractClient::new(&e, &contract_id);
+
+    let employer = Address::generate(&e);
+    let preferred_token = Address::generate(&e);
+
+    // Register 60 workers
+    let mut i: u32 = 0;
+    while i < 60 {
+        let worker = Address::generate(&e);
+        let metadata_hash = String::from_str(&e, "QmHash");
+        client
+            .try_register_worker(&worker, &preferred_token, &metadata_hash)
+            .unwrap();
+        client
+            .try_set_stream_active(&employer, &worker, &true)
+            .unwrap();
+        i += 1;
+    }
+
+    // Request 100 → should be capped at 50
+    let page = client.get_employees_paginated(&employer, &0u32, &100u32);
+    assert_eq!(page.len(), 50);
+}
+
 #[test]
 fn test_get_workers_by_employer_only_active_streams() {
     let e = Env::default();

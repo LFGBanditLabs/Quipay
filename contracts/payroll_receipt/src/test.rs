@@ -117,3 +117,109 @@ fn test_receipt_ids_increment() {
     assert_eq!(id1, 1u64);
     assert_eq!(id2, 2u64);
 }
+
+#[test]
+fn test_burn_receipt_owner() {
+    let env = Env::default();
+    let (_admin, _minter, client) = setup(&env);
+
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let receipt_id = client.mint(
+        &1u64,
+        &employer,
+        &worker,
+        &token,
+        &1_000_000i128,
+        &1_000u64,
+        &2_000u64,
+        &2_000u64,
+        &ClosureReason::Completed,
+    );
+
+    client.burn_receipt(&receipt_id, &worker);
+
+    let receipt = client.get_receipt(&receipt_id);
+    assert_eq!(receipt.reason, ClosureReason::Burned);
+}
+
+#[test]
+fn test_burn_receipt_admin() {
+    let env = Env::default();
+    let (admin, _minter, client) = setup(&env);
+
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let receipt_id = client.mint(
+        &1u64,
+        &employer,
+        &worker,
+        &token,
+        &1_000_000i128,
+        &1_000u64,
+        &2_000u64,
+        &2_000u64,
+        &ClosureReason::Completed,
+    );
+
+    client.burn_receipt(&receipt_id, &admin);
+
+    let receipt = client.get_receipt(&receipt_id);
+    assert_eq!(receipt.reason, ClosureReason::Burned);
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #1050)")]
+fn test_double_burn_fails() {
+    let env = Env::default();
+    let (admin, _minter, client) = setup(&env);
+
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+
+    let receipt_id = client.mint(
+        &1u64,
+        &employer,
+        &worker,
+        &token,
+        &1_000_000i128,
+        &1_000u64,
+        &2_000u64,
+        &2_000u64,
+        &ClosureReason::Completed,
+    );
+
+    client.burn_receipt(&receipt_id, &worker);
+    client.burn_receipt(&receipt_id, &admin);
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #1003)")]
+fn test_unauthorized_burn_fails() {
+    let env = Env::default();
+    let (_admin, _minter, client) = setup(&env);
+
+    let employer = Address::generate(&env);
+    let worker = Address::generate(&env);
+    let token = Address::generate(&env);
+    let random_user = Address::generate(&env);
+
+    let receipt_id = client.mint(
+        &1u64,
+        &employer,
+        &worker,
+        &token,
+        &1_000_000i128,
+        &1_000u64,
+        &2_000u64,
+        &2_000u64,
+        &ClosureReason::Completed,
+    );
+
+    client.burn_receipt(&receipt_id, &random_user);
+}

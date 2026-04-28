@@ -71,8 +71,9 @@ async function checkDatabase(): Promise<DependencyHealth> {
     return {
       status: "healthy",
       latencyMs: Date.now() - startedAt,
-      details: `pool(total=${total}, idle=${idle}, waiting=${waiting}, max=${max ?? "unknown"
-        })`,
+      details: `pool(total=${total}, idle=${idle}, waiting=${waiting}, max=${
+        max ?? "unknown"
+      })`,
     };
   } catch (error) {
     const total = pool.totalCount;
@@ -85,10 +86,12 @@ async function checkDatabase(): Promise<DependencyHealth> {
       latencyMs: Date.now() - startedAt,
       details:
         error instanceof Error
-          ? `${error.message}; pool(total=${total}, idle=${idle}, waiting=${waiting}, max=${max ?? "unknown"
-          })`
-          : `Database query failed; pool(total=${total}, idle=${idle}, waiting=${waiting}, max=${max ?? "unknown"
-          })`,
+          ? `${error.message}; pool(total=${total}, idle=${idle}, waiting=${waiting}, max=${
+              max ?? "unknown"
+            })`
+          : `Database query failed; pool(total=${total}, idle=${idle}, waiting=${waiting}, max=${
+              max ?? "unknown"
+            })`,
     };
   }
 }
@@ -208,7 +211,8 @@ async function checkNonceManager(): Promise<DependencyHealth> {
     return {
       status: "unhealthy",
       latencyMs: Date.now() - startedAt,
-      details: error instanceof Error ? error.message : "Nonce manager check failed",
+      details:
+        error instanceof Error ? error.message : "Nonce manager check failed",
     };
   }
 }
