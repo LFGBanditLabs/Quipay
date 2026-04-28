@@ -396,6 +396,25 @@ impl WorkforceRegistryContract {
         out
     }
 
+    /// Returns a paginated slice of active employee profiles for a given employer.
+    ///
+    /// # Arguments
+    /// * `employer` - The employer whose employees are being queried.
+    /// * `offset`   - Zero-based start index into the list of active employees.
+    /// * `limit`    - How many profiles to return (capped at 50).
+    ///
+    /// Returns an empty Vec when `offset >= total_count` (zero-state safety).
+    pub fn get_employees_paginated(
+        e: Env,
+        employer: Address,
+        offset: u32,
+        limit: u32,
+    ) -> Vec<WorkerProfile> {
+        const MAX_PAGE_SIZE: u32 = 50;
+        let effective_limit = if limit > MAX_PAGE_SIZE { MAX_PAGE_SIZE } else { limit };
+        Self::get_workers_by_employer(e, employer, offset, effective_limit)
+    }
+
     pub fn remove_worker(e: Env, employer: Address, worker: Address) -> Result<(), QuipayError> {
         employer.require_auth();
 

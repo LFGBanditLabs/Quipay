@@ -69,7 +69,7 @@ fn test_pause_stream_wrong_auth() {
 fn test_admin_pause_and_resume_stream() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, employer, worker, token, admin) = setup(&env);
+    let (client, employer, worker, token, _admin) = setup(&env);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
     let stream_id =

@@ -237,11 +237,15 @@ const sendEmailAlert = async (
   const sendgrid = getSendgridConfig();
   if (!sendgrid) {
     const employer = payload.employer;
-    await serviceLogger.warn("Notifier", "SendGrid not configured; skipping email alert", {
-      event_type: "email_alert_skipped",
-      employer: truncateAddress(employer),
-      reason: "missing_sendgrid_config",
-    });
+    await serviceLogger.warn(
+      "Notifier",
+      "SendGrid not configured; skipping email alert",
+      {
+        event_type: "email_alert_skipped",
+        employer: truncateAddress(employer),
+        reason: "missing_sendgrid_config",
+      },
+    );
     return;
   }
 
@@ -252,11 +256,15 @@ const sendEmailAlert = async (
 
   if (!to) {
     const employer = payload.employer;
-    await serviceLogger.warn("Notifier", "ALERT_EMAIL_TO not set; skipping email alert", {
-      event_type: "email_alert_skipped",
-      employer: truncateAddress(employer),
-      reason: "missing_recipient",
-    });
+    await serviceLogger.warn(
+      "Notifier",
+      "ALERT_EMAIL_TO not set; skipping email alert",
+      {
+        event_type: "email_alert_skipped",
+        employer: truncateAddress(employer),
+        reason: "missing_recipient",
+      },
+    );
     return;
   }
 

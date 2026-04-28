@@ -53,6 +53,9 @@ jobs:
             echo "stellar-scaffold already installed."
           fi
       - run: npm ci --legacy-peer-deps
+      - name: Ensure Rollup Linux Native Binary
+        run: |
+          node -e "require.resolve('@rollup/rollup-linux-x64-gnu')" || npm install --no-save --legacy-peer-deps @rollup/rollup-linux-x64-gnu
       - name: Pull stellar-quickstart image
         run: docker pull stellar/quickstart:testing
       - name: Security audit

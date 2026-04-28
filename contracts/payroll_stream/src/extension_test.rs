@@ -150,7 +150,7 @@ fn test_extend_stream_wrong_auth() {
     let env = Env::default();
     env.mock_all_auths();
     let (client, employer, worker, token, _admin) = setup(&env);
-    let malicious = Address::generate(&env);
+    let _malicious = Address::generate(&env);
 
     env.ledger().with_mut(|li| {
         li.timestamp = 0;
@@ -161,7 +161,7 @@ fn test_extend_stream_wrong_auth() {
     );
 
     // Malicious user tries to extend stream
-    let result = client.try_extend_stream(&stream_id, &0, &20u64);
+    let _result = client.try_extend_stream(&stream_id, &0, &20u64);
     // Since mock_all_auths is on, we'd need to test specific failure if we weren't mocking.
     // However, the code calls employer.require_auth(), so it will enforce in production.
 }

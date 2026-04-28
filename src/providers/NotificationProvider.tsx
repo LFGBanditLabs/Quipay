@@ -178,9 +178,13 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    setStreamNotifications(
-      loadPersistedNotifications(window.localStorage, address),
-    );
+    const timeoutId = window.setTimeout(() => {
+      setStreamNotifications(
+        loadPersistedNotifications(window.localStorage, address),
+      );
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [address]);
 
   useEffect(() => {
