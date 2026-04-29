@@ -24,7 +24,7 @@ import {
   teardownTestDatabase,
   TestDatabase,
 } from "../helpers/testcontainer";
-import { getStreamById } from "../../db/queries";
+import { getStreamById, softDeleteStream, upsertStream } from "../../db/queries";
 
 // ── Test App Setup ────────────────────────────────────────────────────────────
 
@@ -449,6 +449,111 @@ describe("Stream Creation Integration Tests", () => {
         constraint: "ux_payroll_streams_active_employer_worker",
         message: expect.stringContaining("duplicate key value"),
       });
+    });
+  });
+
+  describe("transaction rollback safety", () => {
+    it("should rollback stream creation if a crash happens after stream insert", async () => {
+      const employerAddress = "GAEMPLOYERC23456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      const workerAddress = "GAWORKERC23456789ABCDEFGHIJKLMNOPQRSTUVWXYZ12";
+      const streamId = 32357;
+
+      await testDb.getPool().query(
+        `INSERT INTO treasury_balances (employer, balance, token, updated_at)
+         VALUES ($1, $2, 'USDC', NOW())`,
+        [employerAddress, "10000000000"],
+      );
+
+      await expect(
+        upsertStream({
+          streamId,
+          employer: employerAddress,
+          worker: workerAddress,
+          totalAmount: BigInt("1000000000"),
+          withdrawnAmount: BigInt("0"),
+          startTs: Math.floor(Date.now() / 1000),
+          endTs: Math.floor(Date.now() / 1000) + 3600,
+          status: "active",
+          ledger: 60000001,
+          txHooks: {
+            afterStreamWrite: () => {
+              throw new Error("Simulated crash after stream insert");
+            },
+          },
+        }),
+      ).rejects.toThrow("Simulated crash after stream insert");
+
+      const streamResult = await testDb
+        .getPool()
+        .query("SELECT * FROM payroll_streams WHERE stream_id = $1", [streamId]);
+      expect(streamResult.rows).toHaveLength(0);
+
+      const balanceResult = await testDb
+        .getPool()
+        .query("SELECT balance FROM treasury_balances WHERE employer = $1", [
+          employerAddress,
+        ]);
+      expect(balanceResult.rows[0].balance).toBe("10000000000");
+
+      const auditResult = await testDb
+        .getPool()
+        .query("SELECT * FROM stream_audit_log WHERE stream_id = $1", [streamId]);
+      expect(auditResult.rows).toHaveLength(0);
+    });
+
+    it("should rollback cancellation if a crash happens after status update", async () => {
+      const streamId = 32358;
+      const employerAddress = "GAEMPLOYERD23456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      const workerAddress = "GAWORKERD23456789ABCDEFGHIJKLMNOPQRSTUVWXYZ12";
+
+      await insertRawStream({
+        streamId,
+        employerAddress,
+        workerAddress,
+        totalAmount: "9000000000",
+        status: "active",
+      });
+
+      await testDb.getPool().query(
+        `INSERT INTO treasury_balances (employer, balance, token, updated_at)
+         VALUES ($1, $2, 'USDC', NOW())`,
+        [employerAddress, "7000000000"],
+      );
+
+      await expect(
+        softDeleteStream({
+          streamId,
+          deletedBy: employerAddress,
+          cancelReason: "test rollback",
+          txHooks: {
+            afterStatusUpdate: () => {
+              throw new Error("Simulated crash after status update");
+            },
+          },
+        }),
+      ).rejects.toThrow("Simulated crash after status update");
+
+      const streamResult = await testDb
+        .getPool()
+        .query(
+          "SELECT status, deleted_at FROM payroll_streams WHERE stream_id = $1",
+          [streamId],
+        );
+      expect(streamResult.rows).toHaveLength(1);
+      expect(streamResult.rows[0].status).toBe("active");
+      expect(streamResult.rows[0].deleted_at).toBeNull();
+
+      const balanceResult = await testDb
+        .getPool()
+        .query("SELECT balance FROM treasury_balances WHERE employer = $1", [
+          employerAddress,
+        ]);
+      expect(balanceResult.rows[0].balance).toBe("7000000000");
+
+      const auditResult = await testDb
+        .getPool()
+        .query("SELECT * FROM stream_audit_log WHERE stream_id = $1", [streamId]);
+      expect(auditResult.rows).toHaveLength(0);
     });
   });
 });
