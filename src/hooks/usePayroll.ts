@@ -101,6 +101,9 @@ export const usePayroll = (
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isVaultLoading, setIsVaultLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [payrollSummaryError, setPayrollSummaryError] = useState<string | null>(
+    null,
+  );
   const [fetchTick, setFetchTick] = useState(0);
 
   const fetchVaultData = useCallback(async () => {
@@ -135,17 +138,32 @@ export const usePayroll = (
     const backendUrl =
       import.meta.env.PUBLIC_BACKEND_URL || "http://localhost:3001";
 
-    await dedupRequest(`summary-${address}`, async () => {
-      const response = await fetch(
-        `${backendUrl}/api/v1/analytics/payroll-summary?org_id=${encodeURIComponent(address)}&period=ytd`,
+    try {
+      await dedupRequest(`summary-${address}`, async () => {
+        const response = await fetch(
+          `${backendUrl}/api/v1/analytics/payroll-summary?org_id=${encodeURIComponent(address)}&period=ytd`,
+        );
+
+        if (!response.ok) throw new Error("Failed to load payroll summary");
+
+        const payload = await response.json();
+        setPayrollSummary(payload.data ?? null);
+      });
+      setPayrollSummaryError(null);
+    } catch (err) {
+      console.error("Failed to fetch payroll summary:", err);
+      setPayrollSummaryError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load payroll summary. Please retry.",
       );
-
-      if (!response.ok) throw new Error("Failed to load payroll summary");
-
-      const payload = await response.json();
-      setPayrollSummary(payload.data ?? null);
-    });
+    }
   }, []);
+
+  const retryPayrollSummary = useCallback(async () => {
+    if (!employerAddress) return;
+    await fetchPayrollSummary(employerAddress);
+  }, [employerAddress, fetchPayrollSummary]);
 
   const fetchStreams = useCallback(
     async (address: string) => {
@@ -288,6 +306,7 @@ export const usePayroll = (
       setPayrollSummary(null);
       setIsLoading(false);
       setError(null);
+      setPayrollSummaryError(null);
       return;
     }
 
@@ -340,6 +359,7 @@ export const usePayroll = (
     treasuryBalances,
     totalLiabilities,
     payrollSummary,
+    payrollSummaryError,
     activeStreamsCount,
     streams,
     activeStreams,
@@ -350,6 +370,7 @@ export const usePayroll = (
     refreshData,
     refreshVaultData: fetchVaultData,
     refetch,
+    retryPayrollSummary,
     applyOptimisticStreamStatus,
     restoreStream,
     clearStreamPending,
