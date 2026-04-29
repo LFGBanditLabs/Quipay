@@ -1,181 +1,18 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { useNotification } from "../hooks/useNotification";
-import type { PersistentNotificationType } from "../providers/notificationStorage";
-
-export type AlertSeverity = "critical" | "warning" | "info" | "success";
-export type AlertCategory =
-  | "treasury"
-  | "network"
-  | "wallet"
-  | "protocol"
-  | "system";
-
-export interface ProtocolAlert {
-  id: string;
-  title: string;
-  message: string;
-  severity: AlertSeverity;
-  category: AlertCategory;
-  timestamp: number;
-  read: boolean;
-  action?: {
-    label: string;
-    onClick: () => void;
-  };
-  autoDismissMs?: number;
-}
-
-type Listener = () => void;
-
-class AlertStore {
-  private alerts: ProtocolAlert[] = [];
-  private listeners: Set<Listener> = new Set();
-  private maxAlerts = 50;
-
-  subscribe(listener: Listener) {
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
-  }
-
-  private notify() {
-    this.listeners.forEach((listener) => listener());
-  }
-
-  getAlerts() {
-    return this.alerts;
-  }
-
-  addAlert(alert: Omit<ProtocolAlert, "id" | "timestamp" | "read">) {
-    const recent = this.alerts.find(
-      (item) =>
-        item.title === alert.title && Date.now() - item.timestamp < 60_000,
-    );
-    if (recent) return recent.id;
-
-    const id = `alert-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const next: ProtocolAlert = {
-      ...alert,
-      id,
-      timestamp: Date.now(),
-      read: false,
-    };
-
-    this.alerts = [next, ...this.alerts].slice(0, this.maxAlerts);
-    this.notify();
-
-    if (alert.autoDismissMs) {
-      setTimeout(() => this.dismissAlert(id), alert.autoDismissMs);
-    }
-
-    return id;
-  }
-
-  markAsRead(id: string) {
-    this.alerts = this.alerts.map((alert) =>
-      alert.id === id ? { ...alert, read: true } : alert,
-    );
-    this.notify();
-  }
-
-  markAllRead() {
-    this.alerts = this.alerts.map((alert) => ({ ...alert, read: true }));
-    this.notify();
-  }
-
-  dismissAlert(id: string) {
-    this.alerts = this.alerts.filter((alert) => alert.id !== id);
-    this.notify();
-  }
-
-  clearAll() {
-    this.alerts = [];
-    this.notify();
-  }
-
-  getUnreadCount() {
-    return this.alerts.filter((alert) => !alert.read).length;
-  }
-}
-
-export const alertStore = new AlertStore();
-
-export function useAlertStore() {
-  const [, forceRender] = useState(0);
-
-  useEffect(() => {
-    return alertStore.subscribe(() => forceRender((count) => count + 1));
-  }, []);
-
-  return {
-    alerts: alertStore.getAlerts(),
-    unreadCount: alertStore.getUnreadCount(),
-    addAlert: alertStore.addAlert.bind(alertStore),
-    markAsRead: alertStore.markAsRead.bind(alertStore),
-    markAllRead: alertStore.markAllRead.bind(alertStore),
-    dismissAlert: alertStore.dismissAlert.bind(alertStore),
-    clearAll: alertStore.clearAll.bind(alertStore),
-  };
-}
-
-type UnifiedNotification = {
-  id: string;
-  title: string;
-  message: string;
-  timestamp: number;
-  read: boolean;
-  accent: string;
-  label: string;
-  icon: string;
-  onOpen?: () => void;
-  onDismiss?: () => void;
-};
-
-const IconBell = () => (
-  <svg
-    width="20"
-    height="20"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-  </svg>
-);
+import { useWallet } from "../hooks/useWallet";
+import {
+  usePersistentNotifications,
+  PersistentNotification,
+  NotificationType,
+} from "../hooks/usePersistentNotifications";
+import { Bell, Check, AlertCircle, CheckCircle2, Play, LayoutList } from "lucide-react";
 
 /* ── UI Constants ── */
 
-const ALERT_META: Record<
-  AlertSeverity,
-  { accent: string; label: string; icon: string }
-> = {
-  critical: {
-    accent: "var(--token-color-error-500)",
-    label: "Critical",
-    icon: "!",
-  },
-  warning: {
-    accent: "var(--token-color-warning-500)",
-    label: "Warning",
-    icon: "!",
-  },
-  info: { accent: "var(--token-color-accent)", label: "Info", icon: "i" },
-  success: {
-    accent: "var(--token-color-success-500)",
-    label: "Success",
-    icon: "OK",
-  },
-};
-
-const PERSISTED_META: Record<
-  PersistentNotificationType,
-  { accent: string; label: string; icon: string }
+const TYPE_CONFIG: Record<
+  NotificationType,
+  { icon: React.ReactNode; label: string; color: string }
 > = {
   tx_confirmed: {
     icon: <CheckCircle2 className="w-4 h-4" />,
@@ -223,7 +60,7 @@ const NotificationItem: React.FC<{
   notification: PersistentNotification;
   onRead: (id: string) => void;
 }> = ({ notification, onRead }) => {
-  const config = TYPE_CONFIG[notification.type];
+  const config = TYPE_CONFIG[notification.type as NotificationType];
 
   return (
     <div
@@ -335,31 +172,17 @@ const NotificationCenter: React.FC = () => {
           aria-live="polite"
           className="absolute right-0 mt-2 w-80 sm:w-96 max-h-[500px] flex flex-col rounded-2xl border border-border bg-surface shadow-2xl z-[100] animate-in fade-in zoom-in-95 duration-200"
         >
-          <div
-            style={{
-              padding: "14px 16px",
-              borderBottom: "1px solid var(--border)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "12px",
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: "14px",
-                  fontWeight: 700,
-                  color: "var(--text)",
-                }}
-              >
-                {t("notifications.title", "Notifications")}
-              </div>
-              <div style={{ fontSize: "12px", color: "var(--muted)" }}>
-                {totalUnread > 0 ? `${totalUnread} unread` : "All caught up"}
-              </div>
-            </div>
-            {totalUnread > 0 && (
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface-subtle/20 rounded-t-2xl">
+            <h3 className="text-sm font-bold text-text">
+              {t("notifications.title", "Notifications")}
+              {unreadCount > 0 && (
+                <span className="ml-2 px-1.5 py-0.5 rounded bg-surface text-[10px] font-bold text-muted">
+                  {unreadCount} UNREAD
+                </span>
+              )}
+            </h3>
+            {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
                 className="text-xs font-semibold text-accent hover:underline focus:outline-none"
