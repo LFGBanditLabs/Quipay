@@ -5,6 +5,7 @@ import { usePayroll, Stream } from "../hooks/usePayroll";
 import { useNavigate } from "react-router-dom";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import EmptyState from "../components/EmptyState";
+import { ErrorMessage } from "../components/ErrorMessage";
 import StreamVisualizer from "../components/StreamVisualizer";
 import { CancelStreamModal } from "../components/CancelStreamModal";
 import {
@@ -46,7 +47,9 @@ const EmployerDashboard: React.FC = () => {
     activeStreamsCount,
     activeStreams,
     isLoading,
+    payrollSummaryError,
     refreshData,
+    retryPayrollSummary,
     applyOptimisticStreamStatus,
     restoreStream,
     clearStreamPending,
@@ -183,6 +186,15 @@ const EmployerDashboard: React.FC = () => {
             }
           />
         </div>
+
+        {payrollSummaryError && (
+          <ErrorMessage
+            error={payrollSummaryError}
+            onRetry={() => {
+              void retryPayrollSummary();
+            }}
+          />
+        )}
 
         <div className={tw.dashboardGrid}>
           {/* Treasury Balance */}
