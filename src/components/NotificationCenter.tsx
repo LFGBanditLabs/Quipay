@@ -1,45 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { useWallet } from "../hooks/useWallet";
-import {
-  usePersistentNotifications,
-  PersistentNotification,
-  NotificationType,
-} from "../hooks/usePersistentNotifications";
-import { Bell, Check, AlertCircle, CheckCircle2, Play, LayoutList } from "lucide-react";
 
 /* ── UI Constants ── */
-
-const TYPE_CONFIG: Record<
-  NotificationType,
-  { icon: React.ReactNode; label: string; color: string }
-> = {
-  tx_confirmed: {
-    icon: <CheckCircle2 className="w-4 h-4" />,
-    label: "Confirmed",
-    color: "var(--token-color-success-500)",
-  },
-  tx_failed: {
-    icon: <AlertCircle className="w-4 h-4" />,
-    label: "Failed",
-    color: "var(--token-color-error-500)",
-  },
-  stream_started: {
-    icon: <Play className="w-4 h-4" />,
-    label: "Stream Started",
-    color: "var(--token-color-accent)",
-  },
-  stream_completed: {
-    icon: <Check className="w-4 h-4" />,
-    label: "Stream Completed",
-    color: "var(--token-color-success-500)",
-  },
-  payroll_disbursed: {
-    icon: <LayoutList className="w-4 h-4" />,
-    label: "Payroll Disbursed",
-    color: "var(--token-color-warning-500)",
-  },
-};
 
 /* ── Utility ── */
 

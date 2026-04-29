@@ -49,10 +49,6 @@ const EmployerDashboard: React.FC = () => {
     isLoading,
     payrollSummaryError,
     refreshData,
-    retryPayrollSummary,
-    applyOptimisticStreamStatus,
-    restoreStream,
-    clearStreamPending,
   } = usePayroll(address);
 
   const [streamToCancel, setStreamToCancel] = React.useState<Stream | null>(
