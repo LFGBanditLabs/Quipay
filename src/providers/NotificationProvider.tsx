@@ -178,13 +178,10 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const timeoutId = window.setTimeout(() => {
-      setStreamNotifications(
-        loadPersistedNotifications(window.localStorage, address),
-      );
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStreamNotifications(
+      loadPersistedNotifications(window.localStorage, address),
+    );
   }, [address]);
 
   useEffect(() => {

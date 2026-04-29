@@ -12,7 +12,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { useWallet } from "./useWallet";
-import { alertStore } from "../components/NotificationCenter";
+import { alertStore } from "../hooks/useAlertStore";
 
 interface TreasurySnapshot {
   tokenSymbol: string;

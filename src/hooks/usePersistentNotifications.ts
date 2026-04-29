@@ -36,6 +36,7 @@ export function usePersistentNotifications(walletAddress?: string) {
   // Load and filter on mount or address change
   useEffect(() => {
     if (!storageKey) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNotifications([]);
       return;
     }

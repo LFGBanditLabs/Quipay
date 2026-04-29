@@ -10,10 +10,12 @@ const STORAGE_KEY = "quipay_stream_draft_default"; // replace with orgId if avai
 const CreateStream: React.FC = () => {
   const navigate = useNavigate();
   const { addNotification, addStreamNotification } = useNotification();
-
-  const [showRestoreBanner, setShowRestoreBanner] = useState(() =>
-    Boolean(sessionStorage.getItem(STORAGE_KEY)),
-  );
+  const [showRestoreBanner, setShowRestoreBanner] = useState(() => {
+    if (typeof window !== "undefined") {
+      return !!sessionStorage.getItem(STORAGE_KEY);
+    }
+    return false;
+  });
   const [hasRestored, setHasRestored] = useState(false);
 
   const [formData, setFormData] = useState({

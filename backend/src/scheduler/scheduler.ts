@@ -485,25 +485,22 @@ const startWebhookDLQRetryWorker = (): void => {
   const LOCK_ID = 424242;
   const taskName = "webhook-dlq-retry-runner";
 
-  webhookDlqRetryTask = cron.schedule(
-    WEBHOOK_DLQ_RETRY_CRON,
-    async () => {
-      if (!getPool()) return;
+  webhookDlqRetryTask = cron.schedule(WEBHOOK_DLQ_RETRY_CRON, async () => {
+    if (!getPool()) return;
 
-      await withAdvisoryLock(
-        LOCK_ID,
-        async () => {
-          const processed = await runWebhookDLQRetryBatch(
-            WEBHOOK_DLQ_RETRY_BATCH_SIZE,
-          );
-          if (processed > 0) {
-            log(`DLQ webhook retry worker processed ${processed} item(s)`);
-          }
-        },
-        taskName,
-      );
-    },
-  );
+    await withAdvisoryLock(
+      LOCK_ID,
+      async () => {
+        const processed = await runWebhookDLQRetryBatch(
+          WEBHOOK_DLQ_RETRY_BATCH_SIZE,
+        );
+        if (processed > 0) {
+          log(`DLQ webhook retry worker processed ${processed} item(s)`);
+        }
+      },
+      taskName,
+    );
+  });
 };
 
 const runCliffUnlockChecker = async (): Promise<void> => {

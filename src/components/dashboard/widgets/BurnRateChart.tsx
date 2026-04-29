@@ -69,8 +69,8 @@ export default function BurnRateChart() {
               color: "var(--token-color-text-primary)",
               fontSize: 12,
             }}
-            formatter={(v: number | undefined) => [
-              `${(v ?? 0).toLocaleString()}`,
+            formatter={(v) => [
+              `${(typeof v === "number" ? v : 0).toLocaleString()}`,
               "Burn",
             ]}
           />

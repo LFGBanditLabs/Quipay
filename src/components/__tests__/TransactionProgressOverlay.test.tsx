@@ -14,7 +14,7 @@ const nodeText = (value: unknown): string => {
     typeof value === "object" &&
     value !== null &&
     "children" in value &&
-    Array.isArray((value as { children: unknown }).children)
+    Array.isArray(value.children)
   ) {
     return nodeText((value as { children: unknown[] }).children);
   }

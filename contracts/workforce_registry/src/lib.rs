@@ -11,6 +11,15 @@ pub struct WorkerProfile {
     pub is_archived: bool,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum WorkforceEvent {
+    Register(Address, Address, String),
+    Updated(Address, Address, String),
+    StreamActive(Address, Address),
+    StreamInactive(Address, Address),
+}
+
 #[derive(Clone)]
 #[contracttype]
 pub enum DataKey {

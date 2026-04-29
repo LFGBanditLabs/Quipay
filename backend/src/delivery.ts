@@ -40,10 +40,7 @@ export const WEBHOOK_DLQ_BACKOFF_SCHEDULE_MS = [
 export const computeWebhookDlqNextRetryAtMs = (
   retryCount: number,
 ): number | null => {
-  if (
-    retryCount < 0 ||
-    retryCount >= WEBHOOK_DLQ_BACKOFF_SCHEDULE_MS.length
-  ) {
+  if (retryCount < 0 || retryCount >= WEBHOOK_DLQ_BACKOFF_SCHEDULE_MS.length) {
     return null;
   }
 
@@ -197,13 +194,16 @@ const attemptDeliveryOnce = async (params: {
   outgoingPayload: any;
   attemptNumber: number;
 }): Promise<void> => {
-  const result = await deliverWebhookRequest(params.url, params.outgoingPayload);
+  const result = await deliverWebhookRequest(
+    params.url,
+    params.outgoingPayload,
+  );
   const failureReason = result.succeeded
     ? null
-    : result.errorMessage ??
+    : (result.errorMessage ??
       (result.statusCode !== null ? `HTTP ${result.statusCode}` : null) ??
       result.responseBody ??
-      "Webhook delivery failed";
+      "Webhook delivery failed");
 
   if (getPool()) {
     await insertWebhookOutboundAttempt({

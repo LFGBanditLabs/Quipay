@@ -346,8 +346,8 @@ const Reports: React.FC = () => {
                     borderRadius: "8px",
                   }}
                   labelFormatter={(label) => new Date(label).toDateString()}
-                  formatter={(value: number | string | undefined) => [
-                    `$${Number(value ?? 0).toLocaleString()}`,
+                  formatter={(value) => [
+                    `$${Number(Array.isArray(value) ? (value[0] ?? 0) : (value ?? 0)).toLocaleString()}`,
                     "Volume",
                   ]}
                 />

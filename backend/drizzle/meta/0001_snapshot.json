@@ -506,9 +506,7 @@
         "employers_registration_number_unique": {
           "name": "employers_registration_number_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "registration_number"
-          ]
+          "columns": ["registration_number"]
         }
       },
       "policies": {},
@@ -769,12 +767,8 @@
           "name": "payroll_proofs_stream_id_payroll_streams_stream_id_fk",
           "tableFrom": "payroll_proofs",
           "tableTo": "payroll_streams",
-          "columnsFrom": [
-            "stream_id"
-          ],
-          "columnsTo": [
-            "stream_id"
-          ],
+          "columnsFrom": ["stream_id"],
+          "columnsTo": ["stream_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -784,9 +778,7 @@
         "payroll_proofs_stream_id_unique": {
           "name": "payroll_proofs_stream_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "stream_id"
-          ]
+          "columns": ["stream_id"]
         }
       },
       "policies": {},
@@ -1496,12 +1488,8 @@
           "name": "scheduler_logs_schedule_id_payroll_schedules_id_fk",
           "tableFrom": "scheduler_logs",
           "tableTo": "payroll_schedules",
-          "columnsFrom": [
-            "schedule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["schedule_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1616,12 +1604,8 @@
           "name": "stream_audit_log_stream_id_payroll_streams_stream_id_fk",
           "tableFrom": "stream_audit_log",
           "tableTo": "payroll_streams",
-          "columnsFrom": [
-            "stream_id"
-          ],
-          "columnsTo": [
-            "stream_id"
-          ],
+          "columnsFrom": ["stream_id"],
+          "columnsTo": ["stream_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2058,12 +2042,8 @@
           "name": "withdrawals_stream_id_payroll_streams_stream_id_fk",
           "tableFrom": "withdrawals",
           "tableTo": "payroll_streams",
-          "columnsFrom": [
-            "stream_id"
-          ],
-          "columnsTo": [
-            "stream_id"
-          ],
+          "columnsFrom": ["stream_id"],
+          "columnsTo": ["stream_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }

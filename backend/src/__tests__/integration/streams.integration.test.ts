@@ -424,8 +424,7 @@ describe("Stream Creation Integration Tests", () => {
     });
 
     it("should reject duplicate active streams for the same employer and worker", async () => {
-      const employerAddress =
-        "GAEMPLOYERB23456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      const employerAddress = "GAEMPLOYERB23456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
       const workerAddress = "GAWORKERB23456789ABCDEFGHIJKLMNOPQRSTUVWXYZ12";
 
       await insertRawStream({

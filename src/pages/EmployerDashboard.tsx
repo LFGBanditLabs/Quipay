@@ -75,9 +75,6 @@ const EmployerDashboard: React.FC = () => {
         await buildCancelStreamTx(streamIdBigInt, address);
       }
     },
-    onLocalOptimisticUpdate: applyOptimisticStreamStatus,
-    onLocalRollback: restoreStream,
-    onLocalSettled: clearStreamPending,
   });
 
   const queueStreamAction = (stream: Stream, action: StreamAction) => {

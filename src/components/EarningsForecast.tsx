@@ -225,10 +225,12 @@ export const EarningsForecast: React.FC<EarningsForecastProps> = ({
               }
             />
             <Tooltip
-              formatter={(value: number | string | undefined) => [
+              formatter={(value) => [
                 typeof value === "number"
                   ? `${formatTokenAmount(value, activeToken)} ${activeToken}`
-                  : (value ?? ""),
+                  : Array.isArray(value)
+                    ? value.join(", ")
+                    : (value ?? ""),
                 "Projected cumulative",
               ]}
               labelFormatter={(value) => `Day ${value}`}

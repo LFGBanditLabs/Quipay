@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useWallet } from "../hooks/useWallet";
 import {
@@ -90,7 +90,10 @@ const NotificationItem: React.FC<{
         </p>
       </div>
       {!notification.read && (
-        <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-accent animate-pulse" title="Unread" />
+        <div
+          className="absolute top-4 right-4 w-2 h-2 rounded-full bg-accent animate-pulse"
+          title="Unread"
+        />
       )}
     </div>
   );
@@ -99,12 +102,8 @@ const NotificationItem: React.FC<{
 const NotificationCenter: React.FC = () => {
   const { t } = useTranslation();
   const { address } = useWallet();
-  const {
-    notifications,
-    unreadCount,
-    markAsRead,
-    markAllAsRead,
-  } = usePersistentNotifications(address);
+  const { notifications, unreadCount, markAsRead, markAllAsRead } =
+    usePersistentNotifications(address);
 
   const [isOpen, setIsOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -156,7 +155,9 @@ const NotificationCenter: React.FC = () => {
         aria-expanded={isOpen}
         className="relative group min-h-11 min-w-11 flex items-center justify-center rounded-xl p-2 text-muted transition-all hover:bg-surface-subtle hover:text-text focus:outline-none focus:ring-2 focus:ring-accent"
       >
-        <Bell className={`w-5 h-5 transition-transform ${isOpen ? "scale-110" : ""}`} />
+        <Bell
+          className={`w-5 h-5 transition-transform ${isOpen ? "scale-110" : ""}`}
+        />
         {unreadCount > 0 && (
           <span className="absolute top-2 right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-error-500 px-1 text-[10px] font-bold text-white shadow-sm ring-1 ring-background">
             {unreadCount > 9 ? "9+" : unreadCount}

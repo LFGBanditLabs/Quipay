@@ -64,7 +64,10 @@ describe("Webhook DLQ retry integration", () => {
       createdAt: new Date(),
     });
 
-    mockedPost.mockResolvedValueOnce({ status: 500, data: { oops: true } } as any);
+    mockedPost.mockResolvedValueOnce({
+      status: 500,
+      data: { oops: true },
+    } as any);
 
     await sendWebhookNotification("withdrawal", { amount: "123" });
 
@@ -78,7 +81,9 @@ describe("Webhook DLQ retry integration", () => {
     expect(result.rows[0].job_type).toBe("webhook_delivery");
     expect(result.rows[0].status).toBe("pending");
     expect(result.rows[0].payload.eventType).toBe("withdrawal");
-    expect(result.rows[0].payload.targetUrl).toBe("https://example.com/webhook");
+    expect(result.rows[0].payload.targetUrl).toBe(
+      "https://example.com/webhook",
+    );
     expect(result.rows[0].context.retryCount).toBe(0);
     expect(typeof result.rows[0].context.nextRetryAtMs).toBe("number");
   });
@@ -92,7 +97,10 @@ describe("Webhook DLQ retry integration", () => {
       createdAt: new Date(),
     });
 
-    mockedPost.mockResolvedValueOnce({ status: 500, data: { oops: true } } as any);
+    mockedPost.mockResolvedValueOnce({
+      status: 500,
+      data: { oops: true },
+    } as any);
     await sendWebhookNotification("withdrawal", { amount: "123" });
 
     const dlqRes = await pool.query<{ id: string }>(
@@ -107,7 +115,10 @@ describe("Webhook DLQ retry integration", () => {
       [dlqId, JSON.stringify({ nextRetryAtMs: Date.now() - 1_000 })],
     );
 
-    mockedPost.mockResolvedValueOnce({ status: 200, data: { ok: true } } as any);
+    mockedPost.mockResolvedValueOnce({
+      status: 200,
+      data: { ok: true },
+    } as any);
 
     const processed = await runWebhookDLQRetryBatch(10);
     expect(processed).toBe(1);
@@ -141,7 +152,10 @@ describe("Webhook DLQ retry integration", () => {
       },
     );
 
-    mockedPost.mockResolvedValueOnce({ status: 500, data: { oops: true } } as any);
+    mockedPost.mockResolvedValueOnce({
+      status: 500,
+      data: { oops: true },
+    } as any);
 
     const processed = await runWebhookDLQRetryBatch(10);
     expect(processed).toBe(1);
@@ -175,4 +189,3 @@ describe("Webhook DLQ retry integration", () => {
     expect(auditRow.rows[0].context.dlq_id).toBe(dlqId);
   });
 });
-

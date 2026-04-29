@@ -78,6 +78,7 @@ function calculateBurnRate(
   }
 
   return {
+    id: vaultData.tokenSymbol,
     token: vaultData.token,
     symbol: vaultData.tokenSymbol,
     dailyBurnRate,

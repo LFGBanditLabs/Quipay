@@ -1,19 +1,12 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense } from "react";
 import { Routes, Route, Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Navbar from "./components/layout/Navbar";
 import OnboardingTour from "./components/OnboardingTour";
 import Footer from "./components/layout/Footer";
 import WalletGuard from "./components/WalletGuard";
-import ConnectivityBanner from "./components/ConnectivityBanner";
-import ErrorBoundary from "./components/ErrorBoundary";
-import NotificationCenter from "./components/NotificationCenter";
-import BugReportModal from "./components/BugReportModal";
 import { TooltipProvider } from "./components/ui";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
-import { useGlobalErrorCatcher } from "./hooks/useGlobalErrorCatcher";
-import { useTreasuryAlerts } from "./hooks/useTreasuryAlerts";
-import { useNetworkAlerts } from "./hooks/useNetworkAlerts";
 import KeyboardShortcutsModal from "./components/KeyboardShortcutsModal";
 
 const Home = lazy(() => import("./pages/Home"));
@@ -30,6 +23,7 @@ const Reports = lazy(() => import("./pages/Reports"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const WorkerDashboard = lazy(() => import("./pages/WorkerDashboard"));
 const Analytics = lazy(() => import("./pages/Analytics"));
+const TreasuryAnalytics = lazy(() => import("./pages/TreasuryAnalytics"));
 const WorkforceRegistry = lazy(() => import("./pages/WorkforceRegistry"));
 const AddressBook = lazy(() => import("./pages/AddressBook.tsx"));
 const DashboardCustomization = lazy(
@@ -37,6 +31,9 @@ const DashboardCustomization = lazy(
 );
 const StreamTemplates = lazy(() => import("./pages/StreamTemplates"));
 const StreamComparison = lazy(() => import("./pages/StreamComparison"));
+const UIPrimitivesPreview = lazy(
+  () => import("./pages/UIPrimitivesPreview.tsx"),
+);
 
 function AppLoadingFallback() {
   const { t } = useTranslation();
@@ -55,12 +52,6 @@ function AppLoadingFallback() {
 function AppLayout() {
   const { t } = useTranslation();
   const { isHelpModalOpen, toggleHelpModal } = useKeyboardShortcuts();
-  const [isBugReportOpen, setIsBugReportOpen] = useState(false);
-
-  // ── Proactive monitoring hooks ──────────────────────────────────────────
-  useGlobalErrorCatcher(); // Zero silent failures: catch all unhandled errors
-  useTreasuryAlerts(); // Treasury balance threshold alerts
-  useNetworkAlerts(); // Network degradation/recovery alerts
 
   return (
     <TooltipProvider>
@@ -69,61 +60,17 @@ function AppLayout() {
           {t("common.skip_to_content")}
         </a>
         <Navbar />
-        <ConnectivityBanner />
         <main id="main-content" tabIndex={-1} className="flex-1 outline-none">
           <OnboardingTour />
-          <ErrorBoundary region="page-content">
-            <Suspense fallback={<AppLoadingFallback />}>
-              <Outlet />
-            </Suspense>
-          </ErrorBoundary>
+          <Suspense fallback={<AppLoadingFallback />}>
+            <Outlet />
+          </Suspense>
         </main>
         <Footer />
         <KeyboardShortcutsModal
           isOpen={isHelpModalOpen}
           onClose={toggleHelpModal}
         />
-        <BugReportModal
-          open={isBugReportOpen}
-          onClose={() => setIsBugReportOpen(false)}
-        />
-
-        {/* Floating action buttons */}
-        <div
-          style={{
-            position: "fixed",
-            bottom: "20px",
-            right: "20px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "8px",
-            zIndex: 900,
-          }}
-        >
-          <NotificationCenter />
-          <button
-            onClick={() => setIsBugReportOpen(true)}
-            title={t("bug_report.title", "Report a Bug")}
-            aria-label={t("bug_report.title", "Report a Bug")}
-            style={{
-              width: "40px",
-              height: "40px",
-              borderRadius: "50%",
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              boxShadow: "0 4px 12px var(--shadow-color, rgba(0,0,0,0.15))",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "16px",
-              color: "var(--text)",
-              transition: "transform 0.2s",
-            }}
-          >
-            🐛
-          </button>
-        </div>
       </div>
     </TooltipProvider>
   );
@@ -205,6 +152,14 @@ function App() {
             }
           />
           <Route
+            path="/treasury-analytics"
+            element={
+              <WalletGuard>
+                <TreasuryAnalytics />
+              </WalletGuard>
+            }
+          />
+          <Route
             path="/settings"
             element={
               <WalletGuard>
@@ -265,6 +220,7 @@ function App() {
 
           {/* Public Routes */}
           <Route path="/help" element={<HelpPage />} />
+          <Route path="/ui-primitives" element={<UIPrimitivesPreview />} />
           <Route path="/debug" element={<Debugger />} />
           <Route path="/debug/:contractName" element={<Debugger />} />
           <Route path="*" element={<NotFound />} />

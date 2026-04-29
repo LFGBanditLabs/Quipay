@@ -98,7 +98,11 @@ export const patchDLQItemContext = async (
         updated_at = NOW()
     WHERE id = $1;
   `;
-  await pool.query(query, [id, JSON.stringify(contextPatch), errorStack ?? null]);
+  await pool.query(query, [
+    id,
+    JSON.stringify(contextPatch),
+    errorStack ?? null,
+  ]);
 };
 
 /**

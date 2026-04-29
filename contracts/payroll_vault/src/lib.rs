@@ -9,6 +9,9 @@ use soroban_sdk::{
 mod test;
 
 #[cfg(test)]
+mod cooldown_test;
+
+#[cfg(test)]
 mod upgrade_test;
 
 #[cfg(test)]
@@ -19,6 +22,9 @@ mod multisig_dedup_test;
 
 #[cfg(kani)]
 mod kani_test;
+
+#[cfg(test)]
+mod multisig_withdrawal_test;
 
 #[cfg(test)]
 mod proptest;
@@ -32,28 +38,36 @@ pub enum StateKey {
     PendingAdmin, // Pending admin address (for two-step transfer)
     Version,
     AuthorizedContract, // Contract authorized to modify liabilities (e.g., PayrollStream)
-    TokenList,          // Allowlisted tokens accepted by the vault
+    // Multisig Withdrawal Security
+    Guardians,
+    GuardianThreshold,
+    Signers,
+    Threshold,
+    Paused,
+    WithdrawalThreshold, // Global threshold amount
+    WithdrawalThresholdForToken(Address), // Token -> Threshold override
+    PendingWithdrawal(u64),
+    WithdrawalNonce,
+    PendingUpgrade,
+    PendingUpgradeApprovals,
+    PendingDrain,
+    TokenList,
     // Additional state that should persist across upgrades
     TreasuryBalance(Address), // Funds held for payroll (Token -> Amount)
     TotalLiability(Address),  // Amount owed to recipients (Token -> Amount)
-    // Timelock storage
-    PendingUpgrade, // (wasm_hash, execute_after_timestamp)
-    PendingDrain,   // Emergency drain proposal with 24-hour timelock
-    // Multi-sig storage
-    Signers,                 // Vec<Address> - list of authorized signers
-    Threshold,               // u32 - M of N required
-    PendingUpgradeApprovals, // Map::<Address, bool>
-    WithdrawalThreshold,     // i128 - amount above which multisig is required
-    Paused,
+    LastWithdrawal(Address),  // Address -> Last Withdrawal Timestamp
+    WithdrawalCooldown,       // Configurable cooldown in seconds
 }
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
-pub struct PendingUpgrade {
-    pub wasm_hash: BytesN<32>,
-    pub execute_after: u64,
+pub struct PendingWithdrawal {
+    pub amount: i128,
+    pub recipient: Address,
+    pub token: Address,
+    pub proposer: Address,
+    pub approvals: Vec<Address>,
     pub proposed_at: u64,
-    pub proposed_by: Address,
 }
 
 #[contracttype]
@@ -63,6 +77,15 @@ pub struct VersionInfo {
     pub minor: u32,
     pub patch: u32,
     pub upgraded_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PendingUpgrade {
+    pub wasm_hash: BytesN<32>,
+    pub execute_after: u64,
+    pub proposed_at: u64,
+    pub proposed_by: Address,
 }
 
 #[contracttype]
@@ -81,6 +104,18 @@ pub struct PendingDrain {
     pub proposed_at: u64,
     pub proposed_by: Address,
 }
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum VaultEvent {
+    Upgraded(Address, u32, u32, u32, u32, u32, u32),
+    Deposited(Address, Address, i128),
+    Withdrawn(Address, Address, i128),
+    Allocated(Address, i128),
+    Released(Address, i128),
+    Payout(Address, Address, i128),
+}
+
 
 #[contract]
 pub struct PayrollVault;
@@ -714,18 +749,35 @@ impl PayrollVault {
 
     /// Withdraw free funds from the treasury.
     /// Enforces `amount <= available_balance(token)`.
+    /// Large withdrawals (> threshold) are blocked and must go through proposal flow.
+    /// Consecutive withdrawals from the same address are subject to a cooldown period.
     pub fn withdraw(e: Env, to: Address, token: Address, amount: i128) -> Result<(), QuipayError> {
         Self::assert_not_paused(&e)?;
         to.require_auth();
         require_positive_amount!(amount);
 
-        let withdrawal_threshold: i128 = e
+        // Check cooldown
+        let cooldown = e.storage().persistent().get::<_, u64>(&StateKey::WithdrawalCooldown).unwrap_or(86400);
+        let last_withdrawal_key = StateKey::LastWithdrawal(to.clone());
+        if let Some(last_ts) = e.storage().persistent().get::<_, u64>(&last_withdrawal_key) {
+            if e.ledger().timestamp() < last_ts.saturating_add(cooldown) {
+                return Err(QuipayError::WithdrawalCooldownActive);
+            }
+        }
+
+        // Check if withdrawal threshold is set and exceeded
+        let threshold: i128 = e
             .storage()
             .persistent()
-            .get(&StateKey::WithdrawalThreshold)
-            .unwrap_or(DEFAULT_WITHDRAWAL_THRESHOLD);
-        if amount >= withdrawal_threshold {
-            Self::require_multisig_auth(&e)?;
+            .get::<_, i128>(&StateKey::WithdrawalThresholdForToken(token.clone()))
+            .unwrap_or_else(|| {
+                e.storage()
+                    .persistent()
+                    .get(&StateKey::WithdrawalThreshold)
+                    .unwrap_or(0)
+            });
+        if amount > threshold {
+            return Err(QuipayError::LargeWithdrawalRequiresApproval);
         }
 
         let available = Self::get_available_balance(e.clone(), token.clone());
@@ -742,6 +794,9 @@ impl PayrollVault {
         let token_client = token::Client::new(&e, &token);
         token_client.transfer(&e.current_contract_address(), &to, &amount);
 
+        // Update last withdrawal timestamp
+        e.storage().persistent().set(&last_withdrawal_key, &e.ledger().timestamp());
+
         e.events().publish(
             (
                 symbol_short!("vault"),
@@ -752,7 +807,171 @@ impl PayrollVault {
             (amount, new_total),
         );
 
+
         Ok(())
+    }
+
+    /// Set the withdrawal cooldown period in seconds
+    pub fn set_withdrawal_cooldown(e: Env, admin: Address, seconds: u64) -> Result<(), QuipayError> {
+        admin.require_auth();
+        let stored_admin = Self::get_admin(e.clone())?;
+        if admin != stored_admin {
+            return Err(QuipayError::Unauthorized);
+        }
+
+        e.storage().persistent().set(&StateKey::WithdrawalCooldown, &seconds);
+        Ok(())
+    }
+
+    /// Set the guardians and the approval threshold for large withdrawals
+    pub fn set_guardians(e: Env, guardians: Vec<Address>, threshold: u32) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+        
+        if threshold == 0 || threshold > guardians.len() {
+            return Err(QuipayError::InvalidAmount);
+        }
+
+        e.storage().persistent().set(&StateKey::Guardians, &guardians);
+        e.storage().persistent().set(&StateKey::GuardianThreshold, &threshold);
+        Ok(())
+    }
+
+    /// Set the immediate withdrawal threshold for a specific token
+    pub fn set_token_withdrawal_threshold(
+        e: Env,
+        token: Address,
+        threshold: i128,
+    ) -> Result<(), QuipayError> {
+        let admin = Self::get_admin(e.clone())?;
+        admin.require_auth();
+        
+        e.storage()
+            .persistent()
+            .set(&StateKey::WithdrawalThresholdForToken(token), &threshold);
+        Ok(())
+    }
+
+    /// Propose a large withdrawal that exceeds the threshold
+    pub fn propose_withdrawal(e: Env, employer: Address, token: Address, amount: i128, recipient: Address) -> Result<u64, QuipayError> {
+        employer.require_auth();
+        require_positive_amount!(amount);
+
+        // Verify it exceeds threshold (otherwise they should just use withdraw)
+        let threshold_key = StateKey::WithdrawalThresholdForToken(token.clone());
+        let threshold = e.storage()
+            .persistent()
+            .get::<_, i128>(&threshold_key)
+            .unwrap_or(i128::MAX);
+        if amount <= threshold {
+            return Err(QuipayError::InvalidAmount); // Should use normal withdraw
+        }
+
+        // Check solvency
+        let available = Self::get_available_balance(e.clone(), token.clone());
+        if amount > available {
+            return Err(QuipayError::InsufficientBalance);
+        }
+
+        let nonce_key = StateKey::WithdrawalNonce;
+        let id: u64 = e.storage().persistent().get(&nonce_key).unwrap_or(0);
+        e.storage().persistent().set(&nonce_key, &(id + 1));
+
+        let pending = PendingWithdrawal {
+            amount,
+            recipient,
+            token,
+            proposer: employer,
+            approvals: Vec::new(&e),
+            proposed_at: e.ledger().timestamp(),
+        };
+
+        e.storage().persistent().set(&StateKey::PendingWithdrawal(id), &pending);
+
+        e.events().publish(
+            (symbol_short!("vault"), symbol_short!("propose")),
+            (id, pending.proposer, pending.amount),
+        );
+
+        Ok(id)
+    }
+
+    /// Approve a pending withdrawal
+    pub fn approve_withdrawal(e: Env, guardian: Address, withdrawal_id: u64) -> Result<(), QuipayError> {
+        guardian.require_auth();
+
+        // Verify guardian status
+        let guardians: Vec<Address> = e.storage().persistent().get(&StateKey::Guardians).ok_or(QuipayError::NotGuardian)?;
+        if !guardians.contains(&guardian) {
+            return Err(QuipayError::NotGuardian);
+        }
+
+        let key = StateKey::PendingWithdrawal(withdrawal_id);
+        let mut pending: PendingWithdrawal = e.storage().persistent().get(&key).ok_or(QuipayError::WithdrawalNotFound)?;
+
+        // Check if already approved by this guardian
+        if pending.approvals.contains(&guardian) {
+            return Err(QuipayError::AlreadyApproved);
+        }
+
+        pending.approvals.push_back(guardian.clone());
+        
+        let threshold: u32 = e.storage().persistent().get(&StateKey::GuardianThreshold).unwrap_or(0);
+        
+        if pending.approvals.len() >= threshold {
+            // Execute withdrawal
+            let available = Self::get_available_balance(e.clone(), pending.token.clone());
+            if pending.amount > available {
+                return Err(QuipayError::InsufficientBalance);
+            }
+
+            let balance_key = StateKey::TreasuryBalance(pending.token.clone());
+            let balance: i128 = e.storage().persistent().get(&balance_key).unwrap_or(0);
+            e.storage().persistent().set(&balance_key, &(balance - pending.amount));
+
+            let token_client = token::Client::new(&e, &pending.token);
+            token_client.transfer(&e.current_contract_address(), &pending.recipient, &pending.amount);
+
+            e.storage().persistent().remove(&key);
+
+            e.events().publish(
+                (symbol_short!("vault"), symbol_short!("approved")),
+                (withdrawal_id, true),
+            );
+        } else {
+            e.storage().persistent().set(&key, &pending);
+            e.events().publish(
+                (symbol_short!("vault"), symbol_short!("approved")),
+                (withdrawal_id, false),
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Cancel a pending withdrawal
+    pub fn cancel_withdrawal(e: Env, employer: Address, withdrawal_id: u64) -> Result<(), QuipayError> {
+        employer.require_auth();
+
+        let key = StateKey::PendingWithdrawal(withdrawal_id);
+        let pending: PendingWithdrawal = e.storage().persistent().get(&key).ok_or(QuipayError::WithdrawalNotFound)?;
+
+        if pending.proposer != employer {
+            return Err(QuipayError::Unauthorized);
+        }
+
+        e.storage().persistent().remove(&key);
+
+        e.events().publish(
+            (symbol_short!("vault"), symbol_short!("canceled")),
+            withdrawal_id,
+        );
+
+        Ok(())
+    }
+
+    pub fn get_pending_withdrawal(e: Env, withdrawal_id: u64) -> Option<PendingWithdrawal> {
+        e.storage().persistent().get(&StateKey::PendingWithdrawal(withdrawal_id))
     }
 
     /// Adds liability to the vault (e.g., when a stream is created)

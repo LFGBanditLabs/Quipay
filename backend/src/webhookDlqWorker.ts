@@ -94,7 +94,8 @@ const processWebhookDLQItem = async (item: DLQItem): Promise<void> => {
   const requestPayload = resolveRequestPayload(payload);
 
   if (!targetUrl || requestPayload === undefined) {
-    const reason = "Invalid webhook DLQ payload (missing target URL or payload)";
+    const reason =
+      "Invalid webhook DLQ payload (missing target URL or payload)";
     await updateDLQItemStatus(item.id, "discarded");
     await patchDLQItemContext(
       item.id,
@@ -221,4 +222,3 @@ export const runWebhookDLQRetryBatch = async (
 
   return items.length;
 };
-

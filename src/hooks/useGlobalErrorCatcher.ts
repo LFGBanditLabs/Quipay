@@ -7,7 +7,7 @@
  */
 
 import { useEffect } from "react";
-import { alertStore } from "../components/NotificationCenter";
+import { alertStore } from "../hooks/useAlertStore";
 import { translateError, ErrorType } from "../util/errors";
 
 export function useGlobalErrorCatcher() {

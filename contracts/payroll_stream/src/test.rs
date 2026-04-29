@@ -1,7 +1,4 @@
 #![cfg(test)]
-#![allow(deprecated)]
-extern crate std;
-
 use super::*;
 use crate::stream_curve::SpeedCurve;
 use quipay_common::QuipayError;
@@ -762,9 +759,7 @@ fn test_batch_withdraw_atomic_reverts_all_when_any_payout_fails() {
     });
 
     let stream_ids = soroban_sdk::vec![&env, stream1, stream2];
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.batch_withdraw(&stream_ids, &worker);
-    }));
+    let result = client.try_batch_withdraw(&stream_ids, &worker);
 
     assert!(result.is_err());
 

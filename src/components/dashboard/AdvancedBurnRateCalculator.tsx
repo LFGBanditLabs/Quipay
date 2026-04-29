@@ -185,8 +185,8 @@ export const AdvancedBurnRateCalculator: React.FC<
                   color: "var(--token-color-text-primary)",
                   fontSize: 12,
                 }}
-                formatter={(value: number | undefined) => [
-                  `${(value ?? 0).toFixed(2)}`,
+                formatter={(value) => [
+                  `${(typeof value === "number" ? value : 0).toFixed(2)}`,
                   "Available",
                 ]}
               />

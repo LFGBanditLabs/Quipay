@@ -216,7 +216,7 @@ export const usePayroll = (
         setStreams([]);
       }
     },
-    [options?.offset, options?.limit],
+    [options],
   );
 
   const refetch = useCallback(() => {
@@ -302,6 +302,7 @@ export const usePayroll = (
 
   useEffect(() => {
     if (!employerAddress) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStreams([]);
       setPayrollSummary(null);
       setIsLoading(false);
