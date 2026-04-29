@@ -89,6 +89,28 @@ const dbPoolMinConnections = new Gauge({
   },
 });
 
+export const pgPoolActiveConnections = new Gauge({
+  name: "pg_pool_active_connections",
+  help: "Active PostgreSQL connections currently checked out from the pool",
+});
+
+export const pgPoolIdleConnections = new Gauge({
+  name: "pg_pool_idle_connections",
+  help: "Idle PostgreSQL connections currently available in the pool",
+});
+
+export const pgPoolWaitQueue = new Gauge({
+  name: "pg_pool_wait_queue",
+  help: "Requests currently waiting for a PostgreSQL connection from the pool",
+});
+
+export const pgPoolCheckoutDuration = new Histogram({
+  name: "pg_pool_checkout_duration_seconds",
+  help: "Time spent waiting to acquire a connection from the pool",
+  buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+});
+
+
 export const employerRunwayGauge = new Gauge({
   name: "quipay_employer_runway_days",
   help: "Estimated treasury runway in days per employer. Set to -1 when no active streams (unlimited runway).",
@@ -173,6 +195,10 @@ export class MetricsManager {
     this.register.registerMetric(dbPoolWaitingClients);
     this.register.registerMetric(dbPoolMaxConnections);
     this.register.registerMetric(dbPoolMinConnections);
+    this.register.registerMetric(pgPoolActiveConnections);
+    this.register.registerMetric(pgPoolIdleConnections);
+    this.register.registerMetric(pgPoolWaitQueue);
+    this.register.registerMetric(pgPoolCheckoutDuration);
     this.register.registerMetric(employerRunwayGauge);
     this.register.registerMetric(stellarRpcDuration);
     this.register.registerMetric(stellarRpcErrorTotal);

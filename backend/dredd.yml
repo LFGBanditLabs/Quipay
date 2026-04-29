@@ -1,0 +1,21 @@
+reporter: apiary
+custom:
+  apiaryApiKey: ""
+  apiaryId: quipay
+dry-run: null
+hookfiles: ./tests/contract/hooks.js
+language: nodejs
+sandbox: false
+server: npm run dev
+server-wait: 5
+init: false
+names: false
+only: []
+output: []
+header: []
+sorted: false
+user: null
+inline-errors: false
+details: false
+blueprint: openapi.json
+endpoint: "http://localhost:3001"

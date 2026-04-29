@@ -2,8 +2,8 @@ import { query, getPool } from "./pool";
 import { globalCache } from "../utils/cache";
 import { DatabaseError } from "../errors/AppError";
 import { invalidatePayrollSummaryCache } from "../services/payrollSummaryCache";
-import { validateRow } from "./validation";
-import { overallStatsSchema } from "./schemas";
+import { PoolClient } from "pg";
+import { validateRow, overallStatsSchema } from "./validation";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -165,6 +165,26 @@ export interface PayrollProofRecord {
   created_at: Date;
 }
 
+const withDbTransaction = async <T>(
+  work: (client: PoolClient) => Promise<T>,
+): Promise<T> => {
+  const pool = getPool();
+  if (!pool) throw new DatabaseError("Database pool is not initialized");
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await work(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 // ─── Cursor helpers (for sync worker) ───────────────────────────────────────
 
 export const getLastSyncedLedger = async (
@@ -204,31 +224,74 @@ export const upsertStream = async (params: {
   status: "active" | "paused" | "completed" | "cancelled";
   closedAt?: number;
   ledger: number;
+  changedBy?: string;
+  txHooks?: {
+    // Test-only hook to simulate failures between transactional steps.
+    afterStreamWrite?: () => void | Promise<void>;
+  };
 }): Promise<void> => {
   if (!getPool()) return; // DB not configured
-  await query(
-    `INSERT INTO payroll_streams
-           (stream_id, employer_address, worker_address, total_amount, withdrawn_amount,
-            start_ts, end_ts, status, closed_at, ledger_created, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, NOW())
-         ON CONFLICT (stream_id) DO UPDATE
-           SET withdrawn_amount = EXCLUDED.withdrawn_amount,
-               status           = EXCLUDED.status,
-               closed_at        = EXCLUDED.closed_at,
-               updated_at       = NOW()`,
-    [
-      params.streamId,
-      params.employer,
-      params.worker,
-      params.totalAmount.toString(),
-      params.withdrawnAmount.toString(),
-      params.startTs,
-      params.endTs,
-      params.status,
-      params.closedAt ?? null,
-      params.ledger,
-    ],
-  );
+
+  await withDbTransaction(async (client) => {
+    const streamWrite = await client.query<{ inserted: boolean }>(
+      `INSERT INTO payroll_streams
+             (stream_id, employer_address, worker_address, total_amount, withdrawn_amount,
+              start_ts, end_ts, status, closed_at, ledger_created, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, NOW())
+           ON CONFLICT (stream_id) DO UPDATE
+             SET withdrawn_amount = EXCLUDED.withdrawn_amount,
+                 status           = EXCLUDED.status,
+                 closed_at        = EXCLUDED.closed_at,
+                 updated_at       = NOW()
+           RETURNING (xmax = 0) AS inserted`,
+      [
+        params.streamId,
+        params.employer,
+        params.worker,
+        params.totalAmount.toString(),
+        params.withdrawnAmount.toString(),
+        params.startTs,
+        params.endTs,
+        params.status,
+        params.closedAt ?? null,
+        params.ledger,
+      ],
+    );
+
+    await params.txHooks?.afterStreamWrite?.();
+
+    // Only charge balance + write "created" audit row for first insertion.
+    if (streamWrite.rows[0]?.inserted) {
+      await client.query(
+        `INSERT INTO treasury_balances (employer, balance, token, updated_at)
+         VALUES ($1, 0, 'USDC', NOW())
+         ON CONFLICT (employer) DO NOTHING`,
+        [params.employer],
+      );
+
+      await client.query(
+        `UPDATE treasury_balances
+         SET balance = balance - $2::numeric,
+             updated_at = NOW()
+         WHERE employer = $1`,
+        [params.employer, params.totalAmount.toString()],
+      );
+
+      await client.query(
+        `INSERT INTO stream_audit_log
+           (stream_id, changed_by, action, old_status, new_status, reason, metadata)
+         VALUES ($1, $2, 'created', NULL, $3, NULL, $4::jsonb)`,
+        [
+          params.streamId,
+          params.changedBy ?? params.employer,
+          params.status,
+          JSON.stringify({
+            total_amount: params.totalAmount.toString(),
+          }),
+        ],
+      );
+    }
+  });
 
   // Invalidate global analytics cache
   globalCache.del("analytics:summary");
@@ -1159,43 +1222,89 @@ export const softDeleteStream = async (params: {
   streamId: number;
   deletedBy: string;
   cancelReason?: string;
+  txHooks?: {
+    // Test-only hook to simulate failures between transactional steps.
+    afterStatusUpdate?: () => void | Promise<void>;
+  };
 }): Promise<boolean> => {
   if (!getPool()) throw new DatabaseError("Database pool is not initialized");
 
-  const existing = await query<{ status: string; stream_id: string }>(
-    `SELECT stream_id, status FROM payroll_streams
-     WHERE stream_id = $1 AND deleted_at IS NULL`,
-    [params.streamId],
-  );
+  const cancelled = await withDbTransaction(async (client) => {
+    const updateResult = await client.query<{
+      old_status: string;
+      employer_address: string;
+      refund_amount: string;
+    }>(
+      `WITH target AS (
+         SELECT
+           stream_id,
+           status,
+           employer_address,
+           GREATEST(total_amount - withdrawn_amount, 0)::text AS refund_amount
+         FROM payroll_streams
+         WHERE stream_id = $1 AND deleted_at IS NULL
+         FOR UPDATE
+       )
+       UPDATE payroll_streams ps
+       SET deleted_at    = NOW(),
+           deleted_by    = $2,
+           cancel_reason = $3,
+           status        = 'cancelled',
+           updated_at    = NOW()
+       FROM target t
+       WHERE ps.stream_id = t.stream_id
+       RETURNING
+         t.status AS old_status,
+         t.employer_address,
+         t.refund_amount`,
+      [params.streamId, params.deletedBy, params.cancelReason ?? null],
+    );
 
-  if (existing.rows.length === 0) return false;
+    if (updateResult.rows.length === 0) return false;
 
-  const oldStatus = existing.rows[0].status;
+    const changed = updateResult.rows[0];
 
-  await query(
-    `UPDATE payroll_streams
-     SET deleted_at    = NOW(),
-         deleted_by    = $2,
-         cancel_reason = $3,
-         status        = 'cancelled',
-         updated_at    = NOW()
-     WHERE stream_id = $1 AND deleted_at IS NULL`,
-    [params.streamId, params.deletedBy, params.cancelReason ?? null],
-  );
+    await params.txHooks?.afterStatusUpdate?.();
 
-  // Record the cancellation in the immutable audit log
-  await query(
-    `INSERT INTO stream_audit_log
-       (stream_id, changed_by, action, old_status, new_status, reason)
-     VALUES ($1, $2, 'cancelled', $3, 'cancelled', $4)`,
-    [params.streamId, params.deletedBy, oldStatus, params.cancelReason ?? null],
-  );
+    await client.query(
+      `INSERT INTO treasury_balances (employer, balance, token, updated_at)
+       VALUES ($1, 0, 'USDC', NOW())
+       ON CONFLICT (employer) DO NOTHING`,
+      [changed.employer_address],
+    );
+
+    await client.query(
+      `UPDATE treasury_balances
+       SET balance = balance + $2::numeric,
+           updated_at = NOW()
+       WHERE employer = $1`,
+      [changed.employer_address, changed.refund_amount],
+    );
+
+    // Record the cancellation in the immutable audit log
+    await client.query(
+      `INSERT INTO stream_audit_log
+         (stream_id, changed_by, action, old_status, new_status, reason, metadata)
+       VALUES ($1, $2, 'cancelled', $3, 'cancelled', $4, $5::jsonb)`,
+      [
+        params.streamId,
+        params.deletedBy,
+        changed.old_status,
+        params.cancelReason ?? null,
+        JSON.stringify({ refund_amount: changed.refund_amount }),
+      ],
+    );
+
+    return true;
+  });
 
   // Invalidate analytics cache
-  globalCache.del("analytics:summary");
-  globalCache.invalidateByPrefix("analytics:trends:");
+  if (cancelled) {
+    globalCache.del("analytics:summary");
+    globalCache.invalidateByPrefix("analytics:trends:");
+  }
 
-  return true;
+  return cancelled;
 };
 
 /**

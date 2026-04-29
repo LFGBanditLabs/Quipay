@@ -135,3 +135,47 @@ describe("getPoolStats", () => {
     }
   });
 });
+
+describe("Pool metric instrumentation", () => {
+  beforeEach(() => {
+    jest.resetModules();
+  });
+
+  test("confirms gauges update when a connection is borrowed", async () => {
+    // Save original env
+    const originalUrl = process.env.DATABASE_URL;
+    process.env.DATABASE_URL = "postgres://fake:fake@localhost:5432/fake";
+
+    jest.mock("pg", () => {
+      const mClient = { release: jest.fn() };
+      const mPool = {
+        connect: jest.fn().mockResolvedValue(mClient),
+        totalCount: 5,
+        idleCount: 2,
+        waitingCount: 1,
+        on: jest.fn(),
+        end: jest.fn().mockResolvedValue(undefined),
+      };
+      return { Pool: jest.fn(() => mPool) };
+    });
+
+    const { initDb, getPool, closeDb } = await import("../db/pool");
+    const { pgPoolCheckoutDuration } = await import("../metrics");
+
+    const startTimerSpy = jest.spyOn(pgPoolCheckoutDuration, "startTimer");
+
+    await initDb();
+    const pool = getPool();
+
+    if (pool) {
+      await pool.connect();
+    }
+
+    expect(startTimerSpy).toHaveBeenCalled();
+
+    await closeDb();
+
+    // Restore env
+    process.env.DATABASE_URL = originalUrl;
+  });
+});

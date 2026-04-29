@@ -19,7 +19,10 @@
     "migration:generate": "drizzle-kit generate",
     "migration:push": "drizzle-kit push",
     "migration:run": "ts-node src/db/migrate.ts",
-    "seed": "ts-node src/db/seed.ts"
+    "seed": "ts-node src/db/seed.ts",
+    "test:load": "k6 run tests/load/backend-api-load.js",
+    "test:contract": "dredd",
+    "swagger:export": "ts-node -e \"import { swaggerSpec } from './src/swagger'; console.log(JSON.stringify(swaggerSpec, null, 2))\" > openapi.json"
   },
   "keywords": [],
   "author": "",
@@ -77,6 +80,7 @@
     "@types/supertest": "^7.2.0",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
+    "dredd": "^14.1.0",
     "drizzle-kit": "^0.31.10",
     "jest": "^30.2.0",
     "openapi-types": "^12.1.3",

@@ -1397,6 +1397,15 @@ const swaggerDefinition = {
   ],
 };
 
+/**
+ * Validates the generated spec for basic OpenAPI compliance.
+ */
+export const validateSpec = () => {
+  if (!swaggerDefinition.paths || Object.keys(swaggerDefinition.paths).length === 0) {
+    throw new Error("OpenAPI spec is empty or has no paths defined.");
+  }
+};
+
 // Build the final OpenAPI spec (swagger-jsdoc used for future inline JSDoc expansion)
 const options: swaggerJsdoc.Options = {
   definition: swaggerDefinition,
