@@ -22,7 +22,7 @@ const NotificationItem: React.FC<{
   notification: PersistentNotification;
   onRead: (id: string) => void;
 }> = ({ notification, onRead }) => {
-  const config = TYPE_CONFIG[notification.type];
+  const config = TYPE_CONFIG[notification.type as NotificationType];
 
   return (
     <div
@@ -135,31 +135,17 @@ const NotificationCenter: React.FC = () => {
           aria-live="polite"
           className="absolute right-0 mt-2 w-80 sm:w-96 max-h-[500px] flex flex-col rounded-2xl border border-border bg-surface shadow-2xl z-[100] animate-in fade-in zoom-in-95 duration-200"
         >
-          <div
-            style={{
-              padding: "14px 16px",
-              borderBottom: "1px solid var(--border)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "12px",
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: "14px",
-                  fontWeight: 700,
-                  color: "var(--text)",
-                }}
-              >
-                {t("notifications.title", "Notifications")}
-              </div>
-              <div style={{ fontSize: "12px", color: "var(--muted)" }}>
-                {totalUnread > 0 ? `${totalUnread} unread` : "All caught up"}
-              </div>
-            </div>
-            {totalUnread > 0 && (
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface-subtle/20 rounded-t-2xl">
+            <h3 className="text-sm font-bold text-text">
+              {t("notifications.title", "Notifications")}
+              {unreadCount > 0 && (
+                <span className="ml-2 px-1.5 py-0.5 rounded bg-surface text-[10px] font-bold text-muted">
+                  {unreadCount} UNREAD
+                </span>
+              )}
+            </h3>
+            {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
                 className="text-xs font-semibold text-accent hover:underline focus:outline-none"

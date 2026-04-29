@@ -1,0 +1,52 @@
+name: API Contract Testing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  contract-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Start Quipay Services
+        run: |
+          docker compose up -d postgres redis
+          # Give DB time to initialize
+          sleep 10
+          docker compose build backend
+          docker compose up -d backend
+
+      - name: Wait for Backend Health
+        run: |
+          timeout 60s bash -c 'until curl -s http://localhost:3001/health | grep "ok"; do sleep 2; done'
+
+      - name: Run Schemathesis Contract Tests
+        run: |
+          docker run --network="host" \
+            schemathesis/schemathesis:stable \
+            run http://localhost:3001/docs/spec.json \
+            --check-response-schema \
+            --exitfilter all \
+            --workers auto
+
+      - name: Stop Services
+        if: always()
+        run: docker compose down
+
+  publish-spec:
+    needs: contract-test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish Spec to Docs
+        run: |
+          # Placeholder for publishing spec.json to your docs site or GitHub Pages
+          echo "Publishing OpenAPI spec to documentation portal..."
+          curl -X POST https://api.quipay.app/internal/update-docs -d @backend/src/swagger.ts

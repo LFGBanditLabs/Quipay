@@ -115,4 +115,80 @@ describe("employer onboarding and verification routes", () => {
     expect(res.status).toBe(201);
     expect(res.body.amount).toBe("1000");
   });
+
+  it("returns 409 when employer with same Stellar address already exists", async () => {
+    const app = buildApp();
+    mockVerifyBusinessRegistration.mockResolvedValueOnce({
+      status: "verified",
+      metadata: {},
+    });
+    mockUpsertEmployerVerification.mockRejectedValueOnce({
+      code: "23505",
+      constraint: "employers_pkey",
+    });
+
+    const res = await request(app)
+      .post("/api/employers/onboard")
+      .set("x-user-id", "employer-dup")
+      .set("x-user-role", "user")
+      .send({
+        businessName: "Acme duplicate",
+        registrationNumber: "RC-dup",
+        countryCode: "ng",
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("Employer with this Stellar address already exists.");
+  });
+
+  it("returns 409 when employer with same email already exists", async () => {
+    const app = buildApp();
+    mockVerifyBusinessRegistration.mockResolvedValueOnce({
+      status: "verified",
+      metadata: {},
+    });
+    mockUpsertEmployerVerification.mockRejectedValueOnce({
+      code: "23505",
+      constraint: "employers_contact_email_key",
+    });
+
+    const res = await request(app)
+      .post("/api/employers/onboard")
+      .set("x-user-id", "employer-dup-2")
+      .set("x-user-role", "user")
+      .send({
+        businessName: "Acme email dup",
+        registrationNumber: "RC-dup2",
+        countryCode: "ng",
+        contactEmail: "dup@example.com",
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("Employer with this email already exists.");
+  });
+
+  it("returns 409 when employer with same organization name already exists", async () => {
+    const app = buildApp();
+    mockVerifyBusinessRegistration.mockResolvedValueOnce({
+      status: "verified",
+      metadata: {},
+    });
+    mockUpsertEmployerVerification.mockRejectedValueOnce({
+      code: "23505",
+      constraint: "employers_business_name_key",
+    });
+
+    const res = await request(app)
+      .post("/api/employers/onboard")
+      .set("x-user-id", "employer-dup-3")
+      .set("x-user-role", "user")
+      .send({
+        businessName: "Acme Name Dup",
+        registrationNumber: "RC-dup3",
+        countryCode: "ng",
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("Employer with this organization name already exists.");
+  });
 });

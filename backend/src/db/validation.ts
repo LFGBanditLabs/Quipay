@@ -1,70 +1,130 @@
-import { ZodError, ZodSchema } from "zod";
+import { z } from "zod";
+import { DatabaseError } from "../errors/AppError";
 
 /**
- * Thrown when a database row fails runtime Zod validation against the schema
- * a query expected (#930).
- *
- * The originating ZodError is exposed as `cause` so logs / Sentry / structured
- * error handlers can surface field-level details. The plain `message` is safe
- * to render in HTTP responses since it does not include the offending row data.
+ * Custom error for database schema validation failures.
+ * Includes structured error details without exposing raw data.
  */
-export class DatabaseValidationError extends Error {
-  public readonly query: string;
-  public readonly issues: ZodError["issues"];
-
-  constructor(query: string, zodError: ZodError) {
-    super(
-      `Database row failed runtime validation for query "${query}": ${zodError.issues
-        .map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`)
-        .join("; ")}`,
-    );
+export class DatabaseValidationError extends DatabaseError {
+  constructor(
+    message: string,
+    public readonly query: string,
+    public readonly issues: z.ZodError["issues"],
+  ) {
+    super(message);
     this.name = "DatabaseValidationError";
-    this.query = query;
-    this.issues = zodError.issues;
-    Object.setPrototypeOf(this, DatabaseValidationError.prototype);
   }
 }
 
 /**
- * Validate every row of a query result against `schema`. Returns the parsed
- * (and therefore strongly-typed) rows. Throws `DatabaseValidationError` on the
- * first row that does not match — the row itself is not embedded in the error
- * message to keep PII out of logs.
- *
- * Use this for query results that cross a trust boundary (HTTP response, async
- * job payload, audit log) so a Drizzle/SQL drift surfaces as a structured
- * 5xx instead of an `undefined` propagating into the response shape.
+ * Schema for validating OverallStats query results.
+ * Ensures data from the database matches expected structure.
+ */
+export const overallStatsSchema = z.object({
+  total_streams: z.union([z.string(), z.number()]),
+  active_streams: z.union([z.string(), z.number()]),
+  completed_streams: z.union([z.string(), z.number()]),
+  cancelled_streams: z.union([z.string(), z.number()]),
+  total_volume: z.string(),
+  total_withdrawn: z.string(),
+});
+
+/**
+ * Validates a database row against a Zod schema.
+ * Throws a DatabaseValidationError if validation fails.
+ * 
+ * @param queryName - Name of the query for error reporting
+ * @param row - The row data to validate
+ * @param schema - Zod schema to validate against
+ * @returns The validated and typed row
+ * @throws DatabaseValidationError if validation fails
+ */
+export function validateRow<T>(
+  queryName: string,
+  row: unknown,
+  schema: z.ZodSchema<T>,
+): T {
+  try {
+    return schema.parse(row);
+  } catch (error) {
+    const errorMessage =
+      error instanceof z.ZodError
+        ? (error as z.ZodError).issues.map((e) => `${e.path.join(".")}: ${e.message}`).join("; ")
+        : error instanceof Error
+          ? error.message
+          : String(error);
+
+    throw new DatabaseValidationError(
+      `Schema validation failed for ${queryName}: ${errorMessage}`,
+      queryName,
+      error instanceof z.ZodError ? error.issues : [],
+    );
+  }
+}
+
+/**
+ * Validates multiple database rows against a Zod schema.
+ * Throws a DatabaseValidationError if any row fails validation.
+ * 
+ * @param queryName - Name of the query for error reporting
+ * @param rows - Array of row data to validate
+ * @param schema - Zod schema to validate each row against
+ * @returns Array of validated and typed rows
+ * @throws DatabaseValidationError if any row fails validation
  */
 export function validateRows<T>(
   queryName: string,
   rows: unknown[],
-  schema: ZodSchema<T>,
+  schema: z.ZodSchema<T>,
 ): T[] {
-  return rows.map((row, index) => {
-    const result = schema.safeParse(row);
-    if (!result.success) {
-      // Prefix path with the row index so the error pinpoints which row failed.
-      const reissued = result.error.issues.map((issue) => ({
+  try {
+    return rows.map((_row, index) => {
+      try {
+        return schema.parse(_row);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          const issuesWithIndex = error.issues.map((issue) => ({
+            ...issue,
+            path: [`row[${index}]`, ...issue.path],
+          }));
+          const errorMessage = issuesWithIndex
+            .map((e) => `${e.path.join(".")}: ${e.message}`)
+            .join("; ");
+          throw new DatabaseValidationError(
+            `Schema validation failed for ${queryName}: ${errorMessage}`,
+            queryName,
+            issuesWithIndex,
+          );
+        }
+        throw error;
+      }
+    });
+  } catch (error) {
+    if (error instanceof DatabaseValidationError) throw error;
+    if (error instanceof z.ZodError) {
+      const issuesWithIndex = error.issues.map((issue) => ({
         ...issue,
-        path: [`row[${index}]`, ...issue.path],
+        path: [`row[0]`, ...issue.path],
       }));
-      throw new DatabaseValidationError(queryName, {
-        ...result.error,
-        issues: reissued,
-      } as ZodError);
-    }
-    return result.data;
-  });
-}
+      
+      const errorMessage = issuesWithIndex
+        .map((e) => `${e.path.join(".")}: ${e.message}`)
+        .join("; ");
 
-export function validateRow<T>(
-  queryName: string,
-  row: unknown,
-  schema: ZodSchema<T>,
-): T {
-  const result = schema.safeParse(row);
-  if (!result.success) {
-    throw new DatabaseValidationError(queryName, result.error);
+      throw new DatabaseValidationError(
+        `Schema validation failed for ${queryName}: ${errorMessage}`,
+        queryName,
+        issuesWithIndex,
+      );
+    }
+
+    const errorMessage =
+      error instanceof Error ? error.message : String(error);
+
+    throw new DatabaseValidationError(
+      `Schema validation failed for ${queryName}: ${errorMessage}`,
+      queryName,
+      [],
+    );
   }
-  return result.data;
 }
