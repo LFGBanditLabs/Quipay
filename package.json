@@ -75,7 +75,8 @@
     "zod": "^4.3.6"
   },
   "optionalDependencies": {
-    "@rollup/rollup-linux-x64-gnu": "^4.59.0"
+    "@rollup/rollup-linux-x64-gnu": "^4.59.0",
+    "@esbuild/linux-x64": "^0.28.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.0",
@@ -143,8 +144,5 @@
     "follow-redirects": ">=1.15.12",
     "axios": ">=1.15.0",
     "defu": ">=6.1.5"
-  },
-  "optionalDependencies": {
-    "@esbuild/linux-x64": "^0.28.0"
   }
 }
