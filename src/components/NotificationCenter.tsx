@@ -1,7 +1,29 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { Bell } from "lucide-react";
+import { useWallet } from "../hooks/useWallet";
+import {
+  usePersistentNotifications,
+  type NotificationType,
+  type PersistentNotification,
+} from "../hooks/usePersistentNotifications";
 
 /* ── UI Constants ── */
+
+const TYPE_CONFIG: Record<
+  NotificationType,
+  { icon: string; color: string; label: string }
+> = {
+  tx_confirmed: { icon: "✓", color: "#22c55e", label: "Confirmed" },
+  tx_failed: { icon: "✕", color: "#ef4444", label: "Failed" },
+  stream_started: { icon: "▶", color: "#facc15", label: "Stream Started" },
+  stream_completed: { icon: "⏹", color: "#eab308", label: "Stream Completed" },
+  payroll_disbursed: {
+    icon: "💸",
+    color: "#fde047",
+    label: "Payroll Disbursed",
+  },
+};
 
 /* ── Utility ── */
 
@@ -22,7 +44,7 @@ const NotificationItem: React.FC<{
   notification: PersistentNotification;
   onRead: (id: string) => void;
 }> = ({ notification, onRead }) => {
-  const config = TYPE_CONFIG[notification.type as NotificationType];
+  const config = TYPE_CONFIG[notification.type];
 
   return (
     <div
