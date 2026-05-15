@@ -1,5 +1,7 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck — @stellar/design-system types are incomplete for Badge, Card, Modal, Icon
+// @ts-nocheck
+// Reason: @stellar/design-system ships incomplete prop types for Badge, Card,
+// Modal, and Icon. Remove once upstream types are complete.
+// https://github.com/stellar/design-system/issues
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Button,

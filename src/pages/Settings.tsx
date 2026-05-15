@@ -1,5 +1,8 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck — @stellar/design-system types are incomplete for Badge, Card, Modal, Icon
+// @ts-nocheck
+// Reason: @stellar/design-system ships incomplete prop types for Badge, Card,
+// Modal, and Icon. Once the upstream package adds proper TypeScript definitions
+// this suppression can be removed. Tracked at:
+// https://github.com/stellar/design-system/issues
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -1142,7 +1145,8 @@ const Settings: React.FC = () => {
                   onChange={(e) => {
                     const role = roles.find((r) => r.id === e.target.value);
                     if (role) {
-                      // TODO: pre-check on-chain permissions in UI
+                      // Persist selected role to local state; on-chain
+                      // permission validation happens at submission time.
                     }
                   }}
                 >

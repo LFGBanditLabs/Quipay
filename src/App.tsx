@@ -25,14 +25,14 @@ const WorkerDashboard = lazy(() => import("./pages/WorkerDashboard"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 const TreasuryAnalytics = lazy(() => import("./pages/TreasuryAnalytics"));
 const WorkforceRegistry = lazy(() => import("./pages/WorkforceRegistry"));
-const AddressBook = lazy(() => import("./pages/AddressBook.tsx"));
+const AddressBook = lazy(() => import("./pages/AddressBook"));
 const DashboardCustomization = lazy(
   () => import("./pages/DashboardCustomization"),
 );
 const StreamTemplates = lazy(() => import("./pages/StreamTemplates"));
 const StreamComparison = lazy(() => import("./pages/StreamComparison"));
 const UIPrimitivesPreview = lazy(
-  () => import("./pages/UIPrimitivesPreview.tsx"),
+  () => import("./pages/UIPrimitivesPreview"),
 );
 
 function AppLoadingFallback() {

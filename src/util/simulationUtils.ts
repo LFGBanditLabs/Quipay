@@ -1,12 +1,8 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck
 /**
  * simulationUtils.ts
  * Quipay — Soroban transaction simulation helpers
- * Place in: src/utils/simulationUtils.ts
  *
  * Compatible with @stellar/stellar-sdk v12+
- * Install: npm install @stellar/stellar-sdk
  */
 
 import {
@@ -66,8 +62,7 @@ export interface CurrentBalance {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SOROBAN_RPC_URL: string =
-  (typeof process !== "undefined" &&
-    process.env["NEXT_PUBLIC_SOROBAN_RPC_URL"]) ||
+  (import.meta.env.PUBLIC_STELLAR_RPC_URL as string | undefined) ||
   "https://soroban-testnet.stellar.org";
 
 const STROOPS_PER_XLM = 10_000_000;
@@ -183,11 +178,18 @@ export async function simulateTransaction(
 
 // ─── Resource extraction ──────────────────────────────────────────────────────
 
+/**
+ * Extracts resource footprint from a successful simulation response.
+ * Precise instruction/byte counts require decoding the SorobanTransactionData
+ * XDR from `simResponse.transactionData`. The fee is available directly.
+ */
 function extractResources(
   simResponse: rpc.Api.SimulateTransactionSuccessResponse,
 ): ResourceUsage | undefined {
   if (!simResponse.minResourceFee) return undefined;
 
+  // The fee is the only value directly available without XDR decoding.
+  // instruction / byte counts require: SorobanDataBuilder.fromXDR(simResponse.transactionData)
   return {
     instructions: 0,
     readBytes: 0,
