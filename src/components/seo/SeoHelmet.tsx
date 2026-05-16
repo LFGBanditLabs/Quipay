@@ -5,7 +5,7 @@ export interface SeoHelmetProps {
   title: string;
   description: string;
   path: string;
-  imagePath: string;
+  imagePath?: string;
   robots?: string;
   type?: "website" | "article";
 }

@@ -59,6 +59,10 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
+        "@stellar/design-system": path.resolve(
+          __dirname,
+          "./src/lib/stellar-compat.tsx",
+        ),
       },
     },
     optimizeDeps: {
@@ -73,8 +77,26 @@ export default defineConfig(() => {
     envPrefix: ["PUBLIC_", "VITE_"],
     server: {
       headers: {
-        "Content-Security-Policy":
-          "default-src 'self'; script-src 'self'; connect-src 'self' https://horizon.stellar.org; report-uri /csp-report",
+        // Dev-only CSP — relaxed to allow Vite HMR (inline scripts/styles,
+        // WebSocket). Production keeps the strict policy in nginx.conf.
+        "Content-Security-Policy": [
+          "default-src 'self'",
+          "script-src 'self' 'unsafe-inline'",
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+          "font-src 'self' https://fonts.gstatic.com",
+          [
+            "connect-src 'self'",
+            "ws://localhost:*",
+            "wss://localhost:*",
+            "http://localhost:*",
+            "https://horizon.stellar.org",
+            "https://horizon-testnet.stellar.org",
+            "https://soroban-testnet.stellar.org",
+          ].join(" "),
+          "img-src 'self' data: blob: https:",
+          "worker-src 'self' blob:",
+          "report-uri /csp-report",
+        ].join("; "),
       },
       proxy: {
         "/friendbot": {

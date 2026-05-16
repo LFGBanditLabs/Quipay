@@ -53,9 +53,6 @@ export const VirtualizedTable = React.forwardRef(
     const virtualRows = rowVirtualizer.getVirtualItems();
     const totalSize = rowVirtualizer.getTotalSize();
 
-    const virtualRows = rowVirtualizer.getVirtualItems();
-    const totalSize = rowVirtualizer.getTotalSize();
-
     const paddingTop =
       virtualRows.length > 0 ? virtualRows?.[0]?.start || 0 : 0;
     const paddingBottom =
@@ -78,7 +75,7 @@ export const VirtualizedTable = React.forwardRef(
         <div
           ref={ref}
           id="table-container"
-          onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+          onScroll={() => {}}
           className={`overflow-y-auto overflow-x-hidden rounded-xl border border-indigo-500/15 bg-slate-900/45 ${className}`}
           style={{ height: `${containerHeight}px` }}
         >
@@ -106,7 +103,8 @@ export const VirtualizedTable = React.forwardRef(
                 </tr>
               )}
 
-              {visibleItems.map((item) => {
+              {virtualRows.map((virtualRow) => {
+                const item = items[virtualRow.index];
                 return (
                   <tr
                     key={keyExtractor(item)}

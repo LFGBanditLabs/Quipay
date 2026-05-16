@@ -1,378 +1,257 @@
-# Quipay
-
 <div align="center">
+  <img src="public/quipay-logo-yellow.png" width="96" height="96" alt="Quipay Logo" />
+  <h1>Quipay</h1>
+  <p><strong>Real-time payroll streaming on Stellar</strong></p>
 
-![Quipay Banner](https://img.shields.io/badge/Quipay-Payroll%20on%20Autopilot-blue?style=for-the-badge)
+[![License](https://img.shields.io/badge/License-Apache%202.0-facc15?style=flat-square&labelColor=000)](LICENSE)
+[![Built on Stellar](https://img.shields.io/badge/Built%20on-Stellar-facc15?style=flat-square&labelColor=000&logo=stellar&logoColor=white)](https://stellar.org)
+[![Soroban](https://img.shields.io/badge/Contracts-Soroban-facc15?style=flat-square&labelColor=000)](https://soroban.stellar.org)
+[![Issues](https://img.shields.io/github/issues/LFGBanditLabs/Quipay?style=flat-square&labelColor=000&color=facc15)](https://github.com/LFGBanditLabs/Quipay/issues)
 
-**Autonomous Payroll Infrastructure on Stellar**
-
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Stellar](https://img.shields.io/badge/Built%20on-Stellar-7D00FF?logo=stellar)](https://stellar.org)
-[![Soroban](https://img.shields.io/badge/Smart%20Contracts-Soroban-00D4FF)](https://soroban.stellar.org)
-
-[Features](#-features) • [Architecture](#-architecture) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Contributing](#-contributing)
+[Overview](#overview) · [Features](#features) · [Architecture](#architecture) · [Quick Start](#quick-start) · [Contributing](#contributing)
 
 </div>
 
 ---
 
-## 📖 Overview
+## Overview
 
-Quipay is a decentralized payroll protocol enabling **continuous salary streaming**, **automated treasury management**, and **AI-powered payroll operations** on the Stellar blockchain. Built for the future of work, Quipay eliminates traditional payroll friction through programmable smart contracts and intelligent automation.
+Quipay is an open-source payroll streaming protocol built on [Stellar](https://stellar.org). Instead of monthly salary cycles, workers earn continuously — every second, in real time, straight to their wallet.
+
+Employers set up a payment stream once. The Soroban smart contract handles the rest: accrual, escrow, and instant withdrawal — no intermediaries, no waiting, no friction.
+
+```
+Employer deposits → Stream contract → Worker withdraws anytime
+```
 
 ### Why Quipay?
 
-- **🌍 Global** - Borderless payments in any Stellar asset
-- **⚡ Real-Time** - Workers access earnings continuously, not monthly
-- **🤖 Autonomous** - AI agents handle scheduling and optimization
-- **🔒 Secure** - Treasury solvency enforced on-chain
-- **📊 Transparent** - All transactions verifiable and auditable
+|                | Traditional Payroll   | Quipay          |
+| -------------- | --------------------- | --------------- |
+| **Settlement** | 30 days               | Per second      |
+| **Fees**       | 1–3% + wire fees      | ~$0.001         |
+| **Custody**    | Bank holds funds      | On-chain escrow |
+| **Withdrawal** | Payday only           | Anytime         |
+| **Coverage**   | Bank account required | Stellar wallet  |
 
 ---
 
-## ✨ Features
+## Features
 
 ### For Employers
 
-- **Continuous Payment Streams** - Set up recurring salaries that accrue per second
-- **Stream Cancellation** - Cancel active streams anytime with automated prorated payouts
-- **Direct Treasury Deposits** - Easily fund your payroll vault from the interface
-- **Treasury Solvency Management** - Automatic balance verification prevents overspending
-- **Multi-Token Support** - Pay in XLM, USDC, or any Stellar asset
-- **AI Automation** - Intelligent agents handle payroll scheduling and treasury optimization
-- **Compliance Ready** - Built-in audit trails and payment verification
+- **Payment Streams** — Set up continuous salary accrual with cliff dates and flow rates
+- **Treasury Management** — Fund and monitor your payroll vault in one place
+- **Workforce Registry** — Add workers, track streams, and manage your team
+- **Payroll Dashboard** — Real-time visibility into active streams and total liabilities
+- **Stream Templates** — Save and reuse common payment configurations
+- **Governance** — Multi-sig support for DAOs and decentralized teams
 
 ### For Workers
 
-- **Instant Access** - Withdraw earned salary anytime, no waiting for payday
-- **Real-Time Earnings** - See your balance grow every second
-- **Flexible Withdrawals** - Partial or full payouts on demand
-- **Stream History Timeline** - Interactive visual timeline of your stream lifecycle
-- **Multi-Stream Support** - Manage multiple income sources in one place
-- **Payment History** - Complete transaction transparency
+- **Withdraw Anytime** — Access your earned balance at any moment — no waiting
+- **Live Earnings** — Watch your balance grow in real time, per second
+- **Stream Timeline** — Full visual history of your payment stream lifecycle
+- **Payslip Downloads** — Generate verifiable PDF payslips on demand
+- **Multi-Stream** — Manage income from multiple employers in one dashboard
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
-Quipay uses a modular smart contract architecture for security, scalability, and maintainability:
+### Smart Contracts (Soroban / Rust)
 
-### Smart Contracts
+| Contract            | Purpose                                         | Status           |
+| ------------------- | ----------------------------------------------- | ---------------- |
+| `PayrollStream`     | Streaming logic, cliff dates, flow rate accrual | 🚧 In Progress   |
+| `TreasuryVault`     | Employer escrow and liability tracking          | ✅ Base Complete |
+| `WorkforceRegistry` | Worker profiles and payment preferences         | 📋 Planned       |
+| `AutomationGateway` | AI agent authorization and execution routing    | 📋 Planned       |
 
-| Contract              | Purpose                                           | Status            |
-| --------------------- | ------------------------------------------------- | ----------------- |
-| **PayrollStream**     | Continuous salary streaming & accrual calculation | 🚧 In Development |
-| **TreasuryVault**     | Employer fund custody with liability accounting   | ✅ Base Complete  |
-| **WorkforceRegistry** | Worker profiles & payment preferences             | 📋 Planned        |
-| **AutomationGateway** | AI agent authorization & execution routing        | 📋 Planned        |
-
-### Technology Stack
+### Stack
 
 ```
 ┌─────────────────────────────────────────────┐
-│           Frontend (Vite + React)           │
-│   • Wallet Integration (Freighter)         │
-│   • Real-time Earnings Display             │
-│   • Dashboard & Analytics                  │
+│         Frontend  (Vite + React 18)         │
+│  TypeScript · Tailwind CSS · Freighter SDK  │
 └──────────────────┬──────────────────────────┘
                    │
 ┌──────────────────▼──────────────────────────┐
-│      Smart Contracts (Soroban/Rust)        │
-│   • PayrollStream                          │
-│   • TreasuryVault                          │
-│   • WorkforceRegistry                      │
-│   • AutomationGateway                      │
+│      Smart Contracts  (Soroban / Rust)      │
+│  PayrollStream · TreasuryVault · Registry   │
 └──────────────────┬──────────────────────────┘
                    │
 ┌──────────────────▼──────────────────────────┐
-│         Stellar Blockchain                  │
-│   • Asset Transfers                        │
-│   • Ledger State                           │
-└─────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────┐
-│       AI Treasury Agent (Node.js)           │
-│   • Payroll Scheduling                     │
-│   • Solvency Monitoring                    │
-│   • Risk Detection                         │
+│           Stellar Blockchain                │
+│     3–5s finality · ~$0.001 per tx          │
 └─────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
-- **Rust** 1.79+ ([Install](https://www.rust-lang.org/tools/install))
-- **Node.js** 22+ ([Install](https://nodejs.org/))
-- **Stellar CLI** ([Install Guide](https://developers.stellar.org/docs/build/smart-contracts/getting-started/setup))
-- **Scaffold Stellar CLI** ([Install](https://github.com/theahaco/scaffold-stellar))
+- [Node.js](https://nodejs.org/) 22+
+- [Rust](https://www.rust-lang.org/tools/install) 1.79+
+- [Stellar CLI](https://developers.stellar.org/docs/build/smart-contracts/getting-started/setup)
 
-### Installation
+### Run locally
 
 ```bash
-# Clone the repository — use --depth 1 for a much faster download
+# Clone
 git clone --depth 1 https://github.com/LFGBanditLabs/Quipay.git
 cd Quipay
 
 # Install dependencies
 npm install
 
-# Start development server
-npm start
+# Start dev server
+npm run dev
 ```
 
-The development server will:
+Frontend runs at **http://localhost:5173**
 
-1. ✅ Compile Soroban smart contracts
-2. ✅ Deploy to local Stellar sandbox
-3. ✅ Generate TypeScript client bindings
-4. ✅ Launch frontend at **http://localhost:5173**
-
-### 🐳 Full Stack (Docker Compose) - Recommended
-
-The easiest way to set up the entire Quipay stack locally (including Postgres, Redis, and Stellar Quickstart) is using Docker Compose:
+### Full stack with Docker
 
 ```bash
-# Start everything with one command
+# Starts Postgres, Redis, Stellar Quickstart, backend, and frontend
 make dev
-
-# Or directly with Docker Compose
-docker compose up --build
 ```
 
-This will:
+| Service            | Port |
+| ------------------ | ---- |
+| Frontend           | 5173 |
+| Backend API        | 3001 |
+| Stellar Quickstart | 8000 |
+| PostgreSQL         | 5432 |
 
-1.  Spin up **PostgreSQL** (Port 5432)
-2.  Spin up **Redis** (Port 6379)
-3.  Spin up **Stellar Quickstart** in Standalone mode (Port 8000)
-4.  Run migrations and seed the database with test data
-5.  Start the **Backend** with hot-reload (Port 3001)
-6.  Start the **Frontend** with hot-reload (Port 5173)
+Wait for the backend to log `✅ Services initialized` before connecting.
 
-**Wait for Initialization:** The first start may take a minute while the Stellar network node initializes. Once the backend logs show `✅ Services initialized`, the system is ready.
-
-### Running Tests
+### Run tests
 
 ```bash
-# Test all contracts
+# Smart contract tests
 cargo test
 
-# Test specific contract
-cd contracts/payroll_vault
-cargo test
-
-# Frontend tests
+# Frontend unit tests
 npm test
+
+# E2E tests
+npx playwright test
 ```
 
-### PR Preview Deployments (Frontend)
+---
 
-This repository includes an optional **Frontend Preview Deploy** GitHub Action that builds the Vite dApp and deploys each pull request to **Cloudflare Pages** using Soroban **Testnet** defaults.
+## Environment Variables
 
-To enable preview deployments:
+Copy `.env.example` to `.env` and adjust:
 
-1. **Create a Cloudflare Pages project** for the Quipay frontend (build command `npm run build`, output directory `dist`).
-2. **Add the following repository secrets** in GitHub:
-   - `CLOUDFLARE_API_TOKEN` – API token with “Cloudflare Pages — Edit” permission.
-   - `CLOUDFLARE_ACCOUNT_ID` – your Cloudflare account ID.
-   - `CLOUDFLARE_PAGES_PROJECT` – the Cloudflare Pages project name.
-3. Open or update a pull request that touches the frontend. The `Frontend Preview Deploy` workflow will:
-   - Build the dApp with `PUBLIC_STELLAR_*` env vars set to Testnet endpoints.
-   - Deploy a per-PR preview to Cloudflare Pages.
-   - **Comment on the PR with the preview URL** so reviewers can visually test the changes.
+| Variable                     | Default                     | Description                     |
+| ---------------------------- | --------------------------- | ------------------------------- |
+| `PUBLIC_STELLAR_NETWORK`     | `LOCAL`                     | `LOCAL` · `TESTNET` · `MAINNET` |
+| `PUBLIC_STELLAR_RPC_URL`     | `http://localhost:8000/rpc` | Soroban RPC endpoint            |
+| `PUBLIC_STELLAR_HORIZON_URL` | `http://localhost:8000`     | Stellar Horizon endpoint        |
+| `VITE_SITE_URL`              | `https://quipay.app`        | Canonical URL for metadata      |
+| `VITE_API_BASE_URL`          | `http://localhost:3001`     | Backend API base URL            |
+
+> When running via `make dev`, `VITE_API_BASE_URL` is injected automatically from `docker-compose.yml`.
 
 ---
 
-## ⚙️ Environment Variables
-
-The frontend reads the following environment variables at build time. Copy `.env.example` to `.env` and adjust as needed:
-
-| Variable                     | Default                     | Description                                                   |
-| ---------------------------- | --------------------------- | ------------------------------------------------------------- |
-| `PUBLIC_STELLAR_NETWORK`     | `LOCAL`                     | Stellar network to connect to (`LOCAL`, `TESTNET`, `MAINNET`) |
-| `PUBLIC_STELLAR_RPC_URL`     | `http://localhost:8000/rpc` | Soroban RPC endpoint                                          |
-| `PUBLIC_STELLAR_HORIZON_URL` | `http://localhost:8000`     | Stellar Horizon endpoint                                      |
-| `VITE_SITE_URL`              | `https://quipay.app`        | Canonical site URL for metadata                               |
-| `VITE_API_BASE_URL`          | `http://localhost:3001`     | Backend API base URL used by frontend hooks (e.g. analytics)  |
-
-> **Docker Compose:** When running via `docker compose up`, `VITE_API_BASE_URL` is set automatically in the frontend service configuration. See `docker-compose.yml` for defaults.
-
----
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 Quipay/
-├── contracts/              # Soroban smart contracts
-│   ├── payroll_stream/    # Streaming payment logic
-│   ├── payroll_vault/     # Treasury management
-│   ├── workforce_registry/ # Worker profiles (planned)
-│   └── automation_gateway/ # AI authorization (planned)
-├── src/                   # React frontend application
-│   ├── components/        # Reusable UI components
-│   ├── pages/             # Application pages
-│   ├── contracts/         # Generated contract clients
-│   └── hooks/             # Custom React hooks
-├── backend/               # Node.js AI agent (planned)
-├── packages/              # Generated TypeScript bindings
-├── docs/                  # Documentation
-│   ├── PRD.md            # Product Requirements
-│   └── design.md         # Technical design
-└── environments.toml      # Network configurations
+├── contracts/
+│   ├── payroll_stream/       # Streaming payment logic
+│   ├── payroll_vault/        # Treasury vault
+│   ├── workforce_registry/   # Worker profiles (planned)
+│   └── automation_gateway/   # AI authorization (planned)
+├── src/
+│   ├── components/           # Reusable UI components
+│   ├── pages/                # App pages (Dashboard, Stream, Settings…)
+│   ├── hooks/                # Custom React hooks
+│   └── contracts/            # Generated TypeScript contract clients
+├── packages/                 # Auto-generated Stellar bindings
+├── docs/                     # Architecture and design docs
+└── environments.toml         # Network configurations
 ```
 
 ---
 
-## 📚 Documentation
+## Security
 
-- **[Product Requirements (PRD)](docs/PRD.md)** - Complete product specification
-- **[Security Threat Model](docs/SECURITY_THREAT_MODEL.md)** - Formal analysis of protocol risks and mitigations
-- **[DAO Treasury Setup Guide](docs/DAO_TREASURY_SETUP.md)** - Multisig configuration for DAOs and enterprise clients
-- **[Design Document](docs/design.md)** - Technical architecture, roadmap & system design
-- **[GitHub Issues](https://github.com/LFGBanditLabs/Quipay/issues)** - Development tasks & progress
+Payroll infrastructure requires the highest security bar. Quipay enforces:
 
----
+- **Solvency invariants** — treasury balance ≥ total liabilities, checked on every state change
+- **Strict authorization** — all fund movements require explicit caller verification
+- **Double-withdrawal prevention** — safe accounting state machine prevents duplicate payouts
+- **Timestamp validation** — cliff and stream time bounds validated against ledger time
+- **Multi-sig ready** — TreasuryVault supports multi-signature Stellar accounts
+- **Pre-mainnet audit** — full formal security review scheduled before mainnet launch
 
-## 💼 Use Cases
-
-<table>
-<tr>
-<td width="50%">
-
-### DAOs & Protocol Teams
-
-Transparent contributor compensation with automated scheduling and multi-sig control. [See DAO Setup Guide →](docs/DAO_TREASURY_SETUP.md)
-
-</td>
-<td width="50%">
-
-### Remote-First Companies
-
-Global payroll without intermediaries, supporting 100+ countries and multiple currencies
-
-</td>
-</tr>
-<tr>
-<td>
-
-### Web3 Startups
-
-Compliant contractor payments with built-in audit trails and flexible payment terms
-
-</td>
-<td>
-
-### Freelance Platforms
-
-Enable workers to access earnings instantly as they complete work milestones
-
-</td>
-</tr>
-</table>
+Found a vulnerability? See [SECURITY.md](SECURITY.md). Full analysis in the [Security Threat Model](docs/SECURITY_THREAT_MODEL.md).
 
 ---
 
-## 🛠️ Development Status
+## Roadmap
 
-**Current Phase:** MVP Development (Phase 1)
+| Phase       | Milestone                            | Target  | Status         |
+| ----------- | ------------------------------------ | ------- | -------------- |
+| **Phase 1** | Core Protocol — streaming + treasury | Q1 2026 | 🚧 In Progress |
+| **Phase 2** | AI Automation gateway                | Q2 2026 | 📋 Planned     |
+| **Phase 3** | Compliance, reporting, payslips      | Q3 2026 | 📋 Planned     |
+| **Phase 4** | Enterprise features + security audit | Q4 2026 | 📋 Planned     |
 
-### Completed ✅
-
-- [x] Project initialization with Scaffold Stellar
-- [x] Basic PayrollVault contract (deposit/payout)
-- [x] Comprehensive PRD and technical documentation
-- [x] 40+ GitHub issues with detailed specifications
-- [x] Development environment setup
-
-### In Progress 🚧
-
-- [ ] PayrollStream contract (streaming logic)
-- [ ] Treasury liability tracking
-- [ ] Frontend wallet integration
-- [ ] Real-time earnings calculator
-
-### Planned 📋
-
-- [ ] AI automation gateway
-- [ ] Worker registry
-- [ ] Analytics dashboard
-- [ ] Testnet deployment
-- [ ] Security audit
-
-Track our progress: [View Task Board](https://github.com/LFGBanditLabs/Quipay/issues)
+Track progress on the [GitHub Issues board](https://github.com/LFGBanditLabs/Quipay/issues).
 
 ---
 
-## 🔐 Security
+## Contributing
 
-Security is paramount for payroll infrastructure. Quipay implements:
+Quipay is fully open source and welcomes contributions of all kinds.
 
-- ✅ **Solvency Invariants** - Treasury balance ≥ liabilities enforced on-chain
-- ✅ **Authorization Checks** - Strict access control on all fund movements
-- ✅ **Multisig Support** - Treasury Vault supports multi-signature Stellar accounts for decentralized governance
-- ✅ **Double-Withdrawal Prevention** - Safe accounting prevents duplicate payouts
-- ✅ **Timestamp Validation** - Protection against manipulation attacks
-- ✅ **Formal Auditing** - Pre-mainnet security review (planned Phase 4)
+```bash
+# Fork → clone → branch
+git checkout -b feat/your-feature
 
-**Detailed Analysis:** See our [Security Threat Model](docs/SECURITY_THREAT_MODEL.md) for a comprehensive breakdown of risks.
+# Make changes, then open a PR against main
+```
 
-**Found a vulnerability?** See our [Security Policy](SECURITY.md)
+- 🐛 [Report a bug](https://github.com/LFGBanditLabs/Quipay/issues/new?template=bug_report.md)
+- 💡 [Request a feature](https://github.com/LFGBanditLabs/Quipay/issues/new?template=feature_request.md)
+- 💻 [Good first issues](https://github.com/LFGBanditLabs/Quipay/labels/good%20first%20issue)
 
----
-
-## 🤝 Contributing
-
-We welcome contributions! Quipay is building the future of payroll infrastructure.
-
-### Ways to Contribute
-
-- 🐛 **Report Bugs** - [Open an issue](https://github.com/LFGBanditLabs/Quipay/issues/new)
-- 💡 **Suggest Features** - Share your ideas
-- 📝 **Improve Documentation** - Help others understand Quipay
-- 💻 **Submit PRs** - Check our [good first issues](https://github.com/LFGBanditLabs/Quipay/labels/good%20first%20issue)
-
-See our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md)
+Read the [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before opening a PR.
 
 ---
 
-## 📊 Roadmap
+## Documentation
 
-| Phase       | Milestone                            | Timeline | Status         |
-| ----------- | ------------------------------------ | -------- | -------------- |
-| **Phase 1** | Core Protocol (Streaming + Treasury) | Q1 2026  | 🚧 In Progress |
-| **Phase 2** | AI Automation Integration            | Q2 2026  | 📋 Planned     |
-| **Phase 3** | Compliance & Reporting               | Q3 2026  | 📋 Planned     |
-| **Phase 4** | Enterprise Features                  | Q4 2026  | 📋 Planned     |
-
----
-
-## 📜 License
-
-This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for details.
+| Doc                                                    | Description                              |
+| ------------------------------------------------------ | ---------------------------------------- |
+| [Product Requirements](docs/PRD.md)                    | Full product spec and user stories       |
+| [Design Document](docs/design.md)                      | Technical architecture and system design |
+| [Security Threat Model](docs/SECURITY_THREAT_MODEL.md) | Formal risk analysis and mitigations     |
+| [DAO Treasury Setup](docs/DAO_TREASURY_SETUP.md)       | Multisig configuration for DAOs          |
 
 ---
 
-## 🔗 Links!
+## License
 
-<div align="center">
-
-[![GitHub](https://img.shields.io/badge/GitHub-LFGBanditLabs%2FQuipay-181717?logo=github)](https://github.com/LFGBanditLabs/Quipay)
-[![Stellar](https://img.shields.io/badge/Stellar-Learn%20More-7D00FF?logo=stellar)](https://stellar.org)
-[![Soroban Docs](https://img.shields.io/badge/Soroban-Documentation-00D4FF)](https://developers.stellar.org/docs/build/smart-contracts)
-[![Issues](https://img.shields.io/github/issues/LFGBanditLabs/Quipay)](https://github.com/LFGBanditLabs/Quipay/issues)
-
-</div>
+Apache 2.0 — see [LICENSE](LICENSE) for details.
 
 ---
 
 <div align="center">
+  <img src="public/quipay-logo-yellow.png" width="36" alt="Quipay" />
+  <br/>
+  <sub>Built on Stellar · Open Source · Non-custodial</sub>
+  <br/><br/>
 
-**Built with ❤️ on Stellar**
-
-_Empowering the future of work, one stream at a time_
-
-[⭐ Star us on GitHub](https://github.com/LFGBanditLabs/Quipay) • [🐦 Follow updates](#) • [💬 Join our community](#)
+[![Stars](https://img.shields.io/github/stars/LFGBanditLabs/Quipay?style=flat-square&labelColor=000&color=facc15)](https://github.com/LFGBanditLabs/Quipay/stargazers)
+[![Forks](https://img.shields.io/github/forks/LFGBanditLabs/Quipay?style=flat-square&labelColor=000&color=facc15)](https://github.com/LFGBanditLabs/Quipay/network/members)
 
 </div>

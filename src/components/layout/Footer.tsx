@@ -1,200 +1,233 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
-
-const socialLinks = [
-  {
-    label: "GitHub",
-    href: "https://github.com/LFGBanditLabs/Quipay",
-    icon: (
-      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-        <path
-          fillRule="evenodd"
-          d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-          clipRule="evenodd"
-        />
-      </svg>
-    ),
-  },
-  {
-    label: "Twitter / X",
-    href: "https://twitter.com/Quipay",
-    icon: (
-      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-      </svg>
-    ),
-  },
-  {
-    label: "Discord",
-    href: "https://discord.gg/Quipay",
-    icon: (
-      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189z" />
-      </svg>
-    ),
-  },
-];
-
-const FooterLink: React.FC<{
-  label: string;
-  to?: string;
-  href?: string;
-}> = ({ label, to, href }) => {
-  const className =
-    "text-[var(--muted)] hover:text-[var(--text)] transition-colors duration-200 text-sm";
-
-  if (to) {
-    return (
-      <Link to={to} className={className}>
-        {label}
-      </Link>
-    );
-  }
-
-  if (href) {
-    return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={className}
-      >
-        {label}
-      </a>
-    );
-  }
-
-  return <span className={className}>{label}</span>;
-};
-
 const Footer: React.FC = () => {
-  const { t } = useTranslation();
-  const currentYear = new Date().getFullYear();
+  const year = new Date().getFullYear();
 
-  const footerLinks = {
-    product: [
-      { label: t("nav.dashboard"), to: "/dashboard" },
-      { label: t("nav.payroll"), to: "/payroll" },
-      { label: t("nav.treasury"), to: "/treasury-management" },
-      { label: t("nav.governance"), to: "/governance" },
-    ],
-    resources: [
-      { label: t("footer.documentation"), to: "/help" },
-      { label: t("footer.debugger"), to: "/debug" },
-      {
-        label: t("footer.api_reference"),
-        href: "https://developers.stellar.org",
-      },
-      { label: t("footer.soroban_docs"), href: "https://soroban.stellar.org" },
-    ],
-    company: [
-      { label: t("footer.about"), href: "#" },
-      { label: t("footer.blog"), href: "#" },
-      { label: t("footer.careers"), href: "#" },
-      { label: t("footer.contact"), href: "#" },
-    ],
-  };
+  const cols = [
+    {
+      heading: "Product",
+      links: [
+        { label: "Dashboard", to: "/dashboard" },
+        { label: "Payroll", to: "/payroll" },
+        { label: "Treasury", to: "/treasury-management" },
+        { label: "Workforce", to: "/workforce" },
+        { label: "Analytics", to: "/analytics" },
+        { label: "Governance", to: "/governance" },
+      ],
+    },
+    {
+      heading: "Resources",
+      links: [
+        { label: "Documentation", to: "/help" },
+        { label: "Debugger", to: "/debug" },
+        { label: "Stellar Docs", href: "https://developers.stellar.org" },
+        { label: "Soroban Docs", href: "https://soroban.stellar.org" },
+        { label: "GitHub", href: "https://github.com/LFGBanditLabs/Quipay" },
+      ],
+    },
+    {
+      heading: "Company",
+      links: [
+        { label: "About", href: "#" },
+        { label: "Blog", href: "#" },
+        { label: "Careers", href: "#" },
+        { label: "Contact", href: "#" },
+        { label: "Security", to: "/help" },
+      ],
+    },
+    {
+      heading: "Legal",
+      links: [
+        { label: "Privacy Policy", href: "#" },
+        { label: "Terms of Service", href: "#" },
+        { label: "Cookie Policy", href: "#" },
+        { label: "MIT License", href: "https://opensource.org/license/mit" },
+      ],
+    },
+  ] as const;
 
   return (
-    <footer className="bg-[var(--surface-subtle)] border-t border-[var(--border)]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 lg:gap-12">
-          <div className="lg:col-span-2">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 text-white font-bold text-sm shadow-lg shadow-indigo-500/25">
-                Q
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+    <footer className="border-t border-white/[0.07] bg-[#050505]">
+      <div className="mx-auto max-w-[1280px] px-6 lg:px-10">
+        {/* ── Top: brand + columns ─────────────────────────────── */}
+        <div className="grid grid-cols-2 gap-10 py-16 md:grid-cols-[1.6fr_1fr_1fr_1fr_1fr] lg:py-20">
+          {/* Brand */}
+          <div className="col-span-2 md:col-span-1">
+            <Link to="/" className="mb-6 flex w-fit items-center gap-2.5 group">
+              <div
+                className="h-8 w-8 shrink-0 transition-opacity group-hover:opacity-80"
+                style={{
+                  backgroundColor: "#facc15",
+                  WebkitMaskImage: "url('/quipay-icon-mark.png')",
+                  WebkitMaskSize: "contain",
+                  WebkitMaskRepeat: "no-repeat",
+                  WebkitMaskPosition: "center",
+                  maskImage: "url('/quipay-icon-mark.png')",
+                  maskSize: "contain",
+                  maskRepeat: "no-repeat",
+                  maskPosition: "center",
+                }}
+              />
+              <span
+                className="text-[18px] font-bold tracking-tight text-white"
+                style={{ letterSpacing: "-0.02em" }}
+              >
                 Quipay
               </span>
-            </div>
-            <p className="text-[var(--muted)] text-sm mb-4 max-w-xs">
-              {t("footer.tagline")}
+            </Link>
+
+            <p className="mb-6 max-w-[220px] text-[13px] leading-relaxed text-neutral-500">
+              Autonomous payroll infrastructure built on Stellar. Real-time
+              streaming payments for global teams.
             </p>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--surface)] border border-[var(--border)] w-fit">
-              <svg
-                className="w-4 h-4 text-indigo-400"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <path d="M11.99 0C5.366 0 0 5.366 0 11.99c0 5.268 3.297 9.762 7.94 11.386.581.104.778-.252.778-.56 0-.274-.01-.992-.015-1.948-3.232.702-3.913-1.558-3.913-1.558-.528-1.342-1.29-1.699-1.29-1.699-1.054-.72.08-.706.08-.706 1.166.082 1.78 1.197 1.78 1.197 1.036 1.776 2.718 1.264 3.38.966.106-.75.405-1.264.737-1.555-2.577-.293-5.285-1.288-5.285-5.733 0-1.266.452-2.3 1.194-3.112-.12-.293-.518-1.472.114-3.068 0 0 .973-.312 3.187 1.189a11.1 11.1 0 012.907-.39c.985 0 1.977.133 2.907.39 2.213-1.501 3.184-1.189 3.184-1.189.633 1.596.235 2.775.115 3.068.744.812 1.192 1.846 1.192 3.112 0 4.457-2.712 5.437-5.298 5.724.416.359.788 1.07.788 2.158 0 1.558-.014 2.813-.014 3.195 0 .31.193.67.798.556C20.707 21.748 24 17.255 24 11.99 24 5.366 18.634 0 11.99 0z" />
+
+            {/* Stellar badge */}
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/[0.07] bg-white/[0.03] px-3 py-1.5">
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="#facc15">
+                <path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z" />
               </svg>
-              <span className="text-xs font-medium text-[var(--muted)]">
-                {t("footer.built_on_stellar")}
+              <span className="text-[11px] font-medium text-neutral-500">
+                Built on Stellar
               </span>
             </div>
-          </div>
 
-          <div>
-            <h4 className="text-sm font-semibold text-[var(--text)] mb-4">
-              {t("footer.product")}
-            </h4>
-            <ul className="space-y-3">
-              {footerLinks.product.map((link) => (
-                <li key={link.label}>
-                  <FooterLink {...link} />
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="text-sm font-semibold text-[var(--text)] mb-4">
-              {t("footer.resources")}
-            </h4>
-            <ul className="space-y-3">
-              {footerLinks.resources.map((link) => (
-                <li key={link.label}>
-                  <FooterLink {...link} />
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="text-sm font-semibold text-[var(--text)] mb-4">
-              {t("footer.company")}
-            </h4>
-            <ul className="space-y-3">
-              {footerLinks.company.map((link) => (
-                <li key={link.label}>
-                  <FooterLink {...link} />
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-
-        <div className="mt-12 pt-8 border-t border-[var(--border)]">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-[var(--muted)]">
-              {t("footer.copyright", { year: currentYear })}{" "}
-              <a
-                href="https://opensource.org/license/mit"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline hover:text-[var(--text)] transition-colors"
-              >
-                {t("footer.mit_license")}
-              </a>
-              .
-            </p>
-
+            {/* Social icons */}
             <div className="flex items-center gap-4">
-              {socialLinks.map((social) => (
+              {[
+                {
+                  label: "GitHub",
+                  href: "https://github.com/LFGBanditLabs/Quipay",
+                  icon: (
+                    <svg
+                      className="h-4 w-4"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        clipRule="evenodd"
+                        d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844a9.59 9.59 0 012.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                      />
+                    </svg>
+                  ),
+                },
+                {
+                  label: "X",
+                  href: "https://twitter.com/Quipay",
+                  icon: (
+                    <svg
+                      className="h-4 w-4"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                    </svg>
+                  ),
+                },
+                {
+                  label: "Discord",
+                  href: "https://discord.gg/Quipay",
+                  icon: (
+                    <svg
+                      className="h-4 w-4"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.865-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.03.056a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z" />
+                    </svg>
+                  ),
+                },
+              ].map(({ label, href, icon }) => (
                 <a
-                  key={social.label}
-                  href={social.href}
+                  key={label}
+                  href={href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[var(--muted)] hover:text-[var(--text)] transition-colors duration-200"
-                  aria-label={social.label}
+                  aria-label={label}
+                  className="text-neutral-600 transition-colors duration-150 hover:text-white"
                 >
-                  {social.icon}
+                  {icon}
                 </a>
               ))}
             </div>
+          </div>
+
+          {/* Link columns */}
+          {cols.map((col) => (
+            <div key={col.heading}>
+              <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.12em] text-neutral-600">
+                {col.heading}
+              </p>
+              <ul className="space-y-3">
+                {col.links.map((link) => (
+                  <li key={link.label}>
+                    {"to" in link ? (
+                      <Link
+                        to={link.to}
+                        className="text-[13px] text-neutral-500 transition-colors duration-150 hover:text-white"
+                      >
+                        {link.label}
+                      </Link>
+                    ) : (
+                      <a
+                        href={link.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[13px] text-neutral-500 transition-colors duration-150 hover:text-white"
+                      >
+                        {link.label}
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Newsletter strip ──────────────────────────────────── */}
+        <div className="flex flex-col items-start justify-between gap-6 border-t border-white/[0.06] py-8 sm:flex-row sm:items-center">
+          <div>
+            <p className="text-[14px] font-semibold text-white">
+              Stay in the loop
+            </p>
+            <p className="mt-0.5 text-[13px] text-neutral-500">
+              Product updates, Stellar news, payroll insights.
+            </p>
+          </div>
+          <div className="flex w-full max-w-sm items-center gap-2">
+            <input
+              type="email"
+              placeholder="you@company.com"
+              className="flex-1 rounded-xl border border-white/[0.1] bg-white/[0.04] px-4 py-2.5 text-[13px] text-white placeholder:text-neutral-600 focus:border-yellow-400/40 focus:outline-none focus:ring-1 focus:ring-yellow-400/20"
+            />
+            <button
+              className="shrink-0 rounded-xl px-5 py-2.5 text-[13px] font-bold text-black transition-all hover:opacity-90"
+              style={{ backgroundColor: "#facc15" }}
+            >
+              Subscribe
+            </button>
+          </div>
+        </div>
+
+        {/* ── Bottom bar ────────────────────────────────────────── */}
+        <div className="flex flex-col items-center justify-between gap-3 border-t border-white/[0.06] py-6 sm:flex-row">
+          <p className="text-[12px] text-neutral-600">
+            © {year} Quipay · LFG Bandit Labs ·{" "}
+            <a
+              href="https://opensource.org/license/mit"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-colors hover:text-neutral-400"
+            >
+              MIT License
+            </a>
+          </p>
+          <div className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400" />
+            <p className="text-[12px] text-neutral-600 font-mono">
+              All systems operational
+            </p>
           </div>
         </div>
       </div>
