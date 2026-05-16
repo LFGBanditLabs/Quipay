@@ -15,7 +15,7 @@ import type {
 } from "../types/reports";
 import { getCache, setCache } from "../services/offlineService";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 /** Stellar amounts are stored in stroops (1 XLM = 10,000,000 stroops). */
 const STROOPS_PER_UNIT = 1e7;
@@ -168,7 +168,8 @@ export function useTransactionData() {
   const [selectedMonth, setSelectedMonth] = useState<string>("");
 
   useEffect(() => {
-    if (!address) {
+    if (!address || !API_BASE) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAllTransactions(generateDemoTransactions());
       return;
     }
@@ -222,6 +223,7 @@ export function useTransactionData() {
   // Default to most recent available month
   useEffect(() => {
     if (availableMonths.length > 0 && !selectedMonth) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedMonth(availableMonths[availableMonths.length - 1]);
     }
   }, [availableMonths, selectedMonth]);

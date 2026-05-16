@@ -135,8 +135,14 @@ export const usePayroll = (
   }, []);
 
   const fetchPayrollSummary = useCallback(async (address: string) => {
-    const backendUrl =
-      import.meta.env.PUBLIC_BACKEND_URL || "http://localhost:3001";
+    // Payroll summary comes from the backend analytics API.
+    // Skip silently when no backend URL is configured (testnet / frontend-only mode).
+    const backendUrl = import.meta.env.PUBLIC_BACKEND_URL;
+    if (!backendUrl) {
+      setPayrollSummary(null);
+      setPayrollSummaryError(null);
+      return;
+    }
 
     try {
       await dedupRequest(`summary-${address}`, async () => {

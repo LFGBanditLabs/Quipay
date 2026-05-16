@@ -20,7 +20,7 @@ import { submitAndAwaitTx } from "../contracts/payroll_stream";
 import { wallet } from "../util/wallet";
 import { networkPassphrase } from "../contracts/util";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 const STROOPS_PER_UNIT = 1e7;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -55,6 +55,7 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
 
   useEffect(() => {
     if (!employerAddress) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setWorkers([]);
       setIsLoading(false);
       return;
@@ -71,24 +72,25 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
           employerAddress!,
         );
 
-        // 2. Fetch all streams for this employer from the backend
+        // 2. Fetch all streams for this employer from the backend (optional — skip when no backend configured)
         let allStreams: WorkerStreamRecord[] = [];
-        try {
-          const res = await fetch(
-            `${API_BASE}/analytics/streams?employer=${encodeURIComponent(employerAddress!)}&limit=200`,
-          );
-          if (res.ok) {
-            const json = (await res.json()) as {
-              ok: boolean;
-              data?: WorkerStreamRecord[];
-            };
-            if (json.ok && Array.isArray(json.data)) {
-              allStreams = json.data;
+        if (API_BASE)
+          try {
+            const res = await fetch(
+              `${API_BASE}/analytics/streams?employer=${encodeURIComponent(employerAddress!)}&limit=200`,
+            );
+            if (res.ok) {
+              const json = (await res.json()) as {
+                ok: boolean;
+                data?: WorkerStreamRecord[];
+              };
+              if (json.ok && Array.isArray(json.data)) {
+                allStreams = json.data;
+              }
             }
+          } catch {
+            // Backend unavailable — stream counts will be zero
           }
-        } catch {
-          // Backend unavailable — stream counts will be zero
-        }
 
         // 3. Merge stream data into worker entries
         const entries: WorkerEntry[] = profiles.map((p) => {

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 
-const API_BASE = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3001";
+const API_BASE = import.meta.env.VITE_BACKEND_URL;
 const REFRESH_MS = 60_000;
 
 // ── Types matching backend responses ─────────────────────────────────────────
@@ -45,6 +45,7 @@ export type Granularity = "daily" | "weekly";
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
 
 async function fetchJson<T>(path: string): Promise<T> {
+  if (!API_BASE) throw new Error("No backend configured");
   const res = await fetch(`${API_BASE}${path}`, { credentials: "include" });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   const json = await res.json();
@@ -84,6 +85,10 @@ export function useAnalyticsData(): AnalyticsDashboardData {
   const [lastUpdatedAt, setLastUpdatedAt] = useState(() => new Date());
 
   const fetchAll = useCallback(async () => {
+    if (!API_BASE) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -116,6 +121,7 @@ export function useAnalyticsData(): AnalyticsDashboardData {
 
   // Initial fetch + re-fetch when granularity changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchAll();
   }, [fetchAll]);
 
