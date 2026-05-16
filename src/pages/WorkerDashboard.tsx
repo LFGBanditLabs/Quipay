@@ -299,7 +299,7 @@ const StreamCard: React.FC<{
           </span>
         </div>
 
-        {/* Live earnings — big number */}
+        {/* Earnings */}
         <div>
           <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-700 mb-1">
             Earned so far
@@ -356,8 +356,7 @@ const StreamCard: React.FC<{
           </div>
           {remaining > 0 && (
             <p className="text-[11px] text-neutral-700 mt-0.5">
-              {formatTokenAmount(remaining, stream.tokenSymbol)} remaining in
-              stream
+              {formatTokenAmount(remaining, stream.tokenSymbol)} remaining
             </p>
           )}
         </div>
@@ -452,6 +451,8 @@ const CompletedStreamCard: React.FC<{ stream: WorkerStream }> = ({
     )}
   </div>
 );
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
