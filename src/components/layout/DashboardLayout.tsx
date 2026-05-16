@@ -7,6 +7,62 @@ import NotificationCenter from "../NotificationCenter";
 
 // ─── Nav config ────────────────────────────────────────────────────────────────
 
+// ── Worker nav (simple — just their own pages) ────────────────────────────────
+
+const WORKER_MAIN_NAV = [
+  {
+    label: "My Earnings",
+    to: "/worker",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        className="w-5 h-5 shrink-0"
+      >
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 6v6l4 2" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    label: "Withdraw",
+    to: "/withdraw",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        className="w-5 h-5 shrink-0"
+      >
+        <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
+        <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
+        <path d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
+      </svg>
+    ),
+  },
+  {
+    label: "Settings",
+    to: "/settings",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        className="w-5 h-5 shrink-0"
+      >
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      </svg>
+    ),
+  },
+] as const;
+
+// ── Employer nav ──────────────────────────────────────────────────────────────
+
 const MAIN_NAV = [
   {
     label: "Overview",
@@ -336,6 +392,7 @@ function SidebarContent({
   collapsed,
   address,
   shortAddr,
+  role,
   setCollapsed,
   onDisconnect,
   onSwitchRole,
@@ -343,6 +400,7 @@ function SidebarContent({
   collapsed: boolean;
   address: string | undefined;
   shortAddr: string;
+  role: string;
   setCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
   onDisconnect: () => void;
   onSwitchRole: () => void;
@@ -380,16 +438,39 @@ function SidebarContent({
 
       {/* Nav */}
       <div className="flex-1 overflow-y-auto px-2 py-3 scrollbar-none">
-        <NavSection items={MAIN_NAV} collapsed={collapsed} />
-        <div className="my-2 border-t border-white/[0.05]" />
-        <NavSection
-          label="Analytics"
-          items={ANALYTICS_NAV}
-          collapsed={collapsed}
-        />
-        <div className="my-2 border-t border-white/[0.05]" />
-        <NavSection label="Tools" items={TOOLS_NAV} collapsed={collapsed} />
+        {role === "worker" ? (
+          /* ── Worker view — simple ── */
+          <NavSection items={WORKER_MAIN_NAV} collapsed={collapsed} />
+        ) : (
+          /* ── Employer view — full ── */
+          <>
+            <NavSection items={MAIN_NAV} collapsed={collapsed} />
+            <div className="my-2 border-t border-white/[0.05]" />
+            <NavSection
+              label="Analytics"
+              items={ANALYTICS_NAV}
+              collapsed={collapsed}
+            />
+            <div className="my-2 border-t border-white/[0.05]" />
+            <NavSection label="Tools" items={TOOLS_NAV} collapsed={collapsed} />
+          </>
+        )}
       </div>
+
+      {/* Role badge — visible when expanded */}
+      {!collapsed && (
+        <div className="px-4 pb-1">
+          <span
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest ${
+              role === "worker"
+                ? "bg-blue-500/10 text-blue-400"
+                : "bg-yellow-400/10 text-yellow-400"
+            }`}
+          >
+            {role === "worker" ? "Worker" : "Employer"}
+          </span>
+        </div>
+      )}
 
       {/* Bottom: user + actions */}
       <div className="border-t border-white/[0.05] p-2">
@@ -460,7 +541,7 @@ function SidebarContent({
 export default function DashboardLayout() {
   const navigate = useNavigate();
   const { address, disconnect } = useWallet();
-  const { clearRole } = useRoleDetect(address);
+  const { role, clearRole } = useRoleDetect(address);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -497,6 +578,7 @@ export default function DashboardLayout() {
           address={address}
           shortAddr={shortAddr}
           setCollapsed={setCollapsed}
+          role={role}
           onDisconnect={handleDisconnect}
           onSwitchRole={handleSwitchRole}
         />
@@ -521,6 +603,7 @@ export default function DashboardLayout() {
           address={address}
           shortAddr={shortAddr}
           setCollapsed={setCollapsed}
+          role={role}
           onDisconnect={handleDisconnect}
           onSwitchRole={handleSwitchRole}
         />
