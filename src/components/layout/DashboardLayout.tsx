@@ -395,7 +395,6 @@ function SidebarContent({
   role,
   setCollapsed,
   onDisconnect,
-  onSwitchRole,
 }: {
   collapsed: boolean;
   address: string | undefined;
@@ -403,7 +402,6 @@ function SidebarContent({
   role: string;
   setCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
   onDisconnect: () => void;
-  onSwitchRole: () => void;
 }) {
   return (
     <div className="flex h-full flex-col bg-[#050505]">
@@ -511,22 +509,12 @@ function SidebarContent({
                 <p className="truncate font-mono text-[13px] font-medium text-white">
                   {shortAddr}
                 </p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <button
-                    onClick={onSwitchRole}
-                    className="text-[12px] text-neutral-600 hover:text-yellow-400 transition-colors"
-                    title="Switch between employer and worker view"
-                  >
-                    Switch view
-                  </button>
-                  <span className="text-neutral-800 text-[10px]">·</span>
-                  <button
-                    onClick={onDisconnect}
-                    className="text-[12px] text-neutral-600 hover:text-red-400 transition-colors"
-                  >
-                    Disconnect
-                  </button>
-                </div>
+                <button
+                  onClick={onDisconnect}
+                  className="text-[12px] text-neutral-600 hover:text-red-400 transition-colors"
+                >
+                  Disconnect
+                </button>
               </div>
             )}
           </div>
@@ -561,10 +549,6 @@ export default function DashboardLayout() {
     clearRole();
     void disconnect().then(() => navigate("/"));
   };
-  const handleSwitchRole = () => {
-    clearRole();
-    void navigate("/", { replace: true });
-  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-black text-white">
@@ -580,7 +564,6 @@ export default function DashboardLayout() {
           setCollapsed={setCollapsed}
           role={role}
           onDisconnect={handleDisconnect}
-          onSwitchRole={handleSwitchRole}
         />
       </aside>
 
@@ -605,7 +588,6 @@ export default function DashboardLayout() {
           setCollapsed={setCollapsed}
           role={role}
           onDisconnect={handleDisconnect}
-          onSwitchRole={handleSwitchRole}
         />
       </aside>
 

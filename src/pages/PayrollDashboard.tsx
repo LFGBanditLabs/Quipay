@@ -1,1133 +1,566 @@
-import { useState, useMemo, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
   BarChart,
   Bar,
   PieChart,
   Pie,
   Cell,
-  Sector,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
+  Legend,
 } from "recharts";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type DateRange = "7D" | "30D" | "90D" | "6M" | "1Y" | "ALL";
-type Token = "USDC" | "XLM" | "ALL";
-
-interface DailyRecord {
-  date: string; // "YYYY-MM-DD"
-  usdc: number;
-  xlm: number;
-  workers: number;
-  transactions: number;
-  fees: number;
-}
-
-// ─── Data Generation (500+ points) ───────────────────────────────────────────
-
-function generateDailyData(): DailyRecord[] {
-  const records: DailyRecord[] = [];
-  const start = new Date("2024-01-01");
-  const end = new Date("2025-12-31");
-
-  let usdc = 18000;
-  let xlm = 4200;
-
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    // Simulate realistic payroll patterns
-    const dow = d.getDay();
-    const isWeekend = dow === 0 || dow === 6;
-    const month = d.getMonth();
-    // Seasonal growth
-    const growth = 1 + (d.getFullYear() - 2024) * 0.18 + month * 0.012;
-    // Mid-month & end-of-month spikes
-    const dom = d.getDate();
-    const spike = dom === 15 || dom === 30 || dom === 1 ? 1.6 : 1;
-    // Weekday variance
-    const dayMod = isWeekend ? 0.15 : 1 + (Math.random() - 0.48) * 0.3;
-
-    usdc = Math.max(
-      500,
-      usdc * 0.97 + (Math.random() * 800 + 400) * growth * spike * dayMod,
-    );
-    xlm = Math.max(
-      100,
-      xlm * 0.97 + (Math.random() * 200 + 80) * growth * spike * dayMod * 0.4,
-    );
-
-    records.push({
-      date: d.toISOString().slice(0, 10),
-      usdc: Math.round(usdc * 100) / 100,
-      xlm: Math.round(xlm * 100) / 100,
-      workers: Math.max(1, Math.round(12 * growth + (Math.random() - 0.5) * 4)),
-      transactions: Math.max(
-        1,
-        Math.round((isWeekend ? 2 : 8) * growth * (Math.random() * 0.8 + 0.6)),
-      ),
-      fees: Math.round((usdc * 0.0008 + xlm * 0.0005) * 100) / 100,
-    });
-  }
-  return records;
-}
-
-const ALL_DATA = generateDailyData();
+import { useWallet } from "../hooks/useWallet";
+import { usePayroll, Stream } from "../hooks/usePayroll";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const fmt = (n: number, locale = "en", dec = 0) =>
-  n.toLocaleString(locale, {
-    minimumFractionDigits: dec,
-    maximumFractionDigits: dec,
+const STROOPS = 1e7;
+
+function fmt(n: number, decimals = 2) {
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   });
-
-const fmtUSD = (n: number, locale = "en") =>
-  new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: "USD",
-    notation: n >= 1000 ? "compact" : "standard",
-  }).format(n);
-
-function filterByRange(data: DailyRecord[], range: DateRange): DailyRecord[] {
-  if (range === "ALL") return data;
-  const days: Record<DateRange, number> = {
-    "7D": 7,
-    "30D": 30,
-    "90D": 90,
-    "6M": 180,
-    "1Y": 365,
-    ALL: 0,
-  };
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days[range]);
-  const cutStr = cutoff.toISOString().slice(0, 10);
-  return data.filter((r) => r.date >= cutStr);
 }
 
-function downsample(data: DailyRecord[], maxPoints: number): DailyRecord[] {
-  if (data.length <= maxPoints) return data;
-  const step = Math.ceil(data.length / maxPoints);
-  return data.filter((_, i) => i % step === 0);
+function shortAddr(a: string) {
+  return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
-function toMonthly(data: DailyRecord[], locale = "en") {
-  const map = new Map<
-    string,
-    { month: string; usdc: number; xlm: number; transactions: number }
-  >();
-  data.forEach((r) => {
-    const key = r.date.slice(0, 7);
-    const existing = map.get(key);
-    if (existing) {
-      existing.usdc += r.usdc;
-      existing.xlm += r.xlm;
-      existing.transactions += r.transactions;
-    } else {
-      const [y, m] = key.split("-");
-      const label = new Date(Number(y), Number(m) - 1).toLocaleDateString(
-        locale,
-        { month: "short", year: "2-digit" },
-      );
-      map.set(key, {
-        month: label,
-        usdc: r.usdc,
-        xlm: r.xlm,
-        transactions: r.transactions,
-      });
-    }
-  });
-  return Array.from(map.values());
+function fmtRate(rateStr: string) {
+  const ratePerSec = parseFloat(rateStr);
+  const perMonth = ratePerSec * 86400 * 30;
+  const perDay = ratePerSec * 86400;
+  if (perMonth >= 1) return `${fmt(perMonth, 2)}/mo`;
+  if (perDay >= 1) return `${fmt(perDay, 2)}/day`;
+  return `${rateStr}/s`;
 }
 
-// ─── CSV export ───────────────────────────────────────────────────────────────
-
-function exportCSV(data: DailyRecord[], filename: string) {
-  const headers = [
-    "Date",
-    "USDC Payroll",
-    "XLM Payroll",
-    "Workers",
-    "Transactions",
-    "Fees",
-  ];
-  const rows = data.map((r) => [
-    r.date,
-    r.usdc,
-    r.xlm,
-    r.workers,
-    r.transactions,
-    r.fees,
-  ]);
-  const csv =
-    "\uFEFF" + [headers, ...rows].map((r) => r.join(",")).join("\r\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+function streamPct(s: Stream): number {
+  const total = parseFloat(s.totalAmount);
+  const streamed = parseFloat(s.totalStreamed);
+  if (!total) return 0;
+  return Math.min(100, (streamed / total) * 100);
 }
 
-// Theme tokens are now managed globally via CSS variables in index.css
+const STATUS_STYLE: Record<Stream["status"], { label: string; cls: string }> = {
+  active: { label: "Active", cls: "bg-green-500/10 text-green-400" },
+  paused: { label: "Paused", cls: "bg-yellow-400/10 text-yellow-400" },
+  completed: { label: "Completed", cls: "bg-neutral-800 text-neutral-500" },
+  cancelled: { label: "Cancelled", cls: "bg-red-500/10 text-red-400" },
+};
 
-const ACCENT = "#facc15"; // yellow-400 — primary brand
-const ACCENT2 = "#fde047"; // yellow-300 — lighter variant
-const CLR_XLM = "#22d3ee"; // cyan — XLM token
-const CLR_FEE = "#f59e0b"; // amber — fees
-const CLR_WORK = "#34d399"; // green — workers
+const COLORS = [
+  "#facc15",
+  "#eab308",
+  "#ca8a04",
+  "#a16207",
+  "#854d0e",
+  "#713f12",
+];
 
-const PIE_COLORS = [ACCENT, CLR_XLM, CLR_FEE, CLR_WORK, "#a78bfa", "#f472b6"];
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-// ─── Custom Tooltip ───────────────────────────────────────────────────────────
-
-function ChartTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: { name: string; value: number; color: string }[];
-  label?: string;
-}) {
-  const { i18n } = useTranslation();
-  if (!active || !payload?.length) return null;
-  return (
-    <div
-      style={{
-        background: "rgba(255,255,255,0.04)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        borderRadius: 10,
-        padding: "10px 14px",
-        fontSize: 12,
-        boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-      }}
-    >
-      <div
-        style={{
-          color: "#737373",
-          marginBottom: 6,
-          fontSize: 11,
-          letterSpacing: ".06em",
-        }}
-      >
-        {label}
-      </div>
-      {payload.map((p) => (
-        <div
-          key={p.name}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginBottom: 3,
-          }}
-        >
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: p.color,
-              flexShrink: 0,
-            }}
-          />
-          <span style={{ color: "#737373", flex: 1 }}>{p.name}</span>
-          <span
-            style={{
-              color: "#fafafa",
-              fontWeight: 700,
-              fontFamily: "monospace",
-            }}
-          >
-            {typeof p.value === "number" && p.name.toLowerCase().includes("usd")
-              ? fmtUSD(p.value, i18n.language)
-              : fmt(p.value, i18n.language, 0)}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
-
-function KPICard({
+function StatCard({
   label,
   value,
   sub,
-  delta,
+  accent,
 }: {
   label: string;
-  value: string;
+  value: string | number;
   sub?: string;
-  delta?: number;
+  accent?: boolean;
 }) {
-  const up = (delta ?? 0) >= 0;
   return (
-    <div
-      style={{
-        background: "rgba(255,255,255,0.04)",
-        border: "1.5px solid rgba(255,255,255,0.08)",
-        borderRadius: 14,
-        padding: "20px 22px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-      }}
-    >
-      <span
-        style={{
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: ".12em",
-          textTransform: "uppercase",
-          color: "#737373",
-        }}
-      >
+    <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5">
+      <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-600 mb-1">
         {label}
-      </span>
-      <span
-        style={{
-          fontSize: 26,
-          fontWeight: 800,
-          color: "#fafafa",
-          lineHeight: 1.15,
-          fontFamily: "'DM Mono', monospace",
-        }}
+      </p>
+      <p
+        className="text-[28px] font-black leading-none"
+        style={accent ? { color: "#facc15" } : { color: "#fff" }}
       >
         {value}
-      </span>
-      <div
-        style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}
-      >
-        {delta !== undefined && (
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              padding: "2px 7px",
-              borderRadius: 99,
-              background: up ? "rgba(16,185,129,.12)" : "rgba(239,68,68,.12)",
-              color: up ? "#10b981" : "#ef4444",
-            }}
-          >
-            {up ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}%
-          </span>
-        )}
-        {sub && <span style={{ fontSize: 11, color: "#737373" }}>{sub}</span>}
-      </div>
+      </p>
+      {sub && <p className="mt-1 text-[12px] text-neutral-600">{sub}</p>}
     </div>
   );
 }
 
-// ─── Active Pie Shape ─────────────────────────────────────────────────────────
-
-interface ActivePieShapeProps {
-  cx: number;
-  cy: number;
-  innerRadius: number;
-  outerRadius: number;
-  startAngle: number;
-  endAngle: number;
-  fill?: string;
-  payload?: { name?: string; [key: string]: unknown };
-  percent?: number;
-  value?: number;
-}
-
-function ActivePieShape(props: ActivePieShapeProps) {
-  const { i18n } = useTranslation();
-  const {
-    cx,
-    cy,
-    innerRadius,
-    outerRadius,
-    startAngle,
-    endAngle,
-    fill,
-    payload,
-    percent,
-    value,
-  } = props;
-  return (
-    <g>
-      <text
-        x={cx}
-        y={cy - 10}
-        textAnchor="middle"
-        fill={fill}
-        style={{
-          fontSize: 16,
-          fontWeight: 800,
-          fontFamily: "'DM Mono',monospace",
-        }}
-      >
-        {fmtUSD(value || 0, i18n.language)}
-      </text>
-      <text
-        x={cx}
-        y={cy + 12}
-        textAnchor="middle"
-        fill="#8a82a8"
-        style={{ fontSize: 11 }}
-      >
-        {((percent || 0) * 100).toFixed(1)}%
-      </text>
-      <text
-        x={cx}
-        y={cy + 28}
-        textAnchor="middle"
-        fill="#8a82a8"
-        style={{ fontSize: 10 }}
-      >
-        {payload?.name || "Unknown"}
-      </text>
-      <Sector
-        cx={cx}
-        cy={cy}
-        innerRadius={innerRadius}
-        outerRadius={outerRadius + 8}
-        startAngle={startAngle}
-        endAngle={endAngle}
-        fill={fill}
-      />
-      <Sector
-        cx={cx}
-        cy={cy}
-        innerRadius={outerRadius + 12}
-        outerRadius={outerRadius + 16}
-        startAngle={startAngle}
-        endAngle={endAngle}
-        fill={fill}
-      />
-    </g>
-  );
-}
-
-// ─── Main Dashboard ───────────────────────────────────────────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PayrollDashboard() {
-  const { t, i18n } = useTranslation();
-  const [range, setRange] = useState<DateRange>("90D");
-  const [tokenFilter, setToken] = useState<Token>("ALL");
-  const [activePie, setActivePie] = useState(0);
-  const [exportMsg, setExportMsg] = useState("");
+  const navigate = useNavigate();
+  const { address } = useWallet();
+  const { streams, vaultData, isLoading, error } = usePayroll(address);
 
-  // ── Filtered data ──
-  const filtered = useMemo(() => filterByRange(ALL_DATA, range), [range]);
+  const activeStreams = streams.filter((s) => s.status === "active");
+  const completedStreams = streams.filter((s) => s.status === "completed");
+  const uniqueWorkers = new Set(streams.map((s) => s.employeeAddress)).size;
 
-  // Downsample for burn-rate chart (keep perf for 500+ points)
-  const burnData = useMemo(
+  const totalDisbursed = streams.reduce(
+    (sum, s) => sum + parseFloat(s.totalStreamed || "0"),
+    0,
+  );
+  const totalStreamValue = streams.reduce(
+    (sum, s) => sum + parseFloat(s.totalAmount || "0"),
+    0,
+  );
+
+  const allocationData = useMemo(
     () =>
-      downsample(filtered, 120).map((r) => ({
-        date: r.date.slice(5), // MM-DD
-        USDC: tokenFilter === "XLM" ? undefined : r.usdc,
-        XLM: tokenFilter === "USDC" ? undefined : r.xlm,
+      activeStreams.slice(0, 6).map((s) => ({
+        name: shortAddr(s.employeeAddress),
+        value: parseFloat(s.totalAmount || "0"),
       })),
-    [filtered, tokenFilter],
+    [activeStreams],
   );
 
-  const monthlyBar = useMemo(
-    () => toMonthly(filtered, i18n.language),
-    [filtered, i18n.language],
-  );
-
-  const totalUSDC = useMemo(
-    () => filtered.reduce((s, r) => s + r.usdc, 0),
-    [filtered],
-  );
-  const totalXLM = useMemo(
-    () => filtered.reduce((s, r) => s + r.xlm, 0),
-    [filtered],
-  );
-  const totalTx = useMemo(
-    () => filtered.reduce((s, r) => s + r.transactions, 0),
-    [filtered],
-  );
-  const avgWorkers = useMemo(
+  const rateBarData = useMemo(
     () =>
-      Math.round(
-        filtered.reduce((s, r) => s + r.workers, 0) / (filtered.length || 1),
-      ),
-    [filtered],
-  );
-  const totalFees = useMemo(
-    () => filtered.reduce((s, r) => s + r.fees, 0),
-    [filtered],
+      activeStreams.slice(0, 8).map((s) => ({
+        name: shortAddr(s.employeeAddress),
+        rate: parseFloat(s.flowRate || "0") * 86400,
+      })),
+    [activeStreams],
   );
 
-  // Delta vs previous period
-  const prevFiltered = useMemo(() => {
-    if (range === "ALL") return filtered;
-    const days: Record<DateRange, number> = {
-      "7D": 7,
-      "30D": 30,
-      "90D": 90,
-      "6M": 180,
-      "1Y": 365,
-      ALL: 0,
-    };
-    const d = days[range];
-    const to = new Date();
-    to.setDate(to.getDate() - d);
-    const from = new Date(to);
-    from.setDate(from.getDate() - d);
-    return ALL_DATA.filter(
-      (r) =>
-        r.date >= from.toISOString().slice(0, 10) &&
-        r.date < to.toISOString().slice(0, 10),
+  // ── No wallet ─────────────────────────────────────────────────────────────
+  if (!address) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 px-6 text-center">
+        <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-yellow-400/20 bg-yellow-400/10">
+          <svg
+            className="h-8 w-8 text-yellow-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+          >
+            <rect x="2" y="7" width="20" height="14" rx="2" />
+            <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+          </svg>
+        </div>
+        <h2 className="text-[20px] font-bold text-white mb-2">
+          Connect your wallet
+        </h2>
+        <p className="text-[14px] text-neutral-500">
+          Connect to view your payroll dashboard.
+        </p>
+      </div>
     );
-  }, [range, filtered]);
+  }
 
-  const prevUSDC = useMemo(
-    () => prevFiltered.reduce((s, r) => s + r.usdc, 0),
-    [prevFiltered],
-  );
-  const deltaUSDC =
-    prevUSDC > 0 ? ((totalUSDC - prevUSDC) / prevUSDC) * 100 : 0;
-
-  // Token pie data
-  const pieData = useMemo(
-    () => [
-      { name: "USDC", value: totalUSDC },
-      { name: "XLM", value: totalXLM },
-      { name: "Fees", value: totalFees },
-    ],
-    [totalUSDC, totalXLM, totalFees],
-  );
-
-  // Worker trend (weekly sampled)
-  const workerTrend = useMemo(
-    () =>
-      downsample(filtered, 60).map((r) => ({
-        date: r.date.slice(5),
-        Workers: r.workers,
-      })),
-    [filtered],
-  );
-
-  const handleExport = useCallback(() => {
-    exportCSV(filtered, `quipay-analytics-${range}-${Date.now()}.csv`);
-    setExportMsg(t("payroll.downloaded"));
-    setTimeout(() => setExportMsg(""), 2500);
-  }, [filtered, range, t]);
-
-  // ── Styles ──
-  const sectionLabel: React.CSSProperties = {
-    fontSize: 10,
-    fontWeight: 700,
-    letterSpacing: ".14em",
-    textTransform: "uppercase",
-    color: "#525252",
-    marginBottom: 12,
-  };
-  const chartCard: React.CSSProperties = {
-    background: "#0a0a0a",
-    border: "1px solid rgba(255,255,255,0.07)",
-    borderRadius: 16,
-    padding: "22px 20px",
-  };
-
-  return (
-    <>
-      <style>{`
-        @keyframes pdFadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes pdPulse  { 0%,100%{opacity:1}50%{opacity:.5} }
-
-        .pd-root { animation: pdFadeUp .4s ease both; }
-        .pd-root * { box-sizing: border-box; margin:0; padding:0; }
-
-        .pd-btn {
-          padding: 8px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.04); color: #fff;
-          font-size: 12px; font-weight: 600;
-          cursor: pointer; transition: all .15s; letter-spacing: .02em;
-        }
-        .pd-btn:hover { background: rgba(255,255,255,0.08); }
-
-        .pd-pill {
-          padding: 6px 14px; border-radius: 99px; border: none;
-          font-size: 12px; font-weight: 600;
-          cursor: pointer; transition: all .15s;
-        }
-
-        .pd-kpi-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 12px;
-        }
-        .pd-chart-row {
-          display: grid;
-          grid-template-columns: 1fr 320px;
-          gap: 12px;
-          align-items: start;
-        }
-        .pd-chart-row-3 {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-        }
-        @media (max-width: 900px) {
-          .pd-chart-row   { grid-template-columns: 1fr; }
-          .pd-chart-row-3 { grid-template-columns: 1fr; }
-        }
-      `}</style>
-
-      <div
-        className="pd-root"
-        style={{
-          background: "#000",
-          minHeight: "100vh",
-          padding: "32px 28px",
-          color: "#fafafa",
-        }}
-      >
-        {/* ── Top bar ── */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 16,
-            marginBottom: 32,
-          }}
-        >
-          <div>
+  if (isLoading) {
+    return (
+      <div className="px-6 py-8 sm:px-8 sm:py-10">
+        <div className="mb-6 h-8 w-48 animate-pulse rounded-xl bg-white/[0.06]" />
+        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
             <div
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: ".16em",
-                textTransform: "uppercase",
-                color: ACCENT2,
-                marginBottom: 6,
-              }}
-            >
-              {t("payroll.analytics_title")}
-            </div>
-            <h1
-              style={{
-                fontFamily: "'Clash Display', sans-serif",
-                fontSize: "clamp(22px, 3.5vw, 36px)",
-                fontWeight: 700,
-                lineHeight: 1.1,
-                color: "#fafafa",
-              }}
-            >
-              {t("payroll.payroll_intelligence")}
-            </h1>
-            <p style={{ fontSize: 13, color: "#737373", marginTop: 6 }}>
-              {t("payroll.data_points", { count: ALL_DATA.length })} ·{" "}
-              {t("payroll.real_time")}
-            </p>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              flexWrap: "wrap",
-            }}
-          >
-            {/* Export */}
-            <button
-              className="pd-btn"
-              onClick={handleExport}
-              style={{
-                background: ACCENT,
-                color: "#fff",
-                boxShadow: `0 4px 20px rgba(110,86,207,.35)`,
-              }}
-            >
-              {exportMsg || `↓ ${t("payroll.export_csv")}`}
-            </button>
-          </div>
+              key={i}
+              className="h-24 animate-pulse rounded-2xl bg-white/[0.04]"
+            />
+          ))}
         </div>
-
-        {/* ── Filters ── */}
-        <div
-          style={{
-            display: "flex",
-            gap: 24,
-            marginBottom: 28,
-            flexWrap: "wrap",
-            alignItems: "center",
-          }}
-        >
-          {/* Date range */}
-          <div
-            style={{
-              display: "flex",
-              gap: 6,
-              background: "rgba(255,255,255,0.04)",
-              border: `1.5px solid ${"rgba(255,255,255,0.08)"}`,
-              borderRadius: 99,
-              padding: "4px",
-            }}
-          >
-            {(["7D", "30D", "90D", "6M", "1Y", "ALL"] as DateRange[]).map(
-              (r) => (
-                <button
-                  key={r}
-                  className="pd-pill"
-                  onClick={() => setRange(r)}
-                  style={{
-                    background: range === r ? ACCENT : "transparent",
-                    color: range === r ? "#fff" : "#737373",
-                    boxShadow:
-                      range === r ? `0 2px 12px rgba(110,86,207,.4)` : "none",
-                  }}
-                >
-                  {r}
-                </button>
-              ),
-            )}
-          </div>
-
-          {/* Token filter */}
-          <div
-            style={{
-              display: "flex",
-              gap: 6,
-              background: "rgba(255,255,255,0.04)",
-              border: "1.5px solid rgba(255,255,255,0.08)",
-              borderRadius: 99,
-              padding: "4px",
-            }}
-          >
-            {(["ALL", "USDC", "XLM"] as Token[]).map((tk) => (
-              <button
-                key={tk}
-                className="pd-pill"
-                onClick={() => setToken(tk)}
-                style={{
-                  background:
-                    tokenFilter === tk
-                      ? tk === "XLM"
-                        ? CLR_XLM
-                        : tk === "USDC"
-                          ? ACCENT
-                          : ACCENT
-                      : "transparent",
-                  color: tokenFilter === tk ? "#fff" : "#737373",
-                }}
-              >
-                {tk}
-              </button>
-            ))}
-          </div>
-
-          <span style={{ fontSize: 12, color: "#737373", marginLeft: "auto" }}>
-            {t("payroll.days_selected", { count: filtered.length })}
-          </span>
-        </div>
-
-        {/* ── KPI Row ── */}
-        <div className="pd-kpi-grid" style={{ marginBottom: 20 }}>
-          <KPICard
-            label={t("payroll.total_usdc_payroll")}
-            value={fmtUSD(totalUSDC, i18n.language)}
-            delta={deltaUSDC}
-            sub={t("payroll.vs_prev_period")}
-          />
-          <KPICard
-            label={t("payroll.total_xlm_payroll")}
-            value={
-              fmt(totalXLM, i18n.language, 0) + " " + t("payroll.xlm_native")
-            }
-            sub={t("payroll.native_token")}
-          />
-          <KPICard
-            label={t("payroll.transactions")}
-            value={fmt(totalTx, i18n.language)}
-            sub={t("payroll.on_chain")}
-          />
-          <KPICard
-            label={t("payroll.avg_active_workers")}
-            value={fmt(avgWorkers, i18n.language)}
-            sub={t("payroll.per_day")}
-          />
-          <KPICard
-            label={t("payroll.total_fees")}
-            value={fmtUSD(totalFees, i18n.language)}
-            sub={t("payroll.paid_to_network")}
-          />
-        </div>
-
-        {/* ── Burn Rate + Pie ── */}
-        <div className="pd-chart-row" style={{ marginBottom: 16 }}>
-          {/* Burn Rate Area Chart */}
-          <div style={chartCard}>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {[1, 2].map((i) => (
             <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                marginBottom: 18,
-              }}
-            >
-              <div>
-                <p style={sectionLabel}>{t("payroll.burn_rate")}</p>
-                <p style={{ fontSize: 13, color: "#737373" }}>
-                  {t("payroll.burn_rate_desc")}
-                </p>
-              </div>
-              <span
-                style={{
-                  fontSize: 11,
-                  color: "#737373",
-                  background: "rgba(255,255,255,0.04)",
-                  padding: "4px 10px",
-                  borderRadius: 99,
-                  border: "1px solid rgba(255,255,255,0.08)",
-                }}
-              >
-                {burnData.length} pts rendered
-              </span>
-            </div>
-            <ResponsiveContainer width="100%" height={260}>
-              <AreaChart
-                data={burnData}
-                margin={{ top: 4, right: 8, left: 8, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="gradUSDC" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={ACCENT} stopOpacity={0.35} />
-                    <stop offset="95%" stopColor={ACCENT} stopOpacity={0.02} />
-                  </linearGradient>
-                  <linearGradient id="gradXLM" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={CLR_XLM} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={CLR_XLM} stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  stroke="rgba(255,255,255,0.08)"
-                  strokeDasharray="3 3"
-                  opacity={0.2}
-                />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fill: "#737373", fontSize: 10 }}
-                  tickLine={false}
-                  axisLine={false}
-                  interval={Math.max(1, Math.floor(burnData.length / 8))}
-                />
-                <YAxis
-                  tick={{ fill: "#737373", fontSize: 10 }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(val: number) => fmtUSD(val, i18n.language)}
-                  width={56}
-                />
-                <Tooltip content={<ChartTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 11, color: "#737373" }} />
-                {tokenFilter !== "XLM" && (
-                  <Area
-                    type="monotone"
-                    dataKey="USDC"
-                    stroke={ACCENT}
-                    strokeWidth={2}
-                    fill="url(#gradUSDC)"
-                    dot={false}
-                    activeDot={{ r: 4, fill: ACCENT }}
-                  />
-                )}
-                {tokenFilter !== "USDC" && (
-                  <Area
-                    type="monotone"
-                    dataKey="XLM"
-                    stroke={CLR_XLM}
-                    strokeWidth={2}
-                    fill="url(#gradXLM)"
-                    dot={false}
-                    activeDot={{ r: 4, fill: CLR_XLM }}
-                  />
-                )}
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Token Distribution Donut */}
-          <div
-            style={{ ...chartCard, display: "flex", flexDirection: "column" }}
-          >
-            <p style={sectionLabel}>{t("payroll.token_distribution")}</p>
-            <p style={{ fontSize: 13, color: "#737373", marginBottom: 16 }}>
-              {t("payroll.token_distribution_desc")}
-            </p>
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={90}
-                  dataKey="value"
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  activeShape={ActivePieShape as any}
-                  onMouseEnter={(_: ActivePieShapeProps, i: number) =>
-                    setActivePie(i)
-                  }
-                  {...{ activeIndex: activePie }}
-                >
-                  {pieData.map((entry, i) => (
-                    <Cell
-                      key={entry.name}
-                      fill={PIE_COLORS[i % PIE_COLORS.length]}
-                    />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-            {/* Legend */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                marginTop: 8,
-              }}
-            >
-              {pieData.map((p, i) => (
-                <div
-                  key={p.name}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    fontSize: 12,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: 3,
-                      background: PIE_COLORS[i],
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span style={{ color: "#737373", flex: 1 }}>{p.name}</span>
-                  <span
-                    style={{
-                      fontFamily: "'DM Mono',monospace",
-                      color: "#fafafa",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {fmtUSD(p.value, i18n.language)}
-                  </span>
-                  <span style={{ fontSize: 10, color: "#737373" }}>
-                    {(
-                      (p.value / (totalUSDC + totalXLM + totalFees)) *
-                      100
-                    ).toFixed(1)}
-                    %
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Monthly Bar + Worker Trend ── */}
-        <div className="pd-chart-row-3" style={{ marginBottom: 16 }}>
-          {/* Monthly payroll bar chart */}
-          <div style={chartCard}>
-            <p style={sectionLabel}>{t("payroll.monthly_volume")}</p>
-            <p style={{ fontSize: 13, color: "#737373", marginBottom: 18 }}>
-              {t("payroll.monthly_volume_desc")}
-            </p>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart
-                data={monthlyBar}
-                margin={{ top: 4, right: 8, left: 8, bottom: 0 }}
-                barSize={18}
-              >
-                <CartesianGrid
-                  stroke="rgba(255,255,255,0.08)"
-                  strokeDasharray="3 3"
-                  vertical={false}
-                  opacity={0.2}
-                />
-                <XAxis
-                  dataKey="month"
-                  tick={{ fill: "#737373", fontSize: 10 }}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  tick={{ fill: "#737373", fontSize: 10 }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(val: number) => fmtUSD(val, i18n.language)}
-                  width={56}
-                />
-                <Tooltip content={<ChartTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 11, color: "#737373" }} />
-                <Bar
-                  dataKey="usdc"
-                  name="USDC"
-                  stackId="a"
-                  fill={ACCENT}
-                  radius={[0, 0, 0, 0]}
-                />
-                <Bar
-                  dataKey="xlm"
-                  name="XLM"
-                  stackId="a"
-                  fill={CLR_XLM}
-                  radius={[4, 4, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Worker trend line */}
-          <div style={chartCard}>
-            <p style={sectionLabel}>{t("payroll.worker_growth")}</p>
-            <p style={{ fontSize: 13, color: "#737373", marginBottom: 18 }}>
-              {t("payroll.worker_growth_desc")}
-            </p>
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart
-                data={workerTrend}
-                margin={{ top: 4, right: 8, left: 4, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="gradWorker" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor={CLR_WORK} />
-                    <stop offset="100%" stopColor={ACCENT2} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  stroke={"rgba(255,255,255,0.08)"}
-                  strokeDasharray="3 3"
-                />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fill: "#737373", fontSize: 10 }}
-                  tickLine={false}
-                  axisLine={false}
-                  interval={Math.max(1, Math.floor(workerTrend.length / 6))}
-                />
-                <YAxis
-                  tick={{ fill: "#737373", fontSize: 10 }}
-                  tickLine={false}
-                  axisLine={false}
-                  width={30}
-                />
-                <Tooltip content={<ChartTooltip />} />
-                <Line
-                  type="monotone"
-                  dataKey="Workers"
-                  stroke="url(#gradWorker)"
-                  strokeWidth={2.5}
-                  dot={false}
-                  activeDot={{ r: 4, fill: CLR_WORK }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* ── Transaction frequency bar ── */}
-        <div style={chartCard}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 18,
-            }}
-          >
-            <div>
-              <p style={sectionLabel}>{t("payroll.total_tx")}</p>
-              <p style={{ fontSize: 13, color: "#737373" }}>
-                {t("payroll.on_chain")}
-              </p>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div
-                style={{
-                  fontFamily: "'DM Mono',monospace",
-                  fontSize: 22,
-                  fontWeight: 700,
-                  color: "#fafafa",
-                }}
-              >
-                {fmt(totalTx, i18n.language)}
-              </div>
-              <div style={{ fontSize: 11, color: "#737373" }}>
-                {t("payroll.total_in_period")}
-              </div>
-            </div>
-          </div>
-          <ResponsiveContainer width="100%" height={140}>
-            <BarChart
-              data={downsample(filtered, 90).map((r) => ({
-                date: r.date.slice(5),
-                Txns: r.transactions,
-              }))}
-              margin={{ top: 0, right: 8, left: 8, bottom: 0 }}
-              barSize={4}
-            >
-              <CartesianGrid
-                stroke={"rgba(255,255,255,0.08)"}
-                strokeDasharray="3 3"
-                vertical={false}
-              />
-              <XAxis
-                dataKey="date"
-                tick={{ fill: "#737373", fontSize: 9 }}
-                tickLine={false}
-                axisLine={false}
-                interval={Math.floor(filtered.length / 8)}
-              />
-              <YAxis
-                tick={{ fill: "#737373", fontSize: 9 }}
-                tickLine={false}
-                axisLine={false}
-                width={24}
-              />
-              <Tooltip content={<ChartTooltip />} />
-              <Bar
-                dataKey="Txns"
-                fill={ACCENT2}
-                radius={[2, 2, 0, 0]}
-                opacity={0.85}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* ── Footer ── */}
-        <div
-          style={{
-            textAlign: "center",
-            marginTop: 32,
-            fontSize: 11,
-            color: "#737373",
-          }}
-        >
-          {t("common.welcome")} ·{" "}
-          {t("payroll.data_points", { count: ALL_DATA.length })} ·{" "}
-          {t("common.all_amounts_usd")}
+              key={i}
+              className="h-64 animate-pulse rounded-2xl bg-white/[0.04]"
+            />
+          ))}
         </div>
       </div>
-    </>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 px-6 text-center">
+        <p className="text-[18px] font-bold text-white mb-2">
+          Failed to load payroll data
+        </p>
+        <p className="font-mono text-[12px] text-neutral-600">{error}</p>
+      </div>
+    );
+  }
+
+  // ── No streams ────────────────────────────────────────────────────────────
+  if (streams.length === 0) {
+    return (
+      <div className="px-6 py-8 sm:px-8 sm:py-10">
+        <div className="mb-8">
+          <h1 className="text-[24px] font-bold text-white tracking-tight">
+            Payroll
+          </h1>
+          <p className="mt-1 text-[14px] text-neutral-500">
+            Live data from the Stellar testnet blockchain.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-dashed border-white/[0.08] bg-[#0a0a0a] p-16 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/[0.07] bg-white/[0.04]">
+            <svg
+              className="h-7 w-7 text-neutral-700"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+            >
+              <path
+                d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"
+                strokeLinecap="round"
+              />
+            </svg>
+          </div>
+          <p className="text-[16px] font-bold text-white mb-1">
+            No streams yet
+          </p>
+          <p className="text-[13px] text-neutral-600 mb-5">
+            Create payment streams for your workers to see live payroll data
+            here.
+          </p>
+          <button
+            onClick={() => void navigate("/create-stream")}
+            className="rounded-xl px-6 py-3 text-[14px] font-bold text-black transition-all hover:opacity-90"
+            style={{ backgroundColor: "#facc15" }}
+          >
+            Create First Stream
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-6 py-8 sm:px-8 sm:py-10">
+      {/* Header */}
+      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-[24px] font-bold text-white tracking-tight">
+            Payroll
+          </h1>
+          <p className="mt-1 text-[14px] text-neutral-500">
+            Live data from the Stellar testnet blockchain.
+          </p>
+        </div>
+        <button
+          onClick={() => void navigate("/create-stream")}
+          className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-bold text-black transition-all hover:opacity-90"
+          style={{ backgroundColor: "#facc15" }}
+        >
+          <svg
+            className="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          New Stream
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Active Streams" value={activeStreams.length} accent />
+        <StatCard label="Active Workers" value={uniqueWorkers} />
+        <StatCard
+          label="Total Streaming"
+          value={fmt(totalStreamValue)}
+          sub="across all streams"
+        />
+        <StatCard
+          label="Total Disbursed"
+          value={fmt(totalDisbursed)}
+          sub="streamed so far"
+        />
+      </div>
+
+      {/* Treasury */}
+      {vaultData.length > 0 && (
+        <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {vaultData.map((v) => {
+            const bal = Number(v.balance ?? 0) / STROOPS;
+            const liab = Number(v.liability ?? 0) / STROOPS;
+            const avail = Math.max(0, bal - liab);
+            const pct = bal > 0 ? Math.min(100, (liab / bal) * 100) : 0;
+            return (
+              <div
+                key={v.tokenSymbol}
+                className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5"
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-[13px] font-bold text-white">
+                    Treasury · {v.tokenSymbol}
+                  </p>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${pct > 80 ? "bg-red-500/10 text-red-400" : "bg-green-500/10 text-green-400"}`}
+                  >
+                    {pct > 80 ? "Low" : "Solvent"}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1.5 text-[12px]">
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Balance</span>
+                    <span className="font-bold text-white">{fmt(bal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Liability</span>
+                    <span className="font-bold text-red-400">{fmt(liab)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Available</span>
+                    <span className="font-bold" style={{ color: "#facc15" }}>
+                      {fmt(avail)}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-[3px] w-full rounded-full bg-white/[0.06] overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${pct}%`,
+                        backgroundColor: pct > 80 ? "#ef4444" : "#facc15",
+                      }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-neutral-700">
+                    {pct.toFixed(1)}% committed
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Charts */}
+      {(allocationData.length > 0 || rateBarData.length > 0) && (
+        <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {allocationData.length > 0 && (
+            <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5">
+              <p className="mb-4 text-[13px] font-bold text-white">
+                Worker Allocation
+              </p>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={allocationData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={90}
+                    strokeWidth={0}
+                    paddingAngle={2}
+                  >
+                    {allocationData.map((_, i) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: "#111",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      borderRadius: 12,
+                      fontSize: 12,
+                    }}
+                    formatter={(v) => [fmt(v as number), "Amount"]}
+                  />
+                  <Legend
+                    iconType="circle"
+                    iconSize={8}
+                    formatter={(v) => (
+                      <span style={{ color: "#737373", fontSize: 11 }}>
+                        {v}
+                      </span>
+                    )}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {rateBarData.length > 0 && (
+            <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5">
+              <p className="mb-4 text-[13px] font-bold text-white">
+                Daily Streaming Rate per Worker
+              </p>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart
+                  data={rateBarData}
+                  margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
+                >
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fill: "#525252", fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fill: "#525252", fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "#111",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      borderRadius: 12,
+                      fontSize: 12,
+                    }}
+                    formatter={(v) => [fmt(v as number), "Per day"]}
+                    cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                  />
+                  <Bar
+                    dataKey="rate"
+                    radius={[4, 4, 0, 0]}
+                    fill="#facc15"
+                    maxBarSize={40}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Streams table */}
+      <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] overflow-hidden">
+        <div className="border-b border-white/[0.06] px-5 py-4">
+          <p className="text-[14px] font-bold text-white">
+            All Streams
+            <span className="ml-2 text-[12px] font-normal text-neutral-600">
+              ({streams.length})
+            </span>
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-white/[0.05]">
+                {[
+                  "Worker",
+                  "Token",
+                  "Rate",
+                  "Streamed",
+                  "Total",
+                  "Progress",
+                  "Status",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-neutral-600 whitespace-nowrap"
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {streams.map((s, i) => {
+                const pct = streamPct(s);
+                const style = STATUS_STYLE[s.status] ?? STATUS_STYLE.active;
+                return (
+                  <tr
+                    key={i}
+                    className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors"
+                  >
+                    <td className="px-5 py-3.5 whitespace-nowrap">
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-black text-black"
+                          style={{ backgroundColor: "#facc15" }}
+                        >
+                          {s.employeeAddress.slice(1, 3).toUpperCase()}
+                        </div>
+                        <span className="font-mono text-[12px] text-neutral-400">
+                          {shortAddr(s.employeeAddress)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 font-semibold text-white">
+                      {s.tokenSymbol}
+                    </td>
+                    <td className="px-5 py-3.5 text-neutral-400">
+                      {fmtRate(s.flowRate)}
+                    </td>
+                    <td className="px-5 py-3.5 font-semibold text-white">
+                      {fmt(parseFloat(s.totalStreamed))}
+                    </td>
+                    <td className="px-5 py-3.5 text-neutral-500">
+                      {fmt(parseFloat(s.totalAmount))}
+                    </td>
+                    <td className="px-5 py-3.5 min-w-[110px]">
+                      <div className="flex items-center gap-2">
+                        <div className="h-[3px] flex-1 rounded-full bg-white/[0.06] overflow-hidden">
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${pct}%`,
+                              backgroundColor: "#facc15",
+                            }}
+                          />
+                        </div>
+                        <span className="w-8 text-right text-[10px] text-neutral-700">
+                          {pct.toFixed(0)}%
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${style.cls}`}
+                      >
+                        {style.label}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Completed summary */}
+      {completedStreams.length > 0 && (
+        <div className="mt-4 flex items-center gap-4 rounded-2xl border border-white/[0.05] bg-[#0a0a0a] px-5 py-4">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-800">
+            <svg
+              className="h-4 w-4 text-neutral-500"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+          <p className="text-[13px] text-neutral-500">
+            <span className="font-semibold text-neutral-400">
+              {completedStreams.length}
+            </span>{" "}
+            completed stream{completedStreams.length > 1 ? "s" : ""} ·{" "}
+            <span className="font-semibold text-neutral-400">
+              {fmt(
+                completedStreams.reduce(
+                  (s, x) => s + parseFloat(x.totalStreamed),
+                  0,
+                ),
+              )}
+            </span>{" "}
+            total paid out
+          </p>
+        </div>
+      )}
+    </div>
   );
 }

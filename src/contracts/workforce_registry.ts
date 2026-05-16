@@ -147,6 +147,55 @@ export async function isWorkerRegistered(
   return result ?? false;
 }
 
+// ─── buildRegisterWorkerTx ───────────────────────────────────────────────────
+
+// USDC issuer on Stellar testnet (Circle)
+const USDC_TESTNET = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+
+/**
+ * Builds and prepares a `register_worker` transaction.
+ * The worker signs and is automatically added to the employer's roster
+ * in a single transaction — no separate action needed from the employer.
+ *
+ * Signature: register_worker(worker, employer, preferred_token, metadata_hash)
+ *
+ * @param worker         - Worker's Stellar address (requires_auth)
+ * @param employer       - Employer's Stellar address to register under
+ * @param preferredToken - Token address the worker prefers to be paid in
+ */
+export async function buildRegisterWorkerTx(
+  worker: string,
+  employer: string,
+  preferredToken: string = USDC_TESTNET,
+): Promise<{ preparedXdr: string }> {
+  if (!WORKFORCE_REGISTRY_CONTRACT_ID) {
+    throw new Error("VITE_WORKFORCE_REGISTRY_CONTRACT_ID is not set.");
+  }
+
+  const server = getRpcServer();
+  const account = await server.getAccount(worker);
+  const contract = new Contract(WORKFORCE_REGISTRY_CONTRACT_ID);
+
+  const tx = new TransactionBuilder(account, {
+    fee: "1000000",
+    networkPassphrase,
+  })
+    .addOperation(
+      contract.call(
+        "register_worker",
+        new Address(worker).toScVal(),
+        new Address(employer).toScVal(),
+        new Address(preferredToken).toScVal(),
+        nativeToScVal("", { type: "string" }),
+      ),
+    )
+    .setTimeout(30)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  return { preparedXdr: prepared.toXDR() };
+}
+
 // ─── buildSetStreamActiveTx ───────────────────────────────────────────────────
 
 /**

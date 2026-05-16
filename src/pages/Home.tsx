@@ -692,12 +692,12 @@ const RoleSelector: React.FC<{
       </div>
 
       <h2 className="mb-2 text-center text-[20px] font-bold text-white">
-        {isDetecting ? "Detecting your role…" : "How are you using Quipay?"}
+        {isDetecting ? "Setting up your account…" : "What's your role?"}
       </h2>
       <p className="mb-8 text-center text-[14px] text-neutral-500">
         {isDetecting
           ? "Checking your on-chain activity"
-          : "Choose your role to go to the right dashboard."}
+          : "This is permanent and tied to your wallet. Choose carefully."}
       </p>
 
       <div className="flex flex-col gap-3">
@@ -807,7 +807,7 @@ const Home: React.FC = () => {
     } else if (role === "worker") {
       void navigate("/worker", { replace: true });
     } else {
-      // "both" or "unknown" — let user choose
+      // New user — ask once, then cache permanently
 
       setShowSelector(true);
     }
@@ -816,7 +816,7 @@ const Home: React.FC = () => {
   const handleRoleSelect = (chosen: UserRole) => {
     setRole(chosen);
     setShowSelector(false);
-    if (chosen === "employer" || chosen === "both") {
+    if (chosen === "employer") {
       void navigate("/dashboard", { replace: true });
     } else {
       void navigate("/worker", { replace: true });

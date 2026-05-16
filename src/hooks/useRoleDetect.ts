@@ -4,7 +4,7 @@ import {
   getStreamsByWorker,
 } from "../contracts/payroll_stream";
 
-export type UserRole = "employer" | "worker" | "both" | "unknown";
+export type UserRole = "employer" | "worker" | "unknown";
 
 interface RoleDetectResult {
   role: UserRole;
@@ -75,11 +75,11 @@ export function useRoleDetect(address: string | undefined): RoleDetectResult {
           employerPage.total > 0 || employerPage.streams.length > 0;
         const isWorker = Array.isArray(workerIds) && workerIds.length > 0;
 
+        // One role only — employer takes priority if both somehow match
         let detected: UserRole;
-        if (isEmployer && isWorker) detected = "both";
-        else if (isEmployer) detected = "employer";
+        if (isEmployer) detected = "employer";
         else if (isWorker) detected = "worker";
-        else detected = "unknown";
+        else detected = "unknown"; // new user — will be asked once
 
         setRoleState(detected);
         writeCache(address, detected);

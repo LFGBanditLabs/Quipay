@@ -76,13 +76,14 @@ function getRpcServer(): SorobanRpc.Server {
  * Converts a token string to a ScVal suitable for the contract.
  * Empty string → native XLM address bytes.
  */
+// Native XLM SAC contract address on testnet
+const XLM_SAC_TESTNET =
+  "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+
 function tokenToScVal(token: string): xdr.ScVal {
-  // Native XLM is represented as a zero-bytes contract address on Soroban
-  if (!token || token === "native") {
-    return nativeToScVal(null, { type: "address" });
-  }
-  // SAC (Stellar Asset Contract) — pass as address string
-  return new Address(token).toScVal();
+  // Always pass a real SAC address — never Void
+  const addr = !token || token === "native" ? XLM_SAC_TESTNET : token;
+  return new Address(addr).toScVal();
 }
 
 // ─── buildCreateStreamTx ─────────────────────────────────────────────────────
@@ -277,6 +278,45 @@ export async function checkTreasurySolvency(
 }
 
 // ─── getWithdrawable ─────────────────────────────────────────────────────────
+
+/**
+/**
+ * Builds and prepares a `withdraw` transaction for a worker to claim
+ * their available earnings from a stream.
+ *
+ * Signature: withdraw(stream_id: u64, worker: Address) → i128
+ */
+export async function buildWithdrawTx(
+  streamId: bigint,
+  workerAddress: string,
+): Promise<{ preparedXdr: string }> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) {
+    throw new Error("VITE_PAYROLL_STREAM_CONTRACT_ID is not set.");
+  }
+
+  const server = getRpcServer();
+  const account = await server.getAccount(workerAddress);
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+
+  const tx = new TransactionBuilder(account, {
+    fee: "1000000",
+    networkPassphrase,
+  })
+    .addOperation(
+      contract.call(
+        "withdraw",
+        nativeToScVal(streamId, { type: "u64" }),
+        new Address(workerAddress).toScVal(),
+      ),
+    )
+    .setTimeout(30)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  return { preparedXdr: prepared.toXDR() };
+}
+
+// ─── getWithdrawable ──────────────────────────────────────────────────────────
 
 /**
  * Calls `get_withdrawable` on the PayrollStream contract to get the
@@ -749,57 +789,79 @@ export async function buildBatchCreateStreamsTx(
   const account = await server.getAccount(employer);
   const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
 
-  // Build the Vec<StreamParams> ScVal
+  // Build the Vec<StreamParams> ScVal.
+  // IMPORTANT: Soroban requires ScMap keys in strict lexicographic (alphabetical) order.
+  // StreamParams fields sorted: clawback_authority, cliff_ts, employer, end_ts,
+  //   max_slippage_bps, metadata_hash, rate, speed_curve, start_ts, token, worker
   const paramsVec = xdr.ScVal.scvVec(
     entries.map((e) => {
       const cliffTs = e.cliffTs ?? e.startTs;
       return xdr.ScVal.scvMap([
         new xdr.ScMapEntry({
-          key: xdr.ScVal.scvSymbol("employer"),
-          val: new Address(employer).toScVal(),
-        }),
-        new xdr.ScMapEntry({
-          key: xdr.ScVal.scvSymbol("worker"),
-          val: new Address(e.worker).toScVal(),
-        }),
-        new xdr.ScMapEntry({
-          key: xdr.ScVal.scvSymbol("token"),
-          val: tokenToScVal(e.token),
-        }),
-        new xdr.ScMapEntry({
-          key: xdr.ScVal.scvSymbol("rate"),
-          val: nativeToScVal(e.rate, { type: "i128" }),
+          key: xdr.ScVal.scvSymbol("clawback_authority"),
+          val: xdr.ScVal.scvVoid(), // Option::None
         }),
         new xdr.ScMapEntry({
           key: xdr.ScVal.scvSymbol("cliff_ts"),
           val: nativeToScVal(BigInt(cliffTs), { type: "u64" }),
         }),
         new xdr.ScMapEntry({
-          key: xdr.ScVal.scvSymbol("start_ts"),
-          val: nativeToScVal(BigInt(e.startTs), { type: "u64" }),
+          key: xdr.ScVal.scvSymbol("employer"),
+          val: new Address(employer).toScVal(),
         }),
         new xdr.ScMapEntry({
           key: xdr.ScVal.scvSymbol("end_ts"),
           val: nativeToScVal(BigInt(e.endTs), { type: "u64" }),
         }),
         new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("max_slippage_bps"),
+          val: nativeToScVal(10000, { type: "u32" }), // 100% — no slippage check
+        }),
+        new xdr.ScMapEntry({
           key: xdr.ScVal.scvSymbol("metadata_hash"),
-          val: xdr.ScVal.scvVoid(),
+          val: xdr.ScVal.scvVoid(), // Option::None
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("rate"),
+          val: nativeToScVal(e.rate, { type: "i128" }),
         }),
         new xdr.ScMapEntry({
           key: xdr.ScVal.scvSymbol("speed_curve"),
-          // MaybeSpeedCurve::None
-          val: xdr.ScVal.scvVec([xdr.ScVal.scvSymbol("None")]),
+          val: xdr.ScVal.scvVec([xdr.ScVal.scvSymbol("None")]), // MaybeSpeedCurve::None
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("start_ts"),
+          val: nativeToScVal(BigInt(e.startTs), { type: "u64" }),
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("token"),
+          val: tokenToScVal(e.token),
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("worker"),
+          val: new Address(e.worker).toScVal(),
         }),
       ]);
     }),
   );
 
+  // vault_deposit = total of all streams so the vault is funded in this same tx
+  const vaultDeposit = entries.reduce((sum, e) => {
+    const dur = BigInt(e.endTs - e.startTs);
+    return sum + e.rate * dur;
+  }, BigInt(0));
+
   const tx = new TransactionBuilder(account, {
     fee: "1000000",
     networkPassphrase,
   })
-    .addOperation(contract.call("batch_create_streams", paramsVec))
+    .addOperation(
+      contract.call(
+        "create_stream_batch",
+        paramsVec,
+        nativeToScVal(vaultDeposit, { type: "i128" }),
+      ),
+    )
     .setTimeout(30)
     .build();
 
