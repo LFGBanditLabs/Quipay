@@ -12,18 +12,18 @@ import { WhatIfScenario } from "../components/Charts/WhatIfScenario";
 import { SkeletonCard } from "../components/Loading";
 
 const tw = {
-  page: "min-h-screen bg-[linear-gradient(135deg,#0f172a_0%,#1e1b4b_50%,#0f172a_100%)] px-6 pb-16 pt-8 font-[Inter,sans-serif] text-slate-200",
+  page: "min-h-screen bg-[#0a0a0a] px-6 pb-16 pt-8 font-[Inter,sans-serif] text-white",
   container: "mx-auto max-w-[1400px]",
   header: "mb-8",
   title:
-    "mb-2 text-[2.5rem] font-extrabold tracking-[-0.02em] text-transparent bg-[linear-gradient(135deg,#818cf8,#c084fc,#6366f1)] bg-clip-text",
-  subtitle: "text-base text-slate-400",
+    "mb-2 text-[2.5rem] font-extrabold tracking-[-0.02em] text-transparent bg-[#0a0a0a] bg-clip-text",
+  subtitle: "text-base text-neutral-500",
   kpiSection: "mb-8",
   kpiGrid: "grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4",
-  kpi: "rounded-xl border border-indigo-500/15 bg-slate-800/55 p-5 backdrop-blur-[20px]",
-  kpiLabel: "text-xs font-semibold uppercase tracking-wider text-slate-500",
-  kpiValue: "mt-2 text-2xl font-bold text-slate-100",
-  kpiMeta: "mt-2 text-xs text-slate-400",
+  kpi: "rounded-xl border border-white/[0.07] bg-[#0a0a0a] p-5 backdrop-blur-[20px]",
+  kpiLabel: "text-xs font-semibold uppercase tracking-wider text-neutral-600",
+  kpiValue: "mt-2 text-2xl font-bold text-white",
+  kpiMeta: "mt-2 text-xs text-neutral-500",
   kpiGood: "text-emerald-400",
   kpiWarning: "text-amber-400",
   kpiBad: "text-rose-400",
@@ -41,9 +41,9 @@ const tw = {
   successCard: "rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-5",
   controls: "flex flex-wrap gap-3",
   btn: "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all",
-  btnPrimary: "bg-indigo-500/30 text-indigo-200 hover:bg-indigo-500/40",
+  btnPrimary: "bg-yellow-400/10 text-yellow-400 hover:bg-yellow-400/10",
   btnSecondary:
-    "border border-slate-600 bg-slate-900/30 text-slate-300 hover:bg-slate-800/50",
+    "border border-white/[0.07] bg-[#0a0a0a] text-neutral-300 hover:bg-[#0a0a0a]",
   loadingGrid: "grid gap-8",
 };
 
@@ -297,13 +297,13 @@ const TreasuryAnalyticsPage: React.FC = () => {
         </div>
 
         {/* Footer Info */}
-        <div className="mt-12 rounded-lg border border-slate-700/50 bg-slate-900/30 p-6 text-center">
-          <div className="text-sm text-slate-400">
+        <div className="mt-12 rounded-lg border border-white/[0.07] bg-[#0a0a0a] p-6 text-center">
+          <div className="text-sm text-neutral-500">
             <p className="mb-2">
               📊 All financial data is calculated in real-time from on-chain
               sources
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-neutral-600">
               Last updated: {new Date().toLocaleString()} • Data accuracy
               verified against blockchain
             </p>

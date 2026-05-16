@@ -100,13 +100,13 @@ const AddressBook: React.FC = () => {
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 shadow-sm shadow-indigo-500/10">
-              <span className="flex h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-400/10 border border-white/[0.07] shadow-sm ">
+              <span className="flex h-1.5 w-1.5 rounded-full bg-yellow-400/10 animate-pulse" />
               <Text
                 as="span"
                 size="xs"
                 weight="bold"
-                className="text-indigo-400 uppercase tracking-widest"
+                className="text-yellow-400 uppercase tracking-widest"
               >
                 Network Registry
               </Text>
@@ -154,7 +154,7 @@ const AddressBook: React.FC = () => {
               variant="primary"
               size="md"
               onClick={openAddModal}
-              className="rounded-2xl bg-linear-to-r from-indigo-500 via-indigo-600 to-purple-600 shadow-xl shadow-indigo-500/20 border-0"
+              className="rounded-2xl bg-yellow-400 shadow-xl  border-0"
             >
               <div className="flex items-center gap-2">
                 <UserPlus size={18} />
@@ -166,7 +166,7 @@ const AddressBook: React.FC = () => {
 
         {/* Search and Filters */}
         <div className="relative group">
-          <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-white/30 group-focus-within:text-indigo-400 transition-colors">
+          <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-white/30 group-focus-within:text-yellow-400 transition-colors">
             <Search size={22} />
           </div>
           <input
@@ -174,7 +174,7 @@ const AddressBook: React.FC = () => {
             placeholder="Search by name, address, or notes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-3xl py-5 pl-14 pr-6 text-lg focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/30 transition-all backdrop-blur-xl shadow-inner shadow-white/5"
+            className="w-full bg-white/5 border border-white/10 rounded-3xl py-5 pl-14 pr-6 text-lg focus:outline-none focus:ring-4 focus:ring-yellow-400/20 focus:border-white/[0.07] transition-all backdrop-blur-xl shadow-inner shadow-white/5"
           />
           <div className="absolute inset-y-0 right-4 flex items-center gap-2">
             <div className="h-8 w-px bg-white/10 mx-2" />
@@ -202,11 +202,11 @@ const AddressBook: React.FC = () => {
               {favorites.map((contact) => (
                 <div
                   key={contact.id}
-                  className="group relative overflow-hidden rounded-3xl border border-white/10 bg-linear-to-b from-white/10 to-transparent p-6 hover:border-indigo-500/30 transition-all duration-300 shadow-lg hover:shadow-indigo-500/10"
+                  className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.05] p-6 hover:border-white/[0.07] transition-all duration-300 shadow-lg hover:"
                 >
                   <div className="flex flex-col gap-4">
                     <div className="flex items-start justify-between">
-                      <div className="h-14 w-14 rounded-2xl bg-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-xl border border-indigo-500/20 group-hover:scale-110 transition-transform duration-500">
+                      <div className="h-14 w-14 rounded-2xl bg-yellow-400/10 flex items-center justify-center text-yellow-400 font-bold text-xl border border-white/[0.07] group-hover:scale-110 transition-transform duration-500">
                         {contact.name.charAt(0)}
                       </div>
                       <div className="flex gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
@@ -233,7 +233,7 @@ const AddressBook: React.FC = () => {
                       >
                         {contact.name}
                       </Text>
-                      <div className="flex items-center gap-1.5 mt-1 text-muted hover:text-indigo-300 transition-colors cursor-pointer">
+                      <div className="flex items-center gap-1.5 mt-1 text-muted hover:text-yellow-400 transition-colors cursor-pointer">
                         <Text as="span" size="xs" className="font-mono">
                           {contact.address.slice(0, 8)}...
                           {contact.address.slice(-8)}
@@ -296,7 +296,7 @@ const AddressBook: React.FC = () => {
                     className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-6 hover:bg-white/3 transition-colors"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 border border-white/5 group-hover:border-indigo-500/20 group-hover:bg-indigo-500/5 transition-all text-white/30 group-hover:text-indigo-400 font-bold">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 border border-white/5 group-hover:border-white/[0.07] group-hover:bg-yellow-400/10 transition-all text-white/30 group-hover:text-yellow-400 font-bold">
                         {contact.name.charAt(0)}
                       </div>
                       <div>

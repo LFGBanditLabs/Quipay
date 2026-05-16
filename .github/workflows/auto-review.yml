@@ -4,8 +4,6 @@ on:
   workflow_run:
     workflows:
       - "Build Project and Run Tests"
-      - "Backend CI"
-      - "Contracts CI"
       - "E2E & Visual Regression"
       - "Integration Tests"
     types: [completed]
@@ -143,12 +141,12 @@ jobs:
 
           SYSTEM_PROMPT=$(cat <<'SYSTEM_EOF'
           You are a lenient but intelligent code reviewer for Quipay, a real-time
-          payroll streaming platform built on Stellar and Soroban smart contracts
-          (Rust), with a React/TypeScript frontend and a Node.js backend.
+          payroll streaming platform built on Stellar. This is the frontend-only
+          repository — React/TypeScript, Vite, Tailwind CSS, Freighter wallet,
+          stellar-sdk, and Soroban contract clients.
 
           Quipay allows employers to stream token payments to workers in real time.
-          Key contracts: payroll_stream, payroll_vault. Key frontend tech: React,
-          Vite, Freighter wallet, stellar-sdk. Backend: Node.js/Express, PostgreSQL.
+          Key frontend tech: React 18, Vite, Tailwind CSS, Freighter wallet, stellar-sdk.
 
           This project has contributors of varying experience levels.
           Be encouraging and constructive. We care that work is genuine and

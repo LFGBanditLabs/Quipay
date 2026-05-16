@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { formatCurrency } from "../util/formatters";
 import { useWallet } from "../hooks/useWallet";
+import { useRoleDetect, type UserRole } from "../hooks/useRoleDetect";
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -660,17 +661,167 @@ const AnimatedStat: React.FC<{
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// ─── Role selector overlay ────────────────────────────────────────────────────
+
+const RoleSelector: React.FC<{
+  onSelect: (role: UserRole) => void;
+  isDetecting: boolean;
+}> = ({ onSelect, isDetecting }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm px-4">
+    <div className="w-full max-w-md rounded-2xl border border-white/[0.1] bg-[#111] p-8 shadow-2xl">
+      <div
+        className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl"
+        style={{ backgroundColor: "rgba(250,204,21,0.12)" }}
+      >
+        {isDetecting ? (
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/10 border-t-yellow-400" />
+        ) : (
+          <svg
+            className="h-7 w-7 text-yellow-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+        )}
+      </div>
+
+      <h2 className="mb-2 text-center text-[20px] font-bold text-white">
+        {isDetecting ? "Setting up your account…" : "What's your role?"}
+      </h2>
+      <p className="mb-8 text-center text-[14px] text-neutral-500">
+        {isDetecting
+          ? "Checking your on-chain activity"
+          : "This is permanent and tied to your wallet. Choose carefully."}
+      </p>
+
+      <div className="flex flex-col gap-3">
+        <button
+          onClick={() => onSelect("employer")}
+          disabled={isDetecting}
+          className="group flex items-center gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-5 text-left transition-all hover:border-yellow-400/30 hover:bg-yellow-400/[0.05] disabled:opacity-40"
+        >
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-yellow-400/10 text-yellow-400 group-hover:bg-yellow-400/20">
+            <svg
+              className="h-6 w-6"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="2" y="7" width="20" height="14" rx="2" />
+              <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+              <line x1="12" y1="12" x2="12" y2="16" />
+              <line x1="10" y1="14" x2="14" y2="14" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-[15px] font-bold text-white">I'm an Employer</p>
+            <p className="text-[13px] text-neutral-500">
+              I create streams and manage payroll
+            </p>
+          </div>
+          <svg
+            className="ml-auto h-5 w-5 shrink-0 text-neutral-700 group-hover:text-yellow-400 transition-colors"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
+
+        <button
+          onClick={() => onSelect("worker")}
+          disabled={isDetecting}
+          className="group flex items-center gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-5 text-left transition-all hover:border-yellow-400/30 hover:bg-yellow-400/[0.05] disabled:opacity-40"
+        >
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-yellow-400/10 text-yellow-400 group-hover:bg-yellow-400/20">
+            <svg
+              className="h-6 w-6"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-[15px] font-bold text-white">I'm a Worker</p>
+            <p className="text-[13px] text-neutral-500">
+              I receive payments and track my earnings
+            </p>
+          </div>
+          <svg
+            className="ml-auto h-5 w-5 shrink-0 text-neutral-700 group-hover:text-yellow-400 transition-colors"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 const Home: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { address } = useWallet();
+  const { role, isDetecting, setRole } = useRoleDetect(address);
+  const [showSelector, setShowSelector] = useState(false);
 
-  // Auto-redirect to dashboard when wallet is connected
   useEffect(() => {
-    if (address) {
-      void navigate("/dashboard", { replace: true });
+    if (!address) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setShowSelector(false);
+      return;
     }
-  }, [address, navigate]);
+
+    // Wait for detection to finish
+    if (isDetecting) return;
+
+    if (role === "employer") {
+      void navigate("/dashboard", { replace: true });
+    } else if (role === "worker") {
+      void navigate("/worker", { replace: true });
+    } else {
+      // New user — ask once, then cache permanently
+
+      setShowSelector(true);
+    }
+  }, [address, role, isDetecting, navigate]);
+
+  const handleRoleSelect = (chosen: UserRole) => {
+    setRole(chosen);
+    setShowSelector(false);
+    if (chosen === "employer") {
+      void navigate("/dashboard", { replace: true });
+    } else {
+      void navigate("/worker", { replace: true });
+    }
+  };
 
   const stats = useMemo<StatMetric[]>(
     () => [
@@ -744,6 +895,11 @@ const Home: React.FC = () => {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden text-white bg-black">
+      {/* ── Role selector overlay ─────────────────────────────── */}
+      {(showSelector || (address && isDetecting)) && (
+        <RoleSelector onSelect={handleRoleSelect} isDetecting={isDetecting} />
+      )}
+
       {/* ── Subtle grid ──────────────────────────────────────────── */}
       <div
         className="fixed inset-0 z-0 pointer-events-none"

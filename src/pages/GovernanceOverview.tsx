@@ -1,802 +1,349 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck — @stellar/design-system types are incomplete for Badge, Card, Modal, Icon
-import React, { useState, useEffect, useCallback } from "react";
-import {
-  Button,
-  Layout,
-  Text,
-  Loader,
-  Card,
-  Badge,
-  Icon,
-  Modal,
-  Notification,
-} from "@stellar/design-system";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
 import { useWallet } from "../hooks/useWallet";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
+
+// ─── Vault contract reads ──────────────────────────────────────────────────────
+
 import {
-  getMultisigConfig,
-  getPendingProposals,
-  getExecutionHistory,
-  approveProposal as approveProposalService,
-  executeProposal as executeProposalService,
-} from "../services/governanceService";
-import { shortenAddress } from "../util/address";
+  Contract,
+  rpc as SorobanRpc,
+  TransactionBuilder,
+  scValToNative,
+} from "@stellar/stellar-sdk";
+import { rpcUrl, networkPassphrase } from "../contracts/util";
 
-const tw = {
-  loadingContainer: "flex flex-col items-center justify-center gap-4 p-[60px]",
-  loadingText: "text-[var(--color-text-secondary)]",
-  header: "mb-6 flex items-start justify-between gap-4",
-  statusCard:
-    "mb-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-background-card)] p-6",
-  statusGrid: "grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-6",
-  statusItem: "flex flex-col gap-1",
-  badgeRow: "flex items-center gap-2",
-  section: "mb-8",
-  sectionTitle: "mb-4 flex items-center gap-2",
-  emptyState:
-    "flex flex-col items-center justify-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-background-card)] p-10 text-center",
-  emptyIcon: "text-[var(--sds-color-feedback-success)] opacity-60",
-  proposalsList: "flex flex-col gap-4",
-  proposalCard:
-    "rounded-2xl border border-[var(--color-border)] bg-[var(--color-background-card)] p-5 transition-shadow hover:shadow-[0_4px_12px_var(--shadow-color)]",
-  proposalHeader: "mb-3 flex items-center justify-between",
-  proposalType: "flex items-center gap-2",
-  proposalTitle: "mb-2 leading-[1.4]",
-  proposalDescription: "mb-4 leading-[1.5]",
-  amountRow: "mb-2 flex items-center gap-2",
-  targetRow: "mb-2 flex items-center gap-2",
-  address:
-    "rounded-md bg-[var(--accent-transparent)] px-2 py-1 font-[DM_Mono,monospace] text-[0.85em]",
-  signersSection: "my-4 rounded-xl bg-[var(--surface-subtle)] p-4",
-  signersHeader: "mb-3 flex items-center justify-between",
-  signersList: "mb-3 flex flex-col gap-2",
-  signerItem:
-    "flex items-center gap-2 rounded-lg bg-[var(--surface-subtle)] px-3 py-2 transition-colors",
-  signed: "bg-[var(--success-transparent)]",
-  currentUser: "border border-[var(--success-transparent-strong)]",
-  signerStatus: "flex h-5 w-5 items-center justify-center",
-  checkIcon: "text-[var(--sds-color-feedback-success)]",
-  pendingDot:
-    "h-2 w-2 rounded-full bg-[var(--sds-color-feedback-warning)] [animation:pulse_1.5s_ease-in-out_infinite]",
-  youBadge: "font-semibold text-[var(--sds-color-feedback-success)]",
-  signedTime: "ml-auto text-xs",
-  progressBar: "h-1 overflow-hidden rounded bg-[var(--border)]",
-  progressFill: "h-full rounded transition-all",
-  actionButtons: "mt-4 flex gap-3",
-  executedIcon: "text-[var(--sds-color-feedback-success)]",
-  unsigned: "bg-[var(--surface-subtle)]",
-  historyList: "flex flex-col gap-3",
-  historyCard:
-    "rounded-xl border border-[var(--color-border)] bg-[var(--color-background-card)] p-4",
-  historyHeader: "mb-2 flex items-center justify-between",
-  historyType: "font-medium",
-  historyStatus: "text-sm text-[var(--muted)]",
-  historyMeta: "text-xs text-[var(--muted)]",
-  modalContent:
-    "rounded-2xl border border-white/20 bg-slate-900/90 p-6 text-slate-100 shadow-2xl backdrop-blur",
-  modalSection: "mb-4",
-  modalGrid: "grid grid-cols-2 gap-3",
-  modalItem: "rounded-lg bg-white/5 p-3",
-  modalSignersList: "flex flex-col gap-2",
-  modalSigner: "flex items-center gap-2 rounded-lg bg-white/5 px-3 py-2",
-  modalSigned: "text-emerald-300",
-  modalPendingDot:
-    "h-2 w-2 rounded-full bg-amber-300 [animation:pulse_1.5s_ease-in-out_infinite]",
-  modalApprovals: "text-sm text-slate-300",
-  modalActions: "mt-5 flex justify-end gap-3",
-};
+const VAULT_ID =
+  (import.meta.env.VITE_PAYROLL_VAULT_CONTRACT_ID as string) ?? "";
 
-// Types for multisig governance
-export interface MultisigProposal {
-  id: string;
-  title: string;
-  description: string;
-  type: "transfer" | "upgrade" | "admin_change" | "threshold_change" | "custom";
-  proposer: string;
-  createdAt: Date;
-  expiresAt: Date;
-  requiredApprovals: number;
-  currentApprovals: number;
-  hasApproved: boolean;
-  isExecuted: boolean;
-  executedAt?: Date;
-  executedBy?: string;
-  signers: SignerStatus[];
-  targetAddress?: string;
-  amount?: string;
-  tokenSymbol?: string;
-}
-
-export interface SignerStatus {
-  address: string;
-  hasSigned: boolean;
-  signedAt?: Date;
-  isCurrentUser: boolean;
-}
-
-export interface ExecutionHistoryEntry {
-  id: string;
-  proposalId: string;
-  title: string;
-  type: MultisigProposal["type"];
-  executedAt: Date;
-  executedBy: string;
-  requiredApprovals: number;
-  totalSigners: number;
-}
-
-export interface MultisigConfig {
-  threshold: number;
-  totalSigners: number;
-  signers: string[];
-  isCurrentUserSigner: boolean;
-}
-
-const formatDate = (date: Date): string => {
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
-
-const getTypeIcon = (type: MultisigProposal["type"]): string => {
-  switch (type) {
-    case "transfer":
-      return "send";
-    case "upgrade":
-      return "arrowUp";
-    case "admin_change":
-      return "user";
-    case "threshold_change":
-      return "settings";
-    default:
-      return "fileText";
+async function vaultRead<T>(
+  method: string,
+  ...args: Parameters<typeof Contract.prototype.call>[1][]
+): Promise<T | null> {
+  if (!VAULT_ID) return null;
+  try {
+    const server = new SorobanRpc.Server(rpcUrl, { allowHttp: true });
+    const source = await server.getAccount(VAULT_ID).catch(() => null);
+    if (!source) return null;
+    const contract = new Contract(VAULT_ID);
+    const tx = new TransactionBuilder(source, { fee: "100", networkPassphrase })
+      .addOperation(contract.call(method, ...args))
+      .setTimeout(10)
+      .build();
+    const res = await server.simulateTransaction(tx);
+    if (SorobanRpc.Api.isSimulationError(res)) return null;
+    const retval = res.result?.retval;
+    return retval ? (scValToNative(retval) as T) : null;
+  } catch {
+    return null;
   }
-};
+}
 
-const getTypeColor = (type: MultisigProposal["type"]): string => {
-  switch (type) {
-    case "transfer":
-      return "var(--sds-color-feedback-success)";
-    case "upgrade":
-      return "var(--sds-color-feedback-warning)";
-    case "admin_change":
-      return "var(--accent)";
-    case "threshold_change":
-      return "#8b5cf6"; // Keep special color but check contrast
-    default:
-      return "var(--muted)";
-  }
-};
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function shortAddr(a: string) {
+  return `${a.slice(0, 8)}…${a.slice(-6)}`;
+}
+
+function InfoRow({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-3 border-b border-white/[0.04] last:border-0">
+      <span className="shrink-0 text-[13px] text-neutral-500">{label}</span>
+      <span
+        className={`text-right text-[13px] font-medium text-white ${mono ? "font-mono text-[11px] text-neutral-400 break-all" : ""}`}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 const GovernanceOverview: React.FC = () => {
-  const navigate = useNavigate();
-  const { address, signTransaction } = useWallet();
-  const [isLoading, setIsLoading] = useState(true);
-  const [config, setConfig] = useState<MultisigConfig | null>(null);
-  const [proposals, setProposals] = useState<MultisigProposal[]>([]);
-  const [history, setHistory] = useState<ExecutionHistoryEntry[]>([]);
-  const [selectedProposal, setSelectedProposal] =
-    useState<MultisigProposal | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [notification, setNotification] = useState<{
-    message: string;
-    type: "success" | "error";
-  } | null>(null);
+  const { address } = useWallet();
 
-  const vaultAddress = address ?? "";
-
-  const loadData = useCallback(async () => {
-    if (!vaultAddress) {
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const [configData, proposalsData, historyData] = await Promise.all([
-        getMultisigConfig(vaultAddress, address),
-        getPendingProposals(vaultAddress, address),
-        getExecutionHistory(vaultAddress),
-      ]);
-      setConfig(configData);
-      setProposals(proposalsData);
-      setHistory(historyData);
-    } catch (error) {
-      console.error("Failed to load governance data:", error);
-      setNotification({
-        message: "Failed to load governance data",
-        type: "error",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [vaultAddress, address]);
+  const [admin, setAdmin] = useState<string | null>(null);
+  const [signers, setSigners] = useState<string[]>([]);
+  const [threshold, setThreshold] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
-
-  const handleApprove = async (proposalId: string) => {
-    if (!address || !signTransaction) return;
-
-    setIsProcessing(true);
-    try {
-      await approveProposalService(proposalId, address, signTransaction);
-      setNotification({
-        message: "Proposal approved successfully",
-        type: "success",
-      });
-      await loadData();
-    } catch (
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      _error
-    ) {
-      setNotification({ message: "Failed to approve proposal", type: "error" });
-    } finally {
-      setIsProcessing(false);
+    if (!VAULT_ID) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLoading(false);
+      return;
     }
-  };
+    void (async () => {
+      const [a, s, t] = await Promise.all([
+        vaultRead<string>("get_admin"),
+        vaultRead<string[]>("get_signers"),
+        vaultRead<number>("get_threshold"),
+      ]);
+      setAdmin(a);
+      setSigners(Array.isArray(s) ? s : []);
+      setThreshold(t ?? null);
+      setLoading(false);
+    })();
+  }, []);
 
-  const handleExecute = async (proposalId: string) => {
-    if (!address || !signTransaction) return;
-
-    setIsProcessing(true);
-    try {
-      await executeProposalService(proposalId, address, signTransaction);
-      setNotification({
-        message: "Proposal executed successfully",
-        type: "success",
-      });
-      await loadData();
-    } catch (
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      _error
-    ) {
-      setNotification({ message: "Failed to execute proposal", type: "error" });
-    } finally {
-      setIsProcessing(false);
-      setIsModalOpen(false);
-    }
-  };
-
-  const openProposalDetails = (proposal: MultisigProposal) => {
-    setSelectedProposal(proposal);
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setSelectedProposal(null);
-  };
-
-  const canExecute = (proposal: MultisigProposal): boolean => {
-    return (
-      proposal.currentApprovals >= proposal.requiredApprovals &&
-      !proposal.isExecuted
-    );
-  };
-
-  const pendingCount = proposals.filter((p) => !p.isExecuted).length;
-  const readyToExecuteCount = proposals.filter((p) => canExecute(p)).length;
-
-  if (isLoading) {
-    return (
-      <Layout.Content>
-        <Layout.Inset>
-          <div className={tw.loadingContainer}>
-            <Loader />
-            <Text as="p" size="md" className={tw.loadingText}>
-              Loading governance data...
-            </Text>
-          </div>
-        </Layout.Inset>
-      </Layout.Content>
-    );
-  }
+  const isAdmin = address && admin && address === admin;
+  const isSingleSig = threshold === 1 && signers.length <= 1;
 
   return (
-    <Layout.Content>
-      <Layout.Inset>
+    <>
+      <SeoHelmet
+        title="Governance · Quipay"
+        description="Vault security and governance"
+        path="/governance"
+        robots="noindex,nofollow"
+      />
+
+      <div className="px-6 py-8 sm:px-8 sm:py-10 max-w-[860px]">
         {/* Header */}
-        <div className={tw.header}>
-          <div>
-            <Text as="h1" size="xl" weight="medium">
-              Governance Overview
-            </Text>
-            <Text as="p" size="md" variant="secondary">
-              Multisig Treasury Management
-            </Text>
+        <div className="mb-8">
+          <h1 className="text-[24px] font-bold text-white tracking-tight">
+            Vault Security
+          </h1>
+          <p className="mt-1 text-[14px] text-neutral-500">
+            Control who can manage the payroll vault and set multi-signature
+            requirements.
+          </p>
+        </div>
+
+        {/* What is governance */}
+        <div className="mb-8 rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-6">
+          <h2 className="mb-3 text-[15px] font-bold text-white">
+            What is Vault Governance?
+          </h2>
+          <div className="flex flex-col gap-3 text-[13px] text-neutral-500 leading-relaxed">
+            <p>
+              The <strong className="text-white">PayrollVault</strong> holds the
+              funds that back all payment streams. Governance controls who can
+              deposit, withdraw, and manage those funds.
+            </p>
+            <p>
+              For a single employer (you), the vault is controlled by your
+              wallet — <strong className="text-white">1-of-1</strong>. For DAOs
+              or companies with multiple approvers, you can add signers and
+              require M-of-N signatures for large withdrawals.
+            </p>
+            <p>
+              Adding signers protects against a single compromised key draining
+              the payroll fund.
+            </p>
           </div>
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={() => void navigate("/treasury-management")}
-          >
-            <Icon.ArrowLeft size="sm" /> Back to Treasury
-          </Button>
         </div>
 
-        {/* Notification */}
-        {notification && (
-          <Notification
-            variant={notification.type}
-            onClose={() => setNotification(null)}
-            title={notification.type === "success" ? "Success" : "Error"}
+        {/* Vault info */}
+        <div className="mb-6 rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-[15px] font-bold text-white">
+              Vault Configuration
+            </h2>
+            {loading && (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/10 border-t-yellow-400" />
+            )}
+          </div>
+
+          {!VAULT_ID ? (
+            <p className="text-[13px] text-neutral-600">
+              Vault contract not configured. Set{" "}
+              <code className="font-mono text-yellow-400">
+                VITE_PAYROLL_VAULT_CONTRACT_ID
+              </code>{" "}
+              in your .env file.
+            </p>
+          ) : loading ? (
+            <div className="flex flex-col gap-2">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="h-10 animate-pulse rounded-lg bg-white/[0.04]"
+                />
+              ))}
+            </div>
+          ) : (
+            <div>
+              <InfoRow
+                label="Vault contract"
+                value={shortAddr(VAULT_ID)}
+                mono
+              />
+              <InfoRow
+                label="Admin"
+                value={admin ? shortAddr(admin) : "—"}
+                mono
+              />
+              <InfoRow
+                label="Signers"
+                value={
+                  signers.length === 0
+                    ? "None added"
+                    : `${signers.length} signer${signers.length > 1 ? "s" : ""}`
+                }
+              />
+              <InfoRow
+                label="Threshold"
+                value={
+                  threshold !== null
+                    ? `${threshold}-of-${Math.max(signers.length, 1)} signatures`
+                    : "—"
+                }
+              />
+              <InfoRow
+                label="Security model"
+                value={
+                  isSingleSig
+                    ? "Single signature (admin only)"
+                    : `Multi-signature (${threshold} required)`
+                }
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Current role */}
+        {address && !loading && (
+          <div
+            className={`mb-6 rounded-2xl border p-5 ${
+              isAdmin
+                ? "border-yellow-400/20 bg-yellow-400/[0.05]"
+                : "border-white/[0.07] bg-[#0a0a0a]"
+            }`}
           >
-            {notification.message}
-          </Notification>
+            <div className="flex items-start gap-3">
+              <div
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isAdmin ? "bg-yellow-400/20" : "bg-white/[0.06]"}`}
+              >
+                {isAdmin ? (
+                  <svg
+                    className="h-5 w-5 text-yellow-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                  >
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                ) : (
+                  <svg
+                    className="h-5 w-5 text-neutral-600"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                  >
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                )}
+              </div>
+              <div>
+                <p className="text-[14px] font-bold text-white">
+                  {isAdmin
+                    ? "You are the vault admin"
+                    : "You are not the vault admin"}
+                </p>
+                <p className="text-[12px] text-neutral-500 mt-0.5">
+                  {isAdmin
+                    ? "You can add signers, set thresholds, and manage vault security."
+                    : `The admin is ${admin ? shortAddr(admin) : "unknown"}. Contact them to change vault settings.`}
+                </p>
+              </div>
+            </div>
+          </div>
         )}
 
-        {/* Multisig Status Card */}
-        {config && (
-          <Card className={tw.statusCard}>
-            <div className={tw.statusGrid}>
-              <div className={tw.statusItem}>
-                <Text as="span" size="sm" variant="secondary">
-                  Required Approvals
-                </Text>
-                <Text as="div" size="lg" weight="bold">
-                  {config.threshold} of {config.totalSigners}
-                </Text>
-              </div>
-              <div className={tw.statusItem}>
-                <Text as="span" size="sm" variant="secondary">
-                  Total Signers
-                </Text>
-                <Text as="div" size="lg" weight="bold">
-                  {config.totalSigners}
-                </Text>
-              </div>
-              <div className={tw.statusItem}>
-                <Text as="span" size="sm" variant="secondary">
-                  Pending Proposals
-                </Text>
-                <div className={tw.badgeRow}>
-                  <Text as="div" size="lg" weight="bold">
-                    {pendingCount}
-                  </Text>
-                  {readyToExecuteCount > 0 && (
-                    <Badge variant="success" size="sm">
-                      {readyToExecuteCount} ready
-                    </Badge>
+        {/* Signers list */}
+        {signers.length > 0 && (
+          <div className="mb-6 rounded-2xl border border-white/[0.07] bg-[#0a0a0a] overflow-hidden">
+            <div className="border-b border-white/[0.06] px-5 py-4">
+              <p className="text-[14px] font-bold text-white">
+                Authorized Signers
+              </p>
+            </div>
+            <div className="divide-y divide-white/[0.04]">
+              {signers.map((s, i) => (
+                <div key={i} className="flex items-center gap-3 px-5 py-3">
+                  <div
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-black text-black"
+                    style={{ backgroundColor: "#facc15" }}
+                  >
+                    {i + 1}
+                  </div>
+                  <span className="font-mono text-[12px] text-neutral-400 break-all">
+                    {s}
+                  </span>
+                  {s === address && (
+                    <span className="ml-auto shrink-0 rounded-full bg-yellow-400/10 px-2 py-0.5 text-[10px] font-bold text-yellow-400">
+                      You
+                    </span>
                   )}
                 </div>
-              </div>
-              <div className={tw.statusItem}>
-                <Text as="span" size="sm" variant="secondary">
-                  Your Role
-                </Text>
-                <Badge
-                  variant={config.isCurrentUserSigner ? "success" : "warning"}
-                  size="sm"
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Admin actions */}
+        {isAdmin && (
+          <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-6">
+            <h2 className="mb-2 text-[15px] font-bold text-white">
+              Admin Actions
+            </h2>
+            <p className="mb-5 text-[13px] text-neutral-500">
+              These actions change the vault security model. Use with caution.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <a
+                href={`https://lab.stellar.org/r/testnet/contract/${VAULT_ID}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-[13px] font-semibold text-white no-underline hover:bg-white/[0.08] transition-colors"
+              >
+                <svg
+                  className="h-3.5 w-3.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
                 >
-                  {config.isCurrentUserSigner ? "Signer" : "Viewer"}
-                </Badge>
-              </div>
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+                Open in Stellar Lab
+              </a>
+              <a
+                href={`https://stellar.expert/explorer/testnet/contract/${VAULT_ID}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-[13px] font-semibold text-white no-underline hover:bg-white/[0.08] transition-colors"
+              >
+                View on Explorer ↗
+              </a>
             </div>
-          </Card>
+            <p className="mt-4 text-[12px] text-neutral-700">
+              To add signers or change the threshold, use Stellar Lab to invoke{" "}
+              <code className="font-mono text-neutral-500">add_signer</code> or{" "}
+              <code className="font-mono text-neutral-500">set_threshold</code>{" "}
+              on the vault contract.
+            </p>
+          </div>
         )}
-
-        {/* Pending Proposals Section */}
-        <div className={tw.section}>
-          <Text as="h2" size="lg" weight="medium" className={tw.sectionTitle}>
-            Pending Proposals
-          </Text>
-
-          {proposals.length === 0 ? (
-            <Card className={tw.emptyState}>
-              <Icon.CheckCircle size="lg" className={tw.emptyIcon} />
-              <Text as="p" size="md">
-                No pending proposals
-              </Text>
-              <Text as="p" size="sm" variant="secondary">
-                All proposals have been executed or expired
-              </Text>
-            </Card>
-          ) : (
-            <div className={tw.proposalsList}>
-              {proposals.map((proposal) => (
-                <Card key={proposal.id} className={tw.proposalCard}>
-                  <div className={tw.proposalHeader}>
-                    <div className={tw.proposalType}>
-                      <Icon name={getTypeIcon(proposal.type)} size="md" />
-                      <Badge
-                        size="sm"
-                        style={{
-                          backgroundColor: `${getTypeColor(proposal.type)}20`,
-                          color: getTypeColor(proposal.type),
-                          borderColor: getTypeColor(proposal.type),
-                        }}
-                      >
-                        {proposal.type.replace("_", " ")}
-                      </Badge>
-                    </div>
-                    <Text as="span" size="sm" variant="secondary">
-                      {formatDate(proposal.createdAt)}
-                    </Text>
-                  </div>
-
-                  <Text
-                    as="h3"
-                    size="md"
-                    weight="semi-bold"
-                    className={tw.proposalTitle}
-                  >
-                    {proposal.title}
-                  </Text>
-
-                  <Text
-                    as="p"
-                    size="sm"
-                    variant="secondary"
-                    className={tw.proposalDescription}
-                  >
-                    {proposal.description}
-                  </Text>
-
-                  {proposal.amount && proposal.tokenSymbol && (
-                    <div className={tw.amountRow}>
-                      <Text as="span" size="sm" variant="secondary">
-                        Amount:
-                      </Text>
-                      <Text
-                        as="span"
-                        size="md"
-                        weight="semi-bold"
-                        style={{ color: "var(--sds-color-feedback-success)" }}
-                      >
-                        {proposal.amount} {proposal.tokenSymbol}
-                      </Text>
-                    </div>
-                  )}
-
-                  {proposal.targetAddress && (
-                    <div className={tw.targetRow}>
-                      <Text as="span" size="sm" variant="secondary">
-                        To:
-                      </Text>
-                      <Text as="span" size="sm" className={tw.address}>
-                        {shortenAddress(proposal.targetAddress)}
-                      </Text>
-                    </div>
-                  )}
-
-                  {/* Signers Progress */}
-                  <div className={tw.signersSection}>
-                    <div className={tw.signersHeader}>
-                      <Text as="span" size="sm" variant="secondary">
-                        Signers
-                      </Text>
-                      <Text as="span" size="sm" weight="semi-bold">
-                        {proposal.currentApprovals} /{" "}
-                        {proposal.requiredApprovals}
-                      </Text>
-                    </div>
-                    <div className={tw.signersList}>
-                      {proposal.signers.map((signer) => (
-                        <div
-                          key={signer.address}
-                          className={`${tw.signerItem} ${
-                            signer.hasSigned ? tw.signed : tw.unsigned
-                          } ${signer.isCurrentUser ? tw.currentUser : ""}`}
-                        >
-                          <div className={tw.signerStatus}>
-                            {signer.hasSigned ? (
-                              <Icon.Check size="sm" className={tw.checkIcon} />
-                            ) : (
-                              <div className={tw.pendingDot} />
-                            )}
-                          </div>
-                          <Text as="span" size="sm">
-                            {shortenAddress(signer.address)}
-                            {signer.isCurrentUser && (
-                              <span className={tw.youBadge}> (You)</span>
-                            )}
-                          </Text>
-                          {signer.hasSigned && signer.signedAt && (
-                            <Text
-                              as="span"
-                              size="xs"
-                              variant="secondary"
-                              className={tw.signedTime}
-                            >
-                              {formatDate(signer.signedAt)}
-                            </Text>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    <div className={tw.progressBar}>
-                      <div
-                        className={tw.progressFill}
-                        style={{
-                          width: `${(proposal.currentApprovals / proposal.requiredApprovals) * 100}%`,
-                          backgroundColor:
-                            proposal.currentApprovals >=
-                            proposal.requiredApprovals
-                              ? "var(--sds-color-feedback-success)"
-                              : "var(--sds-color-feedback-warning)",
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className={tw.actionButtons}>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => openProposalDetails(proposal)}
-                    >
-                      View Details
-                    </Button>
-
-                    {config?.isCurrentUserSigner &&
-                      !proposal.hasApproved &&
-                      !proposal.isExecuted && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => void handleApprove(proposal.id)}
-                          disabled={isProcessing}
-                        >
-                          {isProcessing ? (
-                            <Loader size="sm" />
-                          ) : (
-                            <Icon.Check size="sm" />
-                          )}
-                          Approve
-                        </Button>
-                      )}
-
-                    {config?.isCurrentUserSigner &&
-                      proposal.hasApproved &&
-                      !proposal.isExecuted && (
-                        <Button variant="secondary" size="sm" disabled>
-                          <Icon.Check size="sm" /> Approved
-                        </Button>
-                      )}
-
-                    {canExecute(proposal) && config?.isCurrentUserSigner && (
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => openProposalDetails(proposal)}
-                        style={{
-                          backgroundColor: "var(--sds-color-feedback-success)",
-                          color: "#05120d",
-                        }}
-                      >
-                        <Icon.Play size="sm" /> Execute
-                      </Button>
-                    )}
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Execution History Section */}
-        <div className={tw.section}>
-          <Text as="h2" size="lg" weight="medium" className={tw.sectionTitle}>
-            Execution History
-          </Text>
-
-          {history.length === 0 ? (
-            <Card className={tw.emptyState}>
-              <Text as="p" size="md">
-                No executed proposals yet
-              </Text>
-            </Card>
-          ) : (
-            <div className={tw.historyList}>
-              {history.map((entry) => (
-                <Card key={entry.id} className={tw.historyCard}>
-                  <div className={tw.historyHeader}>
-                    <div className={tw.historyType}>
-                      <Badge
-                        size="sm"
-                        style={{
-                          backgroundColor: `${getTypeColor(entry.type)}20`,
-                          color: getTypeColor(entry.type),
-                        }}
-                      >
-                        {entry.type.replace("_", " ")}
-                      </Badge>
-                    </div>
-                    <Text as="span" size="sm" variant="secondary">
-                      {formatDate(entry.executedAt)}
-                    </Text>
-                  </div>
-
-                  <Text as="h4" size="md" weight="semi-bold">
-                    {entry.title}
-                  </Text>
-
-                  <div className={tw.historyMeta}>
-                    <Text as="span" size="sm" variant="secondary">
-                      Executed by: {shortenAddress(entry.executedBy)}
-                    </Text>
-                    <Text as="span" size="sm" variant="secondary">
-                      Approvals: {entry.requiredApprovals} /{" "}
-                      {entry.totalSigners}
-                    </Text>
-                  </div>
-
-                  <div className={tw.historyStatus}>
-                    <Icon.CheckCircle size="sm" className={tw.executedIcon} />
-                    <Text
-                      as="span"
-                      size="sm"
-                      style={{ color: "var(--sds-color-feedback-success)" }}
-                    >
-                      Executed Successfully
-                    </Text>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Proposal Details Modal */}
-        {isModalOpen && selectedProposal && (
-          <Modal visible={isModalOpen} onClose={closeModal}>
-            <div className={tw.modalContent}>
-              <Text as="h2" size="lg" weight="medium">
-                Proposal Details
-              </Text>
-
-              <div className={tw.modalSection}>
-                <Text as="span" size="sm" variant="secondary">
-                  Proposal ID
-                </Text>
-                <Text as="p" size="md">
-                  {selectedProposal.id}
-                </Text>
-              </div>
-
-              <div className={tw.modalSection}>
-                <Text as="span" size="sm" variant="secondary">
-                  Title
-                </Text>
-                <Text as="p" size="md" weight="semi-bold">
-                  {selectedProposal.title}
-                </Text>
-              </div>
-
-              <div className={tw.modalSection}>
-                <Text as="span" size="sm" variant="secondary">
-                  Description
-                </Text>
-                <Text as="p" size="md">
-                  {selectedProposal.description}
-                </Text>
-              </div>
-
-              <div className={tw.modalGrid}>
-                <div className={tw.modalItem}>
-                  <Text as="span" size="sm" variant="secondary">
-                    Type
-                  </Text>
-                  <Badge size="sm">
-                    {selectedProposal.type.replace("_", " ")}
-                  </Badge>
-                </div>
-                <div className={tw.modalItem}>
-                  <Text as="span" size="sm" variant="secondary">
-                    Proposer
-                  </Text>
-                  <Text as="p" size="md">
-                    {shortenAddress(selectedProposal.proposer)}
-                  </Text>
-                </div>
-              </div>
-
-              {selectedProposal.amount && (
-                <div className={tw.modalSection}>
-                  <Text as="span" size="sm" variant="secondary">
-                    Amount
-                  </Text>
-                  <Text
-                    as="p"
-                    size="lg"
-                    weight="bold"
-                    style={{ color: "var(--sds-color-feedback-success)" }}
-                  >
-                    {selectedProposal.amount} {selectedProposal.tokenSymbol}
-                  </Text>
-                </div>
-              )}
-
-              {selectedProposal.targetAddress && (
-                <div className={tw.modalSection}>
-                  <Text as="span" size="sm" variant="secondary">
-                    Target Address
-                  </Text>
-                  <Text as="p" size="md" className={tw.address}>
-                    {selectedProposal.targetAddress}
-                  </Text>
-                </div>
-              )}
-
-              <div className={tw.modalSection}>
-                <Text as="span" size="sm" variant="secondary">
-                  Approval Status
-                </Text>
-                <div className={tw.modalApprovals}>
-                  <Text as="p" size="md" weight="semi-bold">
-                    {selectedProposal.currentApprovals} of{" "}
-                    {selectedProposal.requiredApprovals} required approvals
-                  </Text>
-                  <div className={tw.modalSignersList}>
-                    {selectedProposal.signers.map((signer) => (
-                      <div
-                        key={signer.address}
-                        className={`${tw.modalSigner} ${
-                          signer.hasSigned ? tw.modalSigned : ""
-                        }`}
-                      >
-                        {signer.hasSigned ? (
-                          <Icon.CheckCircle
-                            size="sm"
-                            style={{ color: "#00e5a0" }}
-                          />
-                        ) : (
-                          <div className={tw.modalPendingDot} />
-                        )}
-                        <Text as="span" size="sm">
-                          {shortenAddress(signer.address)}
-                          {signer.isCurrentUser && <span> (You)</span>}
-                        </Text>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className={tw.modalActions}>
-                <Button variant="secondary" size="md" onClick={closeModal}>
-                  Close
-                </Button>
-
-                {config?.isCurrentUserSigner &&
-                  !selectedProposal.hasApproved &&
-                  !selectedProposal.isExecuted && (
-                    <Button
-                      variant="primary"
-                      size="md"
-                      onClick={() => void handleApprove(selectedProposal.id)}
-                      disabled={isProcessing}
-                    >
-                      {isProcessing ? <Loader size="sm" /> : "Approve Proposal"}
-                    </Button>
-                  )}
-
-                {canExecute(selectedProposal) &&
-                  config?.isCurrentUserSigner && (
-                    <Button
-                      variant="primary"
-                      size="md"
-                      onClick={() => void handleExecute(selectedProposal.id)}
-                      disabled={isProcessing}
-                      style={{ backgroundColor: "#00e5a0", color: "#05120d" }}
-                    >
-                      {isProcessing ? <Loader size="sm" /> : "Execute Proposal"}
-                    </Button>
-                  )}
-              </div>
-            </div>
-          </Modal>
-        )}
-      </Layout.Inset>
-    </Layout.Content>
+      </div>
+    </>
   );
 };
 

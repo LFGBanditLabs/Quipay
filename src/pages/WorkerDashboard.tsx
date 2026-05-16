@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { useTranslation } from "react-i18next";
 import { useWallet } from "../hooks/useWallet";
 import { useStreamSubscription } from "../hooks/useStreamSubscription";
 import {
@@ -8,22 +7,195 @@ import {
   WithdrawalRecord,
 } from "../hooks/useStreams";
 import { useNotification } from "../hooks/useNotification";
-import { EarningsDisplay } from "../components/EarningsDisplay";
-import { EarningsForecast } from "../components/EarningsForecast";
-import CopyButton from "../components/CopyButton";
+import { buildRegisterWorkerTx } from "../contracts/workforce_registry";
+import { submitAndAwaitTx } from "../contracts/payroll_stream";
 import { formatTokenAmount } from "../util/tokenDecimals";
 import { StreamTimeline } from "../components/StreamTimeline";
-import { StreamCardSkeleton } from "../components/dashboard/StreamCardSkeleton";
-import { EarningsSkeleton } from "../components/dashboard/EarningsSkeleton";
-import { Skeleton } from "../components/Loading/Skeleton";
-import { TableVirtuoso } from "react-virtuoso";
-import { shortHash } from "../services/reportService";
-import PayslipDownloadButton from "../components/PayslipDownloadButton";
+import CopyButton from "../components/CopyButton";
 import {
   useElapsedTime,
   useSharedClockMs,
 } from "../context/SharedClockContext";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function shortAddr(a: string) {
+  return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+
+// ─── Join employer card ───────────────────────────────────────────────────────
+
+const JoinEmployer: React.FC<{ workerAddress: string }> = ({
+  workerAddress,
+}) => {
+  const { signTransaction } = useWallet();
+  const { addNotification } = useNotification();
+  const [employerAddr, setEmployerAddr] = useState("");
+  const [registering, setRegistering] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isValid = employerAddr.startsWith("G") && employerAddr.length >= 56;
+
+  const handleRegister = async () => {
+    if (!signTransaction || !isValid) return;
+    setRegistering(true);
+    setError(null);
+    try {
+      const { preparedXdr } = await buildRegisterWorkerTx(
+        workerAddress,
+        employerAddr,
+      );
+      const { signedTxXdr } = await signTransaction(preparedXdr, {
+        networkPassphrase: import.meta.env
+          .PUBLIC_STELLAR_NETWORK_PASSPHRASE as string,
+      });
+      await submitAndAwaitTx(signedTxXdr);
+      setDone(true);
+      addNotification("You're now in your employer's roster!", "success");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed");
+    } finally {
+      setRegistering(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div className="rounded-2xl border border-green-500/20 bg-green-500/[0.05] p-8 text-center">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-500/10">
+          <svg
+            className="h-7 w-7 text-green-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+        <h3 className="text-[18px] font-bold text-white mb-1">
+          You're registered!
+        </h3>
+        <p className="text-[14px] text-neutral-500 mb-5">
+          Your employer can now see you and create a payment stream. You'll see
+          your earnings appear here once it's set up.
+        </p>
+        <div className="flex items-center justify-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 max-w-xs mx-auto">
+          <span className="flex-1 truncate font-mono text-[12px] text-neutral-400">
+            {workerAddress}
+          </span>
+          <button
+            onClick={() => {
+              void navigator.clipboard.writeText(workerAddress);
+              addNotification("Address copied", "success");
+            }}
+            className="shrink-0 text-neutral-600 hover:text-yellow-400 transition-colors"
+          >
+            <svg
+              className="h-3.5 w-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <rect x="9" y="9" width="13" height="13" rx="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] overflow-hidden">
+      {/* Top accent */}
+      <div className="h-[2px]" style={{ background: "#facc15" }} />
+
+      <div className="p-8 text-center">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-yellow-400/10">
+          <svg
+            className="h-8 w-8 text-yellow-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-1.5-3.1M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        </div>
+
+        <h3 className="text-[20px] font-bold text-white mb-2">
+          Join your employer
+        </h3>
+        <p className="text-[14px] text-neutral-500 mb-8 max-w-sm mx-auto">
+          Enter your employer's Stellar address. One signature and you're on
+          their roster — they'll set up your stream right after.
+        </p>
+
+        <div className="max-w-md mx-auto flex flex-col gap-3">
+          <input
+            value={employerAddr}
+            onChange={(e) => {
+              setEmployerAddr(e.target.value.trim());
+              setError(null);
+            }}
+            placeholder="Employer's Stellar address (G…)"
+            className={`w-full rounded-xl border bg-black px-4 py-3.5 font-mono text-[13px] text-white placeholder:text-neutral-700 focus:outline-none focus:ring-1 transition-colors ${
+              employerAddr && !isValid
+                ? "border-red-500/40 focus:ring-red-500/20"
+                : "border-white/[0.1] focus:border-yellow-400/40 focus:ring-yellow-400/20"
+            }`}
+          />
+          {error && (
+            <p className="text-[12px] text-red-400 text-left">{error}</p>
+          )}
+          <button
+            onClick={() => void handleRegister()}
+            disabled={!isValid || registering}
+            className="w-full rounded-xl py-3.5 text-[15px] font-bold text-black transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ backgroundColor: "#facc15" }}
+          >
+            {registering ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg
+                  className="h-4 w-4 animate-spin"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v8H4z"
+                  />
+                </svg>
+                Joining…
+              </span>
+            ) : (
+              "Join Employer"
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // ─── Stream card ──────────────────────────────────────────────────────────────
 
@@ -32,11 +204,10 @@ const StreamCard: React.FC<{
   withdrawals: WithdrawalRecord[];
 }> = ({ stream, withdrawals }) => {
   const { addNotification, addStreamNotification } = useNotification();
-  const { t } = useTranslation();
   const [showTimeline, setShowTimeline] = useState(false);
   const [lastEventAmount, setLastEventAmount] = useState<number | null>(null);
-  const nowMs = useSharedClockMs();
   const previousAvailableRef = useRef<number | null>(null);
+  const nowMs = useSharedClockMs();
 
   useStreamSubscription((update) => {
     if (update.streamId === String(stream.id))
@@ -49,11 +220,13 @@ const StreamCard: React.FC<{
 
   const timeUntilCliff = useMemo(() => {
     if (!isBeforeCliff) return "Unlocked";
-    const days = Math.floor(timeToCliff / 86400);
-    const hours = Math.floor((timeToCliff % 86400) / 3600);
-    const mins = Math.floor((timeToCliff % 3600) / 60);
-    const secs = Math.floor(timeToCliff % 60);
-    return `${days}d ${hours}h ${mins}m ${secs}s`;
+    const d = Math.floor(timeToCliff / 86400);
+    const h = Math.floor((timeToCliff % 86400) / 3600);
+    const m = Math.floor((timeToCliff % 3600) / 60);
+    const s = Math.floor(timeToCliff % 60);
+    if (d > 0) return `${d}d ${h}h ${m}m`;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    return `${m}m ${s}s`;
   }, [isBeforeCliff, timeToCliff]);
 
   const elapsedAfterCliff = useElapsedTime(stream.cliffTime);
@@ -73,7 +246,7 @@ const StreamCard: React.FC<{
       nextAvailable > 0
     ) {
       addStreamNotification("withdrawal_available", {
-        message: `Funds are now available for stream ${stream.id}.`,
+        message: `Funds available for stream ${stream.id}.`,
         dedupeKey: `withdrawal-available-${stream.id}`,
       });
     }
@@ -88,253 +261,202 @@ const StreamCard: React.FC<{
 
   const pct =
     stream.totalAmount > 0 ? (currentEarnings / stream.totalAmount) * 100 : 0;
-  const remaining = Math.max(0, stream.totalAmount - currentEarnings);
   const available = Math.max(0, currentEarnings - stream.claimedAmount);
+  const remaining = Math.max(0, stream.totalAmount - currentEarnings);
 
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-6 flex flex-col gap-5">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[16px] font-bold text-white">
-            {stream.employerName}
-          </p>
-          <div className="flex items-center gap-1 mt-0.5">
-            <span className="font-mono text-[11px] text-neutral-600 truncate max-w-[180px]">
-              {stream.employerAddress}
-            </span>
-            <CopyButton
-              value={stream.employerAddress}
-              label="Copy employer address"
-            />
-          </div>
-        </div>
-        <span className="shrink-0 rounded-full bg-green-500/10 px-3 py-1 text-[12px] font-semibold text-green-400">
-          {formatTokenAmount(stream.flowRate, stream.tokenSymbol, 5)}{" "}
-          {stream.tokenSymbol}/s
-        </span>
+    <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] overflow-hidden flex flex-col">
+      {/* Progress accent line at top */}
+      <div className="h-[3px] w-full bg-white/[0.06]">
+        <div
+          className="h-full transition-all duration-1000 ease-linear"
+          style={{
+            width: `${Math.min(100, pct)}%`,
+            backgroundColor: "#facc15",
+          }}
+        />
       </div>
 
-      {/* Cliff status */}
-      {isBeforeCliff ? (
-        <div className="rounded-xl border border-yellow-400/20 bg-yellow-400/[0.06] p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <span>🔒</span>
-            <span className="text-[13px] font-semibold text-yellow-400">
-              Locked — cliff not reached
-            </span>
+      <div className="p-5 flex flex-col gap-4 flex-1">
+        {/* Employer */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[15px] font-bold text-white truncate">
+              {stream.employerName || shortAddr(stream.employerAddress)}
+            </p>
+            <p className="font-mono text-[11px] text-neutral-600 mt-0.5 truncate">
+              {shortAddr(stream.employerAddress)}
+            </p>
           </div>
-          <p className="text-[12px] text-yellow-400/70">
-            Time remaining:{" "}
-            <span className="font-mono font-bold">{timeUntilCliff}</span>
-          </p>
-        </div>
-      ) : (
-        <div className="rounded-xl border border-green-500/20 bg-green-500/[0.06] p-3">
-          <div className="flex items-center gap-2">
-            <span>✅</span>
-            <span className="text-[13px] font-semibold text-green-400">
-              Cliff unlocked — earnings active
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Earnings */}
-      <div>
-        <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-600 mb-1">
-          {t("worker.current_earnings")}
-        </p>
-        <p className="text-[28px] font-black text-white tabular-nums font-mono">
-          {formatTokenAmount(currentEarnings, stream.tokenSymbol)}{" "}
           <span
-            className="text-[16px] font-semibold"
-            style={{ color: "#facc15" }}
+            className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+              isBeforeCliff
+                ? "bg-yellow-400/10 text-yellow-400"
+                : "bg-green-500/10 text-green-400"
+            }`}
           >
+            {isBeforeCliff ? `🔒 ${timeUntilCliff}` : "● Live"}
+          </span>
+        </div>
+
+        {/* Earnings */}
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-700 mb-1">
+            Earned so far
+          </p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-[32px] font-black text-white tabular-nums leading-none font-mono">
+              {formatTokenAmount(currentEarnings, stream.tokenSymbol)}
+            </span>
+            <span
+              className="text-[14px] font-bold"
+              style={{ color: "#facc15" }}
+            >
+              {stream.tokenSymbol}
+            </span>
+          </div>
+          <p className="text-[12px] text-neutral-700 mt-1">
+            of {stream.totalAmount} {stream.tokenSymbol} total ·{" "}
+            {pct.toFixed(1)}% complete
+          </p>
+        </div>
+
+        {/* Flow rate */}
+        <div className="flex items-center justify-between rounded-xl bg-white/[0.03] border border-white/[0.05] px-4 py-2.5">
+          <span className="text-[12px] text-neutral-500">Rate</span>
+          <span className="font-mono text-[13px] font-semibold text-white">
+            {formatTokenAmount(stream.flowRate, stream.tokenSymbol, 7)}{" "}
+            {stream.tokenSymbol}/s
+          </span>
+        </div>
+
+        {/* Available to withdraw */}
+        <div
+          className="rounded-xl border px-4 py-3"
+          style={{
+            borderColor:
+              available > 0 ? "rgba(250,204,21,0.2)" : "rgba(255,255,255,0.05)",
+            backgroundColor:
+              available > 0
+                ? "rgba(250,204,21,0.04)"
+                : "rgba(255,255,255,0.02)",
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] text-neutral-500">
+              Available to withdraw
+            </span>
+            <span
+              className="font-mono text-[14px] font-black"
+              style={{ color: available > 0 ? "#facc15" : "#525252" }}
+            >
+              {formatTokenAmount(available, stream.tokenSymbol)}{" "}
+              {stream.tokenSymbol}
+            </span>
+          </div>
+          {remaining > 0 && (
+            <p className="text-[11px] text-neutral-700 mt-0.5">
+              {formatTokenAmount(remaining, stream.tokenSymbol)} remaining
+            </p>
+          )}
+        </div>
+
+        {/* Last event */}
+        {lastEventAmount !== null && (
+          <div className="rounded-xl border border-blue-500/20 bg-blue-500/[0.05] px-3 py-2 text-[12px] text-blue-400 flex items-center gap-2">
+            <span>⚡</span> Last withdrawal: {lastEventAmount.toFixed(7)}{" "}
             {stream.tokenSymbol}
-          </span>
-        </p>
-        <p className="text-[13px] text-neutral-600 mt-0.5">
-          of {stream.totalAmount} {stream.tokenSymbol} total
-        </p>
-      </div>
+          </div>
+        )}
 
-      {/* Progress bar */}
-      <div>
-        <div className="h-[4px] w-full rounded-full bg-white/[0.07] overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-1000"
-            style={{
-              width: `${Math.min(100, pct)}%`,
-              backgroundColor: "#facc15",
-            }}
-          />
+        {/* Actions */}
+        <div className="flex gap-2 mt-auto pt-1">
+          <button
+            onClick={() => setShowTimeline(!showTimeline)}
+            className="flex-1 rounded-xl border border-white/[0.08] bg-white/[0.04] py-2.5 text-[13px] font-semibold text-white hover:bg-white/[0.08] transition-colors"
+          >
+            {showTimeline ? "Hide" : "History"}
+          </button>
+          <button
+            onClick={() => addNotification("Withdrawal triggered!", "success")}
+            disabled={available <= 0}
+            className="flex-1 rounded-xl py-2.5 text-[13px] font-bold text-black transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{ backgroundColor: "#facc15" }}
+          >
+            Withdraw
+          </button>
         </div>
-        <div className="flex justify-between mt-1.5">
-          <span className="text-[11px] text-neutral-600">
-            Streamed: {currentEarnings.toFixed(4)} {stream.tokenSymbol}
-          </span>
-          <span className="text-[11px] text-neutral-600">
-            Remaining: {remaining.toFixed(4)} {stream.tokenSymbol}
-          </span>
-        </div>
+
+        {showTimeline && (
+          <StreamTimeline stream={stream} withdrawals={withdrawals} />
+        )}
       </div>
-
-      {/* Available */}
-      <div className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
-        <span className="text-[14px] text-neutral-400">
-          {t("worker.available")}
-        </span>
-        <span className="font-mono text-[15px] font-bold text-white">
-          {formatTokenAmount(available, stream.tokenSymbol)}{" "}
-          {stream.tokenSymbol}
-        </span>
-      </div>
-
-      {/* Last event */}
-      {lastEventAmount !== null && (
-        <div className="rounded-xl border border-blue-500/20 bg-blue-500/[0.06] px-3 py-2 text-[12px] text-blue-400">
-          ⚡ Last withdrawal: {lastEventAmount.toFixed(7)} {stream.tokenSymbol}
-        </div>
-      )}
-
-      {/* Actions */}
-      <div className="flex flex-col gap-2">
-        <button
-          onClick={() => setShowTimeline(!showTimeline)}
-          className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-white/[0.08]"
-        >
-          {showTimeline ? "Hide Timeline" : "Show Timeline"}
-        </button>
-        <button
-          onClick={() => addNotification("Withdrawal triggered!", "success")}
-          className="w-full rounded-xl py-2.5 text-[14px] font-bold text-black transition-all hover:opacity-90 active:scale-[0.97]"
-          style={{ backgroundColor: "#facc15" }}
-        >
-          {t("worker.withdraw_funds")}
-        </button>
-      </div>
-
-      {showTimeline && (
-        <StreamTimeline stream={stream} withdrawals={withdrawals} />
-      )}
     </div>
   );
 };
 
 // ─── Completed stream card ────────────────────────────────────────────────────
 
-const CompletedStreamCard: React.FC<{
-  stream: WorkerStream;
-  withdrawals: WithdrawalRecord[];
-}> = ({ stream, withdrawals }) => {
-  const { t } = useTranslation();
-  const { address } = useWallet();
-  const [showTimeline, setShowTimeline] = useState(false);
-
-  const getPeriod = () => {
-    const d = new Date(stream.endTime * 1000);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-  };
-
-  return (
-    <div className="rounded-2xl border border-white/[0.06] bg-[#0a0a0a] p-6 flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[16px] font-bold text-white">
-            {stream.employerName}
-          </p>
-          <div className="flex items-center gap-1 mt-0.5">
-            <span className="font-mono text-[11px] text-neutral-600">
-              {stream.employerAddress}
-            </span>
-            <CopyButton
-              value={stream.employerAddress}
-              label="Copy employer address"
-            />
-          </div>
-        </div>
-        <span className="shrink-0 rounded-full bg-neutral-800 px-3 py-1 text-[12px] font-semibold text-neutral-400">
-          {t("worker.status_completed")}
-        </span>
-      </div>
-
-      <div>
-        <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-600 mb-1">
-          {t("worker.total_paid")}
+const CompletedStreamCard: React.FC<{ stream: WorkerStream }> = ({
+  stream,
+}) => (
+  <div className="rounded-2xl border border-white/[0.05] bg-[#0a0a0a] p-5 flex flex-col gap-3 opacity-70">
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0">
+        <p className="text-[14px] font-bold text-white truncate">
+          {stream.employerName || shortAddr(stream.employerAddress)}
         </p>
-        <p className="text-[24px] font-black text-white font-mono">
-          {formatTokenAmount(stream.totalAmount, stream.tokenSymbol)}{" "}
-          <span className="text-[14px]" style={{ color: "#facc15" }}>
-            {stream.tokenSymbol}
-          </span>
+        <p className="font-mono text-[11px] text-neutral-600 truncate">
+          {shortAddr(stream.employerAddress)}
         </p>
       </div>
-
-      <div className="h-[3px] w-full rounded-full bg-neutral-800 overflow-hidden">
-        <div className="h-full w-full rounded-full bg-neutral-600" />
-      </div>
-
-      {stream.proofGatewayUrl ? (
-        <a
-          href={stream.proofGatewayUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] py-2.5 text-[14px] font-semibold text-white no-underline hover:bg-white/[0.08]"
-        >
-          <svg
-            className="h-4 w-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          {t("worker.download_proof")}
-        </a>
-      ) : (
-        <div className="flex w-full items-center justify-center rounded-xl border border-white/[0.06] py-2.5 text-[13px] text-neutral-600">
-          {t("worker.proof_generating")}
-        </div>
-      )}
-
-      {stream.proofCid && (
-        <p className="text-center font-mono text-[10px] text-neutral-700 truncate">
-          {t("worker.proof_cid_label")}: {stream.proofCid}
-        </p>
-      )}
-
-      {address && (
-        <PayslipDownloadButton
-          workerAddress={address}
-          period={getPeriod()}
-          className="w-full"
-        />
-      )}
-
-      <button
-        onClick={() => setShowTimeline(!showTimeline)}
-        className="w-full rounded-xl border border-white/[0.07] bg-white/[0.03] py-2.5 text-[14px] font-semibold text-white hover:bg-white/[0.06] transition-colors"
-      >
-        {showTimeline ? "Hide Timeline" : "Show Timeline"}
-      </button>
-
-      {showTimeline && (
-        <StreamTimeline stream={stream} withdrawals={withdrawals} />
-      )}
+      <span className="shrink-0 rounded-full bg-neutral-800 px-2.5 py-0.5 text-[11px] font-semibold text-neutral-500">
+        Completed
+      </span>
     </div>
-  );
-};
+    <div>
+      <p className="text-[11px] text-neutral-700 mb-0.5 uppercase tracking-widest font-bold">
+        Total paid
+      </p>
+      <p className="text-[22px] font-black text-white font-mono">
+        {formatTokenAmount(stream.totalAmount, stream.tokenSymbol)}{" "}
+        <span className="text-[13px] font-semibold text-neutral-500">
+          {stream.tokenSymbol}
+        </span>
+      </p>
+    </div>
+    <div className="h-[2px] w-full rounded-full bg-neutral-800" />
+    {stream.proofGatewayUrl && (
+      <a
+        href={stream.proofGatewayUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] py-2 text-[13px] font-semibold text-white no-underline hover:bg-white/[0.06] transition-colors"
+      >
+        <svg
+          className="h-3.5 w-3.5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        Download Proof
+      </a>
+    )}
+  </div>
+);
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const WorkerDashboard: React.FC = () => {
-  const { t } = useTranslation();
   const { address } = useWallet();
   const { streams, withdrawalHistory, isLoading, error, refetch } =
     useStreams(address);
@@ -349,7 +471,7 @@ const WorkerDashboard: React.FC = () => {
       if (ps === undefined) return;
       if (ps !== 2 && stream.status === 2)
         addStreamNotification("stream_completed", {
-          message: `Stream ${stream.id} is now completed.`,
+          message: `Stream ${stream.id} completed.`,
           dedupeKey: `stream-completed-${stream.id}`,
         });
       if (ps !== 1 && stream.status === 1)
@@ -367,32 +489,35 @@ const WorkerDashboard: React.FC = () => {
     );
   }, [addStreamNotification, isLoading, streams]);
 
-  // ── Loading ─────────────────────────────────────────────────────────────────
+  // ── Loading ───────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <div className="px-6 py-8 sm:px-8 sm:py-10">
-        <Skeleton
-          variant="rect"
-          width="260px"
-          height="2.25rem"
-          className="mb-8 rounded-xl"
-        />
-        <div className="mb-10">
-          <EarningsSkeleton />
-        </div>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mb-8 h-8 w-48 animate-pulse rounded-xl bg-white/[0.06]" />
+        <div className="mb-6 grid grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
-            <StreamCardSkeleton key={i} />
+            <div
+              key={i}
+              className="h-24 animate-pulse rounded-2xl bg-white/[0.04]"
+            />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-64 animate-pulse rounded-2xl bg-white/[0.04]"
+            />
           ))}
         </div>
       </div>
     );
   }
 
-  // ── No wallet ───────────────────────────────────────────────────────────────
+  // ── No wallet ─────────────────────────────────────────────────────────────
   if (!address) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
+      <div className="flex flex-col items-center justify-center py-32 px-6 text-center">
         <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-yellow-400/20 bg-yellow-400/10">
           <svg
             className="h-8 w-8 text-yellow-400"
@@ -403,26 +528,24 @@ const WorkerDashboard: React.FC = () => {
           >
             <rect x="2" y="7" width="20" height="14" rx="2" />
             <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-            <line x1="12" y1="12" x2="12" y2="16" />
-            <circle cx="12" cy="12" r="1" fill="currentColor" />
           </svg>
         </div>
         <h2 className="text-[20px] font-bold text-white mb-2">
-          {t("worker.connect_prompt")}
+          Connect your wallet
         </h2>
         <p className="text-[14px] text-neutral-500">
-          Connect your Stellar wallet to view your streams.
+          Connect your Stellar wallet to view your earnings.
         </p>
       </div>
     );
   }
 
-  // ── Error ───────────────────────────────────────────────────────────────────
+  // ── Error ─────────────────────────────────────────────────────────────────
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
+      <div className="flex flex-col items-center justify-center py-32 px-6 text-center">
         <p className="text-[18px] font-bold text-white mb-2">
-          {t("worker.load_error")}
+          Failed to load streams
         </p>
         <p className="font-mono text-[12px] text-neutral-600 mb-6">{error}</p>
         <button
@@ -430,7 +553,7 @@ const WorkerDashboard: React.FC = () => {
           className="rounded-xl px-6 py-3 text-[14px] font-bold text-black"
           style={{ backgroundColor: "#facc15" }}
         >
-          {t("common.retry")}
+          Retry
         </button>
       </div>
     );
@@ -439,10 +562,17 @@ const WorkerDashboard: React.FC = () => {
   const activeStreams = streams.filter((s) => s.status !== 2);
   const completedStreams = streams.filter((s) => s.status === 2);
 
+  // Summary stats
+  const totalEarned = activeStreams.reduce((s, st) => s + st.totalAmount, 0);
+  const totalWithdrawn = withdrawalHistory.reduce(
+    (s, w) => s + (parseFloat(w.amount) || 0),
+    0,
+  );
+
   return (
     <>
       <SeoHelmet
-        title={t("worker.dashboard_title")}
+        title="My Earnings · Quipay"
         description="Your real-time earnings on Quipay"
         path="/worker"
         robots="noindex,nofollow"
@@ -450,150 +580,159 @@ const WorkerDashboard: React.FC = () => {
 
       <div className="px-6 py-8 sm:px-8 sm:py-10">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-[24px] font-bold text-white tracking-tight">
-            {t("worker.dashboard_title")}
-          </h1>
-          <p className="mt-1 text-[14px] text-neutral-500">
-            Your real-time earnings and stream history.
-          </p>
-        </div>
-
-        {/* Earnings overview */}
-        <section className="mb-10">
-          <EarningsDisplay streams={streams} />
-        </section>
-
-        {/* Forecast */}
-        <section className="mb-10">
-          <EarningsForecast streams={streams} />
-        </section>
-
-        {/* Batch note */}
-        <div className="mb-6 rounded-xl border border-yellow-400/20 bg-yellow-400/[0.05] px-4 py-3 text-[13px] text-yellow-400/80">
-          {t("worker.batch_atomic_note")}
-        </div>
-
-        {/* Active streams */}
-        <div className="mb-10">
-          <h2 className="text-[20px] font-bold text-white mb-5">
-            {t("worker.active_streams_heading")}
-          </h2>
-          {activeStreams.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/[0.08] bg-[#0a0a0a] p-12 text-center">
-              <p className="text-[14px] text-neutral-600">
-                {t("worker.no_active_streams")}
-              </p>
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-[24px] font-bold text-white tracking-tight">
+              My Earnings
+            </h1>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="font-mono text-[12px] text-neutral-600">
+                {shortAddr(address)}
+              </span>
+              <CopyButton value={address} label="Copy your wallet address" />
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {activeStreams.map((s) => (
-                <StreamCard
-                  key={s.id}
-                  stream={s}
-                  withdrawals={withdrawalHistory.filter(
-                    (w) => w.streamId === s.id,
-                  )}
-                />
-              ))}
-            </div>
+          </div>
+          {activeStreams.length > 0 && (
+            <span className="rounded-full bg-green-500/10 px-3 py-1 text-[12px] font-bold text-green-400">
+              ● {activeStreams.length} active stream
+              {activeStreams.length > 1 ? "s" : ""}
+            </span>
           )}
         </div>
 
-        {/* Completed streams */}
-        {completedStreams.length > 0 && (
-          <div className="mb-10">
-            <h2 className="text-[20px] font-bold text-white mb-5">
-              Completed Streams
-            </h2>
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {completedStreams.map((s) => (
-                <CompletedStreamCard
-                  key={s.id}
-                  stream={s}
-                  withdrawals={withdrawalHistory.filter(
-                    (w) => w.streamId === s.id,
-                  )}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Withdrawal history */}
-        <div>
-          <h2 className="text-[20px] font-bold text-white mb-5">
-            {t("worker.withdrawal_history_heading")}
-          </h2>
-          <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#0a0a0a]">
-            {withdrawalHistory.length === 0 ? (
-              <div className="p-12 text-center text-[14px] text-neutral-600">
-                {t("worker.no_withdrawal_history")}
+        {/* No streams — show join employer */}
+        {streams.length === 0 ? (
+          <JoinEmployer workerAddress={address} />
+        ) : (
+          <>
+            {/* Stats strip */}
+            <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-4">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-600 mb-1">
+                  Active Streams
+                </p>
+                <p className="text-[28px] font-black text-white">
+                  {activeStreams.length}
+                </p>
               </div>
-            ) : (
-              <TableVirtuoso
-                style={{ height: "360px", background: "transparent" }}
-                data={withdrawalHistory}
-                fixedHeaderContent={() => (
-                  <tr className="bg-[#0a0a0a] border-b border-white/[0.06]">
-                    {[
-                      t("worker.col_date"),
-                      t("worker.col_amount"),
-                      t("worker.col_token"),
-                      t("worker.col_transaction"),
-                    ].map((h) => (
-                      <th
-                        key={h}
-                        className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-neutral-600"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                )}
-                itemContent={(_i, rec) => (
-                  <>
-                    <td className="px-5 py-3 text-[13px] text-neutral-400 border-b border-white/[0.04]">
-                      {rec.date}
-                    </td>
-                    <td className="px-5 py-3 text-[14px] font-bold text-white border-b border-white/[0.04]">
-                      {rec.amount}
-                    </td>
-                    <td className="px-5 py-3 text-[13px] text-neutral-400 border-b border-white/[0.04]">
-                      {rec.tokenSymbol}
-                    </td>
-                    <td className="px-5 py-3 border-b border-white/[0.04]">
-                      <span className="flex items-center gap-1">
-                        <a
-                          href={`https://stellar.expert/explorer/testnet/tx/${rec.txHash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-mono text-[12px] no-underline"
-                          style={{ color: "#facc15" }}
-                        >
-                          {shortHash(rec.txHash)}
-                        </a>
-                        <CopyButton
-                          value={rec.txHash}
-                          label="Copy transaction hash"
-                        />
-                      </span>
-                    </td>
-                  </>
-                )}
-                components={{
-                  Table: ({ ...props }) => (
-                    <table
-                      {...props}
-                      className="w-full border-collapse"
-                      style={{ borderSpacing: 0 }}
+              <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-4">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-600 mb-1">
+                  Total in Streams
+                </p>
+                <p
+                  className="text-[28px] font-black"
+                  style={{ color: "#facc15" }}
+                >
+                  {totalEarned.toLocaleString(undefined, {
+                    maximumFractionDigits: 2,
+                  })}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-4">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-600 mb-1">
+                  Total Withdrawn
+                </p>
+                <p className="text-[28px] font-black text-white">
+                  {totalWithdrawn.toLocaleString(undefined, {
+                    maximumFractionDigits: 2,
+                  })}
+                </p>
+              </div>
+            </div>
+
+            {/* Active streams */}
+            {activeStreams.length > 0 && (
+              <div className="mb-10">
+                <h2 className="text-[18px] font-bold text-white mb-4">
+                  Active Streams
+                </h2>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {activeStreams.map((s) => (
+                    <StreamCard
+                      key={s.id}
+                      stream={s}
+                      withdrawals={withdrawalHistory.filter(
+                        (w) => w.streamId === s.id,
+                      )}
                     />
-                  ),
-                }}
-              />
+                  ))}
+                </div>
+              </div>
             )}
-          </div>
-        </div>
+
+            {/* Completed streams */}
+            {completedStreams.length > 0 && (
+              <div className="mb-10">
+                <h2 className="text-[18px] font-bold text-white mb-4">
+                  Completed
+                </h2>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {completedStreams.map((s) => (
+                    <CompletedStreamCard key={s.id} stream={s} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Withdrawal history */}
+            <div>
+              <h2 className="text-[18px] font-bold text-white mb-4">
+                Withdrawal History
+              </h2>
+              <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#0a0a0a]">
+                {withdrawalHistory.length === 0 ? (
+                  <div className="p-12 text-center text-[14px] text-neutral-600">
+                    No withdrawals yet
+                  </div>
+                ) : (
+                  <table className="w-full border-collapse text-[13px]">
+                    <thead>
+                      <tr className="border-b border-white/[0.06]">
+                        {["Date", "Amount", "Token", "Transaction"].map((h) => (
+                          <th
+                            key={h}
+                            className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-neutral-600"
+                          >
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {withdrawalHistory.map((rec, i) => (
+                        <tr
+                          key={i}
+                          className="border-b border-white/[0.04] last:border-0"
+                        >
+                          <td className="px-5 py-3 text-neutral-500">
+                            {rec.date}
+                          </td>
+                          <td className="px-5 py-3 font-bold text-white">
+                            {rec.amount}
+                          </td>
+                          <td className="px-5 py-3 text-neutral-500">
+                            {rec.tokenSymbol}
+                          </td>
+                          <td className="px-5 py-3">
+                            <a
+                              href={`https://stellar.expert/explorer/testnet/tx/${rec.txHash}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-[11px] no-underline hover:underline"
+                              style={{ color: "#facc15" }}
+                            >
+                              {rec.txHash.slice(0, 8)}…{rec.txHash.slice(-6)}
+                            </a>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </>
   );

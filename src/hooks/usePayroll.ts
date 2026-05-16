@@ -135,8 +135,14 @@ export const usePayroll = (
   }, []);
 
   const fetchPayrollSummary = useCallback(async (address: string) => {
-    const backendUrl =
-      import.meta.env.PUBLIC_BACKEND_URL || "http://localhost:3001";
+    // Payroll summary comes from the backend analytics API.
+    // Skip silently when no backend URL is configured (testnet / frontend-only mode).
+    const backendUrl = import.meta.env.PUBLIC_BACKEND_URL;
+    if (!backendUrl) {
+      setPayrollSummary(null);
+      setPayrollSummaryError(null);
+      return;
+    }
 
     try {
       await dedupRequest(`summary-${address}`, async () => {
@@ -281,10 +287,10 @@ export const usePayroll = (
   }, [employerAddress, fetchPayrollSummary, fetchStreams, fetchVaultData]);
 
   useEffect(() => {
-    if (!employerAddress) return;
-
-    const WS_URL =
-      import.meta.env.PUBLIC_BACKEND_URL || "http://localhost:3001";
+    // Only connect to WebSocket when a backend URL is explicitly configured.
+    // Without a backend the socket just floods the console with ERR_CONNECTION_REFUSED.
+    const WS_URL = import.meta.env.PUBLIC_BACKEND_URL;
+    if (!employerAddress || !WS_URL) return;
 
     const socket = io(WS_URL, {
       path: "/socket.io",

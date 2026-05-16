@@ -1,517 +1,487 @@
-import { useAnalyticsData } from "../hooks/useAnalyticsData";
-import { useTheme } from "../providers/ThemeProvider";
+import { useMemo } from "react";
 import {
-  AreaChart,
-  Area,
+  PieChart,
+  Pie,
+  Cell,
   BarChart,
   Bar,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
-  LineChart,
-  Line,
+  Legend,
 } from "recharts";
-import { ChartPanelSkeleton } from "../components/Loading";
+import { useWallet } from "../hooks/useWallet";
+import { usePayroll } from "../hooks/usePayroll";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function shortAddr(addr: string) {
-  if (addr.length <= 12) return addr;
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
+const STROOPS = 1e7;
+const YELLOW = "#facc15";
+const COLORS = [YELLOW, "#eab308", "#ca8a04", "#a16207", "#854d0e"];
 
-function fmtVolume(raw: string | number) {
-  const n = typeof raw === "string" ? parseFloat(raw) : raw;
-  if (isNaN(n)) return "0";
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+function fmt(n: number, d = 2) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(d)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return n.toFixed(0);
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: d,
+    maximumFractionDigits: d,
+  });
 }
 
-function shortBucket(bucket: string) {
-  // "2025-01-15" → "Jan 15" or "Jan W3"
-  const d = new Date(bucket);
-  if (isNaN(d.getTime())) return bucket;
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+function shortAddr(a: string) {
+  return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
-// ── Chart theme helpers ───────────────────────────────────────────────────────
-
-function useChartTheme(theme: string) {
-  const dark = theme === "dark";
-  return {
-    axisColor: dark ? "#94a3b8" : "#64748b",
-    gridColor: dark ? "rgba(99,102,241,0.1)" : "rgba(71,85,105,0.12)",
-    tooltipStyle: {
-      backgroundColor: dark ? "#0f172a" : "#ffffff",
-      border: dark
-        ? "1px solid rgba(99,102,241,0.25)"
-        : "1px solid rgba(148,163,184,0.4)",
-      borderRadius: "0.75rem",
-      color: dark ? "#e2e8f0" : "#0f172a",
-      fontSize: "0.78rem",
-    },
-  };
-}
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function ChartCard({
-  title,
-  description,
-  children,
-  cardCls,
-}: {
-  title: string;
-  description: string;
-  children: React.ReactNode;
-  cardCls: string;
-}) {
-  return (
-    <div className={cardCls}>
-      <div className="mb-4">
-        <p className="text-[0.95rem] font-bold text-slate-100">{title}</p>
-        <p className="mt-0.5 text-[0.78rem] text-slate-400">{description}</p>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function KpiCard({
+function StatCard({
   label,
   value,
+  sub,
   accent,
-  cardCls,
 }: {
   label: string;
-  value: string;
-  accent: string;
-  cardCls: string;
+  value: string | number;
+  sub?: string;
+  accent?: boolean;
 }) {
   return (
-    <div className={cardCls}>
-      <p className="mb-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.06em] text-slate-500">
+    <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5">
+      <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-neutral-600">
         {label}
       </p>
-      <p className={`text-[1.45rem] font-extrabold ${accent}`}>{value}</p>
-    </div>
-  );
-}
-
-// ── Main page ─────────────────────────────────────────────────────────────────
-
-const Analytics: React.FC = () => {
-  const { theme } = useTheme();
-  const ct = useChartTheme(theme);
-  const dark = theme === "dark";
-
-  const {
-    summary,
-    volumeOverTime,
-    topWorkers,
-    streamCreationRate,
-    withdrawalFrequency,
-    granularity,
-    setGranularity,
-    loading,
-    error,
-    lastUpdatedAt,
-    refreshIntervalMs,
-    refresh,
-  } = useAnalyticsData();
-
-  const pageCls = dark
-    ? "min-h-screen bg-[linear-gradient(135deg,#0f172a_0%,#1e1b4b_50%,#0f172a_100%)] px-4 pb-16 pt-8 text-slate-200"
-    : "min-h-screen bg-[linear-gradient(135deg,#f7fbff_0%,#eef4ff_55%,#f8fafc_100%)] px-4 pb-16 pt-8 text-slate-900";
-
-  const cardCls = dark
-    ? "rounded-2xl border border-indigo-500/15 bg-slate-800/55 p-5 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-[20px]"
-    : "rounded-2xl border border-slate-200/80 bg-white/80 p-5 shadow-[0_8px_32px_rgba(15,23,42,0.08)] backdrop-blur-[20px]";
-
-  const titleCls = dark
-    ? "mb-1 text-[1.9rem] font-extrabold tracking-[-0.02em] text-transparent bg-[linear-gradient(135deg,#818cf8,#c084fc,#6366f1)] bg-clip-text"
-    : "mb-1 text-[1.9rem] font-extrabold tracking-[-0.02em] text-transparent bg-[linear-gradient(135deg,#0f172a,#1d4ed8,#14b8a6)] bg-clip-text";
-
-  const subtitleCls = dark ? "text-slate-400" : "text-slate-500";
-
-  const btnBase =
-    "rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-150";
-  const btnActive = dark
-    ? `${btnBase} bg-indigo-500/20 border border-indigo-500/40 text-indigo-300`
-    : `${btnBase} bg-indigo-100 border border-indigo-300 text-indigo-700`;
-  const btnInactive = dark
-    ? `${btnBase} border border-slate-700 text-slate-400 hover:text-slate-200`
-    : `${btnBase} border border-slate-200 text-slate-500 hover:text-slate-700`;
-
-  return (
-    <div className={pageCls}>
-      {/* Header */}
-      <header className="mx-auto mb-6 max-w-[1200px]">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className={titleCls}>Streaming Analytics</h1>
-            <p className={`m-0 text-[0.9rem] ${subtitleCls}`}>
-              Real-time XLM/USDC volume, top earners, stream creation and
-              withdrawal activity
-            </p>
-            <p className={`mt-1 text-xs ${subtitleCls}`}>
-              Auto-refreshes every {refreshIntervalMs / 1000}s · Last updated{" "}
-              {lastUpdatedAt.toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              })}
-            </p>
-          </div>
-
-          {/* Controls */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-xs ${subtitleCls}`}>Granularity:</span>
-            <button
-              className={granularity === "daily" ? btnActive : btnInactive}
-              onClick={() => setGranularity("daily")}
-            >
-              Daily
-            </button>
-            <button
-              className={granularity === "weekly" ? btnActive : btnInactive}
-              onClick={() => setGranularity("weekly")}
-            >
-              Weekly
-            </button>
-            <button
-              className={btnInactive}
-              onClick={() => void refresh()}
-              aria-label="Refresh analytics"
-            >
-              ↻ Refresh
-            </button>
-          </div>
-        </div>
-
-        {/* Error banner */}
-        {error && (
-          <div
-            role="alert"
-            className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
-          >
-            {error} — showing last known data.
-          </div>
-        )}
-      </header>
-
-      {/* KPI row */}
-      <div
-        className="mx-auto mb-6 grid max-w-[1200px] grid-cols-2 gap-4 sm:grid-cols-4"
-        role="region"
-        aria-label="Key metrics"
+      <p
+        className="text-[26px] font-black leading-none"
+        style={accent ? { color: YELLOW } : { color: "#fff" }}
       >
-        <KpiCard
-          label="Total Streams"
-          value={summary ? String(summary.total_streams) : "—"}
-          accent="text-indigo-400"
-          cardCls={cardCls}
-        />
-        <KpiCard
-          label="Active Streams"
-          value={summary ? String(summary.active_streams) : "—"}
-          accent="text-emerald-400"
-          cardCls={cardCls}
-        />
-        <KpiCard
-          label="Total Volume"
-          value={summary ? fmtVolume(summary.total_volume) : "—"}
-          accent="text-purple-400"
-          cardCls={cardCls}
-        />
-        <KpiCard
-          label="Total Withdrawn"
-          value={summary ? fmtVolume(summary.total_withdrawn) : "—"}
-          accent="text-pink-400"
-          cardCls={cardCls}
-        />
-      </div>
-
-      {/* Charts grid */}
-      <div className="mx-auto grid max-w-[1200px] grid-cols-1 gap-6 md:grid-cols-2">
-        {/* 1 — Volume over time */}
-        <ChartCard
-          title="XLM / USDC Streamed"
-          description={`Total payroll volume per ${granularity === "weekly" ? "week" : "day"} (last 30 days)`}
-          cardCls={cardCls}
-        >
-          {loading && volumeOverTime.length === 0 ? (
-            <ChartPanelSkeleton className="border-0 bg-transparent p-0" />
-          ) : (
-            <ResponsiveContainer width="100%" height={240}>
-              <AreaChart
-                data={volumeOverTime.map((d) => ({
-                  ...d,
-                  bucket: shortBucket(d.bucket),
-                  total_volume: parseFloat(d.total_volume),
-                  xlm_volume: parseFloat(d.xlm_volume),
-                  usdc_volume: parseFloat(d.usdc_volume),
-                }))}
-                margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="vol-total" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.02} />
-                  </linearGradient>
-                  <linearGradient id="vol-usdc" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke={ct.gridColor}
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="bucket"
-                  tick={{ fill: ct.axisColor, fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  interval="preserveStartEnd"
-                />
-                <YAxis
-                  tick={{ fill: ct.axisColor, fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={fmtVolume}
-                />
-                <Tooltip
-                  contentStyle={ct.tooltipStyle}
-                  formatter={(v) => [fmtVolume(v as number)]}
-                />
-                <Legend
-                  wrapperStyle={{ fontSize: "0.75rem", color: ct.axisColor }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="total_volume"
-                  name="Total"
-                  stroke="#6366f1"
-                  strokeWidth={2}
-                  fill="url(#vol-total)"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="usdc_volume"
-                  name="USDC"
-                  stroke="#10b981"
-                  strokeWidth={1.5}
-                  fill="url(#vol-usdc)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
-
-        {/* 2 — Top workers by earned amount */}
-        <ChartCard
-          title="Top Workers by Earned Amount"
-          description="Cumulative withdrawals per worker"
-          cardCls={cardCls}
-        >
-          {loading && topWorkers.length === 0 ? (
-            <ChartPanelSkeleton className="border-0 bg-transparent p-0" />
-          ) : topWorkers.length === 0 ? (
-            <EmptyState />
-          ) : (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart
-                data={topWorkers.map((w) => ({
-                  worker: shortAddr(w.worker),
-                  earned: parseFloat(w.total_earned),
-                  streams: w.stream_count,
-                }))}
-                layout="vertical"
-                margin={{ top: 4, right: 16, left: 8, bottom: 0 }}
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke={ct.gridColor}
-                  horizontal={false}
-                />
-                <XAxis
-                  type="number"
-                  tick={{ fill: ct.axisColor, fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={fmtVolume}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="worker"
-                  tick={{ fill: ct.axisColor, fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={72}
-                />
-                <Tooltip
-                  contentStyle={ct.tooltipStyle}
-                  formatter={(v) => [fmtVolume(v as number), "Earned"]}
-                />
-                <Bar
-                  dataKey="earned"
-                  name="Earned"
-                  fill="#818cf8"
-                  radius={[0, 4, 4, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
-
-        {/* 3 — Stream creation rate */}
-        <ChartCard
-          title="Stream Creation Rate"
-          description={`New streams per ${granularity === "weekly" ? "week" : "day"} (last 30 days)`}
-          cardCls={cardCls}
-        >
-          {loading && streamCreationRate.length === 0 ? (
-            <ChartPanelSkeleton className="border-0 bg-transparent p-0" />
-          ) : (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart
-                data={streamCreationRate.map((d) => ({
-                  ...d,
-                  bucket: shortBucket(d.bucket),
-                }))}
-                margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke={ct.gridColor}
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="bucket"
-                  tick={{ fill: ct.axisColor, fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  interval="preserveStartEnd"
-                />
-                <YAxis
-                  tick={{ fill: ct.axisColor, fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  allowDecimals={false}
-                />
-                <Tooltip
-                  contentStyle={ct.tooltipStyle}
-                  formatter={(v) => [v, "Streams created"]}
-                />
-                <Bar
-                  dataKey="streams_created"
-                  name="Streams Created"
-                  fill="#c084fc"
-                  radius={[4, 4, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
-
-        {/* 4 — Withdrawal frequency */}
-        <ChartCard
-          title="Withdrawal Frequency"
-          description={`Withdrawal count & volume per ${granularity === "weekly" ? "week" : "day"} (last 30 days)`}
-          cardCls={cardCls}
-        >
-          {loading && withdrawalFrequency.length === 0 ? (
-            <ChartPanelSkeleton className="border-0 bg-transparent p-0" />
-          ) : (
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart
-                data={withdrawalFrequency.map((d) => ({
-                  ...d,
-                  bucket: shortBucket(d.bucket),
-                  total_withdrawn: parseFloat(d.total_withdrawn),
-                }))}
-                margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke={ct.gridColor}
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="bucket"
-                  tick={{ fill: ct.axisColor, fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  interval="preserveStartEnd"
-                />
-                <YAxis
-                  yAxisId="count"
-                  tick={{ fill: ct.axisColor, fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  allowDecimals={false}
-                />
-                <YAxis
-                  yAxisId="vol"
-                  orientation="right"
-                  tick={{ fill: ct.axisColor, fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={fmtVolume}
-                />
-                <Tooltip
-                  contentStyle={ct.tooltipStyle}
-                  formatter={(v, name) =>
-                    name === "Volume"
-                      ? [fmtVolume(v as number), name]
-                      : [v, name]
-                  }
-                />
-                <Legend
-                  wrapperStyle={{ fontSize: "0.75rem", color: ct.axisColor }}
-                />
-                <Line
-                  yAxisId="count"
-                  type="monotone"
-                  dataKey="withdrawal_count"
-                  name="Count"
-                  stroke="#f472b6"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  yAxisId="vol"
-                  type="monotone"
-                  dataKey="total_withdrawn"
-                  name="Volume"
-                  stroke="#fb923c"
-                  strokeWidth={2}
-                  dot={false}
-                  strokeDasharray="4 2"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
-      </div>
-    </div>
-  );
-};
-
-// ── Micro-components ──────────────────────────────────────────────────────────
-
-function EmptyState() {
-  return (
-    <div className="flex h-[240px] items-center justify-center text-sm text-slate-500">
-      No data yet
+        {value}
+      </p>
+      {sub && <p className="mt-1 text-[12px] text-neutral-600">{sub}</p>}
     </div>
   );
 }
 
-export default Analytics;
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function Analytics() {
+  const { address } = useWallet();
+  const { streams, vaultData, isLoading, error } = usePayroll(address);
+
+  // ── Derived data ──────────────────────────────────────────────────────────
+
+  const active = streams.filter((s) => s.status === "active");
+  const completed = streams.filter((s) => s.status === "completed");
+  const cancelled = streams.filter((s) => s.status === "cancelled");
+
+  const totalStreamed = streams.reduce(
+    (s, x) => s + parseFloat(x.totalStreamed || "0"),
+    0,
+  );
+  const uniqueWorkers = new Set(streams.map((s) => s.employeeAddress)).size;
+
+  // Status breakdown pie
+  const statusData = useMemo(
+    () =>
+      [
+        { name: "Active", value: active.length, fill: "#22c55e" },
+        { name: "Completed", value: completed.length, fill: YELLOW },
+        { name: "Cancelled", value: cancelled.length, fill: "#ef4444" },
+      ].filter((d) => d.value > 0),
+    [active.length, completed.length, cancelled.length],
+  );
+
+  // Per-worker earnings bar
+  const workerData = useMemo(() => {
+    const map = new Map<string, number>();
+    streams.forEach((s) => {
+      const addr = s.employeeAddress;
+      map.set(addr, (map.get(addr) ?? 0) + parseFloat(s.totalStreamed || "0"));
+    });
+    return Array.from(map.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([addr, earned]) => ({ name: shortAddr(addr), earned }));
+  }, [streams]);
+
+  // Token distribution
+  const tokenData = useMemo(() => {
+    const map = new Map<string, number>();
+    streams.forEach((s) => {
+      map.set(
+        s.tokenSymbol,
+        (map.get(s.tokenSymbol) ?? 0) + parseFloat(s.totalAmount || "0"),
+      );
+    });
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+  }, [streams]);
+
+  // Vault treasury overview
+  const vaultRows = vaultData.map((v) => ({
+    token: v.tokenSymbol,
+    balance: Number(v.balance ?? 0) / STROOPS,
+    liability: Number(v.liability ?? 0) / STROOPS,
+    available: Math.max(
+      0,
+      Number(v.balance ?? 0) / STROOPS - Number(v.liability ?? 0) / STROOPS,
+    ),
+  }));
+
+  // ── Guards ────────────────────────────────────────────────────────────────
+
+  if (!address) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 px-6 text-center">
+        <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-yellow-400/20 bg-yellow-400/10">
+          <svg
+            className="h-8 w-8 text-yellow-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+          >
+            <rect x="2" y="7" width="20" height="14" rx="2" />
+            <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+          </svg>
+        </div>
+        <h2 className="text-[20px] font-bold text-white mb-2">
+          Connect your wallet
+        </h2>
+        <p className="text-[14px] text-neutral-500">
+          Connect to view your analytics.
+        </p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="px-6 py-8 sm:px-8 sm:py-10">
+        <div className="mb-6 h-8 w-48 animate-pulse rounded-xl bg-white/[0.06]" />
+        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="h-24 animate-pulse rounded-2xl bg-white/[0.04]"
+            />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {[1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-64 animate-pulse rounded-2xl bg-white/[0.04]"
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 px-6 text-center">
+        <p className="text-[18px] font-bold text-white mb-2">
+          Failed to load analytics
+        </p>
+        <p className="font-mono text-[12px] text-neutral-600">{error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-6 py-8 sm:px-8 sm:py-10">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-[24px] font-bold text-white tracking-tight">
+          Analytics
+        </h1>
+        <p className="mt-1 text-[14px] text-neutral-500">
+          Live data from your Stellar testnet contracts.
+        </p>
+      </div>
+
+      {/* Stats */}
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Total Streams" value={streams.length} accent />
+        <StatCard label="Active Streams" value={active.length} />
+        <StatCard label="Unique Workers" value={uniqueWorkers} />
+        <StatCard
+          label="Total Streamed"
+          value={fmt(totalStreamed, 0)}
+          sub="in token units"
+        />
+      </div>
+
+      {/* Vault overview */}
+      {vaultRows.length > 0 && (
+        <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {vaultRows.map((v) => (
+            <div
+              key={v.token}
+              className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5"
+            >
+              <p className="mb-3 text-[13px] font-bold text-white">
+                Vault · {v.token}
+              </p>
+              <div className="flex flex-col gap-1.5 text-[12px]">
+                <div className="flex justify-between">
+                  <span className="text-neutral-600">Balance</span>
+                  <span className="font-bold text-white">{fmt(v.balance)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-600">Liability</span>
+                  <span className="font-bold text-red-400">
+                    {fmt(v.liability)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-600">Available</span>
+                  <span className="font-bold" style={{ color: YELLOW }}>
+                    {fmt(v.available)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {streams.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-white/[0.08] bg-[#0a0a0a] p-12 text-center">
+          <p className="text-[15px] font-bold text-white mb-1">
+            No stream data yet
+          </p>
+          <p className="text-[13px] text-neutral-600">
+            Create streams to see analytics here.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Charts row */}
+          <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {/* Status breakdown */}
+            {statusData.length > 0 && (
+              <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5">
+                <p className="mb-4 text-[13px] font-bold text-white">
+                  Stream Status
+                </p>
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie
+                      data={statusData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={90}
+                      strokeWidth={0}
+                      paddingAngle={3}
+                    >
+                      {statusData.map((d, i) => (
+                        <Cell key={i} fill={d.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        background: "#111",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        borderRadius: 12,
+                        fontSize: 12,
+                      }}
+                      formatter={(v) => [v as number, ""]}
+                    />
+                    <Legend
+                      iconType="circle"
+                      iconSize={8}
+                      formatter={(v) => (
+                        <span style={{ color: "#737373", fontSize: 11 }}>
+                          {v}
+                        </span>
+                      )}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Token distribution */}
+            {tokenData.length > 0 && (
+              <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5">
+                <p className="mb-4 text-[13px] font-bold text-white">
+                  Token Distribution
+                </p>
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie
+                      data={tokenData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={90}
+                      strokeWidth={0}
+                      paddingAngle={3}
+                    >
+                      {tokenData.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        background: "#111",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        borderRadius: 12,
+                        fontSize: 12,
+                      }}
+                      formatter={(v) => [fmt(v as number), "Total value"]}
+                    />
+                    <Legend
+                      iconType="circle"
+                      iconSize={8}
+                      formatter={(v) => (
+                        <span style={{ color: "#737373", fontSize: 11 }}>
+                          {v}
+                        </span>
+                      )}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          {/* Worker earnings bar */}
+          {workerData.length > 0 && (
+            <div className="mb-8 rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5">
+              <p className="mb-4 text-[13px] font-bold text-white">
+                Earnings per Worker
+              </p>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart
+                  data={workerData}
+                  margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
+                >
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fill: "#525252", fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fill: "#525252", fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => fmt(v, 0)}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "#111",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      borderRadius: 12,
+                      fontSize: 12,
+                    }}
+                    formatter={(v) => [fmt(v as number), "Earned"]}
+                    cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                  />
+                  <Bar
+                    dataKey="earned"
+                    radius={[4, 4, 0, 0]}
+                    fill={YELLOW}
+                    maxBarSize={40}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Worker leaderboard */}
+          {workerData.length > 0 && (
+            <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] overflow-hidden">
+              <div className="border-b border-white/[0.06] px-5 py-4">
+                <p className="text-[14px] font-bold text-white">
+                  Worker Leaderboard
+                </p>
+              </div>
+              <table className="w-full border-collapse text-[13px]">
+                <thead>
+                  <tr className="border-b border-white/[0.05]">
+                    {["Rank", "Worker", "Streams", "Total Earned", "Share"].map(
+                      (h) => (
+                        <th
+                          key={h}
+                          className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-neutral-600"
+                        >
+                          {h}
+                        </th>
+                      ),
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {workerData.map((w, i) => {
+                    const share =
+                      totalStreamed > 0 ? (w.earned / totalStreamed) * 100 : 0;
+                    const workerStreams = streams.filter(
+                      (s) => shortAddr(s.employeeAddress) === w.name,
+                    );
+                    return (
+                      <tr
+                        key={i}
+                        className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors"
+                      >
+                        <td className="px-5 py-3.5">
+                          <span
+                            className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black ${i === 0 ? "text-black" : "text-neutral-600 bg-white/[0.05]"}`}
+                            style={i === 0 ? { backgroundColor: YELLOW } : {}}
+                          >
+                            {i + 1}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-2.5">
+                            <div
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-black text-black"
+                              style={{ backgroundColor: YELLOW }}
+                            >
+                              {w.name.slice(0, 2).toUpperCase()}
+                            </div>
+                            <span className="font-mono text-[12px] text-neutral-400">
+                              {w.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5 text-neutral-500">
+                          {workerStreams.length}
+                        </td>
+                        <td className="px-5 py-3.5 font-bold text-white">
+                          {fmt(w.earned)}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-2">
+                            <div className="h-[3px] w-16 rounded-full bg-white/[0.06] overflow-hidden">
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${share}%`,
+                                  backgroundColor: YELLOW,
+                                }}
+                              />
+                            </div>
+                            <span className="text-[11px] text-neutral-600">
+                              {share.toFixed(1)}%
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

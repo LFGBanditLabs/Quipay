@@ -60,13 +60,12 @@ export interface WithdrawalRecord {
 /** Stellar uses 7 decimal places (10^7 stroops = 1 token unit). */
 const STROOPS_PER_UNIT = 1e7;
 
-const BACKEND_URL =
-  import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "") ??
-  "http://localhost:3001";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "");
 
 const fetchProof = async (
   streamId: string,
 ): Promise<{ cid: string; gatewayUrl: string } | null> => {
+  if (!BACKEND_URL) return null;
   try {
     const res = await fetch(`${BACKEND_URL}/proofs/${streamId}`);
     if (!res.ok) return null;
@@ -113,6 +112,7 @@ export const useStreams = (workerAddress: string | undefined) => {
 
   useEffect(() => {
     if (!workerAddress) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStreams([]);
       setWithdrawalHistory([]);
       setIsLoading(false);

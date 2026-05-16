@@ -23,24 +23,27 @@ export interface NetworkStatus {
   protocolVersion?: number;
 }
 
-/**
- * Pings a single RPC endpoint and returns its health.
- */
 async function checkNodeHealth(
   name: string,
   url: string,
-  path: string = "",
+  useJsonRpc: boolean = false,
 ): Promise<RpcNodeHealth> {
   const start = Date.now();
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
 
-    const response = await fetch(`${url}${path}`, {
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
+    // Soroban RPC doesn't expose a GET /health — use the JSON-RPC getHealth method.
+    const response = useJsonRpc
+      ? await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getHealth" }),
+          signal: controller.signal,
+        })
+      : await fetch(url, { signal: controller.signal });
 
+    clearTimeout(timeout);
     const latency = Date.now() - start;
 
     if (!response.ok) {
@@ -81,12 +84,8 @@ export async function getNetworkStatus(): Promise<NetworkStatus> {
   const startTime = Date.now();
 
   const [horizonHealth, sorobanHealth] = await Promise.all([
-    checkNodeHealth("Stellar Horizon", horizonUrl),
-    checkNodeHealth(
-      "Soroban RPC",
-      rpcUrl,
-      rpcUrl.endsWith("/rpc") ? "" : "/health",
-    ),
+    checkNodeHealth("Stellar Horizon", horizonUrl, false),
+    checkNodeHealth("Soroban RPC", rpcUrl, true),
   ]);
 
   if (

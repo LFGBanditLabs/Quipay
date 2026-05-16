@@ -1,7 +1,4 @@
 node_modules
 dist
 .vite
-target
-.soroban
 *.min.js
-deploy/helm/**
