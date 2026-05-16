@@ -25,63 +25,62 @@ import {
 
 const tw = {
   reportsPage:
-    "min-h-screen bg-[linear-gradient(135deg,#0f172a_0%,#1e1b4b_50%,#0f172a_100%)] px-6 pb-16 pt-8 font-[Inter,sans-serif] text-slate-200",
+    "min-h-screen bg-[#0a0a0a] px-6 pb-16 pt-8 font-[Inter,sans-serif] text-white",
   pageHeader: "mx-auto mb-8 max-w-[1200px]",
   pageTitle:
-    "mb-1 text-[2rem] font-extrabold tracking-[-0.02em] text-transparent bg-[linear-gradient(135deg,#818cf8,#c084fc,#6366f1)] bg-clip-text",
-  pageSubtitle: "m-0 text-[0.95rem] text-slate-400",
+    "mb-1 text-[2rem] font-extrabold tracking-[-0.02em] text-transparent bg-[#0a0a0a] bg-clip-text",
+  pageSubtitle: "m-0 text-[0.95rem] text-neutral-500",
   tabBar:
-    "mx-auto mb-6 flex max-w-[1200px] gap-1 rounded-xl border border-indigo-500/15 bg-slate-800/60 p-1 backdrop-blur-xl",
-  tab: "flex flex-1 items-center justify-center gap-2 rounded-[10px] bg-transparent px-4 py-3 text-sm font-semibold text-slate-400 transition-all duration-200 hover:bg-indigo-500/10 hover:text-indigo-200",
+    "mx-auto mb-6 flex max-w-[1200px] gap-1 rounded-xl border border-white/[0.07] bg-[#0a0a0a] p-1 backdrop-blur-xl",
+  tab: "flex flex-1 items-center justify-center gap-2 rounded-[10px] bg-transparent px-4 py-3 text-sm font-semibold text-neutral-500 transition-all duration-200 hover:bg-yellow-400/10 hover:text-yellow-400",
   tabActive:
-    "bg-[linear-gradient(135deg,#4f46e5,#6366f1)] text-white shadow-[0_4px_15px_rgba(99,102,241,0.35)]",
+    "bg-[#0a0a0a] text-white shadow-[0_4px_15px_rgba(99,102,241,0.35)]",
   tabIcon: "text-[1.1rem]",
-  card: "mx-auto mb-6 max-w-[1200px] rounded-2xl border border-indigo-500/15 bg-slate-800/55 p-6 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-[20px]",
+  card: "mx-auto mb-6 max-w-[1200px] rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-[20px]",
   cardHeader: "mb-5 flex flex-wrap items-center justify-between gap-3",
-  cardTitle:
-    "m-0 flex items-center gap-2 text-[1.15rem] font-bold text-slate-100",
-  cardTitleIcon: "text-indigo-300",
+  cardTitle: "m-0 flex items-center gap-2 text-[1.15rem] font-bold text-white",
+  cardTitleIcon: "text-yellow-400",
   toolbar: "flex flex-wrap items-center gap-3",
   filterSelect:
-    "min-w-[140px] rounded-lg border border-indigo-500/20 bg-slate-900/65 px-3 py-2 text-[0.825rem] text-slate-200 outline-none transition focus:border-indigo-500 focus:shadow-[0_0_0_3px_rgba(99,102,241,0.15)]",
+    "min-w-[140px] rounded-lg border border-white/[0.07] bg-[#0a0a0a] px-3 py-2 text-[0.825rem] text-white outline-none transition focus:border-yellow-400/40 focus:ring-1 focus:ring-yellow-400/20",
   filterInput:
-    "min-w-[140px] rounded-lg border border-indigo-500/20 bg-slate-900/65 px-3 py-2 text-[0.825rem] text-slate-200 outline-none transition focus:border-indigo-500 focus:shadow-[0_0_0_3px_rgba(99,102,241,0.15)]",
+    "min-w-[140px] rounded-lg border border-white/[0.07] bg-[#0a0a0a] px-3 py-2 text-[0.825rem] text-white outline-none transition focus:border-yellow-400/40 focus:ring-1 focus:ring-yellow-400/20",
   btnGroup: "flex flex-wrap gap-2",
   btnExport:
     "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[0.825rem] font-semibold transition-all duration-200",
   btnCSV:
-    "bg-[linear-gradient(135deg,#059669,#10b981)] text-white hover:-translate-y-px hover:shadow-[0_4px_14px_rgba(16,185,129,0.35)]",
+    "bg-[#0a0a0a] text-white hover:-translate-y-px hover:shadow-[0_4px_14px_rgba(250,204,21,0.2)]",
   btnPDF:
-    "bg-[linear-gradient(135deg,#dc2626,#ef4444)] text-white hover:-translate-y-px hover:shadow-[0_4px_14px_rgba(239,68,68,0.35)]",
+    "bg-[#0a0a0a] text-white hover:-translate-y-px hover:shadow-[0_4px_14px_rgba(250,204,21,0.2)]",
   btnSummaryPDF:
-    "bg-[linear-gradient(135deg,#4f46e5,#7c3aed)] text-white hover:-translate-y-px hover:shadow-[0_4px_14px_rgba(99,102,241,0.4)]",
+    "bg-[#0a0a0a] text-white hover:-translate-y-px hover:shadow-[0_4px_14px_rgba(250,204,21,0.2)]",
   btnPaycheck:
-    "border border-indigo-500/25 bg-indigo-500/10 px-2.5 py-1.5 text-xs text-indigo-300 hover:-translate-y-px hover:bg-indigo-500/25 hover:text-indigo-200",
+    "border border-white/[0.07] bg-yellow-400/10 px-2.5 py-1.5 text-xs text-yellow-400 hover:-translate-y-px hover:bg-yellow-400/10 hover:text-yellow-400",
   kpiGrid: "mb-6 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4",
-  kpi: "rounded-xl border border-indigo-500/10 bg-slate-900/50 p-[1.15rem] transition-all hover:-translate-y-0.5 hover:border-indigo-500/30 hover:shadow-[0_6px_20px_rgba(0,0,0,0.2)]",
+  kpi: "rounded-xl border border-white/[0.07] bg-[#0a0a0a] p-[1.15rem] transition-all hover:-translate-y-0.5 hover:border-white/[0.07] hover:shadow-[0_6px_20px_rgba(0,0,0,0.2)]",
   kpiLabel:
-    "mb-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-slate-500",
-  kpiValue: "text-[1.4rem] font-extrabold text-slate-100",
-  kpiHighlight: "text-indigo-300",
+    "mb-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-neutral-600",
+  kpiValue: "text-[1.4rem] font-extrabold text-white",
+  kpiHighlight: "text-yellow-400",
   kpiSuccess: "text-emerald-400",
   kpiWarning: "text-amber-300",
   kpiDanger: "text-rose-300",
   monthSelector: "flex flex-wrap gap-2",
   monthBtn:
-    "rounded-lg border border-indigo-500/20 bg-slate-900/60 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-indigo-500/10",
+    "rounded-lg border border-white/[0.07] bg-[#0a0a0a] px-3 py-1.5 text-xs font-semibold text-neutral-300 transition hover:bg-yellow-400/10",
   monthBtnActive:
-    "border-indigo-400/40 bg-indigo-500/20 text-indigo-100 shadow-[0_0_0_1px_rgba(129,140,248,0.35)]",
+    "border-white/[0.07] bg-yellow-400/10 text-yellow-400 shadow-[0_0_0_1px_rgba(129,140,248,0.35)]",
   deptGrid: "grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4",
-  deptCard: "rounded-xl border border-indigo-500/10 bg-slate-900/50 p-4",
-  deptName: "text-sm font-semibold text-slate-100",
-  deptMeta: "text-xs text-slate-400",
-  deptAmount: "text-lg font-bold text-indigo-200",
-  barTrack: "mt-2 h-2 overflow-hidden rounded-full bg-slate-700",
-  barFill: "h-full rounded-full bg-[linear-gradient(90deg,#6366f1,#a78bfa)]",
+  deptCard: "rounded-xl border border-white/[0.07] bg-[#0a0a0a] p-4",
+  deptName: "text-sm font-semibold text-white",
+  deptMeta: "text-xs text-neutral-500",
+  deptAmount: "text-lg font-bold text-yellow-400",
+  barTrack: "mt-2 h-2 overflow-hidden rounded-full bg-[#0a0a0a]",
+  barFill: "h-full rounded-full bg-[#0a0a0a]",
   tableWrapper:
-    "overflow-hidden rounded-xl border border-indigo-500/15 bg-slate-900/45",
+    "overflow-hidden rounded-xl border border-white/[0.07] bg-[#0a0a0a]",
   dataTable: "w-full border-collapse text-sm",
-  amountCell: "font-semibold text-slate-100",
+  amountCell: "font-semibold text-white",
   statusBadge:
     "inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-semibold",
   statusDot: "h-1.5 w-1.5 rounded-full",
@@ -92,10 +91,10 @@ const tw = {
   dotPending: "bg-amber-400",
   dotFailed: "bg-rose-400",
   emptyState:
-    "rounded-xl border border-dashed border-slate-600 p-10 text-center",
+    "rounded-xl border border-dashed border-white/[0.07] p-10 text-center",
   emptyIcon: "mb-2 text-3xl",
   toast:
-    "fixed bottom-5 right-5 z-50 inline-flex items-center gap-2 rounded-xl border border-indigo-400/35 bg-slate-900/90 px-4 py-3 text-sm font-medium text-indigo-100 shadow-2xl backdrop-blur",
+    "fixed bottom-5 right-5 z-50 inline-flex items-center gap-2 rounded-xl border border-white/[0.07] bg-[#0a0a0a] px-4 py-3 text-sm font-medium text-yellow-400 shadow-2xl backdrop-blur",
   toastIcon: "text-base",
 };
 
@@ -292,7 +291,7 @@ const Reports: React.FC = () => {
         </div>
         <div className="mt-4 h-[300px]">
           {analyticsLoading ? (
-            <div className="flex h-full items-center justify-center text-slate-400">
+            <div className="flex h-full items-center justify-center text-neutral-500">
               Loading analytics...
             </div>
           ) : analyticsError ? (
@@ -300,7 +299,7 @@ const Reports: React.FC = () => {
               Error: {analyticsError}
             </div>
           ) : trends.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-slate-400">
+            <div className="flex h-full items-center justify-center text-neutral-500">
               No trend data available
             </div>
           ) : (

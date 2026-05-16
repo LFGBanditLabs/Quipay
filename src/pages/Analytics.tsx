@@ -73,8 +73,8 @@ function ChartCard({
   return (
     <div className={cardCls}>
       <div className="mb-4">
-        <p className="text-[0.95rem] font-bold text-slate-100">{title}</p>
-        <p className="mt-0.5 text-[0.78rem] text-slate-400">{description}</p>
+        <p className="text-[0.95rem] font-bold text-white">{title}</p>
+        <p className="mt-0.5 text-[0.78rem] text-neutral-500">{description}</p>
       </div>
       {children}
     </div>
@@ -94,7 +94,7 @@ function KpiCard({
 }) {
   return (
     <div className={cardCls}>
-      <p className="mb-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.06em] text-slate-500">
+      <p className="mb-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.06em] text-neutral-600">
         {label}
       </p>
       <p className={`text-[1.45rem] font-extrabold ${accent}`}>{value}</p>
@@ -125,27 +125,27 @@ const Analytics: React.FC = () => {
   } = useAnalyticsData();
 
   const pageCls = dark
-    ? "min-h-screen bg-[linear-gradient(135deg,#0f172a_0%,#1e1b4b_50%,#0f172a_100%)] px-4 pb-16 pt-8 text-slate-200"
-    : "min-h-screen bg-[linear-gradient(135deg,#f7fbff_0%,#eef4ff_55%,#f8fafc_100%)] px-4 pb-16 pt-8 text-slate-900";
+    ? "min-h-screen bg-[#0a0a0a] px-4 pb-16 pt-8 text-white"
+    : "min-h-screen bg-[#0a0a0a] px-4 pb-16 pt-8 text-white";
 
   const cardCls = dark
-    ? "rounded-2xl border border-indigo-500/15 bg-slate-800/55 p-5 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-[20px]"
-    : "rounded-2xl border border-slate-200/80 bg-white/80 p-5 shadow-[0_8px_32px_rgba(15,23,42,0.08)] backdrop-blur-[20px]";
+    ? "rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-[20px]"
+    : "rounded-2xl border border-white/[0.07] bg-white/80 p-5 shadow-[0_8px_32px_rgba(15,23,42,0.08)] backdrop-blur-[20px]";
 
   const titleCls = dark
-    ? "mb-1 text-[1.9rem] font-extrabold tracking-[-0.02em] text-transparent bg-[linear-gradient(135deg,#818cf8,#c084fc,#6366f1)] bg-clip-text"
-    : "mb-1 text-[1.9rem] font-extrabold tracking-[-0.02em] text-transparent bg-[linear-gradient(135deg,#0f172a,#1d4ed8,#14b8a6)] bg-clip-text";
+    ? "mb-1 text-[1.9rem] font-extrabold tracking-[-0.02em] text-transparent bg-[#0a0a0a] bg-clip-text"
+    : "mb-1 text-[1.9rem] font-extrabold tracking-[-0.02em] text-transparent bg-[#0a0a0a] bg-clip-text";
 
-  const subtitleCls = dark ? "text-slate-400" : "text-slate-500";
+  const subtitleCls = dark ? "text-neutral-500" : "text-neutral-600";
 
   const btnBase =
     "rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-150";
   const btnActive = dark
-    ? `${btnBase} bg-indigo-500/20 border border-indigo-500/40 text-indigo-300`
-    : `${btnBase} bg-indigo-100 border border-indigo-300 text-indigo-700`;
+    ? `${btnBase} bg-yellow-400/10 border border-white/[0.07] text-yellow-400`
+    : `${btnBase} bg-yellow-400/10 border border-yellow-400/30 text-yellow-400`;
   const btnInactive = dark
-    ? `${btnBase} border border-slate-700 text-slate-400 hover:text-slate-200`
-    : `${btnBase} border border-slate-200 text-slate-500 hover:text-slate-700`;
+    ? `${btnBase} border border-white/[0.07] text-neutral-500 hover:text-white`
+    : `${btnBase} border border-white/[0.07] text-neutral-600 hover:text-neutral-300`;
 
   return (
     <div className={pageCls}>
@@ -213,7 +213,7 @@ const Analytics: React.FC = () => {
         <KpiCard
           label="Total Streams"
           value={summary ? String(summary.total_streams) : "—"}
-          accent="text-indigo-400"
+          accent="text-yellow-400"
           cardCls={cardCls}
         />
         <KpiCard
@@ -225,7 +225,7 @@ const Analytics: React.FC = () => {
         <KpiCard
           label="Total Volume"
           value={summary ? fmtVolume(summary.total_volume) : "—"}
-          accent="text-purple-400"
+          accent="text-yellow-400"
           cardCls={cardCls}
         />
         <KpiCard
@@ -508,7 +508,7 @@ const Analytics: React.FC = () => {
 
 function EmptyState() {
   return (
-    <div className="flex h-[240px] items-center justify-center text-sm text-slate-500">
+    <div className="flex h-[240px] items-center justify-center text-sm text-neutral-600">
       No data yet
     </div>
   );

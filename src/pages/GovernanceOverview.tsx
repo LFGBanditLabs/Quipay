@@ -25,21 +25,21 @@ import { shortenAddress } from "../util/address";
 
 const tw = {
   loadingContainer: "flex flex-col items-center justify-center gap-4 p-[60px]",
-  loadingText: "text-[var(--color-text-secondary)]",
+  loadingText: "text-[#737373]",
   header: "mb-6 flex items-start justify-between gap-4",
   statusCard:
-    "mb-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-background-card)] p-6",
+    "mb-8 rounded-2xl border border-[rgba(255,255,255,0.07)] bg-[#0a0a0a] p-6",
   statusGrid: "grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-6",
   statusItem: "flex flex-col gap-1",
   badgeRow: "flex items-center gap-2",
   section: "mb-8",
   sectionTitle: "mb-4 flex items-center gap-2",
   emptyState:
-    "flex flex-col items-center justify-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-background-card)] p-10 text-center",
-  emptyIcon: "text-[var(--sds-color-feedback-success)] opacity-60",
+    "flex flex-col items-center justify-center gap-3 rounded-2xl border border-[rgba(255,255,255,0.07)] bg-[#0a0a0a] p-10 text-center",
+  emptyIcon: "text-[#22c55e] opacity-60",
   proposalsList: "flex flex-col gap-4",
   proposalCard:
-    "rounded-2xl border border-[var(--color-border)] bg-[var(--color-background-card)] p-5 transition-shadow hover:shadow-[0_4px_12px_var(--shadow-color)]",
+    "rounded-2xl border border-[rgba(255,255,255,0.07)] bg-[#0a0a0a] p-5 transition-shadow hover:shadow-[0_4px_12px_rgba(0,0,0,0.4)]",
   proposalHeader: "mb-3 flex items-center justify-between",
   proposalType: "flex items-center gap-2",
   proposalTitle: "mb-2 leading-[1.4]",
@@ -47,34 +47,34 @@ const tw = {
   amountRow: "mb-2 flex items-center gap-2",
   targetRow: "mb-2 flex items-center gap-2",
   address:
-    "rounded-md bg-[var(--accent-transparent)] px-2 py-1 font-[DM_Mono,monospace] text-[0.85em]",
-  signersSection: "my-4 rounded-xl bg-[var(--surface-subtle)] p-4",
+    "rounded-md bg-[rgba(250,204,21,0.1)] px-2 py-1 font-[DM_Mono,monospace] text-[0.85em]",
+  signersSection: "my-4 rounded-xl bg-[#0a0a0a] p-4",
   signersHeader: "mb-3 flex items-center justify-between",
   signersList: "mb-3 flex flex-col gap-2",
   signerItem:
-    "flex items-center gap-2 rounded-lg bg-[var(--surface-subtle)] px-3 py-2 transition-colors",
-  signed: "bg-[var(--success-transparent)]",
-  currentUser: "border border-[var(--success-transparent-strong)]",
+    "flex items-center gap-2 rounded-lg bg-[#0a0a0a] px-3 py-2 transition-colors",
+  signed: "bg-[rgba(34,197,94,0.1)]",
+  currentUser: "border border-[rgba(34,197,94,0.25)]",
   signerStatus: "flex h-5 w-5 items-center justify-center",
-  checkIcon: "text-[var(--sds-color-feedback-success)]",
+  checkIcon: "text-[#22c55e]",
   pendingDot:
-    "h-2 w-2 rounded-full bg-[var(--sds-color-feedback-warning)] [animation:pulse_1.5s_ease-in-out_infinite]",
-  youBadge: "font-semibold text-[var(--sds-color-feedback-success)]",
+    "h-2 w-2 rounded-full bg-[#f59e0b] [animation:pulse_1.5s_ease-in-out_infinite]",
+  youBadge: "font-semibold text-[#22c55e]",
   signedTime: "ml-auto text-xs",
-  progressBar: "h-1 overflow-hidden rounded bg-[var(--border)]",
+  progressBar: "h-1 overflow-hidden rounded bg-[rgba(255,255,255,0.07)]",
   progressFill: "h-full rounded transition-all",
   actionButtons: "mt-4 flex gap-3",
-  executedIcon: "text-[var(--sds-color-feedback-success)]",
-  unsigned: "bg-[var(--surface-subtle)]",
+  executedIcon: "text-[#22c55e]",
+  unsigned: "bg-[#0a0a0a]",
   historyList: "flex flex-col gap-3",
   historyCard:
-    "rounded-xl border border-[var(--color-border)] bg-[var(--color-background-card)] p-4",
+    "rounded-xl border border-[rgba(255,255,255,0.07)] bg-[#0a0a0a] p-4",
   historyHeader: "mb-2 flex items-center justify-between",
   historyType: "font-medium",
-  historyStatus: "text-sm text-[var(--muted)]",
-  historyMeta: "text-xs text-[var(--muted)]",
+  historyStatus: "text-sm text-[#737373]",
+  historyMeta: "text-xs text-[#737373]",
   modalContent:
-    "rounded-2xl border border-white/20 bg-slate-900/90 p-6 text-slate-100 shadow-2xl backdrop-blur",
+    "rounded-2xl border border-white/20 bg-[#0a0a0a] p-6 text-white shadow-2xl backdrop-blur",
   modalSection: "mb-4",
   modalGrid: "grid grid-cols-2 gap-3",
   modalItem: "rounded-lg bg-white/5 p-3",
@@ -83,7 +83,7 @@ const tw = {
   modalSigned: "text-emerald-300",
   modalPendingDot:
     "h-2 w-2 rounded-full bg-amber-300 [animation:pulse_1.5s_ease-in-out_infinite]",
-  modalApprovals: "text-sm text-slate-300",
+  modalApprovals: "text-sm text-neutral-300",
   modalActions: "mt-5 flex justify-end gap-3",
 };
 
@@ -160,15 +160,15 @@ const getTypeIcon = (type: MultisigProposal["type"]): string => {
 const getTypeColor = (type: MultisigProposal["type"]): string => {
   switch (type) {
     case "transfer":
-      return "var(--sds-color-feedback-success)";
+      return "#22c55e";
     case "upgrade":
-      return "var(--sds-color-feedback-warning)";
+      return "#f59e0b";
     case "admin_change":
-      return "var(--accent)";
+      return "#facc15";
     case "threshold_change":
       return "#8b5cf6"; // Keep special color but check contrast
     default:
-      return "var(--muted)";
+      return "#737373";
   }
 };
 
@@ -218,6 +218,7 @@ const GovernanceOverview: React.FC = () => {
   }, [vaultAddress, address]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadData();
   }, [loadData]);
 
@@ -448,7 +449,7 @@ const GovernanceOverview: React.FC = () => {
                         as="span"
                         size="md"
                         weight="semi-bold"
-                        style={{ color: "var(--sds-color-feedback-success)" }}
+                        style={{ color: "#22c55e" }}
                       >
                         {proposal.amount} {proposal.tokenSymbol}
                       </Text>
@@ -519,8 +520,8 @@ const GovernanceOverview: React.FC = () => {
                           backgroundColor:
                             proposal.currentApprovals >=
                             proposal.requiredApprovals
-                              ? "var(--sds-color-feedback-success)"
-                              : "var(--sds-color-feedback-warning)",
+                              ? "#22c55e"
+                              : "#f59e0b",
                         }}
                       />
                     </div>
@@ -568,7 +569,7 @@ const GovernanceOverview: React.FC = () => {
                         size="sm"
                         onClick={() => openProposalDetails(proposal)}
                         style={{
-                          backgroundColor: "var(--sds-color-feedback-success)",
+                          backgroundColor: "#22c55e",
                           color: "#05120d",
                         }}
                       >
@@ -631,11 +632,7 @@ const GovernanceOverview: React.FC = () => {
 
                   <div className={tw.historyStatus}>
                     <Icon.CheckCircle size="sm" className={tw.executedIcon} />
-                    <Text
-                      as="span"
-                      size="sm"
-                      style={{ color: "var(--sds-color-feedback-success)" }}
-                    >
+                    <Text as="span" size="sm" style={{ color: "#22c55e" }}>
                       Executed Successfully
                     </Text>
                   </div>
@@ -708,7 +705,7 @@ const GovernanceOverview: React.FC = () => {
                     as="p"
                     size="lg"
                     weight="bold"
-                    style={{ color: "var(--sds-color-feedback-success)" }}
+                    style={{ color: "#22c55e" }}
                   >
                     {selectedProposal.amount} {selectedProposal.tokenSymbol}
                   </Text>

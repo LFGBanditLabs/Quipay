@@ -22,20 +22,20 @@ const TreasuryManager: React.FC = () => {
     description: "mb-6 max-w-[760px]",
     balancesGrid:
       "mb-7 grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4",
-    card: "rounded-[10px] border border-[var(--border)] bg-[var(--surface-subtle)] p-4",
-    metricLabel: "text-[13px] text-[var(--muted)]",
+    card: "rounded-[10px] border border-[rgba(255,255,255,0.07)] bg-[#0a0a0a] p-4",
+    metricLabel: "text-[13px] text-[#737373]",
     metricValue: "mb-2 mt-1",
     formsGrid: "mb-7 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4",
     fieldGroup: "flex flex-col gap-3",
     selectInput:
-      "rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text)]",
+      "rounded-lg border border-[rgba(255,255,255,0.07)] bg-[#0a0a0a] px-3 py-2.5 text-sm text-[#ffffff]",
     historyList: "flex flex-col gap-2",
     historyItem:
-      "flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] p-3",
-    historyMeta: "text-[var(--muted)]",
-    emptyState: "py-3 text-[var(--muted)]",
-    errorText: "text-[var(--sds-color-feedback-error)]",
-    successText: "text-[var(--sds-color-feedback-success)]",
+      "flex items-center justify-between gap-3 rounded-lg border border-[rgba(255,255,255,0.07)] p-3",
+    historyMeta: "text-[#737373]",
+    emptyState: "py-3 text-[#737373]",
+    errorText: "text-[#ef4444]",
+    successText: "text-[#22c55e]",
   };
 
   const navigate = useNavigate();
@@ -70,6 +70,7 @@ const TreasuryManager: React.FC = () => {
   }, [employerAddress]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void hydrateState();
   }, [hydrateState]);
 

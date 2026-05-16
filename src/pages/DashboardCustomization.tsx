@@ -56,7 +56,7 @@ export default function DashboardCustomization() {
       <div className="mx-auto mb-8 max-w-7xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="bg-linear-to-r from-indigo-400 to-pink-400 bg-clip-text text-2xl font-bold text-transparent">
+            <h1 className="bg-linear-to-r from-yellow-400 to-pink-400 bg-clip-text text-2xl font-bold text-transparent">
               Dashboard
             </h1>
             <p className="mt-1 text-sm text-white/40">
@@ -74,7 +74,7 @@ export default function DashboardCustomization() {
                   onClick={() => setRole(r)}
                   className={`px-4 py-1.5 capitalize transition-colors ${
                     role === r
-                      ? "bg-indigo-600 text-white"
+                      ? "bg-yellow-400/10 text-white"
                       : "text-white/50 hover:text-white"
                   }`}
                 >
@@ -89,7 +89,7 @@ export default function DashboardCustomization() {
               onClick={() => setEditMode((v) => !v)}
               className={`rounded-lg border px-4 py-1.5 text-sm font-medium transition-all ${
                 editMode
-                  ? "border-indigo-500 bg-indigo-600/30 text-indigo-300"
+                  ? "border-yellow-400/60 bg-yellow-400/10 text-yellow-400"
                   : "border-white/10 bg-white/5 text-white/60 hover:text-white"
               }`}
             >
@@ -109,7 +109,7 @@ export default function DashboardCustomization() {
         </div>
 
         {editMode && (
-          <div className="mt-4 flex items-center gap-2 rounded-xl border border-indigo-500/20 bg-indigo-500/5 px-4 py-2.5 text-sm text-indigo-300">
+          <div className="mt-4 flex items-center gap-2 rounded-xl border border-white/[0.07] bg-yellow-400/10 px-4 py-2.5 text-sm text-yellow-400">
             <span>✨</span>
             <span>
               Drag widgets to reorder, resize from the corner, or use the 📌
@@ -165,11 +165,11 @@ export default function DashboardCustomization() {
                   key={id}
                   id={`add-widget-${id}`}
                   onClick={() => togglePin(id)}
-                  className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/60 transition-colors hover:border-indigo-500/40 hover:text-white"
+                  className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/60 transition-colors hover:border-white/[0.07] hover:text-white"
                 >
                   <span>{WIDGET_CONFIG[id].icon}</span>
                   <span>{WIDGET_CONFIG[id].title}</span>
-                  <span className="text-indigo-400">+</span>
+                  <span className="text-yellow-400">+</span>
                 </button>
               ))}
             </div>
