@@ -59,6 +59,10 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
+        "@stellar/design-system": path.resolve(
+          __dirname,
+          "./src/lib/stellar-compat.tsx",
+        ),
       },
     },
     optimizeDeps: {

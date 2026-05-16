@@ -127,3 +127,4 @@ Thumbs.db
 *.swp
 *.swo
 *~
+.mcp.json

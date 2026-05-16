@@ -129,7 +129,7 @@
   --token-size-notification-slide-out-y: -20px;
   --token-size-sr-only: 1px;
 
-  --token-font-family-sans: Inter, "Avenir Next", "Segoe UI", sans-serif;
+  --token-font-family-sans: "Urbanist", "Avenir Next", "Segoe UI", sans-serif;
   --token-font-family-mono: "Geist Mono", "Inconsolata", monospace;
 
   --token-font-size-xs: 0.75rem;

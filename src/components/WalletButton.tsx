@@ -4,25 +4,25 @@ import { useTranslation } from "react-i18next";
 import { useWallet } from "../hooks/useWallet";
 import { connectWallet } from "../util/wallet";
 
-const truncateAddress = (address: string) =>
-  `${address.slice(0, 4)}...${address.slice(-4)}`;
+const truncate = (addr: string) => `${addr.slice(0, 4)}...${addr.slice(-4)}`;
 
-const formatXlm = (rawBalance?: string) => {
-  if (!rawBalance) return "--";
-  const amount = Number(rawBalance);
-  if (!Number.isFinite(amount)) return rawBalance;
-  return amount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+const formatXlm = (raw?: string) => {
+  if (!raw) return "--";
+  const n = Number(raw);
+  return Number.isFinite(n)
+    ? n.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    : raw;
 };
 
 export const WalletButton = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [showDisconnectModal, setShowDisconnectModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const {
     address,
     isPending,
@@ -34,61 +34,52 @@ export const WalletButton = () => {
     switchAccount,
   } = useWallet();
 
-  const xlmBalance = useMemo(
+  const xlm = useMemo(
     () => formatXlm(balances?.xlm?.balance),
     [balances?.xlm?.balance],
   );
 
   useEffect(() => {
-    if (!showDisconnectModal) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setShowDisconnectModal(false);
-      }
+    if (!showModal) return;
+    const fn = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowModal(false);
     };
+    window.addEventListener("keydown", fn);
+    return () => window.removeEventListener("keydown", fn);
+  }, [showModal]);
 
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [showDisconnectModal]);
-
+  // ── Disconnected ──────────────────────────────────────────────────────────
   if (!address) {
     const hasError = Boolean(connectionError);
-    const showConnecting = isConnecting && !hasError;
+    const pending = connecting && !hasError;
 
     return (
-      <div className="flex flex-col items-end gap-2">
+      <div className="flex flex-col items-end gap-1.5">
         <button
           type="button"
+          disabled={pending}
+          aria-label={t("wallet.connect")}
           onClick={() => {
             clearError();
-            setIsConnecting(true);
-            void connectWallet().finally(() => {
-              setIsConnecting(false);
-            });
+            setConnecting(true);
+            void connectWallet().finally(() => setConnecting(false));
           }}
-          disabled={showConnecting}
-          aria-label={t("wallet.connect")}
-          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-cyan-300/35 bg-gradient-to-r from-cyan-500 via-sky-500 to-indigo-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(14,165,233,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:from-cyan-400 hover:to-indigo-400 hover:shadow-[0_16px_35px_rgba(59,130,246,0.4)] disabled:cursor-not-allowed disabled:opacity-75"
+          className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-transparent px-4 py-[7px] text-[13px] font-medium text-white/80 transition-all duration-150 hover:border-white/30 hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {showConnecting ? (
+          {pending ? (
             <>
-              <span
-                className="h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-white"
-                aria-hidden="true"
-              />
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white/80" />
               {t("wallet.connecting")}
             </>
           ) : (
             <>
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.85)]" />
+              <span className="h-2 w-2 rounded-full bg-yellow-400" />
               {t("wallet.connect")}
             </>
           )}
         </button>
-
         {hasError && (
-          <p className="max-w-[280px] text-right text-xs text-rose-300">
+          <p className="text-right text-[11px] text-red-400">
             {t("wallet.connection_failed")}
           </p>
         )}
@@ -96,138 +87,133 @@ export const WalletButton = () => {
     );
   }
 
+  // ── Connected ────────────────────────────────────────────────────────────
   return (
     <>
-      <div className="relative flex items-center">
-        <button
-          type="button"
-          onClick={() => setShowDisconnectModal(true)}
-          aria-label={t("wallet.connected_address", { address })}
-          aria-expanded={showDisconnectModal}
-          aria-haspopup="dialog"
-          className="group inline-flex min-h-11 items-center gap-3 rounded-full border border-slate-300/20 bg-slate-900/70 px-3 py-2 text-left backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-300/45 hover:bg-slate-800/80 hover:shadow-[0_12px_30px_rgba(14,165,233,0.22)]"
-        >
-          <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400/90 to-indigo-500/90 text-xs font-bold text-white">
-            {address.slice(1, 3).toUpperCase()}
-          </div>
+      <button
+        type="button"
+        onClick={() => setShowModal(true)}
+        aria-expanded={showModal}
+        aria-haspopup="dialog"
+        className="group inline-flex items-center gap-2.5 rounded-lg border border-white/10 bg-neutral-900 px-3 py-[7px] transition-all duration-150 hover:border-white/20 hover:bg-neutral-800"
+      >
+        {/* Avatar */}
+        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-yellow-400 text-[10px] font-black text-black shrink-0">
+          {address.slice(1, 3).toUpperCase()}
+        </div>
 
-          <div className="flex min-w-[150px] flex-col leading-tight">
-            <span className="text-sm font-semibold text-slate-100">
-              {truncateAddress(address)}
-            </span>
-            <span className="text-xs text-slate-300">{xlmBalance} XLM</span>
-          </div>
+        {/* Address + balance */}
+        <div className="flex flex-col items-start leading-none">
+          <span className="text-[13px] font-medium text-white">
+            {truncate(address)}
+          </span>
+          <span className="text-[11px] text-neutral-500 mt-[2px]">
+            {xlm} XLM
+          </span>
+        </div>
 
-          <div className="relative flex h-4 w-4 items-center justify-center">
-            {isPending ? (
-              <span
-                className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-200/60 border-t-cyan-200"
-                aria-label={t("wallet.status_syncing")}
-              />
-            ) : (
-              <>
-                <span className="absolute h-2.5 w-2.5 animate-ping rounded-full bg-emerald-400/70" />
-                <span
-                  className="relative h-2.5 w-2.5 rounded-full bg-emerald-300"
-                  aria-label={t("wallet.status_connected")}
-                />
-              </>
-            )}
-          </div>
-        </button>
-      </div>
+        {/* Status dot */}
+        <div className="flex items-center justify-center ml-0.5">
+          {isPending ? (
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-neutral-600 border-t-white/60" />
+          ) : (
+            <span className="h-2 w-2 rounded-full bg-green-400" />
+          )}
+        </div>
+      </button>
 
-      {showDisconnectModal && (
+      {/* ── Disconnect modal ── */}
+      {showModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
-          onClick={() => setShowDisconnectModal(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+          onClick={() => setShowModal(false)}
         >
           <div
             role="dialog"
             aria-modal="true"
-            aria-labelledby="disconnect-wallet-title"
-            className="w-full max-w-sm rounded-2xl border border-slate-200/20 bg-slate-900/75 p-5 text-slate-100 shadow-[0_24px_80px_rgba(2,6,23,0.75)] backdrop-blur-xl"
-            onClick={(event) => event.stopPropagation()}
+            aria-labelledby="disconnect-title"
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-neutral-950 p-5 shadow-[0_24px_64px_rgba(0,0,0,0.7)]"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4">
-              <h3
-                id="disconnect-wallet-title"
-                className="text-base font-semibold text-slate-100 mb-2"
-              >
-                Connected Accounts
-              </h3>
-              <div className="max-h-40 overflow-y-auto space-y-2 mb-4 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
-                {accounts.map((acc) => (
-                  <button
-                    key={acc}
-                    type="button"
-                    onClick={() => {
-                      if (acc !== address) {
-                        void switchAccount(acc);
-                        setShowDisconnectModal(false);
-                      }
-                    }}
-                    className={`w-full items-center text-left flex gap-3 p-2 rounded-xl border transition ${acc === address ? "border-cyan-400/50 bg-cyan-900/30" : "border-slate-700/50 hover:bg-slate-800"}`}
-                  >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400/85 to-indigo-500/85 text-xs font-bold text-white shrink-0">
-                      {acc.slice(1, 3).toUpperCase()}
-                    </div>
-                    <div className="flex flex-col flex-1 overflow-hidden">
-                      <span className="text-sm font-medium text-slate-200 truncate">
-                        {truncateAddress(acc)}
-                      </span>
-                      {acc === address && (
-                        <span className="text-xs text-cyan-300">Active</span>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
+            <h3
+              id="disconnect-title"
+              className="text-sm font-semibold text-white mb-4"
+            >
+              Connected Accounts
+            </h3>
 
-              <button
-                type="button"
-                onClick={() => {
-                  clearError();
-                  setIsConnecting(true);
-                  setShowDisconnectModal(false);
-                  void connectWallet().finally(() => setIsConnecting(false));
-                }}
-                className="w-full text-sm text-cyan-400 hover:text-cyan-300 text-center font-medium transition"
-              >
-                + Add another account
-              </button>
+            {/* Account list */}
+            <div className="max-h-40 overflow-y-auto space-y-1.5 mb-4">
+              {accounts.map((acc) => (
+                <button
+                  key={acc}
+                  type="button"
+                  onClick={() => {
+                    if (acc !== address) {
+                      void switchAccount(acc);
+                      setShowModal(false);
+                    }
+                  }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors ${
+                    acc === address
+                      ? "border-yellow-400/30 bg-yellow-400/[0.06]"
+                      : "border-white/6 hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-yellow-400 text-xs font-black text-black shrink-0">
+                    {acc.slice(1, 3).toUpperCase()}
+                  </div>
+                  <div className="flex flex-col flex-1 overflow-hidden">
+                    <span className="text-[13px] font-medium text-white truncate">
+                      {truncate(acc)}
+                    </span>
+                    {acc === address && (
+                      <span className="text-[11px] text-yellow-400">
+                        Active
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
             </div>
 
+            {/* Add account */}
+            <button
+              type="button"
+              onClick={() => {
+                clearError();
+                setConnecting(true);
+                setShowModal(false);
+                void connectWallet().finally(() => setConnecting(false));
+              }}
+              className="w-full mb-4 text-[13px] text-neutral-500 hover:text-white text-center font-medium transition-colors"
+            >
+              + Add another account
+            </button>
+
+            {/* Actions */}
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setShowDisconnectModal(false);
-                }}
-                className="flex-1 rounded-xl border border-slate-200/15 bg-slate-800/55 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-700/70"
+                onClick={() => setShowModal(false)}
+                className="flex-1 rounded-xl border border-white/10 bg-neutral-900 px-3 py-2 text-[13px] font-medium text-neutral-300 transition-colors hover:bg-neutral-800 hover:text-white"
               >
                 {t("common.cancel")}
               </button>
-
               <button
                 type="button"
+                disabled={disconnecting}
                 onClick={() => {
                   setDisconnecting(true);
                   disconnect()
                     .finally(() => {
                       setDisconnecting(false);
-                      setShowDisconnectModal(false);
-                      // Redirect to home page after disconnect
+                      setShowModal(false);
                       void navigate("/");
                     })
-                    .catch((error) => {
-                      console.error("Disconnect error:", error);
-                      // Still redirect even on error
-                      void navigate("/");
-                    });
+                    .catch(() => void navigate("/"));
                 }}
-                disabled={disconnecting}
-                className="flex-1 rounded-xl border border-rose-300/35 bg-gradient-to-r from-rose-500 to-pink-500 px-3 py-2 text-sm font-semibold text-white transition hover:from-rose-400 hover:to-pink-400 disabled:cursor-not-allowed disabled:opacity-70"
+                className="flex-1 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-[13px] font-semibold text-red-400 transition-colors hover:bg-red-500/20 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {disconnecting
                   ? t("wallet.disconnecting")

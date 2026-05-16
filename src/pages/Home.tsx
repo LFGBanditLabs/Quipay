@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
-import { Link } from "react-router-dom";
-import SocialProof from "../components/landing/SocialProof";
+import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { formatCurrency } from "../util/formatters";
+import { useWallet } from "../hooks/useWallet";
+
+// ─── Mock data ────────────────────────────────────────────────────────────────
 
 interface Stream {
   id: number;
@@ -12,10 +14,9 @@ interface Stream {
   amount: number;
   rate: number;
   status: "streaming" | "paused" | "completed";
-  color: string;
 }
 
-const mockStreams: Stream[] = [
+const STREAMS: Stream[] = [
   {
     id: 1,
     name: "Alice Chen",
@@ -24,7 +25,6 @@ const mockStreams: Stream[] = [
     amount: 1250,
     rate: 0.0034,
     status: "streaming",
-    color: "from-indigo-500 to-purple-500",
   },
   {
     id: 2,
@@ -34,7 +34,6 @@ const mockStreams: Stream[] = [
     amount: 980,
     rate: 0.0027,
     status: "streaming",
-    color: "from-pink-500 to-rose-500",
   },
   {
     id: 3,
@@ -44,238 +43,26 @@ const mockStreams: Stream[] = [
     amount: 1420,
     rate: 0.0039,
     status: "paused",
-    color: "from-emerald-500 to-teal-500",
+  },
+  {
+    id: 4,
+    name: "David Lee",
+    role: "Backend Engineer",
+    avatar: "DL",
+    amount: 1100,
+    rate: 0.0031,
+    status: "streaming",
+  },
+  {
+    id: 5,
+    name: "Emma Davis",
+    role: "Product Manager",
+    avatar: "ED",
+    amount: 2100,
+    rate: 0.0058,
+    status: "streaming",
   },
 ];
-
-const particles = [
-  { id: "p1", x: 12, y: 24, size: 4, delay: 0.2 },
-  { id: "p2", x: 45, y: 67, size: 3, delay: 1.5 },
-  { id: "p3", x: 78, y: 12, size: 5, delay: 0.8 },
-  { id: "p4", x: 23, y: 89, size: 4, delay: 2.1 },
-  { id: "p5", x: 56, y: 34, size: 6, delay: 1.2 },
-  { id: "p6", x: 89, y: 56, size: 3, delay: 0.5 },
-  { id: "p7", x: 34, y: 78, size: 5, delay: 1.8 },
-  { id: "p8", x: 67, y: 23, size: 4, delay: 2.5 },
-  { id: "p9", x: 12, y: 45, size: 3, delay: 0.3 },
-  { id: "p10", x: 45, y: 12, size: 6, delay: 1.1 },
-  { id: "p11", x: 78, y: 89, size: 4, delay: 2.2 },
-  { id: "p12", x: 23, y: 56, size: 5, delay: 0.7 },
-  { id: "p13", x: 56, y: 23, size: 3, delay: 1.9 },
-  { id: "p14", x: 89, y: 78, size: 6, delay: 0.4 },
-  { id: "p15", x: 34, y: 12, size: 4, delay: 2.3 },
-  { id: "p16", x: 67, y: 45, size: 5, delay: 1.0 },
-  { id: "p17", x: 12, y: 78, size: 3, delay: 0.6 },
-  { id: "p18", x: 45, y: 56, size: 6, delay: 1.7 },
-  { id: "p19", x: 78, y: 34, size: 4, delay: 2.4 },
-  { id: "p20", x: 23, y: 23, size: 5, delay: 0.9 },
-];
-
-const tokenFlows = [
-  { id: "t1", delay: 0, duration: 3.5, y: 15 },
-  { id: "t2", delay: 0.8, duration: 4.2, y: 27 },
-  { id: "t3", delay: 1.6, duration: 3.8, y: 39 },
-  { id: "t4", delay: 2.4, duration: 4.5, y: 51 },
-  { id: "t5", delay: 3.2, duration: 3.2, y: 63 },
-  { id: "t6", delay: 4.0, duration: 4.8, y: 75 },
-];
-
-const TokenFlow: React.FC<{
-  id: string;
-  delay: number;
-  duration: number;
-  y: number;
-}> = ({ delay, duration, y }) => (
-  <div
-    className="absolute pointer-events-none animate-token-flow"
-    style={{
-      animationDelay: `${delay}s`,
-      animationDuration: `${duration}s`,
-      top: `${y}%`,
-    }}
-  >
-    <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-gradient-to-r from-indigo-500/20 to-pink-500/20 backdrop-blur-sm border border-white/10">
-      <div className="w-2 h-2 rounded-full bg-gradient-to-r from-indigo-400 to-pink-400 animate-pulse-glow" />
-      <span className="text-xs font-mono text-white/80">+0.0024</span>
-    </div>
-  </div>
-);
-
-const Particle: React.FC<{
-  id: string;
-  x: number;
-  y: number;
-  size: number;
-  delay: number;
-}> = ({ x, y, size, delay }) => (
-  <div
-    className="absolute rounded-full bg-gradient-to-r from-indigo-400/30 to-pink-400/30 animate-pulse-glow"
-    style={{
-      left: `${x}%`,
-      top: `${y}%`,
-      width: size,
-      height: size,
-      animationDelay: `${delay}s`,
-    }}
-  />
-);
-
-const StatusBadge: React.FC<{ status: Stream["status"] }> = ({ status }) => {
-  const { t } = useTranslation();
-  const config = {
-    streaming: {
-      bg: "bg-emerald-500/10",
-      text: "text-emerald-400",
-      label: t("home.status_streaming"),
-      dot: "bg-emerald-400",
-    },
-    paused: {
-      bg: "bg-amber-500/10",
-      text: "text-amber-400",
-      label: t("home.status_paused"),
-      dot: "bg-amber-400",
-    },
-    completed: {
-      bg: "bg-blue-500/10",
-      text: "text-blue-400",
-      label: t("home.status_completed"),
-      dot: "bg-blue-400",
-    },
-  };
-
-  const { bg, text, label, dot } = config[status];
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${bg} ${text}`}
-    >
-      <span
-        className={`w-1.5 h-1.5 rounded-full ${dot} ${status === "streaming" ? "animate-pulse" : ""}`}
-      />
-      {label}
-    </span>
-  );
-};
-
-const StreamCard: React.FC<{ stream: Stream; index: number }> = ({
-  stream,
-  index,
-}) => {
-  const [amount, setAmount] = useState(stream.amount);
-
-  useEffect(() => {
-    if (stream.status !== "streaming") return;
-    const interval = setInterval(() => {
-      setAmount((prev) => prev + stream.rate);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [stream.rate, stream.status]);
-
-  return (
-    <div
-      className="flex items-center gap-4 p-4 rounded-2xl bg-[var(--surface-subtle)] border border-[var(--border)] transition-all duration-300 hover:bg-[var(--surface)] hover:border-[var(--accent-transparent)] hover:shadow-lg group"
-      style={{ animationDelay: `${index * 150}ms` }}
-    >
-      <div
-        className={`flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br ${stream.color} font-bold text-sm text-white shadow-lg transition-transform duration-300 group-hover:scale-110`}
-      >
-        {stream.avatar}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
-          <h4 className="text-sm font-medium text-[var(--text)] truncate">
-            {stream.name}
-          </h4>
-          <StatusBadge status={stream.status} />
-        </div>
-        <p className="text-xs text-[var(--muted)]">{stream.role}</p>
-      </div>
-      <div className="text-right">
-        <span className="block font-mono text-base font-semibold text-emerald-400 tabular-nums">
-          + {amount.toFixed(4)}
-        </span>
-        <span className="text-[10px] text-[var(--muted)] uppercase tracking-wide">
-          USDC
-        </span>
-      </div>
-    </div>
-  );
-};
-
-const MobileStreamCard: React.FC<{ stream: Stream }> = ({ stream }) => (
-  <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2.5">
-    <div className="min-w-0">
-      <p className="truncate text-sm font-semibold text-[var(--text)]">
-        {stream.name}
-      </p>
-      <p className="text-[11px] text-[var(--muted)]">{stream.role}</p>
-    </div>
-    <div className="text-right">
-      <p className="text-sm font-semibold text-emerald-400">
-        +{stream.amount.toFixed(2)}
-      </p>
-      <p className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
-        USDC
-      </p>
-    </div>
-  </div>
-);
-
-const FeatureCard: React.FC<{
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  index: number;
-  isVisible: boolean;
-}> = ({ icon, title, description, index, isVisible }) => (
-  <div
-    className={`group relative bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-8 backdrop-blur-md transition-all duration-500 hover:-translate-y-2 hover:bg-[var(--surface-subtle)] hover:shadow-[0_20px_40px_-10px_var(--shadow-color)] ${
-      isVisible ? "animate-fade-in-up" : "opacity-0 translate-y-8"
-    }`}
-    style={{ animationDelay: `${index * 100}ms` }}
-  >
-    <div className="absolute inset-0 rounded-3xl p-[1px] bg-gradient-to-b from-white/15 to-transparent style-mask-border pointer-events-none" />
-    <div className="w-14 h-14 flex items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 mb-6 transition-all duration-300 group-hover:bg-indigo-500 group-hover:text-white group-hover:scale-110 group-hover:rotate-6">
-      {icon}
-    </div>
-    <h3 className="text-xl font-semibold mb-4 text-[var(--text)]">{title}</h3>
-    <p className="text-base leading-relaxed text-[var(--muted)] m-0">
-      {description}
-    </p>
-  </div>
-);
-
-const WorkflowStep: React.FC<{
-  number: string;
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  isActive: boolean;
-  index: number;
-}> = ({ number, title, description, icon, isActive, index }) => (
-  <div
-    className={`relative flex flex-col items-center text-center transition-all duration-1000 ${
-      isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"
-    }`}
-    style={{ transitionDelay: `${index * 200}ms` }}
-  >
-    <div className="relative mb-6 group">
-      <div className="absolute inset-0 bg-indigo-500/20 blur-xl rounded-full scale-0 group-hover:scale-150 transition-transform duration-500 opacity-50" />
-      <div className="relative z-10 w-20 h-20 flex items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-400/20 text-indigo-400 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-sm transition-all duration-500 group-hover:scale-110 group-hover:rotate-3 group-hover:border-indigo-400/40 group-hover:shadow-indigo-500/20 group-hover:shadow-2xl">
-        {icon}
-      </div>
-      <div className="absolute -top-3 -right-3 z-20 w-8 h-8 flex items-center justify-center rounded-full bg-indigo-600 text-white text-sm font-bold border-4 border-[var(--bg)] shadow-lg group-hover:scale-110 transition-transform duration-300">
-        {number}
-      </div>
-    </div>
-    <h3 className="text-xl font-bold mb-3 text-[var(--text)] transition-colors duration-300 group-hover:text-indigo-400">
-      {title}
-    </h3>
-    <p className="text-sm text-[var(--muted)] max-w-[200px] leading-relaxed">
-      {description}
-    </p>
-  </div>
-);
 
 interface StatMetric {
   id: string;
@@ -285,199 +72,1156 @@ interface StatMetric {
   suffix?: string;
 }
 
-// stats is derived inside Home using t() — see useMemo below
+// ─── Live ticker counter ──────────────────────────────────────────────────────
 
-const formatStatValue = (value: number, format: StatMetric["format"]) => {
-  if (format === "currency") {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: 0,
-    }).format(value);
-  }
+function useLiveTotal(base: number, ratePerSec: number) {
+  const [val, setVal] = useState(base);
+  const start = useRef<number>(0);
+  useEffect(() => {
+    start.current = Date.now();
+    const id = setInterval(() => {
+      setVal(base + ((Date.now() - start.current) / 1000) * ratePerSec);
+    }, 100);
+    return () => clearInterval(id);
+  }, [base, ratePerSec]);
+  return val;
+}
 
-  if (format === "duration") {
-    return new Intl.NumberFormat("en-US", {
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 1,
-    }).format(value);
-  }
+// ─── Dashboard mockup ─────────────────────────────────────────────────────────
 
-  return new Intl.NumberFormat("en-US").format(Math.round(value));
-};
+function DashboardMockup() {
+  const total = useLiveTotal(48291.7, 0.18);
+  const treasury = useLiveTotal(284500, 0);
+  const [streams, setStreams] = useState(STREAMS);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setStreams((prev) =>
+        prev.map((s) =>
+          s.status === "streaming" ? { ...s, amount: s.amount + s.rate } : s,
+        ),
+      );
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const activeCount = streams.filter((s) => s.status === "streaming").length;
+  const bars = [32, 48, 41, 62, 55, 70, 58, 76, 68, 85, 79, 92];
+
+  const activity = [
+    {
+      user: "AC",
+      name: "Alice Chen",
+      action: "Claimed",
+      amount: "+124.80",
+      time: "2m ago",
+      color: "#facc15",
+    },
+    {
+      user: "ED",
+      name: "Emma Davis",
+      action: "Streaming",
+      amount: "+210.24",
+      time: "live",
+      color: "#22c55e",
+    },
+    {
+      user: "BM",
+      name: "Bob Martinez",
+      action: "Paused",
+      amount: "+98.10",
+      time: "14m ago",
+      color: "#525252",
+    },
+  ];
+
+  return (
+    <div className="relative w-full overflow-hidden rounded-2xl border border-white/[0.08] bg-[#080808] shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_60px_120px_-30px_rgba(0,0,0,0.9)]">
+      {/* Yellow top bar */}
+      <div className="h-[2px]" style={{ background: "#facc15" }} />
+
+      {/* OS chrome */}
+      <div className="flex items-center gap-3 border-b border-white/[0.06] bg-[#0a0a0a] px-4 py-2.5">
+        <div className="flex gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-[#ff5f57]" />
+          <div className="w-3 h-3 rounded-full bg-[#febc2e]" />
+          <div className="w-3 h-3 rounded-full bg-[#28c840]" />
+        </div>
+        <div className="flex flex-1 justify-center">
+          <div className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-[#111] px-3 py-1">
+            <svg
+              className="h-3 w-3 text-neutral-600"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <span className="font-mono text-[11px] text-neutral-500">
+              app.quipay.xyz/dashboard
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400" />
+          <span className="font-mono text-[10px] text-neutral-500">LIVE</span>
+        </div>
+      </div>
+
+      {/* App shell */}
+      <div className="flex" style={{ minHeight: 520 }}>
+        {/* ── Sidebar ── */}
+        <div className="hidden w-[200px] shrink-0 flex-col border-r border-white/[0.05] bg-[#050505] sm:flex">
+          {/* Brand */}
+          <div className="flex items-center gap-2 px-4 py-4 border-b border-white/[0.05]">
+            <div
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-black text-black"
+              style={{ backgroundColor: "#facc15" }}
+            >
+              Q
+            </div>
+            <span className="text-[13px] font-bold text-white">Quipay</span>
+            <span
+              className="ml-auto rounded-md px-1.5 py-0.5 text-[9px] font-bold"
+              style={{
+                backgroundColor: "rgba(250,204,21,0.12)",
+                color: "#facc15",
+              }}
+            >
+              PRO
+            </span>
+          </div>
+
+          {/* Nav */}
+          <div className="flex-1 p-2 space-y-0.5">
+            {[
+              { label: "Overview", icon: "▦", active: true },
+              { label: "Payroll", icon: "⚡", active: false },
+              { label: "Treasury", icon: "🏦", active: false },
+              { label: "Workforce", icon: "👥", active: false },
+              { label: "Analytics", icon: "📊", active: false },
+              { label: "Compliance", icon: "🛡", active: false },
+            ].map(({ label, icon, active }) => (
+              <div
+                key={label}
+                className={`flex cursor-default items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] font-medium ${
+                  active
+                    ? "text-white"
+                    : "text-neutral-600 hover:text-neutral-400"
+                }`}
+                style={
+                  active ? { backgroundColor: "rgba(250,204,21,0.08)" } : {}
+                }
+              >
+                <span className="text-[13px]">{icon}</span>
+                {label}
+                {active && (
+                  <span
+                    className="ml-auto h-1.5 w-1.5 rounded-full"
+                    style={{ backgroundColor: "#facc15" }}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Sidebar footer */}
+          <div className="border-t border-white/[0.05] p-3 space-y-1">
+            <div className="flex cursor-default items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] font-medium text-neutral-600">
+              <span className="text-[13px]">⚙️</span> Settings
+            </div>
+            <div className="flex items-center gap-2.5 rounded-lg px-3 py-2">
+              <div
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-black"
+                style={{ backgroundColor: "#facc15" }}
+              >
+                JD
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-white leading-none">
+                  John Doe
+                </p>
+                <p className="text-[10px] text-neutral-600">
+                  Admin · Acme Corp
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Main area ── */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Top bar */}
+          <div className="flex items-center justify-between border-b border-white/[0.05] px-5 py-2.5">
+            <div>
+              <h1 className="text-[14px] font-bold text-white">Overview</h1>
+              <p className="text-[10px] text-neutral-600">
+                May 2026 · Stellar Testnet
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Search */}
+              <div className="hidden items-center gap-2 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2.5 py-1.5 sm:flex">
+                <svg
+                  className="h-3 w-3 text-neutral-600"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
+                <span className="text-[11px] text-neutral-600">Search...</span>
+              </div>
+              {/* Bell */}
+              <div className="relative flex h-7 w-7 items-center justify-center rounded-lg border border-white/[0.07] bg-white/[0.03]">
+                <svg
+                  className="h-3.5 w-3.5 text-neutral-500"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                <span
+                  className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-[#080808]"
+                  style={{ backgroundColor: "#facc15" }}
+                />
+              </div>
+              {/* New stream btn */}
+              <button
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold text-black"
+                style={{ backgroundColor: "#facc15" }}
+              >
+                <svg
+                  className="h-3 w-3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
+                  <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+                </svg>
+                New Stream
+              </button>
+            </div>
+          </div>
+
+          {/* KPI row */}
+          <div className="grid grid-cols-2 border-b border-white/[0.05] sm:grid-cols-4">
+            {[
+              {
+                label: "Streaming Now",
+                value: formatCurrency(total, "USD"),
+                delta: "+0.18/s",
+                up: true,
+                mono: true,
+              },
+              {
+                label: "Treasury Balance",
+                value: "$284,500",
+                delta: "−12.4% MoM",
+                up: false,
+                mono: false,
+              },
+              {
+                label: "Active Streams",
+                value: String(activeCount),
+                delta: `of 32 workers`,
+                up: true,
+                mono: false,
+              },
+              {
+                label: "This Month Total",
+                value: "$48,291",
+                delta: "+18.4%",
+                up: true,
+                mono: false,
+              },
+            ].map(({ label, value, delta, up, mono }, i) => (
+              <div
+                key={label}
+                className={`px-4 py-3 ${i < 3 ? "border-r border-white/[0.05]" : ""}`}
+              >
+                <p className="text-[10px] font-medium uppercase tracking-widest text-neutral-600">
+                  {label}
+                </p>
+                <p
+                  className={`mt-1 text-[15px] font-bold leading-none text-white ${mono ? "font-mono tabular-nums" : ""}`}
+                >
+                  {value}
+                </p>
+                <p
+                  className={`mt-1 text-[10px] font-medium ${up ? "text-green-400" : "text-neutral-500"}`}
+                >
+                  {delta}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Content split */}
+          <div className="flex flex-1 overflow-hidden">
+            {/* ── Stream table ── */}
+            <div className="flex flex-1 flex-col overflow-hidden">
+              {/* Table header */}
+              <div className="flex items-center gap-2 border-b border-white/[0.04] px-4 py-2">
+                <p className="flex-1 text-[10px] font-bold uppercase tracking-widest text-neutral-700">
+                  Employee
+                </p>
+                <p className="hidden w-24 text-[10px] font-bold uppercase tracking-widest text-neutral-700 sm:block">
+                  Rate / sec
+                </p>
+                <p className="w-20 text-right text-[10px] font-bold uppercase tracking-widest text-neutral-700">
+                  Earned
+                </p>
+                <p className="w-16 text-right text-[10px] font-bold uppercase tracking-widest text-neutral-700">
+                  Status
+                </p>
+              </div>
+
+              {/* Rows */}
+              <div className="flex-1 divide-y divide-white/[0.03] overflow-hidden">
+                {streams.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex items-center gap-2 px-4 py-2.5 hover:bg-white/[0.02]"
+                  >
+                    {/* Avatar */}
+                    <div
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-black text-black"
+                      style={{ backgroundColor: "#facc15" }}
+                    >
+                      {s.avatar}
+                    </div>
+                    {/* Name + role */}
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate text-[12px] font-semibold text-white leading-none">
+                        {s.name}
+                      </p>
+                      <p className="mt-0.5 text-[10px] text-neutral-600">
+                        {s.role}
+                      </p>
+                    </div>
+                    {/* Rate */}
+                    <div className="hidden w-24 sm:block">
+                      <p className="font-mono text-[11px] text-neutral-500">
+                        ${s.rate.toFixed(4)}
+                      </p>
+                    </div>
+                    {/* Earned + bar */}
+                    <div className="w-20 text-right">
+                      <p
+                        className="font-mono text-[12px] font-bold tabular-nums"
+                        style={{ color: "#facc15" }}
+                      >
+                        {s.amount.toFixed(2)}
+                      </p>
+                      <div className="mt-1 h-[2px] w-full rounded-full bg-white/[0.06]">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${Math.min((s.amount / 2000) * 100, 100)}%`,
+                            backgroundColor:
+                              s.status === "streaming" ? "#facc15" : "#374151",
+                          }}
+                        />
+                      </div>
+                    </div>
+                    {/* Status badge */}
+                    <div className="w-16 flex justify-end">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                          s.status === "streaming"
+                            ? "bg-green-500/10 text-green-400"
+                            : s.status === "paused"
+                              ? "text-neutral-500"
+                              : "text-neutral-600"
+                        }`}
+                        style={
+                          s.status === "paused"
+                            ? {
+                                backgroundColor: "rgba(250,204,21,0.08)",
+                                color: "#facc15",
+                              }
+                            : {}
+                        }
+                      >
+                        <span
+                          className={`h-1 w-1 rounded-full ${s.status === "streaming" ? "animate-pulse bg-green-400" : s.status === "paused" ? "" : "bg-neutral-600"}`}
+                          style={
+                            s.status === "paused"
+                              ? { backgroundColor: "#facc15" }
+                              : {}
+                          }
+                        />
+                        {s.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Table footer */}
+              <div className="flex items-center justify-between border-t border-white/[0.04] px-4 py-2">
+                <p className="text-[10px] text-neutral-700">
+                  Showing 5 of 32 employees
+                </p>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400" />
+                    <p className="font-mono text-[10px] text-neutral-600">
+                      Stellar · Real-time
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Right panel ── */}
+            <div className="hidden w-[200px] shrink-0 flex-col border-l border-white/[0.05] lg:flex">
+              {/* Payout chart */}
+              <div className="border-b border-white/[0.05] p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-700">
+                    Payroll
+                  </p>
+                  <p
+                    className="text-[10px] font-semibold"
+                    style={{ color: "#facc15" }}
+                  >
+                    +18.4%
+                  </p>
+                </div>
+                <div className="flex h-16 items-end gap-[2px]">
+                  {bars.map((h, i) => (
+                    <div
+                      key={i}
+                      className="flex-1 rounded-sm"
+                      style={{
+                        height: `${h}%`,
+                        backgroundColor:
+                          i === bars.length - 1
+                            ? "#facc15"
+                            : `rgba(250,204,21,${0.08 + (i / bars.length) * 0.22})`,
+                      }}
+                    />
+                  ))}
+                </div>
+                <div className="mt-1.5 flex justify-between">
+                  <span className="text-[9px] text-neutral-700">Jun '25</span>
+                  <span className="text-[9px] text-neutral-700">May '26</span>
+                </div>
+              </div>
+
+              {/* Treasury */}
+              <div className="border-b border-white/[0.05] p-3">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-neutral-700">
+                  Treasury
+                </p>
+                <p className="font-mono text-[14px] font-bold text-white">
+                  {formatCurrency(treasury, "USD")}
+                </p>
+                <div className="mt-2 h-[3px] w-full rounded-full bg-white/[0.06]">
+                  <div
+                    className="h-full w-[72%] rounded-full"
+                    style={{ backgroundColor: "#facc15" }}
+                  />
+                </div>
+                <div className="mt-1 flex justify-between">
+                  <span className="text-[9px] text-neutral-600">
+                    72% runway
+                  </span>
+                  <span className="text-[9px] text-neutral-600">~18 mo</span>
+                </div>
+              </div>
+
+              {/* Activity feed */}
+              <div className="flex-1 p-3">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-neutral-700">
+                  Activity
+                </p>
+                <div className="space-y-2.5">
+                  {activity.map((a, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <div
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[8px] font-bold text-black mt-0.5"
+                        style={{ backgroundColor: a.color }}
+                      >
+                        {a.user}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-medium text-white leading-none truncate">
+                          {a.name}
+                        </p>
+                        <p className="text-[9px] text-neutral-600 mt-0.5">
+                          {a.action} · {a.time}
+                        </p>
+                      </div>
+                      <p
+                        className="shrink-0 font-mono text-[10px] font-bold"
+                        style={{ color: a.color }}
+                      >
+                        {a.amount}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Feature card ─────────────────────────────────────────────────────────────
+
+const FeatureCard: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+  index: number;
+  visible: boolean;
+}> = ({ icon, title, desc, index, visible }) => (
+  <div
+    className={`group rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-6 transition-all duration-300 hover:border-yellow-400/20 hover:bg-[#0e0e0e] ${
+      visible ? "animate-fade-in-up opacity-100" : "opacity-0 translate-y-6"
+    }`}
+    style={{ animationDelay: `${index * 80}ms` }}
+  >
+    <div className="flex items-center justify-center w-10 h-10 mb-4 text-yellow-400 transition-all rounded-xl bg-yellow-400/10 group-hover:bg-yellow-400 group-hover:text-black">
+      {icon}
+    </div>
+    <h3 className="text-[15px] font-semibold text-white mb-2">{title}</h3>
+    <p className="text-[13.5px] leading-relaxed text-neutral-500">{desc}</p>
+  </div>
+);
+
+// ─── Animated stat ────────────────────────────────────────────────────────────
 
 const AnimatedStat: React.FC<{
   metric: StatMetric;
-  isActive: boolean;
+  active: boolean;
   resetKey: number;
   index: number;
-}> = ({ metric, isActive, resetKey, index }) => {
-  const [displayValue, setDisplayValue] = useState(0);
-  const renderedValue = isActive ? displayValue : 0;
-
+}> = ({ metric, active, resetKey, index }) => {
+  const [val, setVal] = useState(0);
   useEffect(() => {
-    if (!isActive) return;
-
-    const duration = 1300 + index * 150;
+    if (!active) return;
+    const dur = 1200 + index * 120;
     const start = performance.now();
-    let frameId = 0;
-
-    const animate = (now: number) => {
-      const progress = Math.min((now - start) / duration, 1);
-      const eased = 1 - (1 - progress) * (1 - progress);
-      setDisplayValue(metric.value * eased);
-
-      if (progress < 1) {
-        frameId = requestAnimationFrame(animate);
-      }
+    let id = 0;
+    const tick = (now: number) => {
+      const p = Math.min((now - start) / dur, 1);
+      setVal(metric.value * (1 - (1 - p) ** 2));
+      if (p < 1) id = requestAnimationFrame(tick);
     };
+    id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, [index, active, metric.value, resetKey]);
 
-    frameId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frameId);
-  }, [index, isActive, metric.value, resetKey]);
-
-  return (
-    <article className="group relative overflow-hidden rounded-2xl border border-white/15 bg-[var(--surface)]/90 p-5 shadow-[0_12px_35px_-20px_var(--shadow-color)] backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-indigo-400/40 sm:p-6">
-      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/15 via-transparent to-pink-500/15 opacity-70 transition-opacity duration-300 group-hover:opacity-100" />
-      <div className="absolute -inset-[1px] rounded-2xl border border-indigo-400/20 opacity-50 transition-opacity duration-300 group-hover:opacity-90" />
-      <div className="absolute -left-8 top-1/2 h-16 w-16 -translate-y-1/2 rounded-full bg-indigo-500/20 blur-2xl" />
-      <div className="relative">
-        <p className="mb-3 text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
-          {metric.label}
-        </p>
-        <p className="font-mono text-2xl font-semibold tabular-nums text-[var(--text)] sm:text-3xl">
-          {formatStatValue(renderedValue, metric.format)}
-          {metric.suffix ? (
-            <span className="ml-1 text-sm font-medium text-[var(--muted)] sm:text-base">
-              {metric.suffix}
-            </span>
-          ) : null}
-        </p>
-      </div>
-    </article>
-  );
-};
-
-const NewsletterForm: React.FC = () => {
-  const { t } = useTranslation();
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<
-    "idle" | "loading" | "success" | "error"
-  >("idle");
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !email.includes("@")) {
-      setStatus("error");
-      return;
-    }
-    setStatus("loading");
-    // Simulate API call
-    setTimeout(() => {
-      setStatus("success");
-      setEmail("");
-    }, 1200);
+  const fmt = (v: number) => {
+    if (metric.format === "currency")
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 0,
+      }).format(v);
+    if (metric.format === "duration")
+      return v.toLocaleString(undefined, {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      });
+    return new Intl.NumberFormat("en-US").format(Math.round(v));
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mx-auto mt-10 w-full max-w-md">
-      <div className="group relative">
-        <label htmlFor="newsletter-email" className="sr-only">
-          {t("home.cta_email_placeholder")}
-        </label>
-        <input
-          id="newsletter-email"
-          type="email"
-          value={email}
-          onChange={(e) => {
-            setEmail(e.target.value);
-            if (status === "error") setStatus("idle");
-          }}
-          placeholder={t("home.cta_email_placeholder")}
-          required
-          className={`w-full rounded-2xl border bg-white/5 px-6 py-4.5 text-white backdrop-blur-xl transition-all duration-500 placeholder:text-white/30 focus:outline-none focus:ring-2 ${
-            status === "error"
-              ? "border-red-500/50 focus:ring-red-500/20"
-              : "border-white/10 focus:border-indigo-400/50 focus:ring-indigo-500/40"
-          }`}
-        />
-        <button
-          type="submit"
-          disabled={status === "loading" || status === "success"}
-          className="absolute bottom-2 right-2 top-2 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-6 text-sm font-bold tracking-wide text-white transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] active:scale-[0.98] disabled:scale-100 disabled:opacity-50 disabled:shadow-none"
-        >
-          {status === "loading" ? (
-            <span className="flex items-center gap-2">
-              <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              {t("common.loading")}
-            </span>
-          ) : status === "success" ? (
-            <span className="flex animate-fade-in items-center gap-1.5">
-              <svg
-                className="h-4 w-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-              >
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              Done
-            </span>
-          ) : (
-            t("home.cta_subscribe")
-          )}
-        </button>
-      </div>
-      {status === "error" && (
-        <p className="mt-3 animate-slide-up text-center text-sm font-medium text-red-400">
-          {t("home.cta_error_invalid_email")}
-        </p>
-      )}
-      {status === "success" && (
-        <p className="mt-3 animate-slide-up text-center text-sm font-medium text-emerald-400">
-          {t("home.cta_success")}
-        </p>
-      )}
-    </form>
+    <div className="py-6 text-center group sm:text-left sm:py-0">
+      <p className="font-mono text-3xl font-bold text-white sm:text-4xl tabular-nums">
+        {fmt(active ? val : 0)}
+        {metric.suffix && (
+          <span className="ml-1 text-base font-semibold text-neutral-500">
+            {metric.suffix}
+          </span>
+        )}
+      </p>
+      <p className="mt-1.5 text-[13px] text-neutral-500">{metric.label}</p>
+      <div className="mt-3 h-[2px] w-8 bg-yellow-400/40 group-hover:w-full group-hover:bg-yellow-400 transition-all duration-500 mx-auto sm:mx-0" />
+    </div>
   );
 };
 
-const CTASection: React.FC = () => {
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+const Home: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { address } = useWallet();
+
+  // Auto-redirect to dashboard when wallet is connected
+  useEffect(() => {
+    if (address) {
+      void navigate("/dashboard", { replace: true });
+    }
+  }, [address, navigate]);
+
+  const stats = useMemo<StatMetric[]>(
+    () => [
+      {
+        id: "streams",
+        label: "Payment streams created",
+        value: 12480,
+        format: "number",
+      },
+      {
+        id: "value",
+        label: "Total value streamed",
+        value: 3847500,
+        format: "currency",
+        suffix: " USDC",
+      },
+      {
+        id: "workers",
+        label: "Workers paid on-chain",
+        value: 1820,
+        format: "number",
+      },
+      {
+        id: "duration",
+        label: "Avg stream duration",
+        value: 6.4,
+        format: "duration",
+        suffix: " hrs",
+      },
+    ],
+    [],
+  );
+
+  const [featuresVisible, setFeaturesVisible] = useState(false);
+  const [workflowVisible, setWorkflowVisible] = useState(false);
+  const [statsVisible, setStatsVisible] = useState(false);
+  const [statsResetKey, setStatsResetKey] = useState(0);
+
+  const featuresRef = useRef<HTMLDivElement>(null);
+  const workflowRef = useRef<HTMLDivElement>(null);
+  const statsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const obs = (cb: () => void, el: Element | null, t = 0.15) => {
+      const o = new IntersectionObserver((e) => e[0].isIntersecting && cb(), {
+        threshold: t,
+      });
+      if (el) o.observe(el);
+      return o;
+    };
+    const statsObs = new IntersectionObserver(
+      (e) => {
+        if (e[0].isIntersecting) {
+          setStatsVisible(true);
+          setStatsResetKey((k) => k + 1);
+        } else setStatsVisible(false);
+      },
+      { threshold: 0.25 },
+    );
+
+    const fObs = obs(() => setFeaturesVisible(true), featuresRef.current);
+    const wObs = obs(() => setWorkflowVisible(true), workflowRef.current);
+    if (statsRef.current) statsObs.observe(statsRef.current);
+
+    return () => {
+      fObs.disconnect();
+      wObs.disconnect();
+      statsObs.disconnect();
+    };
+  }, []);
 
   return (
-    <section className="relative w-full overflow-hidden px-4 py-24 sm:px-6 lg:px-8">
-      {/* Background Decor */}
-      <div className="pointer-events-none absolute inset-0 z-0">
-        <div className="absolute left-1/2 top-1/2 h-[400px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-500/20 opacity-50 blur-[120px]" />
-        <div className="absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-[var(--border)] to-transparent" />
-        <div className="absolute bottom-0 left-0 h-px w-full bg-gradient-to-r from-transparent via-[var(--border)] to-transparent" />
-      </div>
+    <div className="relative min-h-screen overflow-x-hidden text-white bg-black">
+      {/* ── Subtle grid ──────────────────────────────────────────── */}
+      <div
+        className="fixed inset-0 z-0 pointer-events-none"
+        style={{
+          backgroundImage: `linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+                            linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)`,
+          backgroundSize: "72px 72px",
+        }}
+      />
 
-      <div className="relative z-10 mx-auto max-w-5xl">
-        <div className="group relative overflow-hidden rounded-[3rem] border border-white/10 bg-gradient-to-br from-indigo-950/80 via-slate-900/90 to-purple-950/80 p-12 text-center shadow-[0_40px_100px_-20px_rgba(0,0,0,0.5)] backdrop-blur-3xl sm:p-20">
-          {/* Animated beam effect */}
-          <div className="pointer-events-none absolute -inset-[100%] animate-[spin_10s_linear_infinite] bg-[conic-gradient(from_0deg,transparent,rgba(99,102,241,0.2),transparent_30%)] opacity-30" />
+      <div className="relative z-10">
+        {/* ════════════════════════════════════════════════════════
+            HERO  —  Figma: node 826-2890
+            Layout: column gap-10, padding 88px top/bottom 184px sides
+            H1: 100px DemiBold, left-aligned, highlighted word in yellow
+            CTA row: pill button + globe + trust text
+        ════════════════════════════════════════════════════════ */}
+        <section className="w-full px-5 py-20 sm:px-8 sm:py-24">
+          <div className="mx-auto max-w-[1280px]">
+            {/* ── Headline group ── */}
+            <div className="flex flex-col gap-6 mb-10">
+              <h1
+                className="font-extrabold text-white leading-[1.1]"
+                style={{
+                  fontSize: "clamp(2.5rem, 5.5vw, 5rem)",
+                  letterSpacing: "-0.02em",
+                  maxWidth: "820px",
+                }}
+              >
+                {t("home.title")}{" "}
+                <span style={{ color: "#facc15" }}>{t("home.subtitle")}</span>
+              </h1>
 
-          <div className="relative z-10">
-            <h2 className="mb-6 tracking-tight text-[clamp(2rem,5vw,3.5rem)] font-extrabold leading-tight text-white transition-all duration-300 group-hover:scale-[1.01]">
+              <p
+                className="text-neutral-400 font-medium leading-[1.5]"
+                style={{
+                  fontSize: "clamp(0.9rem, 1.2vw, 1.1rem)",
+                  letterSpacing: "-0.01em",
+                  maxWidth: "580px",
+                }}
+              >
+                {t("home.description")}
+              </p>
+            </div>
+
+            {/* ── CTA row ── */}
+            <div className="flex flex-col items-start gap-10 sm:flex-row sm:items-center">
+              {/* Primary pill button */}
+              <button
+                onClick={() => (window.location.href = "/dashboard")}
+                className="inline-flex items-center justify-center rounded-full font-bold  bg-[#facc15] transition-all hover:opacity-90 active:scale-[0.97] shrink-0 px-10 py-4 text-[15px] text-black"
+                // style={{ padding: "16px 28px", fontSize: "1rem", letterSpacing: "-0.01em", backgroundColor: "#facc15" }}
+              >
+                {t("home.launch_app")}
+              </button>
+
+              {/* Trust text + globe icon */}
+              <div className="flex items-center gap-2">
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  style={{ color: "#facc15" }}
+                  className="shrink-0"
+                >
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="9"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  />
+                  <path
+                    d="M3.6 9h16.8M3.6 15h16.8"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M12 3c-2.5 3-4 5.5-4 9s1.5 6 4 9M12 3c2.5 3 4 5.5 4 9s-1.5 6-4 9"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  />
+                </svg>
+                <p
+                  className="text-[15px] leading-[145%]"
+                  style={{ letterSpacing: "-0.01em" }}
+                >
+                  <span className="font-normal text-neutral-500">
+                    Pay workers compliantly in{" "}
+                  </span>
+                  <span style={{ color: "#facc15" }} className="font-semibold">
+                    150+ countries
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+          {/* end max-w container */}
+        </section>
+
+        {/* ════════════════════════════════════════════════════════
+            PRODUCT MOCKUP — full width, pinned below hero
+        ════════════════════════════════════════════════════════ */}
+        <section className="px-5 pb-24 sm:px-8">
+          <div className="mx-auto max-w-[1280px]">
+            <DashboardMockup />
+          </div>
+        </section>
+
+        {/* ════════════════════════════════════════════════════════
+            STATS
+        ════════════════════════════════════════════════════════ */}
+        <section
+          ref={statsRef}
+          className="border-y border-white/[0.06] bg-[#060606]"
+        >
+          <div className="max-w-6xl px-5 py-16 mx-auto sm:px-8 sm:py-20">
+            <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-white/[0.06]">
+              {stats.map((m, i) => (
+                <div key={m.id} className="px-6 sm:px-8 first:pl-0 last:pr-0">
+                  <AnimatedStat
+                    metric={m}
+                    active={statsVisible}
+                    resetKey={statsResetKey}
+                    index={i}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ════════════════════════════════════════════════════════
+            FEATURES
+        ════════════════════════════════════════════════════════ */}
+        <section ref={featuresRef} className="px-5 py-24 sm:px-8 sm:py-32">
+          <div className="max-w-6xl mx-auto">
+            <div className="max-w-xl mb-14">
+              <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-yellow-400 mb-3">
+                Platform
+              </p>
+              <h2 className="text-[clamp(1.75rem,4vw,2.75rem)] font-extrabold tracking-tight text-white mb-4">
+                {t("home.why_choose")}
+              </h2>
+              <p className="text-[15px] leading-relaxed text-neutral-400">
+                {t("home.why_choose_desc")}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                {
+                  icon: (
+                    <svg
+                      className="w-5 h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                    </svg>
+                  ),
+                  title: t("home.feature_1_title"),
+                  desc: t("home.feature_1_desc"),
+                },
+                {
+                  icon: (
+                    <svg
+                      className="w-5 h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <rect x="3" y="11" width="18" height="11" rx="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  ),
+                  title: t("home.feature_2_title"),
+                  desc: t("home.feature_2_desc"),
+                },
+                {
+                  icon: (
+                    <svg
+                      className="w-5 h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                    </svg>
+                  ),
+                  title: t("home.feature_3_title"),
+                  desc: t("home.feature_3_desc"),
+                },
+                {
+                  icon: (
+                    <svg
+                      className="w-5 h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                  ),
+                  title: "Real-Time Payments",
+                  desc: "Workers accrue salary every second. No more waiting for end-of-month payroll runs.",
+                },
+                {
+                  icon: (
+                    <svg
+                      className="w-5 h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                  ),
+                  title: "Audited Contracts",
+                  desc: "Multi-sig smart contract vaults on Stellar. Every transaction on-chain, every penny verifiable.",
+                },
+                {
+                  icon: (
+                    <svg
+                      className="w-5 h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M12 8V4H8" />
+                      <rect x="5" y="8" width="14" height="12" rx="2" />
+                      <path d="M9 13h.01M15 13h.01" />
+                      <path d="M12 20v2" />
+                    </svg>
+                  ),
+                  title: "AI-Powered Automation",
+                  desc: "Autonomous agents handle scheduling, compliance, and solvency monitoring — without manual input.",
+                },
+              ].map((f, i) => (
+                <FeatureCard
+                  key={f.title}
+                  icon={f.icon}
+                  title={f.title}
+                  desc={f.desc}
+                  index={i}
+                  visible={featuresVisible}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ════════════════════════════════════════════════════════
+            HOW IT WORKS
+        ════════════════════════════════════════════════════════ */}
+        <section
+          ref={workflowRef}
+          className="border-t border-white/[0.06] bg-[#060606] px-5 sm:px-8 py-20 sm:py-28"
+        >
+          <div className="mx-auto max-w-[1280px]">
+            {/* Header */}
+            <div className="mb-16 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p
+                  className="mb-3 text-[11px] font-bold uppercase tracking-[0.14em]"
+                  style={{ color: "#facc15" }}
+                >
+                  How it works
+                </p>
+                <h2
+                  className="font-extrabold text-white"
+                  style={{
+                    fontSize: "clamp(1.75rem, 4vw, 3rem)",
+                    letterSpacing: "-0.02em",
+                    lineHeight: 1.1,
+                  }}
+                >
+                  Up and running
+                  <br className="hidden sm:block" /> in minutes
+                </h2>
+              </div>
+              <p className="max-w-xs text-[14px] leading-relaxed text-neutral-500 sm:text-right">
+                No technical setup required. Connect your wallet and stream
+                payroll to your team in under 60 seconds.
+              </p>
+            </div>
+
+            {/* Steps grid */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                {
+                  n: "01",
+                  title: "Fund Your Treasury",
+                  desc: "Deposit XLM, USDC or any Stellar asset into your audited multi-sig smart contract vault. Full custody, fully on-chain.",
+                  tag: "Secure",
+                  icon: (
+                    <svg
+                      className="w-6 h-6"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                    >
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                  ),
+                },
+                {
+                  n: "02",
+                  title: "Create Payment Streams",
+                  desc: "Set a per-second rate for each worker. Streams start instantly — no batching, no delays, no manual processing.",
+                  tag: "Real-time",
+                  icon: (
+                    <svg
+                      className="w-6 h-6"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                    >
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                    </svg>
+                  ),
+                },
+                {
+                  n: "03",
+                  title: "Workers Claim Anytime",
+                  desc: "Team members withdraw their earned salary 24/7 directly to their Stellar wallet. No payslips, no waiting periods.",
+                  tag: "Instant",
+                  icon: (
+                    <svg
+                      className="w-6 h-6"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                    >
+                      <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
+                      <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
+                      <path d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
+                    </svg>
+                  ),
+                },
+                {
+                  n: "04",
+                  title: "AI Manages Compliance",
+                  desc: "Autonomous agents monitor treasury solvency, enforce tax rules, and send payroll reports — without any manual input.",
+                  tag: "Automated",
+                  icon: (
+                    <svg
+                      className="w-6 h-6"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                    >
+                      <path d="M12 8V4H8" />
+                      <rect x="5" y="8" width="14" height="12" rx="2" />
+                      <path d="M9 13h.01M15 13h.01M12 20v2" />
+                    </svg>
+                  ),
+                },
+              ].map((step, i) => (
+                <div
+                  key={step.n}
+                  className={`group relative flex flex-col rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-6 transition-all duration-700 hover:border-yellow-400/20 hover:bg-[#0e0e0e] ${
+                    workflowVisible
+                      ? "opacity-100 translate-y-0"
+                      : "opacity-0 translate-y-8"
+                  }`}
+                  style={{ transitionDelay: `${i * 100}ms` }}
+                >
+                  {/* Step number — large background */}
+                  <span
+                    className="absolute right-5 top-4 font-black text-white/[0.04] select-none leading-none"
+                    style={{ fontSize: "5rem" }}
+                  >
+                    {step.n}
+                  </span>
+
+                  {/* Icon */}
+                  <div
+                    className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl border border-white/[0.07] transition-colors group-hover:border-yellow-400/30"
+                    style={{ color: "#facc15", backgroundColor: "#111" }}
+                  >
+                    {step.icon}
+                  </div>
+
+                  {/* Tag */}
+                  <span
+                    className="mb-4 inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest"
+                    style={{
+                      backgroundColor: "rgba(250,204,21,0.08)",
+                      color: "#facc15",
+                    }}
+                  >
+                    {step.tag}
+                  </span>
+
+                  {/* Content */}
+                  <h3 className="mb-2 text-[15px] font-bold text-white">
+                    {step.title}
+                  </h3>
+                  <p className="text-[13px] leading-relaxed text-neutral-500">
+                    {step.desc}
+                  </p>
+
+                  {/* Bottom accent line */}
+                  <div
+                    className="absolute bottom-0 left-6 right-6 h-[1px] scale-x-0 rounded-full transition-transform duration-300 group-hover:scale-x-100"
+                    style={{
+                      backgroundColor: "#facc15",
+                      transformOrigin: "left",
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Bottom connector row */}
+            <div className="mt-10 flex items-center justify-center gap-3">
+              {["Fund", "Stream", "Withdraw", "Automate"].map(
+                (label, i, arr) => (
+                  <React.Fragment key={label}>
+                    <span className="text-[12px] font-semibold text-neutral-600">
+                      {label}
+                    </span>
+                    {i < arr.length - 1 && (
+                      <svg
+                        className="h-3 w-3 text-neutral-800"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path
+                          d="M5 12H19M19 12L12 5M19 12L12 19"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
+                  </React.Fragment>
+                ),
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* ════════════════════════════════════════════════════════
+            CTA
+        ════════════════════════════════════════════════════════ */}
+        <section className="px-5 py-24 sm:px-8 sm:py-32">
+          <div className="max-w-3xl mx-auto text-center">
+            <h2 className="text-[clamp(2rem,5vw,3.5rem)] font-extrabold tracking-tight text-white mb-5">
               {t("home.cta_title")}
             </h2>
-            <p className="mx-auto mb-10 max-w-2xl text-lg leading-relaxed text-indigo-100/70 sm:text-xl">
+            <p className="mx-auto max-w-xl text-[15px] sm:text-[17px] leading-relaxed text-neutral-400 mb-10">
               {t("home.cta_subtitle")}
             </p>
-
-            <NewsletterForm />
-
-            <div className="mt-16 flex flex-col items-center justify-center gap-6 border-t border-white/10 pt-12 sm:flex-row">
+            <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
                 to="/dashboard"
-                className="group relative inline-flex min-h-12 items-center justify-center gap-3 overflow-hidden rounded-2xl bg-white px-10 py-4 text-lg font-bold text-indigo-950 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_40px_-5px_rgba(255,255,255,0.3)] active:scale-[0.98]"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 rounded-xl bg-yellow-400 px-10 py-4 text-[15px] font-bold text-black transition-all hover:bg-yellow-300 hover:-translate-y-[1px] active:scale-[0.98]"
               >
-                <span className="relative z-10">{t("home.launch_app")}</span>
+                {t("home.launch_app")}
                 <svg
-                  className="relative z-10 h-5 w-5 transition-transform duration-300 group-hover:translate-x-1"
+                  className="w-4 h-4"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -490,553 +1234,21 @@ const CTASection: React.FC = () => {
                   />
                 </svg>
               </Link>
-
               <Link
                 to="/help"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 px-10 py-4 text-lg font-bold text-white backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-white/40 hover:bg-white/10 active:scale-[0.98]"
+                className="w-full sm:w-auto inline-flex items-center justify-center rounded-xl border border-white/[0.12] bg-white/[0.04] px-10 py-4 text-[15px] font-semibold text-white transition-all hover:border-white/[0.22] hover:bg-white/[0.08]"
               >
                 {t("home.view_docs")}
               </Link>
             </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-};
 
-const Home: React.FC = () => {
-  const { t } = useTranslation();
-  const stats = useMemo<StatMetric[]>(
-    () => [
-      {
-        id: "streams",
-        label: t("home.stat_total_streams"),
-        value: 12480,
-        format: "number",
-      },
-      {
-        id: "value-streamed",
-        label: t("home.stat_total_value"),
-        value: 3847500,
-        format: "currency",
-        suffix: " USDC",
-      },
-      {
-        id: "active-workers",
-        label: t("home.stat_active_workers"),
-        value: 1820,
-        format: "number",
-      },
-      {
-        id: "avg-duration",
-        label: t("home.stat_avg_duration"),
-        value: 6.4,
-        format: "duration",
-        suffix: " hrs",
-      },
-    ],
-    [t],
-  );
-  const [scrollY, setScrollY] = useState(0);
-  const [featuresVisible, setFeaturesVisible] = useState(false);
-  const [workflowVisible, setWorkflowVisible] = useState(false);
-  const [statsVisible, setStatsVisible] = useState(false);
-  const [statsResetKey, setStatsResetKey] = useState(0);
-  const featuresRef = useRef<HTMLDivElement>(null);
-  const workflowRef = useRef<HTMLDivElement>(null);
-  const statsRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrollY(window.scrollY);
-    };
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setFeaturesVisible(true);
-          }
-        });
-      },
-      { threshold: 0.2 },
-    );
-
-    const workflowObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setWorkflowVisible(true);
-          }
-        });
-      },
-      { threshold: 0.2 },
-    );
-
-    const statsObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setStatsVisible(true);
-            setStatsResetKey((prev) => prev + 1);
-            return;
-          }
-          setStatsVisible(false);
-        });
-      },
-      { threshold: 0.35 },
-    );
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-
-    if (featuresRef.current) {
-      observer.observe(featuresRef.current);
-    }
-    if (workflowRef.current) {
-      workflowObserver.observe(workflowRef.current);
-    }
-    if (statsRef.current) {
-      statsObserver.observe(statsRef.current);
-    }
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      observer.disconnect();
-      workflowObserver.disconnect();
-      statsObserver.disconnect();
-    };
-  }, []);
-
-  return (
-    <div className="relative min-h-screen overflow-x-clip bg-[var(--bg)] font-sans text-[var(--text)]">
-      <div
-        className="absolute inset-0 z-0 pointer-events-none"
-        style={{
-          backgroundImage: `linear-gradient(var(--border) 1px, transparent 1px),
-                            linear-gradient(90deg, var(--border) 1px, transparent 1px)`,
-          backgroundSize: "50px 50px",
-          WebkitMaskImage:
-            "radial-gradient(ellipse at center, var(--bg) 0%, transparent 80%)",
-          maskImage:
-            "radial-gradient(ellipse at center, var(--bg) 0%, transparent 80%)",
-        }}
-      />
-
-      <div
-        className="absolute -top-[10%] -start-[10%] w-[50vw] h-[50vw] rounded-full blur-[100px] bg-[radial-gradient(circle,var(--accent-transparent-strong),transparent_70%)] opacity-30 z-0 animate-float"
-        style={{ transform: `translateY(${scrollY * 0.05}px)` }}
-      />
-      <div
-        className="absolute -bottom-[20%] -end-[10%] w-[60vw] h-[60vw] rounded-full blur-[100px] bg-[radial-gradient(circle,rgba(236,72,153,0.15),transparent_70%)] opacity-20 z-0 animate-float"
-        style={{ transform: `translateY(${scrollY * -0.03}px)` }}
-      />
-      <div
-        className="absolute top-[40%] start-[30%] w-[40vw] h-[40vw] rounded-full blur-[100px] bg-[radial-gradient(circle,var(--success-transparent-strong),transparent_70%)] opacity-20 z-0 animate-float"
-        style={{ transform: `translateY(${scrollY * 0.02}px)` }}
-      />
-
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        {particles.map((p) => (
-          <Particle key={p.id} {...p} />
-        ))}
-      </div>
-
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 hidden lg:block">
-        {tokenFlows.map((tf) => (
-          <TokenFlow key={tf.id} {...tf} />
-        ))}
-      </div>
-
-      <div className="absolute top-1/4 end-0 w-96 h-96 opacity-20 pointer-events-none z-0 hidden xl:block animate-spin-slow">
-        <svg viewBox="0 0 200 200" className="w-full h-full">
-          <defs>
-            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#818cf8" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="#f472b6" stopOpacity="0.5" />
-            </linearGradient>
-          </defs>
-          <circle
-            cx="100"
-            cy="100"
-            r="80"
-            fill="none"
-            stroke="url(#grad1)"
-            strokeWidth="0.5"
-            strokeDasharray="10 5"
-          />
-          <circle
-            cx="100"
-            cy="100"
-            r="60"
-            fill="none"
-            stroke="url(#grad1)"
-            strokeWidth="0.5"
-            strokeDasharray="15 5"
-          />
-          <circle
-            cx="100"
-            cy="100"
-            r="40"
-            fill="none"
-            stroke="url(#grad1)"
-            strokeWidth="0.5"
-            strokeDasharray="5 10"
-          />
-        </svg>
-      </div>
-
-      <main className="relative z-10 mx-auto flex max-w-7xl flex-col items-center px-4 sm:px-6 lg:px-8">
-        <section className="max-w-4xl animate-slide-up pb-12 pt-20 text-center sm:pt-24">
-          <div className="flex justify-center mb-6">
-            <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--surface-subtle)] border border-[var(--border)] backdrop-blur-md shadow-[0_4px_20px_var(--shadow-color),inset_0_0_0_1px_var(--border)] transition-all duration-300 hover:bg-[var(--surface)] hover:border-[var(--accent-transparent)] hover:-translate-y-[2px]">
-              <span className="animate-bounce-subtle">✨</span>
-              <span className="text-sm font-medium text-[var(--muted)] tracking-wide">
-                {t("common.welcome")}
-              </span>
-            </div>
-          </div>
-
-          <h1 className="text-[clamp(2.5rem,7vw,5rem)] font-extrabold leading-[1.1] tracking-tight mb-6 text-[var(--text)]">
-            {t("home.title")}
-            <br />
-            <span className="relative inline-block">
-              <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                {t("home.subtitle")}
-              </span>
-              <svg
-                className="absolute -bottom-2 left-0 w-full h-3 text-indigo-400/30"
-                viewBox="0 0 300 12"
-                preserveAspectRatio="none"
-              >
-                <path
-                  d="M0 6 Q 75 0, 150 6 T 300 6"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="animate-pulse-glow"
-                />
-              </svg>
-            </span>
-          </h1>
-
-          <p className="text-[clamp(1rem,2vw,1.25rem)] leading-relaxed text-[var(--muted)] max-w-2xl mx-auto mb-10">
-            {t("home.description")}
-          </p>
-
-          <div className="flex flex-col justify-center gap-4 sm:flex-row">
-            <Link
-              to="/dashboard"
-              className="group relative inline-flex min-h-11 items-center justify-center gap-3 overflow-hidden rounded-xl bg-gradient-to-br from-indigo-600 to-pink-500 px-8 py-4 text-lg font-semibold text-white transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_20px_40px_-10px_rgba(236,72,153,0.6)] shadow-[0_10px_30px_-10px_rgba(236,72,153,0.5)]"
-            >
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-indigo-500 to-pink-400 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-              <span className="relative z-10">{t("home.launch_app")}</span>
-              <svg
-                className="relative z-10 w-5 h-5 transition-transform duration-300 group-hover:translate-x-1"
-                viewBox="0 0 24 24"
-                fill="none"
-              >
-                <path
-                  d="M5 12H19M19 12L12 5M19 12L12 19"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </Link>
-
-            <Link
-              to="/help"
-              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] px-8 py-4 text-lg font-semibold text-[var(--text)] backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-[var(--accent-transparent)] hover:bg-[var(--surface)] hover:shadow-[0_10px_30px_-10px_var(--shadow-color)]"
-            >
-              {t("home.view_docs")}
-            </Link>
-          </div>
-        </section>
-        <SocialProof />
-
-        <section
-          className="my-8 mb-20 flex w-full justify-center"
-          style={{ perspective: "1000px" }}
-        >
-          <div className="hidden w-full max-w-2xl animate-float-panel overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)]/80 shadow-[0_30px_60px_-15px_var(--shadow-color),inset_0_1px_0_var(--border)] backdrop-blur-xl transition-all duration-500 hover:-translate-y-2 hover:border-[var(--accent-transparent)] hover:shadow-[0_40px_80px_-20px_var(--shadow-color)] md:block">
-            <div className="flex items-center px-5 py-3 bg-[var(--surface-subtle)] border-b border-[var(--border)]">
-              <div className="flex gap-1.5 me-auto">
-                <div className="w-2.5 h-2.5 rounded-full bg-[var(--sds-color-feedback-error)]" />
-                <div className="w-2.5 h-2.5 rounded-full bg-[var(--sds-color-feedback-warning)]" />
-                <div className="w-2.5 h-2.5 rounded-full bg-[var(--sds-color-feedback-success)]" />
-              </div>
-              <div className="text-xs font-medium text-[var(--muted)] tracking-wide uppercase mx-auto -translate-x-[24px] rtl:translate-x-[24px]">
-                {t("home.active_streams")}
-              </div>
-              <span className="text-xs font-mono text-emerald-400 animate-counter-pulse">
-                ● {t("home.live")}
-              </span>
-            </div>
-
-            <div className="p-4 space-y-2">
-              {mockStreams.map((stream, index) => (
-                <StreamCard key={stream.id} stream={stream} index={index} />
-              ))}
-            </div>
-
-            <div className="px-4 pb-4">
-              <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-indigo-500/5 to-pink-500/5 border border-[var(--border)]">
-                <span className="text-xs text-[var(--muted)]">
-                  {t("home.total_streaming")}
-                </span>
-                <span className="font-mono text-sm font-semibold bg-gradient-to-r from-indigo-400 to-pink-400 bg-clip-text text-transparent">
-                  {formatCurrency(12847.5, "USD")} USDC
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]/90 shadow-[0_20px_40px_-20px_var(--shadow-color)] backdrop-blur md:hidden">
-            <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2">
-              <span className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
-                Live Payroll
-              </span>
-              <span className="text-xs font-mono text-emerald-400">● LIVE</span>
-            </div>
-            <div className="space-y-2 p-3">
-              {mockStreams.slice(0, 2).map((stream) => (
-                <MobileStreamCard key={stream.id} stream={stream} />
-              ))}
-            </div>
-            <div className="border-t border-[var(--border)] px-3 py-2.5">
-              <p className="text-xs text-[var(--muted)]">
-                Total streaming this month
-              </p>
-              <p className="font-mono text-sm font-semibold text-indigo-400">
-                $12,847.50 USDC
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section ref={statsRef} className="w-full pb-10 pt-4 sm:pb-14 sm:pt-6">
-          <div className="mb-8 text-center">
-            <h2 className="mb-3 text-2xl font-bold text-[var(--text)] sm:text-3xl">
-              Protocol By The Numbers
-            </h2>
-            <p className="mx-auto max-w-2xl text-sm text-[var(--muted)] sm:text-base">
-              Real-time metrics from Quipay streams across teams, treasuries,
-              and active contributors.
+            {/* Fine print */}
+            <p className="mt-6 text-[12px] text-neutral-700">
+              No credit card required · Free to get started · Non-custodial
             </p>
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {stats.map((metric, index) => (
-              <AnimatedStat
-                key={metric.id}
-                index={index}
-                isActive={statsVisible}
-                metric={metric}
-                resetKey={statsResetKey}
-              />
-            ))}
-          </div>
         </section>
-
-        <section
-          ref={workflowRef}
-          className="w-full py-20 relative overflow-hidden"
-        >
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-extrabold text-[var(--text)] mb-4">
-              How Quipay Works
-            </h2>
-            <p className="text-lg text-[var(--muted)] max-w-2xl mx-auto">
-              A streamlined, automated payroll experience in 4 simple steps
-            </p>
-          </div>
-
-          <div className="relative grid grid-cols-1 md:grid-cols-4 gap-16 md:gap-8 px-4">
-            {/* Connecting Lines for Desktop */}
-            <div className="hidden md:block absolute top-[40px] left-[15%] right-[15%] h-[2px] bg-gradient-to-r from-indigo-500/10 via-purple-500/20 to-pink-500/10 z-0">
-              <div
-                className={`h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-[2000ms] ease-out shadow-[0_0_10px_var(--accent)] ${
-                  workflowVisible ? "w-full" : "w-0"
-                }`}
-              />
-            </div>
-
-            {/* Step 1: Fund Your Treasury */}
-            <WorkflowStep
-              number="01"
-              title="Fund Your Treasury"
-              description="Securely deposit assets into our audited multi-sig smart contract vaults."
-              icon={
-                <svg
-                  className="w-10 h-10"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M12 3v3m0 12v3M3 12h3m12 0h3" />
-                </svg>
-              }
-              isActive={workflowVisible}
-              index={0}
-            />
-
-            {/* Mobile Divider 1 */}
-            <div className="md:hidden flex justify-center -my-8 opacity-20">
-              <div className="w-[2px] h-16 bg-gradient-to-b from-indigo-500 to-purple-500" />
-            </div>
-
-            {/* Step 2: Create Payment Streams */}
-            <WorkflowStep
-              number="02"
-              title="Create Payment Streams"
-              description="Set up continuous, real-time token flows for your global contributors."
-              icon={
-                <svg
-                  className="w-10 h-10"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M22 12l-2 0m-16 0l-2 0m10-10l0 2m0 16l0 2" />
-                </svg>
-              }
-              isActive={workflowVisible}
-              index={1}
-            />
-
-            {/* Mobile Divider 2 */}
-            <div className="md:hidden flex justify-center -my-8 opacity-20">
-              <div className="w-[2px] h-16 bg-gradient-to-b from-purple-500 to-pink-500" />
-            </div>
-
-            {/* Step 3: Workers Withdraw Anytime */}
-            <WorkflowStep
-              number="03"
-              title="Workers Withdraw Anytime"
-              description="Empower your team with instant access to their earned capital, 24/7."
-              icon={
-                <svg
-                  className="w-10 h-10"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
-                  <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
-                  <path d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
-                </svg>
-              }
-              isActive={workflowVisible}
-              index={2}
-            />
-
-            {/* Mobile Divider 3 */}
-            <div className="md:hidden flex justify-center -my-8 opacity-20">
-              <div className="w-[2px] h-16 bg-gradient-to-b from-pink-500 to-indigo-500" />
-            </div>
-
-            {/* Step 4: AI Manages Everything */}
-            <WorkflowStep
-              number="04"
-              title="AI Manages Everything"
-              description="Autonomous agents handle tax rules, solvency, and payroll compliance."
-              icon={
-                <svg
-                  className="w-10 h-10"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M12 8V4H8" />
-                  <rect x="5" y="8" width="14" height="12" rx="2" />
-                  <path d="M9 13h.01M15 13h.01" />
-                  <path d="M12 20v2" />
-                </svg>
-              }
-              isActive={workflowVisible}
-              index={3}
-            />
-          </div>
-        </section>
-
-        <section ref={featuresRef} className="w-full pb-24 pt-12 sm:pt-16">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-[var(--text)] mb-4">
-              {t("home.why_choose")}
-            </h2>
-            <p className="text-[var(--muted)] max-w-xl mx-auto">
-              {t("home.why_choose_desc")}
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <FeatureCard
-              index={0}
-              isVisible={featuresVisible}
-              icon={
-                <svg
-                  className="w-7 h-7"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                </svg>
-              }
-              title={t("home.feature_1_title")}
-              description={t("home.feature_1_desc")}
-            />
-            <FeatureCard
-              index={1}
-              isVisible={featuresVisible}
-              icon={
-                <svg
-                  className="w-7 h-7"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-              }
-              title={t("home.feature_2_title")}
-              description={t("home.feature_2_desc")}
-            />
-            <FeatureCard
-              index={2}
-              isVisible={featuresVisible}
-              icon={
-                <svg
-                  className="w-7 h-7"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                  <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                  <line x1="12" y1="22.08" x2="12" y2="12" />
-                </svg>
-              }
-              title={t("home.feature_3_title")}
-              description={t("home.feature_3_desc")}
-            />
-          </div>
-        </section>
-
-        <CTASection />
-      </main>
+      </div>
     </div>
   );
 };

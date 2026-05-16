@@ -1,51 +1,116 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 
 export default function NotFound() {
-  return (
-    <section
-      className="relative grid min-h-[calc(100vh-180px)] place-items-center overflow-hidden px-4 pb-12 pt-8"
-      aria-labelledby="not-found-title"
-    >
-      <div
-        className="animate-breathe pointer-events-none absolute h-[520px] w-[520px] rounded-full bg-[radial-gradient(circle,rgba(56,189,248,0.22)_0%,transparent_70%)] blur-[50px]"
-        aria-hidden="true"
-      />
+  const navigate = useNavigate();
+  const [count, setCount] = useState(10);
 
-      <article className="relative z-10 w-full max-w-[700px] rounded-[22px] border border-[rgba(148,163,184,0.28)] bg-[linear-gradient(160deg,rgba(15,23,42,0.9),rgba(30,41,59,0.78)),var(--surface)] px-[1.3rem] pb-[2.3rem] pt-[2.1rem] text-center shadow-[0_18px_44px_rgba(2,6,23,0.55),inset_0_1px_0_rgba(255,255,255,0.05)] max-sm:rounded-2xl max-sm:px-4 max-sm:pb-7 max-sm:pt-6">
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCount((c) => {
+        if (c <= 1) {
+          clearInterval(id);
+          void navigate("/");
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [navigate]);
+
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-black px-6 text-center">
+      {/* Large 404 */}
+      <p
+        className="select-none font-black text-white leading-none"
+        style={{
+          fontSize: "clamp(6rem, 20vw, 14rem)",
+          letterSpacing: "-0.04em",
+          opacity: 0.08,
+        }}
+      >
+        404
+      </p>
+
+      {/* Content */}
+      <div className="-mt-8 flex flex-col items-center gap-5">
         <div
-          className="relative mx-auto mb-4 grid aspect-square w-[min(300px,85vw)] place-items-center"
-          role="img"
-          aria-label="Centered animated 404 illustration"
+          className="flex h-14 w-14 items-center justify-center rounded-2xl"
+          style={{
+            backgroundColor: "rgba(250,204,21,0.1)",
+            border: "1px solid rgba(250,204,21,0.2)",
+          }}
         >
-          <div className="animate-spin-outer absolute inset-[8%] rounded-full border-2 border-[rgba(125,211,252,0.4)]" />
-          <div className="animate-spin-inner absolute inset-[22%] rounded-full border-2 border-[rgba(167,139,250,0.55)]" />
-          <div className="absolute inset-[32%] rounded-full bg-[radial-gradient(circle,rgba(14,165,233,0.45)_0%,rgba(99,102,241,0.1)_65%,transparent_100%)] blur-[4px]" />
-          <p className="drop-shadow-[0_0_24px_rgba(103,232,249,0.35)] relative z-10 m-0 text-[clamp(3.8rem,12vw,5.8rem)] font-extrabold leading-none tracking-[0.04em] text-slate-50">
-            404
+          <svg
+            className="h-7 w-7"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#facc15"
+            strokeWidth="1.75"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" strokeLinecap="round" />
+            <circle cx="12" cy="16" r="0.5" fill="#facc15" />
+          </svg>
+        </div>
+
+        <div>
+          <h1
+            className="text-[28px] font-bold text-white"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            Page not found
+          </h1>
+          <p className="mt-2 text-[15px] text-neutral-500">
+            The page you're looking for doesn't exist or has been moved.
           </p>
         </div>
 
-        <p className="mb-[0.45rem] mt-0 text-[0.82rem] font-bold uppercase tracking-[0.08em] text-blue-300">
-          Error 404
-        </p>
-        <h1
-          id="not-found-title"
-          className="m-0 text-[clamp(1.55rem,3.3vw,2.2rem)] leading-[1.2] text-slate-50"
-        >
-          Page not found
-        </h1>
-        <p className="mx-auto mb-[1.3rem] mt-[0.85rem] max-w-[500px] leading-[1.55] text-slate-300">
-          This route does not exist in Quipay. Head back home and continue from
-          a valid page.
-        </p>
+        <div className="flex flex-col items-center gap-3 sm:flex-row">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-[14px] font-bold text-black transition-all hover:opacity-90 active:scale-[0.97]"
+            style={{ backgroundColor: "#facc15" }}
+          >
+            <svg
+              className="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+            >
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            </svg>
+            Go home
+          </Link>
+          <button
+            onClick={() => {
+              void navigate(-1);
+            }}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.04] px-6 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-white/[0.08]"
+          >
+            <svg
+              className="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+            >
+              <path
+                d="M19 12H5M5 12l7 7M5 12l7-7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            Go back
+          </button>
+        </div>
 
-        <Link
-          to="/"
-          className="inline-flex min-w-[132px] items-center justify-center rounded-full border border-[rgba(147,197,253,0.42)] bg-[linear-gradient(135deg,#0ea5e9,#6366f1)] px-[1.15rem] py-[0.72rem] font-bold text-slate-50 shadow-[0_10px_24px_rgba(59,130,246,0.32)] outline-none transition-all duration-150 ease-out hover:-translate-y-[2px] hover:shadow-[0_14px_28px_rgba(59,130,246,0.38)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300"
-        >
-          Go Home
-        </Link>
-      </article>
-    </section>
+        <p className="text-[12px] text-neutral-700">
+          Redirecting to home in{" "}
+          <span className="font-mono font-bold text-neutral-500">{count}s</span>
+        </p>
+      </div>
+    </div>
   );
 }
