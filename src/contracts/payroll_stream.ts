@@ -20,6 +20,7 @@
  */
 
 import {
+  Account,
   Contract,
   rpc as SorobanRpc,
   Transaction,
@@ -127,7 +128,7 @@ export async function buildCreateStreamTx(
           : xdr.ScVal.scvVoid(),
       ),
     )
-    .setTimeout(30)
+    .setTimeout(300)
     .build();
 
   const prepared = await server.prepareTransaction(tx);
@@ -166,7 +167,7 @@ export async function buildCancelStreamTx(
         nativeToScVal(null), // For the 'to' option in Soroban which is an Option<Address> or something? Wait...
       ),
     )
-    .setTimeout(30)
+    .setTimeout(300)
     .build();
 
   const prepared = await server.prepareTransaction(tx);
@@ -199,7 +200,7 @@ async function buildSimpleStreamActionTx(
         new Address(employer).toScVal(),
       ),
     )
-    .setTimeout(30)
+    .setTimeout(300)
     .build();
 
   const prepared = await server.prepareTransaction(tx);
@@ -309,7 +310,7 @@ export async function buildWithdrawTx(
         new Address(workerAddress).toScVal(),
       ),
     )
-    .setTimeout(30)
+    .setTimeout(300)
     .build();
 
   const prepared = await server.prepareTransaction(tx);
@@ -475,28 +476,38 @@ async function simulateContractRead<T>(
 ): Promise<T | null> {
   const server = getRpcServer();
 
-  let source = await server.getAccount(sourceAddress).catch(() => null);
-  if (!source && PAYROLL_STREAM_CONTRACT_ID) {
-    source = await server
-      .getAccount(PAYROLL_STREAM_CONTRACT_ID)
-      .catch(() => null);
+  // G... accounts have AccountEntry in the ledger — fetch normally.
+  // C... contract addresses do NOT — use a synthetic Account(seq=0) instead.
+  let source = sourceAddress.startsWith("G")
+    ? await server.getAccount(sourceAddress).catch(() => null)
+    : null;
+
+  if (!source) {
+    source = new Account(
+      "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
+      "0",
+    );
   }
-  if (!source) return null;
 
   const tx = new TransactionBuilder(source, { fee: "100", networkPassphrase })
     .addOperation(operation)
     .setTimeout(10)
     .build();
 
-  const response = await server.simulateTransaction(tx);
-  if (SorobanRpc.Api.isSimulationError(response)) return null;
+  try {
+    const response = await server.simulateTransaction(tx);
+    if (SorobanRpc.Api.isSimulationError(response)) return null;
 
-  const retval = (response as SorobanRpc.Api.SimulateTransactionSuccessResponse)
-    .result?.retval;
-  if (!retval) return null;
+    const retval = (
+      response as SorobanRpc.Api.SimulateTransactionSuccessResponse
+    ).result?.retval;
+    if (!retval) return null;
 
-  const native = scValToNative(retval) as T | undefined;
-  return native ?? null;
+    const native = scValToNative(retval) as T | undefined;
+    return native ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ─── getStreamsByWorker ───────────────────────────────────────────────────────
@@ -862,7 +873,7 @@ export async function buildBatchCreateStreamsTx(
         nativeToScVal(vaultDeposit, { type: "i128" }),
       ),
     )
-    .setTimeout(30)
+    .setTimeout(300)
     .build();
 
   const prepared = await server.prepareTransaction(tx);

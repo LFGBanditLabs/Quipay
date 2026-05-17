@@ -1,748 +1,682 @@
-import React, { useState, useCallback } from "react";
-import { useTransactionData } from "../hooks/useTransactionData";
-import { usePayroll, type Stream } from "../hooks/usePayroll";
-import { getReceiptForStream } from "../contracts/payroll_stream";
-import {
-  exportOnChainReceiptPDF,
-  exportTransactionsCSV,
-  exportTransactionsPDF,
-  exportPaycheckPDF,
-  exportMonthlySummaryPDF,
-  exportPayrollStreamsCSV,
-} from "../services/reportService";
-import type { PayrollTransaction } from "../types/reports";
+import { useMemo, useState } from "react";
+import { usePayroll } from "../hooks/usePayroll";
 import { useWallet } from "../hooks/useWallet";
-import { useAnalytics } from "../hooks/useAnalytics";
 import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
 
-const tw = {
-  reportsPage:
-    "min-h-screen bg-[#0a0a0a] px-6 pb-16 pt-8 font-[Inter,sans-serif] text-white",
-  pageHeader: "mx-auto mb-8 max-w-[1200px]",
-  pageTitle:
-    "mb-1 text-[2rem] font-extrabold tracking-[-0.02em] text-transparent bg-[#0a0a0a] bg-clip-text",
-  pageSubtitle: "m-0 text-[0.95rem] text-neutral-500",
-  tabBar:
-    "mx-auto mb-6 flex max-w-[1200px] gap-1 rounded-xl border border-white/[0.07] bg-[#0a0a0a] p-1 backdrop-blur-xl",
-  tab: "flex flex-1 items-center justify-center gap-2 rounded-[10px] bg-transparent px-4 py-3 text-sm font-semibold text-neutral-500 transition-all duration-200 hover:bg-yellow-400/10 hover:text-yellow-400",
-  tabActive:
-    "bg-[#0a0a0a] text-white shadow-[0_4px_15px_rgba(99,102,241,0.35)]",
-  tabIcon: "text-[1.1rem]",
-  card: "mx-auto mb-6 max-w-[1200px] rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-[20px]",
-  cardHeader: "mb-5 flex flex-wrap items-center justify-between gap-3",
-  cardTitle: "m-0 flex items-center gap-2 text-[1.15rem] font-bold text-white",
-  cardTitleIcon: "text-yellow-400",
-  toolbar: "flex flex-wrap items-center gap-3",
-  filterSelect:
-    "min-w-[140px] rounded-lg border border-white/[0.07] bg-[#0a0a0a] px-3 py-2 text-[0.825rem] text-white outline-none transition focus:border-yellow-400/40 focus:ring-1 focus:ring-yellow-400/20",
-  filterInput:
-    "min-w-[140px] rounded-lg border border-white/[0.07] bg-[#0a0a0a] px-3 py-2 text-[0.825rem] text-white outline-none transition focus:border-yellow-400/40 focus:ring-1 focus:ring-yellow-400/20",
-  btnGroup: "flex flex-wrap gap-2",
-  btnExport:
-    "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[0.825rem] font-semibold transition-all duration-200",
-  btnCSV:
-    "bg-[#0a0a0a] text-white hover:-translate-y-px hover:shadow-[0_4px_14px_rgba(250,204,21,0.2)]",
-  btnPDF:
-    "bg-[#0a0a0a] text-white hover:-translate-y-px hover:shadow-[0_4px_14px_rgba(250,204,21,0.2)]",
-  btnSummaryPDF:
-    "bg-[#0a0a0a] text-white hover:-translate-y-px hover:shadow-[0_4px_14px_rgba(250,204,21,0.2)]",
-  btnPaycheck:
-    "border border-white/[0.07] bg-yellow-400/10 px-2.5 py-1.5 text-xs text-yellow-400 hover:-translate-y-px hover:bg-yellow-400/10 hover:text-yellow-400",
-  kpiGrid: "mb-6 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4",
-  kpi: "rounded-xl border border-white/[0.07] bg-[#0a0a0a] p-[1.15rem] transition-all hover:-translate-y-0.5 hover:border-white/[0.07] hover:shadow-[0_6px_20px_rgba(0,0,0,0.2)]",
-  kpiLabel:
-    "mb-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-neutral-600",
-  kpiValue: "text-[1.4rem] font-extrabold text-white",
-  kpiHighlight: "text-yellow-400",
-  kpiSuccess: "text-emerald-400",
-  kpiWarning: "text-amber-300",
-  kpiDanger: "text-rose-300",
-  monthSelector: "flex flex-wrap gap-2",
-  monthBtn:
-    "rounded-lg border border-white/[0.07] bg-[#0a0a0a] px-3 py-1.5 text-xs font-semibold text-neutral-300 transition hover:bg-yellow-400/10",
-  monthBtnActive:
-    "border-white/[0.07] bg-yellow-400/10 text-yellow-400 shadow-[0_0_0_1px_rgba(129,140,248,0.35)]",
-  deptGrid: "grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4",
-  deptCard: "rounded-xl border border-white/[0.07] bg-[#0a0a0a] p-4",
-  deptName: "text-sm font-semibold text-white",
-  deptMeta: "text-xs text-neutral-500",
-  deptAmount: "text-lg font-bold text-yellow-400",
-  barTrack: "mt-2 h-2 overflow-hidden rounded-full bg-[#0a0a0a]",
-  barFill: "h-full rounded-full bg-[#0a0a0a]",
-  tableWrapper:
-    "overflow-hidden rounded-xl border border-white/[0.07] bg-[#0a0a0a]",
-  dataTable: "w-full border-collapse text-sm",
-  amountCell: "font-semibold text-white",
-  statusBadge:
-    "inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-semibold",
-  statusDot: "h-1.5 w-1.5 rounded-full",
-  statusCompleted: "bg-emerald-500/15 text-emerald-300",
-  statusPending: "bg-amber-500/15 text-amber-300",
-  statusFailed: "bg-rose-500/15 text-rose-300",
-  dotCompleted: "bg-emerald-400",
-  dotPending: "bg-amber-400",
-  dotFailed: "bg-rose-400",
-  emptyState:
-    "rounded-xl border border-dashed border-white/[0.07] p-10 text-center",
-  emptyIcon: "mb-2 text-3xl",
-  toast:
-    "fixed bottom-5 right-5 z-50 inline-flex items-center gap-2 rounded-xl border border-white/[0.07] bg-[#0a0a0a] px-4 py-3 text-sm font-medium text-yellow-400 shadow-2xl backdrop-blur",
-  toastIcon: "text-base",
-};
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/* ── Helpers ──────────────────────────────────────────────────────── */
+const STROOPS = 1e7;
+const YELLOW = "#facc15";
 
-function fmtCurrency(n: number, c = "USDC") {
-  return `${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${c}`;
+function fmt(n: number, d = 2) {
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: d,
+    maximumFractionDigits: d,
+  });
 }
-
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
+function shortAddr(a: string) {
+  return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+function fmtDate(ts: string) {
+  if (!ts) return "—";
+  return new Date(ts).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
 }
 
-function shortHash(h: string) {
-  return h.length > 16 ? `${h.slice(0, 6)}…${h.slice(-6)}` : h;
-}
+type Tab = "streams" | "workers" | "summary";
 
-type Tab = "transactions" | "monthly";
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
-/* ── Status badge ─────────────────────────────────────────────────── */
+export default function Reports() {
+  const { address } = useWallet();
+  const { streams, vaultData, isLoading } = usePayroll(address);
+  const [tab, setTab] = useState<Tab>("streams");
 
-const StatusBadge: React.FC<{ status: PayrollTransaction["status"] }> = ({
-  status,
-}) => {
-  const map = {
-    completed: { badge: tw.statusCompleted, dot: tw.dotCompleted },
-    pending: { badge: tw.statusPending, dot: tw.dotPending },
-    failed: { badge: tw.statusFailed, dot: tw.dotFailed },
-  };
-  const s = map[status];
-  return (
-    <span className={`${tw.statusBadge} ${s.badge}`}>
-      <span className={`${tw.statusDot} ${s.dot}`} />
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </span>
+  // ── Derived data ───────────────────────────────────────────────────────────
+
+  const activeStreams = useMemo(
+    () => streams.filter((s) => s.status === "active"),
+    [streams],
   );
-};
+  const completedStreams = useMemo(
+    () => streams.filter((s) => s.status === "completed"),
+    [streams],
+  );
+  const cancelledStreams = useMemo(
+    () => streams.filter((s) => s.status === "cancelled"),
+    [streams],
+  );
 
-/* ── Main component ──────────────────────────────────────────────── */
+  const totalDisbursed = useMemo(
+    () => streams.reduce((s, x) => s + parseFloat(x.totalStreamed || "0"), 0),
+    [streams],
+  );
+  const totalValue = useMemo(
+    () => streams.reduce((s, x) => s + parseFloat(x.totalAmount || "0"), 0),
+    [streams],
+  );
 
-const Reports: React.FC = () => {
-  const {
-    filteredTransactions,
-    monthlyTransactions,
-    monthlySummary,
-    filter,
-    setFilter,
-    selectedMonth,
-    setSelectedMonth,
-    availableMonths,
-  } = useTransactionData();
+  // Per-worker summary
+  const workerSummary = useMemo(() => {
+    const map = new Map<
+      string,
+      { addr: string; earned: number; streams: number; tokens: Set<string> }
+    >();
+    streams.forEach((s) => {
+      const ex = map.get(s.employeeAddress) ?? {
+        addr: s.employeeAddress,
+        earned: 0,
+        streams: 0,
+        tokens: new Set<string>(),
+      };
+      ex.earned += parseFloat(s.totalStreamed || "0");
+      ex.streams += 1;
+      ex.tokens.add(s.tokenSymbol);
+      map.set(s.employeeAddress, ex);
+    });
+    return Array.from(map.values()).sort((a, b) => b.earned - a.earned);
+  }, [streams]);
 
-  const { address: walletAddress } = useWallet();
+  // Token breakdown
+  const tokenBreakdown = useMemo(() => {
+    const map = new Map<string, number>();
+    streams.forEach((s) =>
+      map.set(
+        s.tokenSymbol,
+        (map.get(s.tokenSymbol) ?? 0) + parseFloat(s.totalAmount || "0"),
+      ),
+    );
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+  }, [streams]);
 
-  // Use connected wallet address for payroll stream queries
-  const { streams } = usePayroll(walletAddress);
+  // Status pie
+  const statusPie = useMemo(
+    () =>
+      [
+        { name: "Active", value: activeStreams.length, fill: "#22c55e" },
+        { name: "Completed", value: completedStreams.length, fill: YELLOW },
+        { name: "Cancelled", value: cancelledStreams.length, fill: "#ef4444" },
+      ].filter((d) => d.value > 0),
+    [activeStreams, completedStreams, cancelledStreams],
+  );
 
-  const {
-    trends,
-    loading: analyticsLoading,
-    error: analyticsError,
-  } = useAnalytics();
+  // Vault summary
+  const vaultSummary = useMemo(
+    () =>
+      vaultData.map((v) => ({
+        token: v.tokenSymbol,
+        balance: Number(v.balance ?? 0) / STROOPS,
+        liability: Number(v.liability ?? 0) / STROOPS,
+        available: Number(v.available ?? 0) / STROOPS,
+      })),
+    [vaultData],
+  );
 
-  const [activeTab, setActiveTab] = useState<Tab>("transactions");
-  const [toast, setToast] = useState<string | null>(null);
+  // ── Guards ─────────────────────────────────────────────────────────────────
 
-  const showToast = useCallback((msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  }, []);
-
-  /* ── Export handlers ─────────────────────────────────────────── */
-
-  const handleCSVExport = () => {
-    exportTransactionsCSV(filteredTransactions);
-    showToast("CSV exported successfully");
-  };
-
-  const handlePayrollStreamsCSVExport = () => {
-    try {
-      // Convert streams to the format expected by CSV export function
-      const payrollStreams = streams.map((stream) => ({
-        streamId: stream.id,
-        worker: stream.employeeAddress,
-        total_amount: BigInt(parseFloat(stream.totalAmount) * 1e7),
-        withdrawn_amount: BigInt(parseFloat(stream.totalStreamed) * 1e7),
-        start_ts: BigInt(
-          Math.floor(new Date(stream.startDate).getTime() / 1000),
-        ),
-        end_ts: BigInt(Math.floor(new Date(stream.endDate).getTime() / 1000)),
-        status:
-          stream.status === "active"
-            ? 0
-            : stream.status === "cancelled"
-              ? 1
-              : 2,
-      }));
-
-      exportPayrollStreamsCSV(payrollStreams);
-      showToast("Payroll streams CSV exported successfully");
-    } catch (error) {
-      showToast("Failed to export payroll streams CSV");
-      console.error("CSV export error:", error);
-    }
-  };
-
-  const handlePDFExport = () => {
-    exportTransactionsPDF(filteredTransactions);
-    showToast("PDF exported successfully");
-  };
-
-  const handlePaycheckPDF = (tx: PayrollTransaction) => {
-    void exportPaycheckPDF(tx);
-    showToast(`Paycheck PDF generated for ${tx.employeeName}`);
-  };
-
-  const handleOnChainReceiptPDF = (stream: Stream) => {
-    void (async () => {
-      try {
-        const sourceAddress = walletAddress || stream.employeeAddress;
-        const receipt = await getReceiptForStream(
-          sourceAddress,
-          BigInt(stream.id),
-        );
-
-        if (!receipt) {
-          showToast(`No on-chain receipt found for stream ${stream.id}`);
-          return;
-        }
-
-        await exportOnChainReceiptPDF(receipt, {
-          employeeName: stream.employeeName,
-          employeeId: stream.id,
-          tokenSymbol: stream.tokenSymbol,
-          sourceAddress,
-          filename: `quipay-receipt-${stream.id}.pdf`,
-        });
-        showToast(`On-chain receipt exported for stream ${stream.id}`);
-      } catch (error) {
-        console.error("On-chain receipt export error:", error);
-        showToast(`Failed to export on-chain receipt for stream ${stream.id}`);
-      }
-    })();
-  };
-
-  const handleMonthlySummaryPDF = () => {
-    exportMonthlySummaryPDF(monthlySummary, monthlyTransactions);
-    showToast(`Monthly summary PDF generated for ${selectedMonth}`);
-  };
-
-  /* ── Render ─────────────────────────────────────────────────── */
+  if (!address) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 px-6 text-center">
+        <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-yellow-400/20 bg-yellow-400/10">
+          <svg
+            className="h-8 w-8 text-yellow-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+          >
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+          </svg>
+        </div>
+        <h2 className="text-[20px] font-bold text-white mb-2">
+          Connect your wallet
+        </h2>
+        <p className="text-[14px] text-neutral-500">
+          Connect to view your payroll reports.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className={tw.reportsPage}>
+    <div className="px-6 py-8 sm:px-8 sm:py-10">
       {/* Header */}
-      <header className={tw.pageHeader}>
-        <h1 className={tw.pageTitle}>Reports &amp; Exports</h1>
-        <p className={tw.pageSubtitle}>
-          Generate CSV &amp; PDF reports for accounting, taxes, and audits
+      <div className="mb-8">
+        <h1 className="text-[24px] font-bold text-white tracking-tight">
+          Reports
+        </h1>
+        <p className="mt-1 text-[14px] text-neutral-500">
+          Payroll data from your Stellar testnet contracts.
         </p>
-      </header>
+      </div>
+
+      {/* Summary strip */}
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { label: "Total Streams", value: streams.length, accent: false },
+          { label: "Active", value: activeStreams.length, accent: true },
+          {
+            label: "Total Streamed",
+            value: fmt(totalDisbursed, 0),
+            accent: false,
+          },
+          { label: "Total Value", value: fmt(totalValue, 0), accent: false },
+        ].map(({ label, value, accent }) => (
+          <div
+            key={label}
+            className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-4"
+          >
+            <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-600 mb-1">
+              {label}
+            </p>
+            <p
+              className="text-[26px] font-black"
+              style={accent ? { color: YELLOW } : { color: "#fff" }}
+            >
+              {value}
+            </p>
+          </div>
+        ))}
+      </div>
 
       {/* Tabs */}
-      <div className={tw.tabBar}>
-        <button
-          id="tab-transactions"
-          className={`${tw.tab} ${activeTab === "transactions" ? tw.tabActive : ""}`}
-          onClick={() => setActiveTab("transactions")}
-        >
-          <span className={tw.tabIcon}>📋</span>
-          Transaction History
-        </button>
-        <button
-          id="tab-monthly"
-          className={`${tw.tab} ${activeTab === "monthly" ? tw.tabActive : ""}`}
-          onClick={() => setActiveTab("monthly")}
-        >
-          <span className={tw.tabIcon}>📊</span>
-          Monthly Summary
-        </button>
+      <div className="mb-6 flex gap-1 rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-1">
+        {(
+          [
+            ["streams", "Streams"],
+            ["workers", "Workers"],
+            ["summary", "Summary"],
+          ] as [Tab, string][]
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={`flex-1 rounded-xl py-2.5 text-[13px] font-semibold transition-all ${
+              tab === id ? "text-black" : "text-neutral-500 hover:text-white"
+            }`}
+            style={tab === id ? { backgroundColor: YELLOW } : {}}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      {/* Analytics Chart */}
-      <div className={tw.card}>
-        <div className={tw.cardHeader}>
-          <h2 className={tw.cardTitle}>
-            <span className={tw.cardTitleIcon}>📈</span>
-            Payroll Volume Trend
-          </h2>
+      {isLoading ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {[1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-48 animate-pulse rounded-2xl bg-white/[0.04]"
+            />
+          ))}
         </div>
-        <div className="mt-4 h-[300px]">
-          {analyticsLoading ? (
-            <div className="flex h-full items-center justify-center text-neutral-500">
-              Loading analytics...
-            </div>
-          ) : analyticsError ? (
-            <div className="flex h-full items-center justify-center text-rose-400">
-              Error: {analyticsError}
-            </div>
-          ) : trends.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-neutral-500">
-              No trend data available
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart
-                data={trends}
-                margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="bucket"
-                  tick={{ fill: "rgba(255,255,255,0.4)" }}
-                  tickFormatter={(dateStr) =>
-                    new Date(dateStr).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                    })
-                  }
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fill: "rgba(255,255,255,0.4)" }}
-                  tickFormatter={(v) => `$${Number(v).toLocaleString()}`}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="rgba(255,255,255,0.1)"
-                  vertical={false}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#1e293b",
-                    borderColor: "#334155",
-                    color: "#f8fafc",
-                    borderRadius: "8px",
-                  }}
-                  labelFormatter={(label) => new Date(label).toDateString()}
-                  formatter={(value) => [
-                    `$${Number(Array.isArray(value) ? (value[0] ?? 0) : (value ?? 0)).toLocaleString()}`,
-                    "Volume",
-                  ]}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="volume"
-                  stroke="#818cf8"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorVolume)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
+      ) : streams.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-white/[0.08] bg-[#0a0a0a] p-12 text-center">
+          <p className="text-[15px] font-bold text-white mb-1">
+            No streams yet
+          </p>
+          <p className="text-[13px] text-neutral-600">
+            Create payment streams to see reports here.
+          </p>
         </div>
-      </div>
-
-      {/* ── Transaction History Tab ─────────────────────────────── */}
-      {activeTab === "transactions" && (
+      ) : (
         <>
-          <div className={tw.card}>
-            <div className={tw.cardHeader}>
-              <h2 className={tw.cardTitle}>
-                <span className={tw.cardTitleIcon}>📋</span>
-                Transaction History
-              </h2>
-              <div className={tw.toolbar}>
-                <select
-                  id="filter-status"
-                  className={tw.filterSelect}
-                  value={filter.status ?? "all"}
-                  onChange={(e) =>
-                    setFilter((f) => ({
-                      ...f,
-                      status: e.target.value as typeof f.status,
-                    }))
-                  }
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="completed">Completed</option>
-                  <option value="pending">Pending</option>
-                  <option value="failed">Failed</option>
-                </select>
-
-                <div className={tw.btnGroup}>
-                  <button
-                    id="btn-export-csv"
-                    className={`${tw.btnExport} ${tw.btnCSV}`}
-                    onClick={handleCSVExport}
-                  >
-                    📥 Export CSV
-                  </button>
-                  <button
-                    id="btn-export-payroll-csv"
-                    className={`${tw.btnExport} ${tw.btnCSV}`}
-                    onClick={handlePayrollStreamsCSVExport}
-                  >
-                    📊 Export Payroll CSV
-                  </button>
-                  <button
-                    id="btn-export-pdf"
-                    className={`${tw.btnExport} ${tw.btnPDF}`}
-                    onClick={handlePDFExport}
-                  >
-                    📄 Export PDF
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {filteredTransactions.length === 0 ? (
-              <div className={tw.emptyState}>
-                <div className={tw.emptyIcon}>📭</div>
-                <p>No transactions match the current filter.</p>
-              </div>
-            ) : (
-              <div className={tw.tableWrapper}>
-                <table className={tw.dataTable}>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Employee</th>
-                      <th>Amount</th>
-                      <th>Status</th>
-                      <th>TX Hash</th>
-                      <th>Description</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTransactions.map((tx) => (
-                      <tr key={tx.id}>
-                        <td>{fmtDate(tx.date)}</td>
-                        <td>
-                          {tx.employeeName}
-                          <br />
-                          <span
-                            style={{ fontSize: "0.7rem", color: "#64748b" }}
-                          >
-                            {tx.employeeId}
-                          </span>
-                        </td>
-                        <td className={tw.amountCell}>
-                          {fmtCurrency(tx.amount, tx.currency)}
-                        </td>
-                        <td>
-                          <StatusBadge status={tx.status} />
-                        </td>
-                        <td
-                          style={{
-                            fontFamily: "monospace",
-                            fontSize: "0.75rem",
-                          }}
+          {/* ── Streams tab ── */}
+          {tab === "streams" && (
+            <div className="flex flex-col gap-6">
+              {/* Charts row */}
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {statusPie.length > 0 && (
+                  <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5">
+                    <p className="mb-4 text-[13px] font-bold text-white">
+                      Stream Status
+                    </p>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <PieChart>
+                        <Pie
+                          data={statusPie}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={80}
+                          strokeWidth={0}
+                          paddingAngle={2}
                         >
-                          {shortHash(tx.txHash)}
-                        </td>
-                        <td>{tx.description}</td>
-                        <td>
-                          <button
-                            className={`${tw.btnExport} ${tw.btnPaycheck}`}
-                            onClick={() => handlePaycheckPDF(tx)}
-                            title="Download paycheck PDF"
+                          {statusPie.map((d, i) => (
+                            <Cell key={i} fill={d.fill} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            background: "#111",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                            borderRadius: 12,
+                            fontSize: 12,
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="mt-2 flex justify-center gap-4">
+                      {statusPie.map((d) => (
+                        <div key={d.name} className="flex items-center gap-1.5">
+                          <span
+                            className="h-2 w-2 rounded-full"
+                            style={{ backgroundColor: d.fill }}
+                          />
+                          <span className="text-[11px] text-neutral-500">
+                            {d.name} ({d.value})
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {tokenBreakdown.length > 0 && (
+                  <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5">
+                    <p className="mb-4 text-[13px] font-bold text-white">
+                      Value by Token
+                    </p>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart
+                        data={tokenBreakdown}
+                        margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
+                      >
+                        <XAxis
+                          dataKey="name"
+                          tick={{ fill: "#525252", fontSize: 11 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fill: "#525252", fontSize: 11 }}
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(v) => fmt(v as number, 0)}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: "#111",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                            borderRadius: 12,
+                            fontSize: 12,
+                          }}
+                          formatter={(v) => [fmt(v as number), "Amount"]}
+                          cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                        />
+                        <Bar
+                          dataKey="value"
+                          fill={YELLOW}
+                          radius={[4, 4, 0, 0]}
+                          maxBarSize={60}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              {/* Streams table */}
+              <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] overflow-hidden">
+                <div className="border-b border-white/[0.06] px-5 py-4">
+                  <p className="text-[14px] font-bold text-white">
+                    All Streams ({streams.length})
+                  </p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-[13px]">
+                    <thead>
+                      <tr className="border-b border-white/[0.05]">
+                        {[
+                          "Worker",
+                          "Token",
+                          "Total",
+                          "Streamed",
+                          "Rate",
+                          "Start",
+                          "End",
+                          "Status",
+                        ].map((h) => (
+                          <th
+                            key={h}
+                            className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-neutral-600 whitespace-nowrap"
                           >
-                            📄 Paycheck
-                          </button>
-                        </td>
+                            {h}
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          <div className={tw.card}>
-            <div className={tw.cardHeader}>
-              <h2 className={tw.cardTitle}>
-                <span className={tw.cardTitleIcon}>🧾</span>
-                On-Chain Receipts
-              </h2>
-            </div>
-
-            {streams.filter(
-              (stream) =>
-                stream.status === "completed" || stream.status === "cancelled",
-            ).length === 0 ? (
-              <div className={tw.emptyState}>
-                <div className={tw.emptyIcon}>🧾</div>
-                <p>No completed or cancelled streams with receipts yet.</p>
-              </div>
-            ) : (
-              <div className={tw.tableWrapper}>
-                <table className={tw.dataTable}>
-                  <thead>
-                    <tr>
-                      <th>Stream</th>
-                      <th>Worker</th>
-                      <th>Status</th>
-                      <th>Amount</th>
-                      <th>Token</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {streams
-                      .filter(
-                        (stream) =>
-                          stream.status === "completed" ||
-                          stream.status === "cancelled",
-                      )
-                      .map((stream) => (
-                        <tr key={`receipt-${stream.id}`}>
-                          <td>{stream.id}</td>
-                          <td>
-                            {stream.employeeName}
-                            <br />
-                            <span
-                              style={{ fontSize: "0.7rem", color: "#64748b" }}
-                            >
-                              {shortHash(stream.employeeAddress)}
-                            </span>
+                    </thead>
+                    <tbody>
+                      {streams.map((s, i) => (
+                        <tr
+                          key={i}
+                          className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02]"
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[9px] font-black text-black"
+                                style={{ backgroundColor: YELLOW }}
+                              >
+                                {s.employeeAddress.slice(1, 3).toUpperCase()}
+                              </div>
+                              <span className="font-mono text-[11px] text-neutral-400">
+                                {shortAddr(s.employeeAddress)}
+                              </span>
+                            </div>
                           </td>
-                          <td>
+                          <td className="px-4 py-3 font-semibold text-white">
+                            {s.tokenSymbol}
+                          </td>
+                          <td className="px-4 py-3 text-white">
+                            {fmt(parseFloat(s.totalAmount))}
+                          </td>
+                          <td
+                            className="px-4 py-3 font-semibold"
+                            style={{ color: YELLOW }}
+                          >
+                            {fmt(parseFloat(s.totalStreamed))}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-[11px] text-neutral-500">
+                            {s.flowRate}/s
+                          </td>
+                          <td className="px-4 py-3 text-neutral-500">
+                            {fmtDate(s.startDate)}
+                          </td>
+                          <td className="px-4 py-3 text-neutral-500">
+                            {fmtDate(s.endDate)}
+                          </td>
+                          <td className="px-4 py-3">
                             <span
-                              className={`${tw.statusBadge} ${
-                                stream.status === "completed"
-                                  ? tw.statusCompleted
-                                  : tw.statusFailed
+                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold capitalize ${
+                                s.status === "active"
+                                  ? "bg-green-500/10 text-green-400"
+                                  : s.status === "completed"
+                                    ? "bg-neutral-800 text-neutral-500"
+                                    : "bg-red-500/10 text-red-400"
                               }`}
                             >
-                              <span
-                                className={`${tw.statusDot} ${
-                                  stream.status === "completed"
-                                    ? tw.dotCompleted
-                                    : tw.dotFailed
-                                }`}
-                              />
-                              {stream.status === "completed"
-                                ? "Completed"
-                                : "Cancelled"}
+                              {s.status}
                             </span>
-                          </td>
-                          <td className={tw.amountCell}>
-                            {fmtCurrency(
-                              Number.parseFloat(stream.totalStreamed || "0"),
-                              stream.tokenSymbol,
-                            )}
-                          </td>
-                          <td>{stream.tokenSymbol}</td>
-                          <td>
-                            <button
-                              className={`${tw.btnExport} ${tw.btnPaycheck}`}
-                              onClick={() => handleOnChainReceiptPDF(stream)}
-                              title="Download on-chain payroll receipt PDF"
-                            >
-                              🧾 Receipt
-                            </button>
                           </td>
                         </tr>
                       ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* ── Monthly Summary Tab ─────────────────────────────────── */}
-      {activeTab === "monthly" && (
-        <>
-          {/* Month picker */}
-          <div className={tw.card}>
-            <div className={tw.cardHeader}>
-              <h2 className={tw.cardTitle}>
-                <span className={tw.cardTitleIcon}>📊</span>
-                Monthly Summary — {selectedMonth}
-              </h2>
-              <div className={tw.toolbar}>
-                <div className={tw.monthSelector}>
-                  {availableMonths.map((m) => (
-                    <button
-                      key={m}
-                      className={`${tw.monthBtn} ${m === selectedMonth ? tw.monthBtnActive : ""}`}
-                      onClick={() => setSelectedMonth(m)}
-                    >
-                      {m}
-                    </button>
-                  ))}
+                    </tbody>
+                  </table>
                 </div>
-                <button
-                  id="btn-export-monthly-pdf"
-                  className={`${tw.btnExport} ${tw.btnSummaryPDF}`}
-                  onClick={handleMonthlySummaryPDF}
-                >
-                  📄 Download PDF Report
-                </button>
-              </div>
-            </div>
-
-            {/* KPIs */}
-            <div className={tw.kpiGrid}>
-              <div className={tw.kpi}>
-                <div className={tw.kpiLabel}>Total Payroll</div>
-                <div className={`${tw.kpiValue} ${tw.kpiHighlight}`}>
-                  {fmtCurrency(
-                    monthlySummary.totalPayroll,
-                    monthlySummary.currency,
-                  )}
-                </div>
-              </div>
-              <div className={tw.kpi}>
-                <div className={tw.kpiLabel}>Transactions</div>
-                <div className={tw.kpiValue}>
-                  {monthlySummary.totalTransactions}
-                </div>
-              </div>
-              <div className={tw.kpi}>
-                <div className={tw.kpiLabel}>Completed</div>
-                <div className={`${tw.kpiValue} ${tw.kpiSuccess}`}>
-                  {monthlySummary.completedTransactions}
-                </div>
-              </div>
-              <div className={tw.kpi}>
-                <div className={tw.kpiLabel}>Pending</div>
-                <div className={`${tw.kpiValue} ${tw.kpiWarning}`}>
-                  {monthlySummary.pendingTransactions}
-                </div>
-              </div>
-              <div className={tw.kpi}>
-                <div className={tw.kpiLabel}>Failed</div>
-                <div className={`${tw.kpiValue} ${tw.kpiDanger}`}>
-                  {monthlySummary.failedTransactions}
-                </div>
-              </div>
-              <div className={tw.kpi}>
-                <div className={tw.kpiLabel}>Avg Payment</div>
-                <div className={tw.kpiValue}>
-                  {fmtCurrency(
-                    monthlySummary.averagePayment,
-                    monthlySummary.currency,
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Department Breakdown */}
-          {monthlySummary.breakdown.length > 0 && (
-            <div className={tw.card}>
-              <h2 className={tw.cardTitle}>
-                <span className={tw.cardTitleIcon}>🏢</span>
-                Department Breakdown
-              </h2>
-              <div className={tw.deptGrid}>
-                {monthlySummary.breakdown.map((dept) => {
-                  const pct =
-                    monthlySummary.totalPayroll > 0
-                      ? (dept.totalAmount / monthlySummary.totalPayroll) * 100
-                      : 0;
-                  return (
-                    <div key={dept.department} className={tw.deptCard}>
-                      <div className={tw.deptName}>{dept.department}</div>
-                      <div className={tw.deptMeta}>
-                        <span>👤 {dept.employeeCount} employees</span>
-                        <span>🔄 {dept.transactionCount} txns</span>
-                      </div>
-                      <div className={tw.deptAmount}>
-                        {fmtCurrency(dept.totalAmount, monthlySummary.currency)}
-                      </div>
-                      <div className={tw.barTrack}>
-                        <div
-                          className={tw.barFill}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             </div>
           )}
 
-          {/* Monthly transactions table */}
-          <div className={tw.card}>
-            <div className={tw.cardHeader}>
-              <h2 className={tw.cardTitle}>
-                <span className={tw.cardTitleIcon}>📋</span>
-                Transactions in {selectedMonth}
-              </h2>
-            </div>
-            <div className={tw.tableWrapper}>
-              <table className={tw.dataTable}>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Employee</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>TX Hash</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {monthlyTransactions.map((tx) => (
-                    <tr key={tx.id}>
-                      <td>{fmtDate(tx.date)}</td>
-                      <td>{tx.employeeName}</td>
-                      <td className={tw.amountCell}>
-                        {fmtCurrency(tx.amount, tx.currency)}
-                      </td>
-                      <td>
-                        <StatusBadge status={tx.status} />
-                      </td>
-                      <td
-                        style={{ fontFamily: "monospace", fontSize: "0.75rem" }}
+          {/* ── Workers tab ── */}
+          {tab === "workers" && (
+            <div className="flex flex-col gap-4">
+              {workerSummary.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-white/[0.08] bg-[#0a0a0a] p-10 text-center">
+                  <p className="text-neutral-600">No worker data yet.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5">
+                    <p className="mb-4 text-[13px] font-bold text-white">
+                      Earnings per Worker
+                    </p>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart
+                        data={workerSummary
+                          .slice(0, 8)
+                          .map((w) => ({
+                            name: shortAddr(w.addr),
+                            earned: w.earned,
+                          }))}
+                        margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
                       >
-                        {shortHash(tx.txHash)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      )}
+                        <XAxis
+                          dataKey="name"
+                          tick={{ fill: "#525252", fontSize: 11 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fill: "#525252", fontSize: 11 }}
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(v) => fmt(v as number, 0)}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: "#111",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                            borderRadius: 12,
+                            fontSize: 12,
+                          }}
+                          formatter={(v) => [fmt(v as number), "Earned"]}
+                          cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                        />
+                        <Bar
+                          dataKey="earned"
+                          fill={YELLOW}
+                          radius={[4, 4, 0, 0]}
+                          maxBarSize={40}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
 
-      {/* Toast */}
-      {toast && (
-        <div className={tw.toast}>
-          <span className={tw.toastIcon}>✅</span>
-          {toast}
-        </div>
+                  <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] overflow-hidden">
+                    <div className="border-b border-white/[0.06] px-5 py-4">
+                      <p className="text-[14px] font-bold text-white">
+                        Worker Summary ({workerSummary.length})
+                      </p>
+                    </div>
+                    <table className="w-full border-collapse text-[13px]">
+                      <thead>
+                        <tr className="border-b border-white/[0.05]">
+                          {[
+                            "Rank",
+                            "Worker",
+                            "Streams",
+                            "Total Earned",
+                            "Tokens",
+                            "Share",
+                          ].map((h) => (
+                            <th
+                              key={h}
+                              className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-neutral-600"
+                            >
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {workerSummary.map((w, i) => {
+                          const share =
+                            totalDisbursed > 0
+                              ? (w.earned / totalDisbursed) * 100
+                              : 0;
+                          return (
+                            <tr
+                              key={i}
+                              className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02]"
+                            >
+                              <td className="px-5 py-3.5">
+                                <span
+                                  className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black ${i === 0 ? "text-black" : "bg-white/[0.05] text-neutral-600"}`}
+                                  style={
+                                    i === 0 ? { backgroundColor: YELLOW } : {}
+                                  }
+                                >
+                                  {i + 1}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3.5 font-mono text-[12px] text-neutral-400">
+                                {shortAddr(w.addr)}
+                              </td>
+                              <td className="px-5 py-3.5 text-neutral-500">
+                                {w.streams}
+                              </td>
+                              <td className="px-5 py-3.5 font-bold text-white">
+                                {fmt(w.earned)}
+                              </td>
+                              <td className="px-5 py-3.5 text-neutral-500">
+                                {Array.from(w.tokens).join(", ")}
+                              </td>
+                              <td className="px-5 py-3.5">
+                                <div className="flex items-center gap-2">
+                                  <div className="h-[3px] w-16 rounded-full bg-white/[0.06] overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full"
+                                      style={{
+                                        width: `${share}%`,
+                                        backgroundColor: YELLOW,
+                                      }}
+                                    />
+                                  </div>
+                                  <span className="text-[11px] text-neutral-600">
+                                    {share.toFixed(1)}%
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── Summary tab ── */}
+          {tab === "summary" && (
+            <div className="flex flex-col gap-4">
+              {/* Vault summary */}
+              {vaultSummary.length > 0 && (
+                <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] overflow-hidden">
+                  <div className="border-b border-white/[0.06] px-5 py-4">
+                    <p className="text-[14px] font-bold text-white">
+                      Vault Summary
+                    </p>
+                  </div>
+                  <table className="w-full border-collapse text-[13px]">
+                    <thead>
+                      <tr className="border-b border-white/[0.05]">
+                        {[
+                          "Token",
+                          "Balance",
+                          "Liability",
+                          "Available",
+                          "% Committed",
+                        ].map((h) => (
+                          <th
+                            key={h}
+                            className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-neutral-600"
+                          >
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vaultSummary.map((v) => {
+                        const pct =
+                          v.balance > 0 ? (v.liability / v.balance) * 100 : 0;
+                        return (
+                          <tr
+                            key={v.token}
+                            className="border-b border-white/[0.04] last:border-0"
+                          >
+                            <td className="px-5 py-4 font-bold text-white">
+                              {v.token}
+                            </td>
+                            <td className="px-5 py-4 text-white">
+                              {fmt(v.balance)}
+                            </td>
+                            <td className="px-5 py-4 text-red-400">
+                              {fmt(v.liability)}
+                            </td>
+                            <td
+                              className="px-5 py-4 font-bold"
+                              style={{ color: YELLOW }}
+                            >
+                              {fmt(v.available)}
+                            </td>
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-2">
+                                <div className="h-[3px] w-20 rounded-full bg-white/[0.06] overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full"
+                                    style={{
+                                      width: `${Math.min(100, pct)}%`,
+                                      backgroundColor:
+                                        pct > 80 ? "#ef4444" : YELLOW,
+                                    }}
+                                  />
+                                </div>
+                                <span
+                                  className={`text-[11px] ${pct > 80 ? "text-red-400" : "text-neutral-600"}`}
+                                >
+                                  {pct.toFixed(1)}%
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Stream breakdown */}
+              <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5">
+                <p className="mb-4 text-[13px] font-bold text-white">
+                  Payroll Summary
+                </p>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                  {[
+                    { label: "Total Streams", value: streams.length },
+                    { label: "Active", value: activeStreams.length },
+                    { label: "Completed", value: completedStreams.length },
+                    { label: "Cancelled", value: cancelledStreams.length },
+                    { label: "Unique Workers", value: workerSummary.length },
+                    { label: "Tokens Used", value: tokenBreakdown.length },
+                  ].map(({ label, value }) => (
+                    <div
+                      key={label}
+                      className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-4"
+                    >
+                      <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-600 mb-1">
+                        {label}
+                      </p>
+                      <p className="text-[22px] font-black text-white">
+                        {value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
-};
-
-export default Reports;
+}
