@@ -1,87 +1,96 @@
 import { useState, useEffect } from "react";
-import {
-  getStreamsByEmployer,
-  getStreamsByWorker,
-} from "../contracts/payroll_stream";
+import { isWorkerRegistered } from "../contracts/workforce_registry";
+import { getStreamsByEmployer } from "../contracts/payroll_stream";
+
+/**
+ * Role is determined entirely from on-chain state — no localStorage.
+ *
+ * worker   = address is registered in WorkforceRegistry
+ * employer = address has created at least one stream via PayrollStream
+ * unknown  = brand-new user, no on-chain history yet
+ *
+ * Cached in localStorage for 5 minutes to avoid repeated RPC calls,
+ * but the source of truth is always the contracts.
+ */
 
 export type UserRole = "employer" | "worker" | "unknown";
 
-interface RoleDetectResult {
-  role: UserRole;
-  isDetecting: boolean;
-  setRole: (role: UserRole) => void;
-  clearRole: () => void;
-}
+const CACHE_TTL = 5 * 60 * 1000; // 5 min
+const key = (addr: string) => `quipay-role-v2-${addr}`;
 
-const CACHE_KEY = (address: string) => `quipay-role-${address}`;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-function readCache(address: string): UserRole | null {
+function readCache(addr: string): UserRole | null {
   try {
-    const raw = localStorage.getItem(CACHE_KEY(address));
+    const raw = localStorage.getItem(key(addr));
     if (!raw) return null;
     const { role, ts } = JSON.parse(raw) as { role: UserRole; ts: number };
-    if (Date.now() - ts > CACHE_TTL_MS) {
-      localStorage.removeItem(CACHE_KEY(address));
+    if (Date.now() - ts > CACHE_TTL) {
+      localStorage.removeItem(key(addr));
       return null;
     }
-    return role;
+    // Only cache confirmed roles — never cache "unknown"
+    return role === "unknown" ? null : role;
   } catch {
     return null;
   }
 }
 
-function writeCache(address: string, role: UserRole) {
+function writeCache(addr: string, role: UserRole) {
+  if (role === "unknown") return; // don't cache — re-check next visit
   try {
-    localStorage.setItem(
-      CACHE_KEY(address),
-      JSON.stringify({ role, ts: Date.now() }),
-    );
+    localStorage.setItem(key(addr), JSON.stringify({ role, ts: Date.now() }));
   } catch {
     /* storage unavailable */
   }
 }
 
-export function useRoleDetect(address: string | undefined): RoleDetectResult {
-  const [role, setRoleState] = useState<UserRole>("unknown");
+export function clearRoleCache(addr: string) {
+  try {
+    localStorage.removeItem(key(addr));
+  } catch {
+    /* */
+  }
+}
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
+export function useRoleDetect(address: string | undefined) {
+  const [role, setRole] = useState<UserRole>("unknown");
   const [isDetecting, setIsDetecting] = useState(false);
 
   useEffect(() => {
     if (!address) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setRoleState("unknown");
+      setRole("unknown");
       return;
     }
 
-    // Use cached role if fresh
     const cached = readCache(address);
     if (cached) {
-      setRoleState(cached);
+      setRole(cached);
       return;
     }
 
     setIsDetecting(true);
 
-    // Query both contracts in parallel with limit=1 — just enough to confirm existence
     void Promise.all([
+      // Worker check: are they in the WorkforceRegistry?
+      isWorkerRegistered(address, address).catch(() => false),
+      // Employer check: have they created any streams?
       getStreamsByEmployer(address, 0, 1).catch(() => ({
         streams: [],
         total: 0,
       })),
-      getStreamsByWorker(address, 0, 1).catch(() => []),
     ])
-      .then(([employerPage, workerIds]) => {
-        const isEmployer =
+      .then(([isWorker, employerPage]) => {
+        const hasStreams =
           employerPage.total > 0 || employerPage.streams.length > 0;
-        const isWorker = Array.isArray(workerIds) && workerIds.length > 0;
 
-        // One role only — employer takes priority if both somehow match
         let detected: UserRole;
-        if (isEmployer) detected = "employer";
-        else if (isWorker) detected = "worker";
-        else detected = "unknown"; // new user — will be asked once
+        if (isWorker) detected = "worker";
+        else if (hasStreams) detected = "employer";
+        else detected = "unknown"; // new user
 
-        setRoleState(detected);
+        setRole(detected);
         writeCache(address, detected);
       })
       .finally(() => {
@@ -89,15 +98,16 @@ export function useRoleDetect(address: string | undefined): RoleDetectResult {
       });
   }, [address]);
 
-  const setRole = (newRole: UserRole) => {
-    if (address) writeCache(address, newRole);
-    setRoleState(newRole);
+  const forceRole = (r: UserRole) => {
+    if (address) writeCache(address, r);
+    setRole(r);
   };
 
-  const clearRole = () => {
-    if (address) localStorage.removeItem(CACHE_KEY(address));
-    setRoleState("unknown");
+  const resetRole = () => {
+    if (address) clearRoleCache(address);
+    setRole("unknown");
+    setIsDetecting(false);
   };
 
-  return { role, isDetecting, setRole, clearRole };
+  return { role, isDetecting, forceRole, resetRole };
 }

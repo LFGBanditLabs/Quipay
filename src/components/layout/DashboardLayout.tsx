@@ -529,7 +529,7 @@ function SidebarContent({
 export default function DashboardLayout() {
   const navigate = useNavigate();
   const { address, disconnect } = useWallet();
-  const { role, clearRole } = useRoleDetect(address);
+  const { role, resetRole: clearRole } = useRoleDetect(address);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
