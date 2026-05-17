@@ -184,6 +184,27 @@ export async function buildVaultWithdrawTx(
 // ─── getVaultBalance ─────────────────────────────────────────────────────────
 
 /**
+ * Returns ONLY this employer's deposited balance for a token.
+ * Each employer has their own balance — calling the global get_balance would
+ * show the combined balance of all employers, which is wrong.
+ */
+export async function getEmployerVaultBalance(
+  employerAddress: string,
+  token: string,
+): Promise<bigint | null> {
+  if (!PAYROLL_VAULT_CONTRACT_ID) return null;
+  const contract = new Contract(PAYROLL_VAULT_CONTRACT_ID);
+  return simulateContractRead<bigint>(
+    employerAddress,
+    contract.call(
+      "get_employer_balance",
+      new Address(employerAddress).toScVal(),
+      tokenToScVal(token),
+    ),
+  );
+}
+
+/**
  * Calls `get_balance` on the PayrollVault contract to get the total balance
  * for a specific token.
  *
@@ -302,10 +323,35 @@ export async function getAllVaultData(
   }>,
   sourceAddress: string,
 ): Promise<TokenVaultData[]> {
+  if (!sourceAddress) return [];
+
+  // Use per-employer balance — never the global vault balance.
+  // Each employer only sees what THEY deposited.
   const results = await Promise.all(
-    tokens.map((t) =>
-      getVaultData(t.token, t.tokenSymbol, sourceAddress, t.monthlyBurnRate),
-    ),
+    tokens.map(async (t) => {
+      const [empBalance, globalAvailable] = await Promise.all([
+        getEmployerVaultBalance(sourceAddress, t.token),
+        getVaultAvailableBalance(t.token, sourceAddress),
+      ]);
+
+      const bal = empBalance ?? BigInt(0);
+      const avail = globalAvailable ?? BigInt(0);
+      // Liability = how much of this employer's balance is committed to streams
+      const liab = bal > avail ? bal - avail : BigInt(0);
+      const empAvail = bal > liab ? bal - liab : BigInt(0);
+
+      if (bal === BigInt(0)) return null; // employer has no balance here
+
+      return {
+        token: t.token,
+        tokenSymbol: t.tokenSymbol,
+        balance: bal,
+        liability: liab,
+        available: empAvail,
+        monthlyBurnRate: t.monthlyBurnRate,
+        runwayDays: 0,
+      } as TokenVaultData;
+    }),
   );
   return results.filter((r): r is TokenVaultData => r !== null);
 }
