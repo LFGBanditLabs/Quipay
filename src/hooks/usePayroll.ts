@@ -73,15 +73,17 @@ export interface PayrollSummary {
   streams_active: number;
 }
 
-const USDC_ISSUER = import.meta.env.PUBLIC_USDC_ISSUER || "";
+// Use the actual SAC contract addresses so vault balance queries match deposit keys
+const XLM_SAC =
+  import.meta.env.PUBLIC_XLM_SAC ??
+  "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+const USDC_ISSUER =
+  import.meta.env.PUBLIC_USDC_ISSUER ??
+  "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 
 const DEFAULT_TOKENS = [
-  { token: "", tokenSymbol: "XLM", monthlyBurnRate: BigInt(0) },
-  {
-    token: USDC_ISSUER,
-    tokenSymbol: "USDC",
-    monthlyBurnRate: BigInt(0),
-  },
+  { token: XLM_SAC, tokenSymbol: "XLM", monthlyBurnRate: BigInt(0) },
+  { token: USDC_ISSUER, tokenSymbol: "USDC", monthlyBurnRate: BigInt(0) },
 ];
 
 export const usePayroll = (
@@ -110,7 +112,7 @@ export const usePayroll = (
     setIsVaultLoading(true);
     try {
       const data = await dedupRequest("vaultData", () =>
-        getAllVaultData(DEFAULT_TOKENS),
+        getAllVaultData(DEFAULT_TOKENS, employerAddress ?? ""),
       );
 
       setVaultData(data);

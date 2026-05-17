@@ -2,6 +2,16 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { usePayroll, Stream } from "../hooks/usePayroll";
 import { useNavigate } from "react-router-dom";
+
+const STROOPS = 1e7;
+function fmtStroops(raw: string | number | bigint, decimals = 2): string {
+  const n = typeof raw === "bigint" ? Number(raw) : Number(raw);
+  if (!n) return "0";
+  return (n / STROOPS).toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import EmptyState from "../components/EmptyState";
 import { ErrorMessage } from "../components/ErrorMessage";
@@ -113,6 +123,9 @@ const StreamRow: React.FC<{
         <p className="font-mono text-[13px] font-semibold text-white">
           {stream.flowRate}{" "}
           <span className="text-neutral-600">{stream.tokenSymbol}/s</span>
+          <span className="ml-1 text-[11px] text-neutral-700">
+            ≈ {(parseFloat(stream.flowRate) * 86400).toFixed(2)}/day
+          </span>
         </p>
       </div>
 
@@ -285,10 +298,16 @@ const EmployerDashboard: React.FC = () => {
     );
   }
 
+  // Convert stroops to human-readable token amounts
   const treasuryDisplay =
     treasuryBalances.length > 0
-      ? treasuryBalances.map((b) => `${b.balance} ${b.tokenSymbol}`).join(" · ")
-      : "0";
+      ? treasuryBalances
+          .filter((b) => Number(b.balance) > 0)
+          .map((b) => `${fmtStroops(b.balance)} ${b.tokenSymbol}`)
+          .join(" · ") || "0 (no funds)"
+      : "—";
+
+  const liabilityDisplay = fmtStroops(totalLiabilities || "0");
 
   // ── Main ─────────────────────────────────────────────────────────────────
   return (
@@ -354,7 +373,9 @@ const EmployerDashboard: React.FC = () => {
             label={t("dashboard.treasury_balance")}
             value={treasuryDisplay}
             sub={
-              treasuryBalances.length === 0 ? "No funds deposited" : undefined
+              treasuryBalances.length === 0
+                ? "Deposit to fund streams"
+                : "Vault balance on-chain"
             }
             accent
             action={{
@@ -364,8 +385,8 @@ const EmployerDashboard: React.FC = () => {
           />
           <StatCard
             label={t("dashboard.total_liabilities")}
-            value={totalLiabilities || "0"}
-            sub={t("dashboard.projected_pay", { totalLiabilities })}
+            value={liabilityDisplay}
+            sub="Committed to active streams"
           />
           <StatCard
             label={t("dashboard.active_streams")}

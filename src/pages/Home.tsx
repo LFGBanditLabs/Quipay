@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { formatCurrency } from "../util/formatters";
 import { useWallet } from "../hooks/useWallet";
-import { useRoleDetect, type UserRole } from "../hooks/useRoleDetect";
+import { useRoleDetect } from "../hooks/useRoleDetect";
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -661,123 +661,146 @@ const AnimatedStat: React.FC<{
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-// ─── Role selector overlay ────────────────────────────────────────────────────
+// ─── Detecting overlay (shown while RPC calls run) ────────────────────────────
 
-const RoleSelector: React.FC<{
-  onSelect: (role: UserRole) => void;
-  isDetecting: boolean;
-}> = ({ onSelect, isDetecting }) => (
+const DetectingOverlay: React.FC = () => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm px-4">
-    <div className="w-full max-w-md rounded-2xl border border-white/[0.1] bg-[#111] p-8 shadow-2xl">
-      <div
-        className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl"
-        style={{ backgroundColor: "rgba(250,204,21,0.12)" }}
-      >
-        {isDetecting ? (
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/10 border-t-yellow-400" />
-        ) : (
-          <svg
-            className="h-7 w-7 text-yellow-400"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
-        )}
-      </div>
-
-      <h2 className="mb-2 text-center text-[20px] font-bold text-white">
-        {isDetecting ? "Setting up your account…" : "What's your role?"}
-      </h2>
-      <p className="mb-8 text-center text-[14px] text-neutral-500">
-        {isDetecting
-          ? "Checking your on-chain activity"
-          : "This is permanent and tied to your wallet. Choose carefully."}
+    <div className="flex flex-col items-center gap-4 text-center">
+      <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/10 border-t-yellow-400" />
+      <p className="text-[15px] font-semibold text-white">
+        Checking your account…
       </p>
+      <p className="text-[13px] text-neutral-600">
+        Reading on-chain data from Stellar
+      </p>
+    </div>
+  </div>
+);
 
-      <div className="flex flex-col gap-3">
-        <button
-          onClick={() => onSelect("employer")}
-          disabled={isDetecting}
-          className="group flex items-center gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-5 text-left transition-all hover:border-yellow-400/30 hover:bg-yellow-400/[0.05] disabled:opacity-40"
-        >
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-yellow-400/10 text-yellow-400 group-hover:bg-yellow-400/20">
+// ─── First-time onboarding (new users only) ───────────────────────────────────
+
+const Onboarding: React.FC<{
+  onChoose: (r: "employer" | "worker") => void;
+}> = ({ onChoose }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-sm px-4">
+    <div className="w-full max-w-lg rounded-2xl border border-white/[0.1] bg-[#111] shadow-2xl overflow-hidden">
+      {/* Yellow accent top */}
+      <div className="h-[3px]" style={{ background: "#facc15" }} />
+
+      <div className="p-8">
+        {/* Logo */}
+        <div className="mb-6 flex items-center justify-center gap-2.5">
+          <div
+            className="h-8 w-8 rounded-xl"
+            style={{
+              backgroundColor: "#facc15",
+              WebkitMaskImage: "url('/quipay-icon-mark.png')",
+              WebkitMaskSize: "contain",
+              WebkitMaskRepeat: "no-repeat",
+              WebkitMaskPosition: "center",
+              maskImage: "url('/quipay-icon-mark.png')",
+              maskSize: "contain",
+              maskRepeat: "no-repeat",
+            }}
+          />
+          <span
+            className="text-[20px] font-bold text-white"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            Quipay
+          </span>
+        </div>
+
+        <h2 className="mb-2 text-center text-[22px] font-black text-white tracking-tight">
+          Welcome to Quipay
+        </h2>
+        <p className="mb-8 text-center text-[14px] text-neutral-500">
+          How will you use this account?
+        </p>
+
+        <div className="flex flex-col gap-3">
+          {/* Employer */}
+          <button
+            onClick={() => onChoose("employer")}
+            className="group flex items-center gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 text-left transition-all hover:border-yellow-400/30 hover:bg-yellow-400/[0.04]"
+          >
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-yellow-400/10 group-hover:bg-yellow-400/20 transition-colors">
+              <svg
+                className="h-6 w-6 text-yellow-400"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+              >
+                <rect x="2" y="7" width="20" height="14" rx="2" />
+                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                <line x1="12" y1="12" x2="12" y2="16" />
+                <line x1="10" y1="14" x2="14" y2="14" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-[15px] font-bold text-white">
+                I'm an Employer
+              </p>
+              <p className="text-[13px] text-neutral-500 mt-0.5">
+                I pay workers — I'll create streams and manage my payroll vault
+              </p>
+            </div>
             <svg
-              className="h-6 w-6"
+              className="h-5 w-5 shrink-0 text-neutral-700 group-hover:text-yellow-400 transition-colors"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="1.75"
+              strokeWidth="2.5"
               strokeLinecap="round"
-              strokeLinejoin="round"
             >
-              <rect x="2" y="7" width="20" height="14" rx="2" />
-              <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-              <line x1="12" y1="12" x2="12" y2="16" />
-              <line x1="10" y1="14" x2="14" y2="14" />
+              <path d="M9 18l6-6-6-6" />
             </svg>
-          </div>
-          <div>
-            <p className="text-[15px] font-bold text-white">I'm an Employer</p>
-            <p className="text-[13px] text-neutral-500">
-              I create streams and manage payroll
-            </p>
-          </div>
-          <svg
-            className="ml-auto h-5 w-5 shrink-0 text-neutral-700 group-hover:text-yellow-400 transition-colors"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M9 18l6-6-6-6" />
-          </svg>
-        </button>
+          </button>
 
-        <button
-          onClick={() => onSelect("worker")}
-          disabled={isDetecting}
-          className="group flex items-center gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-5 text-left transition-all hover:border-yellow-400/30 hover:bg-yellow-400/[0.05] disabled:opacity-40"
-        >
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-yellow-400/10 text-yellow-400 group-hover:bg-yellow-400/20">
+          {/* Worker */}
+          <button
+            onClick={() => onChoose("worker")}
+            className="group flex items-center gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 text-left transition-all hover:border-yellow-400/30 hover:bg-yellow-400/[0.04]"
+          >
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-yellow-400/10 group-hover:bg-yellow-400/20 transition-colors">
+              <svg
+                className="h-6 w-6 text-yellow-400"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+              >
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-[15px] font-bold text-white">I'm a Worker</p>
+              <p className="text-[13px] text-neutral-500 mt-0.5">
+                I get paid — I'll register with my employer and track my
+                earnings
+              </p>
+            </div>
             <svg
-              className="h-6 w-6"
+              className="h-5 w-5 shrink-0 text-neutral-700 group-hover:text-yellow-400 transition-colors"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="1.75"
+              strokeWidth="2.5"
               strokeLinecap="round"
-              strokeLinejoin="round"
             >
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
+              <path d="M9 18l6-6-6-6" />
             </svg>
-          </div>
-          <div>
-            <p className="text-[15px] font-bold text-white">I'm a Worker</p>
-            <p className="text-[13px] text-neutral-500">
-              I receive payments and track my earnings
-            </p>
-          </div>
-          <svg
-            className="ml-auto h-5 w-5 shrink-0 text-neutral-700 group-hover:text-yellow-400 transition-colors"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M9 18l6-6-6-6" />
-          </svg>
-        </button>
+          </button>
+        </div>
+
+        <p className="mt-5 text-center text-[11px] text-neutral-700">
+          Your role is determined by your on-chain activity and cannot be shared
+          between accounts. Use separate wallets for each role.
+        </p>
       </div>
     </div>
   </div>
@@ -789,38 +812,35 @@ const Home: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { address } = useWallet();
-  const { role, isDetecting, setRole } = useRoleDetect(address);
-  const [showSelector, setShowSelector] = useState(false);
+  const { role, isDetecting, forceRole } = useRoleDetect(address);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     if (!address) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setShowSelector(false);
+      setShowOnboarding(false);
       return;
     }
-
-    // Wait for detection to finish
-    if (isDetecting) return;
+    if (isDetecting) return; // wait for on-chain check
 
     if (role === "employer") {
       void navigate("/dashboard", { replace: true });
     } else if (role === "worker") {
       void navigate("/worker", { replace: true });
     } else {
-      // New user — ask once, then cache permanently
+      // New user — no on-chain history yet, let them choose
 
-      setShowSelector(true);
+      setShowOnboarding(true);
     }
   }, [address, role, isDetecting, navigate]);
 
-  const handleRoleSelect = (chosen: UserRole) => {
-    setRole(chosen);
-    setShowSelector(false);
-    if (chosen === "employer") {
-      void navigate("/dashboard", { replace: true });
-    } else {
-      void navigate("/worker", { replace: true });
-    }
+  const handleOnboardingChoice = (chosen: "employer" | "worker") => {
+    // Only cache — the real on-chain role will be set when they first
+    // create a stream (employer) or register with employer (worker)
+    forceRole(chosen);
+    setShowOnboarding(false);
+    if (chosen === "employer") void navigate("/dashboard", { replace: true });
+    else void navigate("/worker", { replace: true });
   };
 
   const stats = useMemo<StatMetric[]>(
@@ -895,9 +915,12 @@ const Home: React.FC = () => {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden text-white bg-black">
-      {/* ── Role selector overlay ─────────────────────────────── */}
-      {(showSelector || (address && isDetecting)) && (
-        <RoleSelector onSelect={handleRoleSelect} isDetecting={isDetecting} />
+      {/* ── Detecting overlay ────────────────────────────────── */}
+      {address && isDetecting && <DetectingOverlay />}
+
+      {/* ── First-time onboarding ─────────────────────────────── */}
+      {showOnboarding && !isDetecting && (
+        <Onboarding onChoose={handleOnboardingChoice} />
       )}
 
       {/* ── Subtle grid ──────────────────────────────────────────── */}

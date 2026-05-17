@@ -312,9 +312,9 @@ const TOOLS_NAV = [
 
 function DashboardLoadingFallback() {
   return (
-    <div className="flex flex-1 items-center justify-center">
+    <div className="flex items-center justify-center flex-1">
       <div className="flex flex-col items-center gap-3">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-yellow-400" />
+        <div className="w-8 h-8 border-2 rounded-full animate-spin border-white/10 border-t-yellow-400" />
         <p className="text-[12px] font-medium text-neutral-600">Loading...</p>
       </div>
     </div>
@@ -411,7 +411,7 @@ function SidebarContent({
       >
         {/* Icon mark — same mask-image technique as Navbar */}
         <div
-          className="h-8 w-8 shrink-0"
+          className="w-8 h-8 shrink-0"
           style={{
             backgroundColor: "#facc15",
             WebkitMaskImage: "url('/quipay-icon-mark.png')",
@@ -435,7 +435,7 @@ function SidebarContent({
       </div>
 
       {/* Nav */}
-      <div className="flex-1 overflow-y-auto px-2 py-3 scrollbar-none">
+      <div className="flex-1 px-2 py-3 overflow-y-auto scrollbar-none">
         {role === "worker" ? (
           /* ── Worker view — simple ── */
           <NavSection items={WORKER_MAIN_NAV} collapsed={collapsed} />
@@ -529,7 +529,7 @@ function SidebarContent({
 export default function DashboardLayout() {
   const navigate = useNavigate();
   const { address, disconnect } = useWallet();
-  const { role, clearRole } = useRoleDetect(address);
+  const { role, resetRole: clearRole } = useRoleDetect(address);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -551,7 +551,7 @@ export default function DashboardLayout() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-black text-white">
+    <div className="flex h-screen overflow-hidden text-white bg-black">
       {/* ── Desktop sidebar ── */}
       <aside
         className="hidden md:flex flex-col shrink-0 border-r border-white/[0.06] transition-all duration-200 overflow-hidden"
@@ -592,7 +592,7 @@ export default function DashboardLayout() {
       </aside>
 
       {/* ── Main content ── */}
-      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         {/* Top bar */}
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.06] bg-black/90 px-4 sm:px-6 backdrop-blur-md">
           {/* Mobile hamburger */}
@@ -601,7 +601,7 @@ export default function DashboardLayout() {
             className="flex h-8 w-8 md:hidden items-center justify-center rounded-lg hover:bg-white/[0.06] transition-colors"
           >
             <svg
-              className="h-4 w-4 text-neutral-400"
+              className="w-4 h-4 text-neutral-400"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -617,13 +617,14 @@ export default function DashboardLayout() {
           {/* Right actions */}
           <div className="flex items-center gap-2 ml-auto">
             <NotificationCenter />
-            <NavLink
-              to="/create-stream"
+
+            <button
               className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[12px] font-bold text-black transition-all hover:opacity-90 active:scale-[0.97]"
               style={{ backgroundColor: "#facc15" }}
+              onClick={() => void navigate("/create-stream")}
             >
               <svg
-                className="h-3 w-3"
+                className="w-3 h-3"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -632,7 +633,7 @@ export default function DashboardLayout() {
                 <path d="M12 5v14M5 12h14" strokeLinecap="round" />
               </svg>
               New Stream
-            </NavLink>
+            </button>
           </div>
         </header>
 
