@@ -1,3 +1,7 @@
+// React must be imported first to ensure internals are initialized before
+// TanStack Query v5 patches React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.S
+import "react";
+import "react-dom";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";

@@ -67,9 +67,28 @@ export default defineConfig(() => {
     },
     optimizeDeps: {
       exclude: ["@stellar/stellar-xdr-json"],
+      // Ensure React is pre-bundled first so TanStack Query v5 can safely
+      // patch React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
+      include: ["react", "react-dom", "@tanstack/react-query"],
     },
     build: {
       target: "esnext",
+      rollupOptions: {
+        output: {
+          // Put React in its own chunk so it always loads first
+          manualChunks: (id) => {
+            if (
+              id.includes("node_modules/react/") ||
+              id.includes("node_modules/react-dom/")
+            ) {
+              return "react-vendor";
+            }
+            if (id.includes("node_modules/@tanstack/")) {
+              return "query-vendor";
+            }
+          },
+        },
+      },
     },
     define: {
       global: "window",
