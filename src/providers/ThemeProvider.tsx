@@ -12,8 +12,9 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const STORAGE_KEY = "quipay_theme";
 
 const getInitialTheme = (): Theme => {
+  // Quipay is a dark-mode app — always default to dark
   if (typeof window === "undefined") {
-    return "light";
+    return "dark";
   }
 
   try {
@@ -24,17 +25,10 @@ const getInitialTheme = (): Theme => {
       return storedTheme;
     }
   } catch {
-    // Ignore storage errors and fall back to system preference
+    // Ignore storage errors
   }
 
-  if (
-    window.matchMedia &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
-  ) {
-    return "dark";
-  }
-
-  return "light";
+  return "dark";
 };
 
 const applyThemeToDocument = (theme: Theme) => {
