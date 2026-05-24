@@ -15,8 +15,8 @@ import { SeoHelmet } from "../components/seo/SeoHelmet";
 const STROOPS = 1e7;
 
 const TOKEN_ADDRESS: Record<string, string> = {
-  XLM: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC", // native XLM SAC testnet
-  USDC: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5", // Circle USDC testnet
+  XLM: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+  USDC: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
 };
 
 function toUnixSec(d: string) {
@@ -25,6 +25,14 @@ function toUnixSec(d: string) {
 
 function shortAddr(a: string) {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+
+function initials(name: string | undefined, wallet: string) {
+  if (!name) return wallet.slice(1, 3).toUpperCase();
+  const parts = name.trim().split(/\s+/);
+  return parts.length >= 2
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : parts[0].slice(0, 2).toUpperCase();
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -39,22 +47,25 @@ const CreateStream: React.FC = () => {
   const [token, setToken] = useState("XLM");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [cliffDate, setCliffDate] = useState("");
 
   // ── Per-worker amounts & selection ────────────────────────────────────────
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [bulkAmount, setBulkAmount] = useState("");
 
-  // Select all by default when workers load
   useEffect(() => {
     if (workers.length === 0) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSelected((prev) => {
-      const next = { ...prev };
-      workers.forEach((w) => {
-        if (next[w.wallet] === undefined) next[w.wallet] = true;
+    const id = setTimeout(() => {
+      setSelected((prev) => {
+        const next = { ...prev };
+        workers.forEach((w) => {
+          if (next[w.wallet] === undefined) next[w.wallet] = true;
+        });
+        return next;
       });
-      return next;
-    });
+    }, 0);
+    return () => clearTimeout(id);
   }, [workers]);
 
   const toggleWorker = (wallet: string) =>
@@ -63,6 +74,17 @@ const CreateStream: React.FC = () => {
   const setAmount = (wallet: string, val: string) =>
     setAmounts((a) => ({ ...a, [wallet]: val }));
 
+  const applyBulkAmount = () => {
+    if (!bulkAmount) return;
+    const next: Record<string, string> = { ...amounts };
+    workers
+      .filter((w) => selected[w.wallet])
+      .forEach((w) => {
+        next[w.wallet] = bulkAmount;
+      });
+    setAmounts(next);
+  };
+
   const selectedWorkers = workers.filter((w) => selected[w.wallet]);
   const totalAmount = selectedWorkers.reduce(
     (s, w) => s + (parseFloat(amounts[w.wallet] ?? "") || 0),
@@ -70,13 +92,19 @@ const CreateStream: React.FC = () => {
   );
 
   // ── Validation ────────────────────────────────────────────────────────────
+  const startTs = startDate ? toUnixSec(startDate) : 0;
+  const endTs = endDate ? toUnixSec(endDate) : 0;
+  const cliffTs = cliffDate ? toUnixSec(cliffDate) : startTs;
+  const durDays = startTs && endTs ? Math.round((endTs - startTs) / 86400) : 0;
+
   const canSubmit =
     !!address &&
     selectedWorkers.length > 0 &&
     selectedWorkers.every((w) => parseFloat(amounts[w.wallet] ?? "") > 0) &&
     startDate.length > 0 &&
     endDate.length > 0 &&
-    toUnixSec(endDate) > toUnixSec(startDate);
+    endTs > startTs &&
+    (!cliffDate || (cliffTs >= startTs && cliffTs <= endTs));
 
   const missingAmounts = selectedWorkers.filter(
     (w) => !(parseFloat(amounts[w.wallet] ?? "") > 0),
@@ -89,17 +117,13 @@ const CreateStream: React.FC = () => {
   >("");
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!address || !signTransaction || !canSubmit) return;
     setSubmitError(null);
     setSubmitting(true);
 
     try {
-      const startTs = toUnixSec(startDate);
-      const endTs = toUnixSec(endDate);
       const durSec = endTs - startTs;
-
       const entries: BatchStreamEntry[] = selectedWorkers.map((w) => {
         const totalStroops = BigInt(
           Math.round(parseFloat(amounts[w.wallet]) * STROOPS),
@@ -111,6 +135,7 @@ const CreateStream: React.FC = () => {
           rate,
           startTs,
           endTs,
+          ...(cliffDate ? { cliffTs } : {}),
         };
       });
 
@@ -131,7 +156,7 @@ const CreateStream: React.FC = () => {
         dedupeKey: "batch-create",
       });
       addNotification(
-        `${selectedWorkers.length} streams created on-chain!`,
+        `${selectedWorkers.length} stream${selectedWorkers.length !== 1 ? "s" : ""} created!`,
         "success",
       );
       void navigate("/dashboard");
@@ -167,7 +192,7 @@ const CreateStream: React.FC = () => {
             </p>
             <p className="text-[13px] text-neutral-600">
               {submitStep === "building" &&
-                `Simulating ${selectedWorkers.length} streams`}
+                `Simulating ${selectedWorkers.length} stream${selectedWorkers.length !== 1 ? "s" : ""}`}
               {submitStep === "signing" &&
                 "Approve the transaction in your wallet"}
               {submitStep === "sending" &&
@@ -177,16 +202,24 @@ const CreateStream: React.FC = () => {
         </div>
       )}
 
-      <div className="px-6 py-8 sm:px-8 sm:py-10 max-w-[900px]">
+      <div className="px-6 py-8 sm:px-8 sm:py-10 max-w-[960px]">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-[22px] font-bold text-white tracking-tight">
-            Create Payment Streams
-          </h1>
-          <p className="mt-1 text-[14px] text-neutral-500">
-            Select workers from your roster, set their amounts, and stream
-            everyone in one transaction.
-          </p>
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-[22px] font-bold text-white tracking-tight">
+              Create Payment Streams
+            </h1>
+            <p className="mt-1 text-[14px] text-neutral-500">
+              Select employees, set their amounts, and pay everyone in one
+              on-chain transaction.
+            </p>
+          </div>
+          <button
+            onClick={() => void navigate("/dashboard")}
+            className="shrink-0 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2 text-[13px] font-semibold text-white hover:bg-white/[0.08] transition-colors"
+          >
+            Cancel
+          </button>
         </div>
 
         {/* Error */}
@@ -202,6 +235,7 @@ const CreateStream: React.FC = () => {
             >
               <circle cx="12" cy="12" r="10" />
               <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <div className="flex-1 min-w-0">
               <p className="text-[13px] font-semibold text-red-400">
@@ -213,14 +247,24 @@ const CreateStream: React.FC = () => {
             </div>
             <button
               onClick={() => setSubmitError(null)}
-              className="text-red-700 hover:text-red-400 shrink-0"
+              className="shrink-0 text-red-700 hover:text-red-400 transition-colors"
             >
-              ✕
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
             </button>
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
           {/* ── Left: worker list ── */}
           <div className="flex flex-col gap-4">
             {/* Loading */}
@@ -233,7 +277,7 @@ const CreateStream: React.FC = () => {
               </div>
             )}
 
-            {/* No workers registered */}
+            {/* No workers */}
             {!isLoading && workers.length === 0 && (
               <div className="rounded-2xl border border-dashed border-white/[0.08] bg-[#0a0a0a] p-12 text-center">
                 <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/[0.07] bg-white/[0.04]">
@@ -250,11 +294,11 @@ const CreateStream: React.FC = () => {
                   </svg>
                 </div>
                 <p className="text-[15px] font-bold text-white mb-1">
-                  No workers registered yet
+                  No employees yet
                 </p>
                 <p className="text-[13px] text-neutral-600 mb-5">
-                  Share your wallet address with your workers so they can
-                  register under your company.
+                  Employees search for your company by name and register
+                  themselves. Your company must be verified for them to find it.
                 </p>
                 <div className="mx-auto flex max-w-xs items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
                   <span className="flex-1 truncate font-mono text-[12px] text-neutral-400">
@@ -266,7 +310,6 @@ const CreateStream: React.FC = () => {
                       addNotification("Address copied", "success");
                     }}
                     className="shrink-0 text-neutral-600 hover:text-yellow-400 transition-colors"
-                    title="Copy your employer address"
                   >
                     <svg
                       className="h-4 w-4"
@@ -280,40 +323,56 @@ const CreateStream: React.FC = () => {
                     </svg>
                   </button>
                 </div>
-                <p className="mt-3 text-[11px] text-neutral-700">
-                  Workers go to their dashboard and enter this address to
-                  register.
-                </p>
               </div>
             )}
 
             {/* Worker checklist */}
             {!isLoading && workers.length > 0 && (
               <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] overflow-hidden">
-                {/* Header row */}
+                {/* Header */}
                 <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
                   <p className="text-[13px] font-bold text-white">
-                    {workers.length} registered worker
-                    {workers.length > 1 ? "s" : ""}
+                    {workers.length} employee{workers.length !== 1 ? "s" : ""}
                   </p>
-                  <button
-                    onClick={() => {
-                      const allSelected = workers.every(
-                        (w) => selected[w.wallet],
-                      );
-                      const next: Record<string, boolean> = {};
-                      workers.forEach((w) => {
-                        next[w.wallet] = !allSelected;
-                      });
-                      setSelected(next);
-                    }}
-                    className="text-[12px] font-semibold transition-colors hover:text-white"
-                    style={{ color: "#facc15" }}
-                  >
-                    {workers.every((w) => selected[w.wallet])
-                      ? "Deselect all"
-                      : "Select all"}
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {/* Bulk amount */}
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={bulkAmount}
+                        onChange={(e) => setBulkAmount(e.target.value)}
+                        placeholder="Same amount…"
+                        className="w-[120px] rounded-lg border border-white/[0.1] bg-black px-3 py-1.5 text-right text-[12px] text-white placeholder:text-neutral-700 focus:outline-none focus:border-yellow-400/40 transition-colors"
+                      />
+                      <button
+                        onClick={applyBulkAmount}
+                        disabled={!bulkAmount || selectedWorkers.length === 0}
+                        className="rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-2.5 py-1.5 text-[11px] font-bold text-yellow-400 hover:bg-yellow-400/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        Apply all
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const allSelected = workers.every(
+                          (w) => selected[w.wallet],
+                        );
+                        const next: Record<string, boolean> = {};
+                        workers.forEach((w) => {
+                          next[w.wallet] = !allSelected;
+                        });
+                        setSelected(next);
+                      }}
+                      className="text-[12px] font-semibold transition-colors hover:text-white"
+                      style={{ color: "#facc15" }}
+                    >
+                      {workers.every((w) => selected[w.wallet])
+                        ? "Deselect all"
+                        : "Select all"}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Workers */}
@@ -321,12 +380,14 @@ const CreateStream: React.FC = () => {
                   {workers.map((w) => {
                     const isSelected = !!selected[w.wallet];
                     const amt = amounts[w.wallet] ?? "";
+                    const displayName = w.fullName ?? shortAddr(w.wallet);
+                    const subtitle =
+                      [w.jobTitle, w.department].filter(Boolean).join(" · ") ||
+                      shortAddr(w.wallet);
                     return (
                       <div
                         key={w.wallet}
-                        className={`flex items-center gap-4 px-5 py-4 transition-colors ${
-                          isSelected ? "bg-yellow-400/[0.03]" : "opacity-50"
-                        }`}
+                        className={`flex items-center gap-4 px-5 py-4 transition-colors ${isSelected ? "bg-yellow-400/[0.02]" : "opacity-50"}`}
                       >
                         {/* Checkbox */}
                         <button
@@ -360,22 +421,30 @@ const CreateStream: React.FC = () => {
                             opacity: isSelected ? 1 : 0.5,
                           }}
                         >
-                          {w.wallet.slice(1, 3).toUpperCase()}
+                          {initials(w.fullName, w.wallet)}
                         </div>
 
                         {/* Info */}
                         <div className="flex-1 min-w-0">
-                          <p className="font-mono text-[13px] font-medium text-white truncate">
-                            {shortAddr(w.wallet)}
+                          <p className="text-[14px] font-semibold text-white truncate">
+                            {displayName}
                           </p>
-                          <p className="text-[11px] text-neutral-600">
-                            {w.preferred_token
-                              ? shortAddr(w.preferred_token)
-                              : "XLM"}{" "}
-                            · {w.activeStreams} active stream
-                            {w.activeStreams !== 1 ? "s" : ""}
+                          <p className="text-[11px] text-neutral-500 truncate">
+                            {subtitle}
                           </p>
+                          {w.fullName && (
+                            <p className="font-mono text-[10px] text-neutral-700 truncate mt-0.5">
+                              {shortAddr(w.wallet)}
+                            </p>
+                          )}
                         </div>
+
+                        {/* Stream badge */}
+                        {w.activeStreams > 0 && (
+                          <span className="shrink-0 rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-bold text-green-400">
+                            {w.activeStreams} active
+                          </span>
+                        )}
 
                         {/* Amount input */}
                         <div className="flex items-center gap-2 shrink-0">
@@ -388,8 +457,8 @@ const CreateStream: React.FC = () => {
                             onChange={(e) =>
                               setAmount(w.wallet, e.target.value)
                             }
-                            placeholder="Amount"
-                            className={`w-[110px] rounded-xl border bg-black px-3 py-2 text-right text-[13px] text-white placeholder:text-neutral-700 focus:outline-none focus:border-yellow-400/40 focus:ring-1 focus:ring-yellow-400/20 disabled:opacity-30 ${
+                            placeholder="0.00"
+                            className={`w-[100px] rounded-xl border bg-black px-3 py-2 text-right text-[13px] text-white placeholder:text-neutral-700 focus:outline-none focus:border-yellow-400/40 focus:ring-1 focus:ring-yellow-400/20 disabled:opacity-30 ${
                               isSelected && parseFloat(amt) <= 0 && amt !== ""
                                 ? "border-red-500/40"
                                 : "border-white/[0.1]"
@@ -407,7 +476,7 @@ const CreateStream: React.FC = () => {
             )}
           </div>
 
-          {/* ── Right: config + summary ── */}
+          {/* ── Right: settings + summary ── */}
           <div className="flex flex-col gap-4">
             {/* Stream settings */}
             <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5">
@@ -417,13 +486,13 @@ const CreateStream: React.FC = () => {
               <div className="flex flex-col gap-4">
                 {/* Token */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[12px] font-semibold text-neutral-400">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">
                     Token
                   </label>
                   <select
                     value={token}
                     onChange={(e) => setToken(e.target.value)}
-                    className="w-full rounded-xl border border-white/[0.1] bg-black px-4 py-2.5 text-[13px] text-white focus:border-yellow-400/40 focus:outline-none"
+                    className="w-full rounded-xl border border-white/[0.1] bg-black px-4 py-2.5 text-[13px] text-white focus:border-yellow-400/40 focus:outline-none [color-scheme:dark]"
                   >
                     <option value="XLM">XLM (Native)</option>
                     <option value="USDC">USDC</option>
@@ -432,28 +501,56 @@ const CreateStream: React.FC = () => {
 
                 {/* Start date */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[12px] font-semibold text-neutral-400">
-                    Start date <span style={{ color: "#facc15" }}>*</span>
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">
+                    Start Date <span style={{ color: "#facc15" }}>*</span>
                   </label>
                   <input
                     type="date"
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full rounded-xl border border-white/[0.1] bg-black px-4 py-2.5 text-[13px] text-white focus:border-yellow-400/40 focus:outline-none"
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      if (!cliffDate) setCliffDate(e.target.value);
+                    }}
+                    className="w-full rounded-xl border border-white/[0.1] bg-black px-4 py-2.5 text-[13px] text-white focus:border-yellow-400/40 focus:outline-none [color-scheme:dark]"
                   />
+                </div>
+
+                {/* Cliff date */}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">
+                      Cliff Date
+                    </label>
+                    <span className="text-[10px] text-neutral-600">
+                      No withdrawals before this date
+                    </span>
+                  </div>
+                  <input
+                    type="date"
+                    value={cliffDate}
+                    min={startDate}
+                    max={endDate}
+                    onChange={(e) => setCliffDate(e.target.value)}
+                    className="w-full rounded-xl border border-white/[0.1] bg-black px-4 py-2.5 text-[13px] text-white focus:border-yellow-400/40 focus:outline-none [color-scheme:dark]"
+                  />
+                  {cliffDate && startDate && cliffDate === startDate && (
+                    <p className="text-[10px] text-neutral-600">
+                      Cliff = start date means no lock period.
+                    </p>
+                  )}
                 </div>
 
                 {/* End date */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[12px] font-semibold text-neutral-400">
-                    End date <span style={{ color: "#facc15" }}>*</span>
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">
+                    End Date <span style={{ color: "#facc15" }}>*</span>
                   </label>
                   <input
                     type="date"
                     value={endDate}
                     min={startDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full rounded-xl border border-white/[0.1] bg-black px-4 py-2.5 text-[13px] text-white focus:border-yellow-400/40 focus:outline-none"
+                    className="w-full rounded-xl border border-white/[0.1] bg-black px-4 py-2.5 text-[13px] text-white focus:border-yellow-400/40 focus:outline-none [color-scheme:dark]"
                   />
                 </div>
               </div>
@@ -465,7 +562,7 @@ const CreateStream: React.FC = () => {
               <div className="flex flex-col gap-3">
                 <div className="flex justify-between">
                   <span className="text-[13px] text-neutral-500">
-                    Selected workers
+                    Employees
                   </span>
                   <span className="text-[13px] font-semibold text-white">
                     {selectedWorkers.length}
@@ -475,37 +572,68 @@ const CreateStream: React.FC = () => {
                   <span className="text-[13px] text-neutral-500">
                     Total {token}
                   </span>
-                  <span className="text-[13px] font-semibold text-white">
+                  <span
+                    className="text-[13px] font-bold"
+                    style={{ color: "#facc15" }}
+                  >
                     {totalAmount.toLocaleString(undefined, {
                       maximumFractionDigits: 4,
                     })}
                   </span>
                 </div>
-                {startDate &&
-                  endDate &&
-                  toUnixSec(endDate) > toUnixSec(startDate) && (
+                {durDays > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-[13px] text-neutral-500">
+                      Duration
+                    </span>
+                    <span className="text-[13px] font-semibold text-white">
+                      {durDays} days
+                    </span>
+                  </div>
+                )}
+                {cliffDate &&
+                  startDate &&
+                  cliffDate !== startDate &&
+                  durDays > 0 && (
                     <div className="flex justify-between">
                       <span className="text-[13px] text-neutral-500">
-                        Duration
+                        Cliff
                       </span>
                       <span className="text-[13px] font-semibold text-white">
-                        {Math.round(
-                          (toUnixSec(endDate) - toUnixSec(startDate)) / 86400,
-                        )}{" "}
-                        days
+                        {Math.round((toUnixSec(cliffDate) - startTs) / 86400)}d
+                        lock
                       </span>
                     </div>
                   )}
+                {totalAmount > 0 && durDays > 0 && (
+                  <>
+                    <div className="my-1 h-px bg-white/[0.06]" />
+                    <div className="flex justify-between">
+                      <span className="text-[13px] text-neutral-500">
+                        Rate / employee / day
+                      </span>
+                      <span className="text-[13px] font-semibold text-white">
+                        {selectedWorkers.length > 0
+                          ? (
+                              totalAmount /
+                              selectedWorkers.length /
+                              durDays
+                            ).toLocaleString(undefined, {
+                              maximumFractionDigits: 4,
+                            })
+                          : "—"}{" "}
+                        {token}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
 
-              {/* Validation hints */}
               {missingAmounts.length > 0 && (
                 <p className="mt-3 text-[11px] text-yellow-400/70">
-                  Enter an amount for{" "}
                   {missingAmounts.length === 1
-                    ? "1 selected worker"
-                    : `${missingAmounts.length} selected workers`}
-                  .
+                    ? `Enter an amount for ${missingAmounts[0].fullName ?? shortAddr(missingAmounts[0].wallet)}.`
+                    : `Enter amounts for ${missingAmounts.length} selected employees.`}
                 </p>
               )}
 
@@ -521,12 +649,6 @@ const CreateStream: React.FC = () => {
                     ? `${selectedWorkers.length} `
                     : ""}
                   Stream{selectedWorkers.length !== 1 ? "s" : ""}
-                </button>
-                <button
-                  onClick={() => void navigate("/dashboard")}
-                  className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] py-3 text-[14px] font-semibold text-white hover:bg-white/[0.08] transition-colors"
-                >
-                  Cancel
                 </button>
               </div>
             </div>

@@ -45,6 +45,12 @@ export interface WorkerEntry extends WorkerProfile {
   /** Total withdrawn across completed streams, in token units (not stroops). */
   totalPaid: number;
   streams: WorkerStreamRecord[];
+  // Employee profile data from backend (set after on-chain registration)
+  fullName?: string;
+  jobTitle?: string;
+  department?: string;
+  workEmail?: string;
+  employeeRef?: string;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -104,8 +110,38 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
             /* backend unavailable */
           }
 
+        // Fetch employee profiles (name, job title, dept, etc.)
+        type EmpProfile = {
+          worker_address: string;
+          full_name: string;
+          job_title: string;
+          department: string | null;
+          work_email: string | null;
+          employee_ref: string | null;
+        };
+        let employeeProfiles: EmpProfile[] = [];
+        if (API_BASE)
+          try {
+            const res = await fetch(`${API_BASE}/api/employers/employees`, {
+              headers: {
+                "x-user-id": employerAddress!,
+                "x-user-role": "user",
+              },
+            });
+            if (res.ok) {
+              const json = (await res.json()) as { employees?: EmpProfile[] };
+              employeeProfiles = json.employees ?? [];
+            }
+          } catch {
+            /* backend unavailable */
+          }
+
         // 3. Merge: prefer backend data if available, otherwise use contract data
         const entries: WorkerEntry[] = profiles.map((p) => {
+          const empProfile = employeeProfiles.find(
+            (ep) => ep.worker_address === p.wallet,
+          );
+
           // Try backend first
           const backendWorkerStreams = backendStreams.filter(
             (s) => s.worker === p.wallet,
@@ -115,6 +151,14 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
           const contractWorkerStreams = contractStreams.filter(
             (s) => s.worker === p.wallet,
           );
+
+          const profileFields = {
+            fullName: empProfile?.full_name,
+            jobTitle: empProfile?.job_title,
+            department: empProfile?.department ?? undefined,
+            workEmail: empProfile?.work_email ?? undefined,
+            employeeRef: empProfile?.employee_ref ?? undefined,
+          };
 
           if (backendWorkerStreams.length > 0) {
             const activeStreams = backendWorkerStreams.filter(
@@ -129,6 +173,7 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
               );
             return {
               ...p,
+              ...profileFields,
               activeStreams,
               totalStreams: backendWorkerStreams.length,
               totalPaid,
@@ -158,6 +203,7 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
 
           return {
             ...p,
+            ...profileFields,
             activeStreams,
             totalStreams: contractWorkerStreams.length,
             totalPaid: 0,

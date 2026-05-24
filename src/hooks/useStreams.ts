@@ -61,6 +61,28 @@ export interface WithdrawalRecord {
 const STROOPS_PER_UNIT = 1e7;
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "");
+const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+
+const _employerNameCache = new Map<string, string>();
+
+async function resolveEmployerName(stellarAddress: string): Promise<string> {
+  if (_employerNameCache.has(stellarAddress)) {
+    return _employerNameCache.get(stellarAddress)!;
+  }
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/employers/by-address?address=${encodeURIComponent(stellarAddress)}`,
+    );
+    const data = (await res.json()) as {
+      employer: { business_name: string } | null;
+    };
+    const name = data.employer?.business_name ?? stellarAddress;
+    _employerNameCache.set(stellarAddress, name);
+    return name;
+  } catch {
+    return stellarAddress;
+  }
+}
 
 const fetchProof = async (
   streamId: string,
@@ -146,9 +168,10 @@ export const useStreams = (workerAddress: string | undefined) => {
               const tokenSymbol = await getTokenSymbol(workerAddress, s.token);
               const isCompleted = s.status === 2;
               const proof = isCompleted ? await fetchProof(streamId) : null;
+              const employerName = await resolveEmployerName(s.employer);
               return {
                 id: streamId,
-                employerName: s.employer,
+                employerName,
                 employerAddress: s.employer,
                 flowRate: Number(s.rate) / STROOPS_PER_UNIT,
                 tokenSymbol,

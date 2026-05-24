@@ -128,3 +128,4 @@ Thumbs.db
 *.swo
 *~
 .mcp.json
+.vercel

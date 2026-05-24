@@ -814,6 +814,9 @@ const Home: React.FC = () => {
   const { address } = useWallet();
   const { role, isDetecting, forceRole } = useRoleDetect(address);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  // Prevents the useEffect from re-running the KYB check when the user
+  // just picked their role from the modal (forceRole triggers role change).
+  const userJustChoseRole = useRef(false);
 
   useEffect(() => {
     if (!address) {
@@ -821,25 +824,46 @@ const Home: React.FC = () => {
       setShowOnboarding(false);
       return;
     }
-    if (isDetecting) return; // wait for on-chain check
+    if (isDetecting) return;
+
+    // If the user manually chose their role, navigation is already handled
+    // in handleOnboardingChoice — don't override it here.
+    if (userJustChoseRole.current) {
+      userJustChoseRole.current = false;
+      return;
+    }
 
     if (role === "employer") {
-      void navigate("/dashboard", { replace: true });
+      const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
+      fetch(`${apiBase}/api/employers/status`, {
+        credentials: "include",
+        headers: {
+          "x-user-id": address,
+          "x-user-role": "user",
+        },
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.status === "not_started") {
+            void navigate("/onboard", { replace: true });
+          } else {
+            void navigate("/dashboard", { replace: true });
+          }
+        })
+        .catch(() => void navigate("/dashboard", { replace: true }));
     } else if (role === "worker") {
       void navigate("/worker", { replace: true });
     } else {
       // New user — no on-chain history yet, let them choose
-
       setShowOnboarding(true);
     }
   }, [address, role, isDetecting, navigate]);
 
   const handleOnboardingChoice = (chosen: "employer" | "worker") => {
-    // Only cache — the real on-chain role will be set when they first
-    // create a stream (employer) or register with employer (worker)
+    userJustChoseRole.current = true;
     forceRole(chosen);
     setShowOnboarding(false);
-    if (chosen === "employer") void navigate("/dashboard", { replace: true });
+    if (chosen === "employer") void navigate("/onboard", { replace: true });
     else void navigate("/worker", { replace: true });
   };
 

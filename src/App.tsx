@@ -30,6 +30,7 @@ const Reports = lazy(() => import("./pages/Reports"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 const Settings = lazy(() => import("./pages/Settings"));
 const WorkerDashboard = lazy(() => import("./pages/WorkerDashboard"));
+const TransactionsPage = lazy(() => import("./pages/TransactionsPage"));
 const WorkforceRegistry = lazy(() => import("./pages/WorkforceRegistry"));
 const AddressBook = lazy(() => import("./pages/AddressBook"));
 const DashboardCustomization = lazy(
@@ -37,6 +38,7 @@ const DashboardCustomization = lazy(
 );
 const StreamTemplates = lazy(() => import("./pages/StreamTemplates"));
 const StreamComparison = lazy(() => import("./pages/StreamComparison"));
+const EmployerOnboarding = lazy(() => import("./pages/EmployerOnboarding"));
 
 // ─── Public layout (landing page + help) ─────────────────────────────────────
 
@@ -85,6 +87,7 @@ function App() {
         <Route element={<PublicLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
+          <Route path="/onboard" element={<EmployerOnboarding />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/ui-primitives" element={<UIPrimitivesPreview />} />
           <Route path="/debug" element={<Debugger />} />
@@ -206,6 +209,14 @@ function App() {
             element={
               <WalletGuard>
                 <WorkerDashboard />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/transactions"
+            element={
+              <WalletGuard>
+                <TransactionsPage />
               </WalletGuard>
             }
           />
