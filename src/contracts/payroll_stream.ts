@@ -371,6 +371,10 @@ export async function getWithdrawable(
  * Submits a signed transaction XDR to the Soroban RPC and polls until
  * it is confirmed (SUCCESS) or fails.
  *
+ * Uses exponential backoff with jitter and NOT_FOUND streak guard to minimize
+ * RPC load and prevent thundering-herd effects while maintaining responsiveness
+ * during high-traffic periods.
+ *
  * Returns the transaction hash on success.
  */
 export async function submitAndAwaitTx(signedTxXdr: string): Promise<string> {
@@ -390,9 +394,15 @@ export async function submitAndAwaitTx(signedTxXdr: string): Promise<string> {
 
   const hash = sendResponse.hash;
 
-  // Poll for confirmation
+  // Polling configuration
   let attempts = 0;
   const maxAttempts = 30;
+  const baseDelayMs = 500; // Start at 500ms instead of 1s
+  const maxDelayMs = 8000; // Cap at 8 seconds
+  const jitterFactor = 0.3; // ±30% randomness
+  const notFoundStreakLimit = 5; // Bail after 5 consecutive NOT_FOUND responses
+
+  let notFoundStreak = 0;
 
   while (attempts < maxAttempts) {
     const statusResponse = await server.getTransaction(hash);
@@ -405,13 +415,38 @@ export async function submitAndAwaitTx(signedTxXdr: string): Promise<string> {
       throw new Error(`Transaction failed on-chain. Hash: ${hash}`);
     }
 
-    // PENDING / NOT_FOUND — wait and retry
-    await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+    // Track NOT_FOUND streak to detect invalid/dropped transactions early
+    if (
+      statusResponse.status === SorobanRpc.Api.GetTransactionStatus.NOT_FOUND
+    ) {
+      notFoundStreak++;
+      if (notFoundStreak >= notFoundStreakLimit) {
+        throw new Error(
+          `Transaction not found after ${notFoundStreak} consecutive polls. ` +
+            `It may have been dropped from the mempool or is invalid. Hash: ${hash}`,
+        );
+      }
+    } else {
+      // PENDING — reset the streak
+      notFoundStreak = 0;
+    }
+
+    // Calculate exponential backoff: baseDelay * 2^attempts, capped at maxDelay
+    const exponentialDelay = Math.min(
+      baseDelayMs * Math.pow(2, attempts),
+      maxDelayMs,
+    );
+
+    // Add jitter: randomize by ±jitterFactor to prevent thundering herd
+    const jitter = exponentialDelay * jitterFactor * (Math.random() * 2 - 1);
+    const delayMs = Math.max(0, exponentialDelay + jitter);
+
+    await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
     attempts++;
   }
 
   throw new Error(
-    `Transaction confirmation timed out after ${maxAttempts}s. Hash: ${hash}`,
+    `Transaction confirmation timed out after ${maxAttempts} attempts (~${Math.ceil(maxDelayMs * maxAttempts / 1000)}s max). Hash: ${hash}`,
   );
 }
 
