@@ -169,6 +169,13 @@ Quipay/
 │   ├── payroll_vault/        # Treasury vault
 │   ├── workforce_registry/   # Worker profiles (planned)
 │   └── automation_gateway/   # AI authorization (planned)
+├── backend/                  # Node.js webhook & DLQ service
+│   ├── src/
+│   │   ├── db/dlq.ts         # Dead Letter Queue management
+│   │   ├── delivery.ts       # Webhook delivery service
+│   │   ├── workers/          # Retry workers
+│   │   └── tests/            # Integration tests
+│   └── README.md             # Backend documentation
 ├── src/
 │   ├── components/           # Reusable UI components
 │   ├── pages/                # App pages (Dashboard, Stream, Settings…)
