@@ -352,6 +352,21 @@ Contract changes require extra care due to their immutable nature once deployed.
 - [ ] Document any new error variants
 - [ ] Verify `require_auth` is used for all privileged operations
 
+### Slippage Configuration
+
+The `max_slippage_bps` parameter controls how much price deviation the contract
+accepts when creating a stream. **No function in this codebase may hard-code
+`max_slippage_bps` to 10 000** (the value that disables protection).
+
+- Slippage configuration is **caller-owned** — every call site must supply an
+  explicit value.
+- The SDK function `buildBatchCreateStreamsTx` accepts per-entry
+  `maxSlippageBps` and validates it (0–9999; rejects ≥ 10 000).
+- The UI exposes the field under _Advanced Settings_ with a default of 100 bps
+  (1 %) and blocks submission at ≥ 10 000 bps.
+- Tests must assert that the value is passed through to the on-chain ScMap and
+  that the SDK rejects out-of-range values with `SlippageConfigError`.
+
 ### Testing Contract Changes
 
 ```bash

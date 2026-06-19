@@ -758,6 +758,21 @@ export async function getWorkerWithdrawalEvents(
 // ─── buildBatchCreateStreamsTx ────────────────────────────────────────────────
 
 /**
+ * Thrown when a caller provides an invalid `maxSlippageBps` value.
+ */
+export class SlippageConfigError extends TypeError {
+  constructor(value: number) {
+    super(
+      `Invalid maxSlippageBps: ${value}. Must be a non-negative integer between 0 and 9999 (values ≥ 10 000 disable slippage protection).`,
+    );
+    this.name = "SlippageConfigError";
+  }
+}
+
+/** Recommended default slippage tolerance: 100 bps = 1 %. */
+export const DEFAULT_MAX_SLIPPAGE_BPS = 100;
+
+/**
  * A single entry in a batch stream creation request.
  * Mirrors the on-chain `StreamParams` struct.
  */
@@ -772,6 +787,24 @@ export interface BatchStreamEntry {
   endTs: number;
   /** Optional cliff timestamp — defaults to startTs if omitted */
   cliffTs?: number;
+  /**
+   * Maximum acceptable slippage in basis points (0–9999).
+   * 100 bps = 1 %. Values ≥ 10 000 disable protection and are rejected.
+   */
+  maxSlippageBps: number;
+}
+
+/**
+ * Validates a single maxSlippageBps value.
+ * @throws {SlippageConfigError} if the value is invalid.
+ */
+function validateSlippage(value: number): void {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new SlippageConfigError(value);
+  }
+  if (value >= 10000) {
+    throw new SlippageConfigError(value);
+  }
 }
 
 /**
@@ -780,6 +813,11 @@ export interface BatchStreamEntry {
  * All entries must share the same employer (the connected wallet).
  * Solvency for the total batch amount must be validated before calling this
  * via `checkTreasurySolvency`.
+ *
+ * @param employer - The employer's Stellar public key.
+ * @param entries  - Batch entries. Each entry **must** include a
+ *                   `maxSlippageBps` value (0–9999). The recommended default is
+ *                   100 (1 %). Values ≥ 10 000 are rejected at the SDK boundary.
  *
  * Returns the base64-encoded prepared XDR ready for signing.
  */
@@ -806,6 +844,7 @@ export async function buildBatchCreateStreamsTx(
   //   max_slippage_bps, metadata_hash, rate, speed_curve, start_ts, token, worker
   const paramsVec = xdr.ScVal.scvVec(
     entries.map((e) => {
+      validateSlippage(e.maxSlippageBps);
       const cliffTs = e.cliffTs ?? e.startTs;
       return xdr.ScVal.scvMap([
         new xdr.ScMapEntry({
@@ -826,7 +865,7 @@ export async function buildBatchCreateStreamsTx(
         }),
         new xdr.ScMapEntry({
           key: xdr.ScVal.scvSymbol("max_slippage_bps"),
-          val: nativeToScVal(10000, { type: "u32" }), // 100% — no slippage check
+          val: nativeToScVal(e.maxSlippageBps, { type: "u32" }),
         }),
         new xdr.ScMapEntry({
           key: xdr.ScVal.scvSymbol("metadata_hash"),
