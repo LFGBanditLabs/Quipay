@@ -7,8 +7,7 @@ import React from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface InputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {
+export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   note?: string;
   error?: string;

@@ -1,15 +1,26 @@
-import { Keypair, rpc as SorobanRpc, TransactionBuilder, Contract, Address, nativeToScVal, Networks, xdr } from '@stellar/stellar-sdk';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import {
+  Keypair,
+  rpc as SorobanRpc,
+  TransactionBuilder,
+  Contract,
+  Address,
+  nativeToScVal,
+  Networks,
+  xdr,
+} from "@stellar/stellar-sdk";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const RPC_URL = "https://soroban-testnet.stellar.org";
 const NETWORK_PASSPHRASE = Networks.TESTNET;
-const XLM_SAC_TESTNET = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
-const STREAM_CONTRACT_ID = "CB4C43V42F5WWG5S7DK7JXCX7HYFPBTPNZ3F7M2A4DDWII2HUWNTHLWL"; 
+const XLM_SAC_TESTNET =
+  "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+const STREAM_CONTRACT_ID =
+  "CB4C43V42F5WWG5S7DK7JXCX7HYFPBTPNZ3F7M2A4DDWII2HUWNTHLWL";
 
 const server = new SorobanRpc.Server(RPC_URL, { allowHttp: true });
 
@@ -27,7 +38,14 @@ async function fundAccount(publicKey: string) {
   }
 }
 
-async function createStream(employer: Keypair, worker: string, amount: bigint, rate: bigint, startTs: number, endTs: number) {
+async function createStream(
+  employer: Keypair,
+  worker: string,
+  amount: bigint,
+  rate: bigint,
+  startTs: number,
+  endTs: number,
+) {
   console.log(`Creating stream from ${employer.publicKey()} to ${worker}...`);
   const account = await server.getAccount(employer.publicKey());
   const contract = new Contract(STREAM_CONTRACT_ID);
@@ -46,29 +64,34 @@ async function createStream(employer: Keypair, worker: string, amount: bigint, r
         nativeToScVal(amount, { type: "i128" }),
         nativeToScVal(BigInt(startTs), { type: "u64" }),
         nativeToScVal(BigInt(endTs), { type: "u64" }),
-        xdr.ScVal.scvVoid()
-      )
+        xdr.ScVal.scvVoid(),
+      ),
     )
     .setTimeout(300)
     .build();
 
   const prepared = await server.prepareTransaction(tx);
   prepared.sign(employer);
-  
+
   const sendResponse = await server.sendTransaction(prepared);
   if (sendResponse.status === "ERROR") {
-    throw new Error(`Failed to submit tx: ${JSON.stringify(sendResponse.errorResult)}`);
+    throw new Error(
+      `Failed to submit tx: ${JSON.stringify(sendResponse.errorResult)}`,
+    );
   }
-  
+
   const hash = sendResponse.hash;
   console.log(`Tx submitted: ${hash}. Waiting for confirmation...`);
-  
+
   let statusResponse = await server.getTransaction(hash);
-  while (statusResponse.status === "NOT_FOUND" || statusResponse.status === "PENDING") {
-    await new Promise(resolve => setTimeout(resolve, 2000));
+  while (
+    statusResponse.status === "NOT_FOUND" ||
+    statusResponse.status === "PENDING"
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
     statusResponse = await server.getTransaction(hash);
   }
-  
+
   if (statusResponse.status === "SUCCESS") {
     console.log(`Stream created successfully in tx ${hash}`);
   } else {
@@ -78,29 +101,42 @@ async function createStream(employer: Keypair, worker: string, amount: bigint, r
 
 async function run() {
   console.log("Starting Quipay Local Development Seed Script...");
-  
-  const output: any = { employers: [], workers: [], activeStreams: [], expiredStreams: [] };
 
-  const outPath = path.resolve(__dirname, '../seed-output.json');
+  const output: any = {
+    employers: [],
+    workers: [],
+    activeStreams: [],
+    expiredStreams: [],
+  };
+
+  const outPath = path.resolve(__dirname, "../seed-output.json");
   let employers: Keypair[] = [];
   let workers: Keypair[] = [];
 
   if (fs.existsSync(outPath)) {
     console.log("Reusing existing keypairs from seed-output.json...");
-    const existing = JSON.parse(fs.readFileSync(outPath, 'utf-8'));
-    employers = existing.employers.map((e: any) => Keypair.fromSecret(e.secretKey));
+    const existing = JSON.parse(fs.readFileSync(outPath, "utf-8"));
+    employers = existing.employers.map((e: any) =>
+      Keypair.fromSecret(e.secretKey),
+    );
     workers = existing.workers.map((w: any) => Keypair.fromSecret(w.secretKey));
   } else {
     console.log("Generating keypairs...");
     employers = [Keypair.random(), Keypair.random()];
-    workers = [Keypair.random(), Keypair.random(), Keypair.random(), Keypair.random(), Keypair.random()];
+    workers = [
+      Keypair.random(),
+      Keypair.random(),
+      Keypair.random(),
+      Keypair.random(),
+      Keypair.random(),
+    ];
   }
 
   for (const emp of employers) {
     await fundAccount(emp.publicKey());
     output.employers.push({
       publicKey: emp.publicKey(),
-      secretKey: emp.secret()
+      secretKey: emp.secret(),
     });
   }
 
@@ -108,7 +144,7 @@ async function run() {
     await fundAccount(w.publicKey());
     output.workers.push({
       publicKey: w.publicKey(),
-      secretKey: w.secret()
+      secretKey: w.secret(),
     });
   }
 
@@ -136,15 +172,37 @@ async function run() {
   for (let i = 0; i < 13; i++) {
     const emp = employers[i % employers.length];
     const wrk = workers[i % workers.length];
-    
+
     if (i < 10) {
-      await createStream(emp, wrk.publicKey(), totalAmount, activeRate, activeStart, activeEnd);
+      await createStream(
+        emp,
+        wrk.publicKey(),
+        totalAmount,
+        activeRate,
+        activeStart,
+        activeEnd,
+      );
       activeCount++;
-      output.activeStreams.push({ employer: emp.publicKey(), worker: wrk.publicKey(), status: "active" });
+      output.activeStreams.push({
+        employer: emp.publicKey(),
+        worker: wrk.publicKey(),
+        status: "active",
+      });
     } else {
-      await createStream(emp, wrk.publicKey(), totalAmount, expiredRate, expiredStart, expiredEnd);
+      await createStream(
+        emp,
+        wrk.publicKey(),
+        totalAmount,
+        expiredRate,
+        expiredStart,
+        expiredEnd,
+      );
       expiredCount++;
-      output.expiredStreams.push({ employer: emp.publicKey(), worker: wrk.publicKey(), status: "expired" });
+      output.expiredStreams.push({
+        employer: emp.publicKey(),
+        worker: wrk.publicKey(),
+        status: "expired",
+      });
     }
   }
 
@@ -152,7 +210,7 @@ async function run() {
   console.log(`Seed script completed successfully! Data saved to ${outPath}`);
 }
 
-run().catch(err => {
+run().catch((err) => {
   console.error("Seed script failed:", err);
   process.exit(1);
 });
