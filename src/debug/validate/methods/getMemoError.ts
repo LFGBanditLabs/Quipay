@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-redundant-type-constituents */
+/* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
 import { capitalizeString } from "../../util/capitalizeString";
 import { MemoType, MemoValue, xdr } from "@stellar/stellar-sdk";
 

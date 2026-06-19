@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
 import type { JSONSchema7 } from "json-schema";
 import { Button, Card, Icon, Text } from "@stellar/design-system";
 import { get } from "lodash";
