@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { Layout, Code, Card, Button, Input } from "@stellar/design-system";
 import { Client } from "@stellar/stellar-sdk/contract";
 import { ContractForm } from "../debug/components/ContractForm.tsx";
@@ -11,27 +11,27 @@ import { Spinner } from "../components/Loading";
 
 const Debugger: React.FC = () => {
   const { data, isLoading } = useContracts();
-  const contractMap = useMemo(
-    () => data?.loadedContracts ?? {},
-    [data?.loadedContracts],
-  );
-  const failedContracts = useMemo(
-    () => data?.failed ?? {},
-    [data?.failed],
-  );
+  const contractMap = data?.loadedContracts ?? {};
+  const failedContracts = data?.failed ?? {};
   const navigate = useNavigate();
 
   const [selectedContract, setSelectedContract] = useState<string>("");
   const [isDetailExpanded, setIsDetailExpanded] = useState(false);
   const { contractName } = useParams<{ contractName?: string }>();
 
-  const contractKeys = useMemo(
-    () =>
-      Array.from(
-        new Set([...Object.keys(contractMap), ...Object.keys(failedContracts)]),
-      ),
-    [contractMap, failedContracts],
+  const contractKeys = Array.from(
+    new Set([...Object.keys(contractMap), ...Object.keys(failedContracts)]),
   );
+  useEffect(() => {
+    if (!isLoading && contractKeys.length > 0) {
+      if (contractName && contractKeys.includes(contractName)) {
+        setSelectedContract(contractName);
+      } else {
+        setSelectedContract(contractKeys[0]);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contractName, isLoading, contractKeys.join(",")]);
 
   useEffect(() => {
     if (!isLoading && contractKeys.length > 0) {
@@ -43,7 +43,8 @@ const Debugger: React.FC = () => {
         setSelectedContract(contractKeys[0]);
       }
     }
-  }, [contractName, isLoading, contractKeys, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contractName, isLoading, contractKeys.join(",")]);
 
   if (isLoading) {
     return (

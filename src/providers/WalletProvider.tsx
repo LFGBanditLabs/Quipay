@@ -121,6 +121,14 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
 
   const clearError = useCallback(() => setConnectionError(undefined), []);
 
+  const disconnect = useCallback(async () => {
+    await disconnectWallet();
+    // Clear all cached queries to remove any contract client data
+    queryClient.clear();
+    nullify();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryClient]);
+
   const nullify = () => {
     handleSetAddress(undefined);
     setAccounts([]);
@@ -133,13 +141,6 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
     storage.setItem("walletNetwork", "");
     storage.setItem("networkPassphrase", "");
   };
-
-  const disconnect = useCallback(async () => {
-    await disconnectWallet();
-    // Clear all cached queries to remove any contract client data
-    queryClient.clear();
-    nullify();
-  }, [queryClient]);
 
   const updateBalances = useCallback(async () => {
     if (!address) {
@@ -158,7 +159,7 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
     void updateBalances();
   }, [updateBalances]);
 
-  const updateCurrentWalletState = useCallback(async () => {
+  const updateCurrentWalletState = async () => {
     // There is no way, with StellarWalletsKit, to check if the wallet is
     // installed/connected/authorized. We need to manage that on our side by
     // checking our storage item.
@@ -218,7 +219,7 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
         popupLock.current = false;
       }
     }
-  }, [address, network, networkPassphrase]);
+  };
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -254,7 +255,7 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       isMounted = false;
       if (timer) clearTimeout(timer);
     };
-  }, [updateCurrentWalletState, startTransition]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- it SHOULD only run once per component mount
 
   const contextValue = useMemo(
     () => ({
