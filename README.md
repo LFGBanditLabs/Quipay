@@ -116,6 +116,12 @@ npm run dev
 
 Frontend runs at **http://localhost:5173**
 
+# Start dev server
+npm run dev
+```
+
+Frontend runs at **http://localhost:5173**
+
 ### Full stack with Docker
 
 ```bash

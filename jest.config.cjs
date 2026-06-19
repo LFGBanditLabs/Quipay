@@ -19,6 +19,7 @@ module.exports = {
         diagnostics: false,
       },
     ],
+    "^.+\\.(ts|tsx)$": "<rootDir>/jest.transform.cjs",
   },
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
 };
