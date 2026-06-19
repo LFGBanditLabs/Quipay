@@ -64,12 +64,12 @@ async function createStream(employer: Keypair, worker: string, amount: bigint, r
   console.log(`Tx submitted: ${hash}. Waiting for confirmation...`);
   
   let statusResponse = await server.getTransaction(hash);
-  while (statusResponse.status === SorobanRpc.Api.GetTransactionStatus.NOT_FOUND || statusResponse.status === SorobanRpc.Api.GetTransactionStatus.PENDING) {
+  while (statusResponse.status === "NOT_FOUND" || statusResponse.status === "PENDING") {
     await new Promise(resolve => setTimeout(resolve, 2000));
     statusResponse = await server.getTransaction(hash);
   }
   
-  if (statusResponse.status === SorobanRpc.Api.GetTransactionStatus.SUCCESS) {
+  if (statusResponse.status === "SUCCESS") {
     console.log(`Stream created successfully in tx ${hash}`);
   } else {
     throw new Error(`Tx failed: ${hash}`);
@@ -81,9 +81,20 @@ async function run() {
   
   const output: any = { employers: [], workers: [], activeStreams: [], expiredStreams: [] };
 
-  console.log("Generating keypairs...");
-  const employers = [Keypair.random(), Keypair.random()];
-  const workers = [Keypair.random(), Keypair.random(), Keypair.random(), Keypair.random(), Keypair.random()];
+  const outPath = path.resolve(__dirname, '../seed-output.json');
+  let employers: Keypair[] = [];
+  let workers: Keypair[] = [];
+
+  if (fs.existsSync(outPath)) {
+    console.log("Reusing existing keypairs from seed-output.json...");
+    const existing = JSON.parse(fs.readFileSync(outPath, 'utf-8'));
+    employers = existing.employers.map((e: any) => Keypair.fromSecret(e.secretKey));
+    workers = existing.workers.map((w: any) => Keypair.fromSecret(w.secretKey));
+  } else {
+    console.log("Generating keypairs...");
+    employers = [Keypair.random(), Keypair.random()];
+    workers = [Keypair.random(), Keypair.random(), Keypair.random(), Keypair.random(), Keypair.random()];
+  }
 
   for (const emp of employers) {
     await fundAccount(emp.publicKey());
@@ -137,7 +148,6 @@ async function run() {
     }
   }
 
-  const outPath = path.resolve(__dirname, '../seed-output.json');
   fs.writeFileSync(outPath, JSON.stringify(output, null, 2));
   console.log(`Seed script completed successfully! Data saved to ${outPath}`);
 }
