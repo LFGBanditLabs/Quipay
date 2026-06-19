@@ -97,14 +97,22 @@ const CreateStream: React.FC = () => {
   const cliffTs = cliffDate ? toUnixSec(cliffDate) : startTs;
   const durDays = startTs && endTs ? Math.round((endTs - startTs) / 86400) : 0;
 
+  const dateError =
+    endTs && startTs && endTs <= startTs
+      ? "End date must be after start date"
+      : cliffTs && startTs && cliffTs < startTs
+        ? "Cliff must be on or after start date"
+        : cliffTs && endTs && cliffTs > endTs
+          ? "Cliff cannot be after end date"
+          : null;
+
   const canSubmit =
+    !dateError &&
     !!address &&
     selectedWorkers.length > 0 &&
     selectedWorkers.every((w) => parseFloat(amounts[w.wallet] ?? "") > 0) &&
     startDate.length > 0 &&
-    endDate.length > 0 &&
-    endTs > startTs &&
-    (!cliffDate || (cliffTs >= startTs && cliffTs <= endTs));
+    endDate.length > 0;
 
   const missingAmounts = selectedWorkers.filter(
     (w) => !(parseFloat(amounts[w.wallet] ?? "") > 0),
@@ -554,6 +562,26 @@ const CreateStream: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {dateError && (
+                <div className="mt-4 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-4 py-3">
+                  <svg
+                    className="h-4 w-4 shrink-0 text-red-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <p className="text-[12px] font-medium text-red-400">
+                    {dateError}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Summary */}
