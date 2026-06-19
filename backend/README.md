@@ -62,22 +62,22 @@ npm run dlq:worker
 ### Basic Webhook Delivery
 
 ```typescript
-import { webhookDelivery } from './src/delivery.js';
+import { webhookDelivery } from "./src/delivery.js";
 
 // Deliver a payroll completion event
 const result = await webhookDelivery.deliverPayrollEvent(
-  'https://customer-api.example.com/webhooks',
-  'completed',
+  "https://customer-api.example.com/webhooks",
+  "completed",
   {
-    payrollId: 'payroll_123',
-    employerId: 'emp_456',
-    amount: '1500.00',
-    currency: 'USDC'
-  }
+    payrollId: "payroll_123",
+    employerId: "emp_456",
+    amount: "1500.00",
+    currency: "USDC",
+  },
 );
 
 if (!result.success) {
-  console.log('Webhook added to DLQ for retry:', result.error);
+  console.log("Webhook added to DLQ for retry:", result.error);
 }
 ```
 
@@ -102,25 +102,26 @@ curl -X POST http://localhost:3000/api/dlq/worker/stop
 
 ### DLQ Management
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/dlq/stats` | GET | Get DLQ statistics and worker status |
-| `/api/dlq/failed` | GET | List permanently failed webhook entries |
-| `/api/dlq/retry-all` | POST | Manually process all pending retries |
-| `/api/dlq/worker/start` | POST | Start the DLQ retry worker |
-| `/api/dlq/worker/stop` | POST | Stop the DLQ retry worker |
+| Endpoint                | Method | Description                             |
+| ----------------------- | ------ | --------------------------------------- |
+| `/api/dlq/stats`        | GET    | Get DLQ statistics and worker status    |
+| `/api/dlq/failed`       | GET    | List permanently failed webhook entries |
+| `/api/dlq/retry-all`    | POST   | Manually process all pending retries    |
+| `/api/dlq/worker/start` | POST   | Start the DLQ retry worker              |
+| `/api/dlq/worker/stop`  | POST   | Stop the DLQ retry worker               |
 
 ### Webhook Delivery
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/webhooks/send` | POST | Send a webhook (with DLQ fallback) |
-| `/api/payroll/events/completed` | POST | Trigger payroll completion webhook |
-| `/api/payroll/events/failed` | POST | Trigger payroll failure webhook |
+| Endpoint                        | Method | Description                        |
+| ------------------------------- | ------ | ---------------------------------- |
+| `/api/webhooks/send`            | POST   | Send a webhook (with DLQ fallback) |
+| `/api/payroll/events/completed` | POST   | Trigger payroll completion webhook |
+| `/api/payroll/events/failed`    | POST   | Trigger payroll failure webhook    |
 
 ### Request Examples
 
 **Send Custom Webhook:**
+
 ```json
 POST /api/webhooks/send
 {
@@ -137,12 +138,13 @@ POST /api/webhooks/send
 ```
 
 **Payroll Event:**
+
 ```json
 POST /api/payroll/events/completed
 {
   "payrollData": {
     "payrollId": "payroll_123",
-    "employerId": "emp_456", 
+    "employerId": "emp_456",
     "totalAmount": "5000.00",
     "workerCount": 10
   },
@@ -154,13 +156,13 @@ POST /api/payroll/events/completed
 
 The DLQ system uses exponential backoff for retries:
 
-| Retry # | Delay | 
-|---------|-------|
-| 1 | 30 seconds |
-| 2 | 2 minutes |
-| 3 | 10 minutes |
-| 4 | 1 hour |
-| 5 | 6 hours |
+| Retry # | Delay      |
+| ------- | ---------- |
+| 1       | 30 seconds |
+| 2       | 2 minutes  |
+| 3       | 10 minutes |
+| 4       | 1 hour     |
+| 5       | 6 hours    |
 
 After 5 failed attempts, webhooks are marked as permanently failed and an audit event is emitted.
 
@@ -206,7 +208,7 @@ Critical events are emitted for audit trail:
 
 - `webhook.added_to_dlq` - Initial failure, added to retry queue
 - `webhook.retry_success` - Successful retry after failure
-- `webhook.retry_failed` - Retry attempt failed  
+- `webhook.retry_failed` - Retry attempt failed
 - `webhook.permanently_failed` - Permanently failed after max retries
 
 ### Metrics
@@ -214,7 +216,7 @@ Critical events are emitted for audit trail:
 Monitor these key metrics:
 
 - **DLQ queue depth** - Number of pending/retrying entries
-- **Success rate** - Percentage of successful deliveries  
+- **Success rate** - Percentage of successful deliveries
 - **Retry success rate** - Percentage of retries that succeed
 - **Permanent failure rate** - Webhooks that exhaust all retries
 - **Average retry count** - How many retries typically needed
@@ -290,10 +292,11 @@ curl http://localhost:3000/health
 ```
 
 Returns:
+
 ```json
 {
   "status": "ok",
-  "service": "quipay-webhook-service", 
+  "service": "quipay-webhook-service",
   "timestamp": "2023-12-21T10:30:00.000Z"
 }
 ```
@@ -303,17 +306,20 @@ Returns:
 ### Common Issues
 
 **DLQ entries not being retried:**
+
 - Check if DLQ worker is running: `GET /api/dlq/stats`
 - Check logs for worker errors
 - Verify next_retry timestamps are not in the future
 
 **High permanent failure rate:**
+
 - Check target webhook URLs are reachable
 - Verify webhook endpoints accept POST requests with JSON
 - Review error messages in DLQ entries
 
 **Performance issues:**
-- Monitor concurrent retry limit (default: 5)  
+
+- Monitor concurrent retry limit (default: 5)
 - Check database query performance on DLQ table
 - Consider database indexing for large DLQ tables
 
