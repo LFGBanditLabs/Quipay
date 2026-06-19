@@ -11,8 +11,14 @@ import { Spinner } from "../components/Loading";
 
 const Debugger: React.FC = () => {
   const { data, isLoading } = useContracts();
-  const contractMap = data?.loadedContracts ?? {};
-  const failedContracts = data?.failed ?? {};
+  const contractMap = useMemo(
+    () => data?.loadedContracts ?? {},
+    [data?.loadedContracts],
+  );
+  const failedContracts = useMemo(
+    () => data?.failed ?? {},
+    [data?.failed],
+  );
   const navigate = useNavigate();
 
   const [selectedContract, setSelectedContract] = useState<string>("");
