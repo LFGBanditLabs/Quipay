@@ -22,16 +22,6 @@ const Debugger: React.FC = () => {
   const contractKeys = Array.from(
     new Set([...Object.keys(contractMap), ...Object.keys(failedContracts)]),
   );
-  useEffect(() => {
-    if (!isLoading && contractKeys.length > 0) {
-      if (contractName && contractKeys.includes(contractName)) {
-        setSelectedContract(contractName);
-      } else {
-        setSelectedContract(contractKeys[0]);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contractName, isLoading, contractKeys.join(",")]);
 
   useEffect(() => {
     if (!isLoading && contractKeys.length > 0) {
@@ -43,8 +33,7 @@ const Debugger: React.FC = () => {
         setSelectedContract(contractKeys[0]);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contractName, isLoading, contractKeys.join(",")]);
+  }, [contractName, isLoading, contractKeys, navigate]);
 
   if (isLoading) {
     return (
