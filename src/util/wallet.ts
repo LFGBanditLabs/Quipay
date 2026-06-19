@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
 import storage from "./storage";
 import {
   ISupportedWallet,

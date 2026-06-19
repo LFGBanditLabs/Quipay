@@ -371,9 +371,9 @@ export async function getWithdrawable(
  * Submits a signed transaction XDR to the Soroban RPC and polls until
  * it is confirmed (SUCCESS) or fails.
  *
- * Uses exponential backoff with jitter and NOT_FOUND streak guard to minimize
- * RPC load and prevent thundering-herd effects while maintaining responsiveness
- * during high-traffic periods.
+ * Uses exponential backoff with jitter to reduce RPC load and prevent
+ * thundering-herd effects during high-traffic periods while maintaining
+ * the same ~30 second total timeout as the original implementation.
  *
  * Returns the transaction hash on success.
  */
@@ -397,12 +397,12 @@ export async function submitAndAwaitTx(signedTxXdr: string): Promise<string> {
   // Polling configuration
   let attempts = 0;
   const maxAttempts = 30;
-  const baseDelayMs = 500; // Start at 500ms instead of 1s
-  const maxDelayMs = 8000; // Cap at 8 seconds
+  const timeoutMs = 30000; // 30 second total timeout (unchanged from original)
+  const baseDelayMs = 500; // Start at 500ms
+  const maxDelayMs = 2000; // Cap at 2 seconds to keep total time ~30s
   const jitterFactor = 0.3; // ±30% randomness
-  const notFoundStreakLimit = 5; // Bail after 5 consecutive NOT_FOUND responses
 
-  let notFoundStreak = 0;
+  const startTime = Date.now();
 
   while (attempts < maxAttempts) {
     const statusResponse = await server.getTransaction(hash);
@@ -415,20 +415,15 @@ export async function submitAndAwaitTx(signedTxXdr: string): Promise<string> {
       throw new Error(`Transaction failed on-chain. Hash: ${hash}`);
     }
 
-    // Track NOT_FOUND streak to detect invalid/dropped transactions early
-    if (
-      statusResponse.status === SorobanRpc.Api.GetTransactionStatus.NOT_FOUND
-    ) {
-      notFoundStreak++;
-      if (notFoundStreak >= notFoundStreakLimit) {
-        throw new Error(
-          `Transaction not found after ${notFoundStreak} consecutive polls. ` +
-            `It may have been dropped from the mempool or is invalid. Hash: ${hash}`,
-        );
-      }
-    } else {
-      // PENDING — reset the streak
-      notFoundStreak = 0;
+    // NOT_FOUND and PENDING are both treated as "still processing"
+    // NOT_FOUND is normal during congestion and does not indicate a dropped transaction
+
+    // Check elapsed time
+    const elapsed = Date.now() - startTime;
+    if (elapsed >= timeoutMs) {
+      throw new Error(
+        `Transaction confirmation timed out after ${Math.ceil(elapsed / 1000)}s. Hash: ${hash}`,
+      );
     }
 
     // Calculate exponential backoff: baseDelay * 2^attempts, capped at maxDelay
@@ -439,14 +434,14 @@ export async function submitAndAwaitTx(signedTxXdr: string): Promise<string> {
 
     // Add jitter: randomize by ±jitterFactor to prevent thundering herd
     const jitter = exponentialDelay * jitterFactor * (Math.random() * 2 - 1);
-    const delayMs = Math.max(0, exponentialDelay + jitter);
+    const delayMs = exponentialDelay + jitter;
 
     await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
     attempts++;
   }
 
   throw new Error(
-    `Transaction confirmation timed out after ${maxAttempts} attempts (~${Math.ceil((maxDelayMs * maxAttempts) / 1000)}s max). Hash: ${hash}`,
+    `Transaction confirmation timed out after ${maxAttempts} attempts (~${Math.ceil((Date.now() - startTime) / 1000)}s). Hash: ${hash}`,
   );
 }
 

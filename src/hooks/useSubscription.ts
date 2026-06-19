@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/immutability */
 import * as React from "react";
 import { Server, Api } from "@stellar/stellar-sdk/rpc";
 import { xdr } from "@stellar/stellar-sdk";

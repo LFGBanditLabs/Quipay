@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
 import { Button, Card, Link, Text } from "@stellar/design-system";
 import { Box } from "../../components/layout/Box";
 import { useState } from "react";

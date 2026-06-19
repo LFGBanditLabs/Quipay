@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 /**
  * TransactionSimulationModal.tsx
  * Quipay — Pre-signing transaction simulation preview modal
