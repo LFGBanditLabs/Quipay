@@ -1,8 +1,8 @@
-import cron from 'node-cron';
-import { dlqManager } from '../db/dlq.js';
-import { webhookDelivery } from '../delivery.js';
-import { logger } from '../utils/logger.js';
-import { auditEvents } from '../utils/auditEvents.js';
+import cron from "node-cron";
+import { dlqManager } from "../db/dlq.js";
+import { webhookDelivery } from "../delivery.js";
+import { logger } from "../utils/logger.js";
+import { auditEvents } from "../utils/auditEvents.js";
 
 export class DLQRetryWorker {
   private isRunning = false;
@@ -10,32 +10,36 @@ export class DLQRetryWorker {
   private maxConcurrentRetries = 5;
 
   constructor() {
-    logger.info('DLQ Retry Worker initialized');
+    logger.info("DLQ Retry Worker initialized");
   }
 
   start(): void {
     if (this.isRunning) {
-      logger.warn('DLQ Retry Worker already running');
+      logger.warn("DLQ Retry Worker already running");
       return;
     }
 
     // Run every minute to check for retryable entries
-    this.cronJob = cron.schedule('* * * * *', async () => {
-      await this.processRetries();
-    }, {
-      scheduled: false,
-      name: 'dlq-retry-worker'
-    });
+    this.cronJob = cron.schedule(
+      "* * * * *",
+      async () => {
+        await this.processRetries();
+      },
+      {
+        scheduled: false,
+        name: "dlq-retry-worker",
+      },
+    );
 
     this.cronJob.start();
     this.isRunning = true;
 
-    logger.info('DLQ Retry Worker started - checking for retries every minute');
+    logger.info("DLQ Retry Worker started - checking for retries every minute");
   }
 
   stop(): void {
     if (!this.isRunning || !this.cronJob) {
-      logger.warn('DLQ Retry Worker not running');
+      logger.warn("DLQ Retry Worker not running");
       return;
     }
 
@@ -43,7 +47,7 @@ export class DLQRetryWorker {
     this.cronJob = null;
     this.isRunning = false;
 
-    logger.info('DLQ Retry Worker stopped');
+    logger.info("DLQ Retry Worker stopped");
   }
 
   async processRetries(): Promise<void> {
@@ -52,51 +56,54 @@ export class DLQRetryWorker {
     }
 
     try {
-      logger.debug('Checking for retryable DLQ entries');
-      
+      logger.debug("Checking for retryable DLQ entries");
+
       const retryableEntries = await dlqManager.getRetryableEntries();
-      
+
       if (retryableEntries.length === 0) {
-        logger.debug('No DLQ entries ready for retry');
+        logger.debug("No DLQ entries ready for retry");
         return;
       }
 
-      logger.info(`Found ${retryableEntries.length} DLQ entries ready for retry`);
+      logger.info(
+        `Found ${retryableEntries.length} DLQ entries ready for retry`,
+      );
 
       // Process retries in batches to avoid overwhelming the system
-      const batches = this.chunkArray(retryableEntries, this.maxConcurrentRetries);
-      
+      const batches = this.chunkArray(
+        retryableEntries,
+        this.maxConcurrentRetries,
+      );
+
       for (const batch of batches) {
         await Promise.allSettled(
-          batch.map(entry => this.processSingleRetry(entry))
+          batch.map((entry) => this.processSingleRetry(entry)),
         );
-        
+
         // Small delay between batches to prevent overwhelming target servers
         if (batches.length > 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
-
     } catch (error) {
-      logger.error('Error processing DLQ retries:', error);
+      logger.error("Error processing DLQ retries:", error);
     }
   }
 
   private async processSingleRetry(entry: any): Promise<void> {
     try {
-      logger.info('Processing DLQ retry', {
+      logger.info("Processing DLQ retry", {
         entryId: entry.id,
         targetUrl: entry.targetUrl,
         retryCount: entry.retryCount + 1,
-        maxRetries: entry.maxRetries
+        maxRetries: entry.maxRetries,
       });
 
       await webhookDelivery.retryWebhookFromDLQ(entry.id);
-
     } catch (error) {
-      logger.error('Failed to process DLQ retry', {
+      logger.error("Failed to process DLQ retry", {
         entryId: entry.id,
-        error: String(error)
+        error: String(error),
       });
     }
   }
@@ -111,15 +118,20 @@ export class DLQRetryWorker {
 
   async getWorkerStatus(): Promise<{
     isRunning: boolean;
-    stats: { pending: number; retrying: number; success: number; failed: number };
+    stats: {
+      pending: number;
+      retrying: number;
+      success: number;
+      failed: number;
+    };
     nextScheduledRun?: string;
   }> {
     const stats = await dlqManager.getStats();
-    
+
     return {
       isRunning: this.isRunning,
       stats,
-      nextScheduledRun: this.cronJob?.nextDates(1)?.[0]?.toISOString()
+      nextScheduledRun: this.cronJob?.nextDates(1)?.[0]?.toISOString(),
     };
   }
 
@@ -128,8 +140,8 @@ export class DLQRetryWorker {
     successful: number;
     failed: number;
   }> {
-    logger.info('Processing all pending DLQ retries (manual trigger)');
-    
+    logger.info("Processing all pending DLQ retries (manual trigger)");
+
     const retryableEntries = await dlqManager.getRetryableEntries();
     let successful = 0;
     let failed = 0;
@@ -144,9 +156,9 @@ export class DLQRetryWorker {
         }
       } catch (error) {
         failed++;
-        logger.error('Manual retry failed', {
+        logger.error("Manual retry failed", {
           entryId: entry.id,
-          error: String(error)
+          error: String(error),
         });
       }
     }
@@ -154,11 +166,11 @@ export class DLQRetryWorker {
     const summary = {
       processed: retryableEntries.length,
       successful,
-      failed
+      failed,
     };
 
-    logger.info('Manual DLQ processing completed', summary);
-    
+    logger.info("Manual DLQ processing completed", summary);
+
     return summary;
   }
 }
@@ -168,19 +180,19 @@ export const dlqWorker = new DLQRetryWorker();
 
 // If running directly, start the worker
 if (import.meta.url === `file://${process.argv[1]}`) {
-  logger.info('Starting DLQ Worker in standalone mode');
-  
+  logger.info("Starting DLQ Worker in standalone mode");
+
   dlqWorker.start();
-  
+
   // Graceful shutdown
-  process.on('SIGINT', () => {
-    logger.info('Received SIGINT, shutting down DLQ Worker');
+  process.on("SIGINT", () => {
+    logger.info("Received SIGINT, shutting down DLQ Worker");
     dlqWorker.stop();
     process.exit(0);
   });
-  
-  process.on('SIGTERM', () => {
-    logger.info('Received SIGTERM, shutting down DLQ Worker');
+
+  process.on("SIGTERM", () => {
+    logger.info("Received SIGTERM, shutting down DLQ Worker");
     dlqWorker.stop();
     process.exit(0);
   });

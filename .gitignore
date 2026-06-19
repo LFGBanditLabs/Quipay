@@ -73,6 +73,7 @@ src/contracts/*
 !src/contracts/automation_gateway.ts
 !src/contracts/payroll_vault.ts
 !src/contracts/workforce_registry.ts
+!src/contracts/__tests__/
 
 # ── Build / cache artifacts (reduce clone / checkout size) ───────────────────
 
