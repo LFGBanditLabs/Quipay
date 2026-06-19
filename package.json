@@ -14,6 +14,7 @@
     "lint": "eslint .",
     "format": "prettier . --write",
     "prepare": "husky",
+    "seed": "npx tsx scripts/seed.ts",
     "test:e2e": "playwright test --ignore-snapshots",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed --ignore-snapshots",

@@ -99,6 +99,9 @@ npm run prepare
 # Copy environment config
 cp .env.example .env
 
+# Generate test data (creates consistent test dataset)
+npm run seed
+
 # Start the dev server
 npm run dev
 ```

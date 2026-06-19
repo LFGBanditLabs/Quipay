@@ -60,6 +60,7 @@ error.md
 # test output artifacts
 playwright-report/
 test-results/
+seed-output.json
 
 # generated contract clients
 packages/*
@@ -130,3 +131,4 @@ Thumbs.db
 *~
 .mcp.json
 .vercel
+issue.md

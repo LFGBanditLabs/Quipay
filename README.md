@@ -107,6 +107,9 @@ cd Quipay
 # Install dependencies
 npm install
 
+# Generate test data (optional)
+npm run seed
+
 # Start dev server
 npm run dev
 ```
