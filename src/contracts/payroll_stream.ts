@@ -446,7 +446,7 @@ export async function submitAndAwaitTx(signedTxXdr: string): Promise<string> {
   }
 
   throw new Error(
-    `Transaction confirmation timed out after ${maxAttempts} attempts (~${Math.ceil(maxDelayMs * maxAttempts / 1000)}s max). Hash: ${hash}`,
+    `Transaction confirmation timed out after ${maxAttempts} attempts (~${Math.ceil((maxDelayMs * maxAttempts) / 1000)}s max). Hash: ${hash}`,
   );
 }
 
