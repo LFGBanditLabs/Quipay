@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Layout, Code, Card, Button, Input } from "@stellar/design-system";
 import { Client } from "@stellar/stellar-sdk/contract";
 import { ContractForm } from "../debug/components/ContractForm.tsx";
@@ -19,8 +19,12 @@ const Debugger: React.FC = () => {
   const [isDetailExpanded, setIsDetailExpanded] = useState(false);
   const { contractName } = useParams<{ contractName?: string }>();
 
-  const contractKeys = Array.from(
-    new Set([...Object.keys(contractMap), ...Object.keys(failedContracts)]),
+  const contractKeys = useMemo(
+    () =>
+      Array.from(
+        new Set([...Object.keys(contractMap), ...Object.keys(failedContracts)]),
+      ),
+    [contractMap, failedContracts],
   );
 
   useEffect(() => {

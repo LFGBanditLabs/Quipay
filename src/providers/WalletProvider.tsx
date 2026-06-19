@@ -158,7 +158,7 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
     void updateBalances();
   }, [updateBalances]);
 
-  const updateCurrentWalletState = async () => {
+  const updateCurrentWalletState = useCallback(async () => {
     // There is no way, with StellarWalletsKit, to check if the wallet is
     // installed/connected/authorized. We need to manage that on our side by
     // checking our storage item.
@@ -218,7 +218,7 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
         popupLock.current = false;
       }
     }
-  };
+  }, [address, network, networkPassphrase]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
