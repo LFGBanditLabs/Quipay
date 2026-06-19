@@ -337,6 +337,8 @@
   },
   "earnings": {
     "realtime_total": "إجمالي الأرباح في الوقت الفعلي",
+    "realtime_vesting": "الاستحقاق في الوقت الفعلي",
+    "realtime_withdrawable": "متاح للسحب",
     "active_stream": "بث نشط",
     "active_streams": "عمليات بث نشطة",
     "current_flow_rate": "معدل التدفق الحالي",

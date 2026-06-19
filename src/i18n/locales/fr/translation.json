@@ -337,6 +337,8 @@
   },
   "earnings": {
     "realtime_total": "Revenus totaux en temps réel",
+    "realtime_vesting": "Acquisition en temps réel",
+    "realtime_withdrawable": "Disponible au retrait",
     "active_stream": "Flux actif",
     "active_streams": "Flux actifs",
     "current_flow_rate": "Taux de flux actuel",

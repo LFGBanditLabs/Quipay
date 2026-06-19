@@ -337,6 +337,8 @@
   },
   "earnings": {
     "realtime_total": "Real-time Total Earnings",
+    "realtime_vesting": "Real-time Vesting",
+    "realtime_withdrawable": "Available to Withdraw",
     "active_stream": "Active Stream",
     "active_streams": "Active Streams",
     "current_flow_rate": "Current Flow Rate",

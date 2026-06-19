@@ -606,6 +606,15 @@ const StreamCard: React.FC<{
     ? 0
     : Math.max(0, currentEarnings - stream.claimedAmount);
 
+  // Distinguish "locked by cliff" from "withdrawable 0 because nothing accrued".
+  // When locked by the cliff, show an explicit countdown tooltip on the button.
+  const cliffTooltip = useMemo(() => {
+    if (!isBeforeCliff) return undefined;
+    const days = Math.ceil(timeToCliff / 86400);
+    const unit = days === 1 ? "day" : "days";
+    return `Cliff not reached — unlocks in ${days} ${unit}`;
+  }, [isBeforeCliff, timeToCliff]);
+
   useEffect(() => {
     if (
       previousAvailableRef.current !== null &&
@@ -782,6 +791,12 @@ const StreamCard: React.FC<{
           <button
             onClick={() => void handleWithdraw()}
             disabled={withdrawable <= 0 || withdrawing}
+            title={
+              cliffTooltip ??
+              (withdrawable <= 0
+                ? "Nothing available to withdraw yet"
+                : undefined)
+            }
             className="flex-1 rounded-xl py-2.5 text-[13px] font-bold text-black transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
             style={{ backgroundColor: "#facc15" }}
           >
