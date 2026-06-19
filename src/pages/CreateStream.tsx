@@ -6,6 +6,7 @@ import { useWorkforceRegistry } from "../hooks/useWorkforceRegistry";
 import {
   buildBatchCreateStreamsTx,
   submitAndAwaitTx,
+  DEFAULT_MAX_SLIPPAGE_BPS,
   type BatchStreamEntry,
 } from "../contracts/payroll_stream";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
@@ -53,6 +54,16 @@ const CreateStream: React.FC = () => {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [bulkAmount, setBulkAmount] = useState("");
+
+  // ── Slippage config ───────────────────────────────────────────────────────
+  const [maxSlippageBps, setMaxSlippageBps] = useState(() => {
+    const saved = localStorage.getItem("quipay-max-slippage-bps");
+    return saved !== null ? Number(saved) : DEFAULT_MAX_SLIPPAGE_BPS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("quipay-max-slippage-bps", String(maxSlippageBps));
+  }, [maxSlippageBps]);
 
   useEffect(() => {
     if (workers.length === 0) return;
@@ -105,10 +116,17 @@ const CreateStream: React.FC = () => {
         : cliffTs && endTs && cliffTs > endTs
           ? "Cliff cannot be after end date"
           : null;
+  // ── Slippage validation ────────────────────────────────────────────────────
+  const slippageWarning = maxSlippageBps > 500 && maxSlippageBps < 10000;
+  const slippageBlocked =
+    maxSlippageBps >= 10000 ||
+    maxSlippageBps < 0 ||
+    !Number.isInteger(maxSlippageBps);
 
   const canSubmit =
     !dateError &&
     !!address &&
+    !slippageBlocked &&
     selectedWorkers.length > 0 &&
     selectedWorkers.every((w) => parseFloat(amounts[w.wallet] ?? "") > 0) &&
     startDate.length > 0 &&
@@ -144,6 +162,7 @@ const CreateStream: React.FC = () => {
           startTs,
           endTs,
           ...(cliffDate ? { cliffTs } : {}),
+          maxSlippageBps,
         };
       });
 
@@ -582,6 +601,72 @@ const CreateStream: React.FC = () => {
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* ── Advanced Settings ─────────────────────────────────────── */}
+            <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5">
+              <details className="group">
+                <summary className="cursor-pointer list-none text-[13px] font-bold text-white marker:content-none">
+                  <span className="flex items-center gap-2">
+                    <svg
+                      className="h-3.5 w-3.5 text-neutral-600 transition-transform group-open:rotate-90"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    >
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                    Advanced Settings
+                  </span>
+                </summary>
+                <div className="mt-4 flex flex-col gap-4">
+                  {/* Slippage tolerance */}
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">
+                        Max Slippage
+                      </label>
+                      <span className="font-mono text-[12px] font-semibold text-white">
+                        {maxSlippageBps} bps (
+                        {(maxSlippageBps / 100).toFixed(2)} %)
+                      </span>
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      max="9999"
+                      step="1"
+                      value={maxSlippageBps}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        const n = raw === "" ? 0 : Math.round(Number(raw));
+                        setMaxSlippageBps(n);
+                      }}
+                      className={`w-full rounded-xl border bg-black px-4 py-2.5 text-[13px] text-white focus:outline-none [color-scheme:dark] ${
+                        slippageBlocked
+                          ? "border-red-500/50 focus:border-red-500/70"
+                          : slippageWarning
+                            ? "border-yellow-400/40 focus:border-yellow-400/60"
+                            : "border-white/[0.1] focus:border-yellow-400/40"
+                      }`}
+                    />
+                    {slippageBlocked && (
+                      <p className="text-[11px] text-red-400">
+                        A slippage tolerance of 100 % disables protection. Set a
+                        value below 10 000 bps.
+                      </p>
+                    )}
+                    {slippageWarning && !slippageBlocked && (
+                      <p className="text-[11px] text-yellow-400/70">
+                        Slippage above 5 % (500 bps) increases risk of
+                        unfavorable execution.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </details>
             </div>
 
             {/* Summary */}

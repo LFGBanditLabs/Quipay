@@ -438,12 +438,10 @@ export default function Reports() {
                     </p>
                     <ResponsiveContainer width="100%" height={220}>
                       <BarChart
-                        data={workerSummary
-                          .slice(0, 8)
-                          .map((w) => ({
-                            name: shortAddr(w.addr),
-                            earned: w.earned,
-                          }))}
+                        data={workerSummary.slice(0, 8).map((w) => ({
+                          name: shortAddr(w.addr),
+                          earned: w.earned,
+                        }))}
                         margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
                       >
                         <XAxis

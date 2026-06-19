@@ -371,6 +371,10 @@ export async function getWithdrawable(
  * Submits a signed transaction XDR to the Soroban RPC and polls until
  * it is confirmed (SUCCESS) or fails.
  *
+ * Uses exponential backoff with jitter to reduce RPC load and prevent
+ * thundering-herd effects during high-traffic periods while maintaining
+ * the same ~30 second total timeout as the original implementation.
+ *
  * Returns the transaction hash on success.
  */
 export async function submitAndAwaitTx(signedTxXdr: string): Promise<string> {
@@ -390,9 +394,15 @@ export async function submitAndAwaitTx(signedTxXdr: string): Promise<string> {
 
   const hash = sendResponse.hash;
 
-  // Poll for confirmation
+  // Polling configuration
   let attempts = 0;
   const maxAttempts = 30;
+  const timeoutMs = 30000; // 30 second total timeout (unchanged from original)
+  const baseDelayMs = 500; // Start at 500ms
+  const maxDelayMs = 2000; // Cap at 2 seconds to keep total time ~30s
+  const jitterFactor = 0.3; // ±30% randomness
+
+  const startTime = Date.now();
 
   while (attempts < maxAttempts) {
     const statusResponse = await server.getTransaction(hash);
@@ -405,13 +415,33 @@ export async function submitAndAwaitTx(signedTxXdr: string): Promise<string> {
       throw new Error(`Transaction failed on-chain. Hash: ${hash}`);
     }
 
-    // PENDING / NOT_FOUND — wait and retry
-    await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+    // NOT_FOUND and PENDING are both treated as "still processing"
+    // NOT_FOUND is normal during congestion and does not indicate a dropped transaction
+
+    // Check elapsed time
+    const elapsed = Date.now() - startTime;
+    if (elapsed >= timeoutMs) {
+      throw new Error(
+        `Transaction confirmation timed out after ${Math.ceil(elapsed / 1000)}s. Hash: ${hash}`,
+      );
+    }
+
+    // Calculate exponential backoff: baseDelay * 2^attempts, capped at maxDelay
+    const exponentialDelay = Math.min(
+      baseDelayMs * Math.pow(2, attempts),
+      maxDelayMs,
+    );
+
+    // Add jitter: randomize by ±jitterFactor to prevent thundering herd
+    const jitter = exponentialDelay * jitterFactor * (Math.random() * 2 - 1);
+    const delayMs = exponentialDelay + jitter;
+
+    await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
     attempts++;
   }
 
   throw new Error(
-    `Transaction confirmation timed out after ${maxAttempts}s. Hash: ${hash}`,
+    `Transaction confirmation timed out after ${maxAttempts} attempts (~${Math.ceil((Date.now() - startTime) / 1000)}s). Hash: ${hash}`,
   );
 }
 
@@ -758,6 +788,21 @@ export async function getWorkerWithdrawalEvents(
 // ─── buildBatchCreateStreamsTx ────────────────────────────────────────────────
 
 /**
+ * Thrown when a caller provides an invalid `maxSlippageBps` value.
+ */
+export class SlippageConfigError extends TypeError {
+  constructor(value: number) {
+    super(
+      `Invalid maxSlippageBps: ${value}. Must be a non-negative integer between 0 and 9999 (values ≥ 10 000 disable slippage protection).`,
+    );
+    this.name = "SlippageConfigError";
+  }
+}
+
+/** Recommended default slippage tolerance: 100 bps = 1 %. */
+export const DEFAULT_MAX_SLIPPAGE_BPS = 100;
+
+/**
  * A single entry in a batch stream creation request.
  * Mirrors the on-chain `StreamParams` struct.
  */
@@ -772,6 +817,24 @@ export interface BatchStreamEntry {
   endTs: number;
   /** Optional cliff timestamp — defaults to startTs if omitted */
   cliffTs?: number;
+  /**
+   * Maximum acceptable slippage in basis points (0–9999).
+   * 100 bps = 1 %. Values ≥ 10 000 disable protection and are rejected.
+   */
+  maxSlippageBps: number;
+}
+
+/**
+ * Validates a single maxSlippageBps value.
+ * @throws {SlippageConfigError} if the value is invalid.
+ */
+function validateSlippage(value: number): void {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new SlippageConfigError(value);
+  }
+  if (value >= 10000) {
+    throw new SlippageConfigError(value);
+  }
 }
 
 /**
@@ -780,6 +843,11 @@ export interface BatchStreamEntry {
  * All entries must share the same employer (the connected wallet).
  * Solvency for the total batch amount must be validated before calling this
  * via `checkTreasurySolvency`.
+ *
+ * @param employer - The employer's Stellar public key.
+ * @param entries  - Batch entries. Each entry **must** include a
+ *                   `maxSlippageBps` value (0–9999). The recommended default is
+ *                   100 (1 %). Values ≥ 10 000 are rejected at the SDK boundary.
  *
  * Returns the base64-encoded prepared XDR ready for signing.
  */
@@ -806,6 +874,7 @@ export async function buildBatchCreateStreamsTx(
   //   max_slippage_bps, metadata_hash, rate, speed_curve, start_ts, token, worker
   const paramsVec = xdr.ScVal.scvVec(
     entries.map((e) => {
+      validateSlippage(e.maxSlippageBps);
       const cliffTs = e.cliffTs ?? e.startTs;
       return xdr.ScVal.scvMap([
         new xdr.ScMapEntry({
@@ -826,7 +895,7 @@ export async function buildBatchCreateStreamsTx(
         }),
         new xdr.ScMapEntry({
           key: xdr.ScVal.scvSymbol("max_slippage_bps"),
-          val: nativeToScVal(10000, { type: "u32" }), // 100% — no slippage check
+          val: nativeToScVal(e.maxSlippageBps, { type: "u32" }),
         }),
         new xdr.ScMapEntry({
           key: xdr.ScVal.scvSymbol("metadata_hash"),

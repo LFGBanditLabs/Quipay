@@ -11,14 +11,7 @@ module.exports = {
   },
   setupFilesAfterEnv: ["<rootDir>/src/test/jest.setup.ts"],
   transform: {
-    "^.+\\.(ts|tsx)$": [
-      "ts-jest",
-      {
-        tsconfig: "<rootDir>/tsconfig.app.json",
-        isolatedModules: true,
-        diagnostics: false,
-      },
-    ],
+    "^.+\\.(ts|tsx)$": "<rootDir>/jest.transform.cjs",
   },
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
 };
