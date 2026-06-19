@@ -58,7 +58,9 @@ describe("submitAndAwaitTx exponential backoff", () => {
 
     // Mock getRpcServer to return our mock
     const originalModule = jest.requireActual("../payroll_stream");
-    jest.spyOn(originalModule as any, "getRpcServer").mockReturnValue(mockServer);
+    jest
+      .spyOn(originalModule as any, "getRpcServer")
+      .mockReturnValue(mockServer);
 
     const promise = originalModule.submitAndAwaitTx("fake-xdr");
 
@@ -89,7 +91,9 @@ describe("submitAndAwaitTx exponential backoff", () => {
     });
 
     const originalModule = jest.requireActual("../payroll_stream");
-    jest.spyOn(originalModule as any, "getRpcServer").mockReturnValue(mockServer);
+    jest
+      .spyOn(originalModule as any, "getRpcServer")
+      .mockReturnValue(mockServer);
 
     const promise = originalModule.submitAndAwaitTx("fake-xdr");
 
@@ -110,7 +114,9 @@ describe("submitAndAwaitTx exponential backoff", () => {
     });
 
     const originalModule = jest.requireActual("../payroll_stream");
-    jest.spyOn(originalModule as any, "getRpcServer").mockReturnValue(mockServer);
+    jest
+      .spyOn(originalModule as any, "getRpcServer")
+      .mockReturnValue(mockServer);
 
     const promise = originalModule.submitAndAwaitTx("fake-xdr");
 
@@ -127,7 +133,9 @@ describe("submitAndAwaitTx exponential backoff", () => {
     });
 
     const originalModule = jest.requireActual("../payroll_stream");
-    jest.spyOn(originalModule as any, "getRpcServer").mockReturnValue(mockServer);
+    jest
+      .spyOn(originalModule as any, "getRpcServer")
+      .mockReturnValue(mockServer);
 
     await expect(originalModule.submitAndAwaitTx("fake-xdr")).rejects.toThrow(
       "Transaction submission failed",
@@ -152,7 +160,9 @@ describe("submitAndAwaitTx exponential backoff", () => {
     });
 
     const originalModule = jest.requireActual("../payroll_stream");
-    jest.spyOn(originalModule as any, "getRpcServer").mockReturnValue(mockServer);
+    jest
+      .spyOn(originalModule as any, "getRpcServer")
+      .mockReturnValue(mockServer);
 
     const promise = originalModule.submitAndAwaitTx("fake-xdr");
 
