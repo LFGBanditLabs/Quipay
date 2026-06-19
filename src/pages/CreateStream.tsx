@@ -113,7 +113,7 @@ const CreateStream: React.FC = () => {
   const slippageBlocked =
     maxSlippageBps >= 10000 ||
     maxSlippageBps < 0 ||
-    !Number.isInteger(Number(maxSlippageBps));
+    !Number.isInteger(maxSlippageBps);
 
   const canSubmit =
     !!address &&
@@ -614,7 +614,8 @@ const CreateStream: React.FC = () => {
                       value={maxSlippageBps}
                       onChange={(e) => {
                         const raw = e.target.value;
-                        setMaxSlippageBps(raw === "" ? 0 : Number(raw));
+                        const n = raw === "" ? 0 : Math.round(Number(raw));
+                        setMaxSlippageBps(n);
                       }}
                       className={`w-full rounded-xl border bg-black px-4 py-2.5 text-[13px] text-white focus:outline-none [color-scheme:dark] ${
                         slippageBlocked
