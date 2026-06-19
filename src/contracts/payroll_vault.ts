@@ -59,15 +59,12 @@ function getRpcServer(): SorobanRpc.Server {
   return new SorobanRpc.Server(rpcUrl, { allowHttp: true });
 }
 
-/**
- * Converts a token string to a ScVal suitable for the contract.
- * Empty string → native XLM address bytes.
- */
+// Native XLM SAC on testnet — always pass the real contract address
+const XLM_SAC = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+
 function tokenToScVal(token: string): ReturnType<typeof nativeToScVal> {
-  if (!token || token === "native") {
-    return nativeToScVal(null, { type: "address" });
-  }
-  return new Address(token).toScVal();
+  const addr = !token || token === "native" ? XLM_SAC : token;
+  return new Address(addr).toScVal();
 }
 
 /**
@@ -79,12 +76,9 @@ async function simulateContractRead<T>(
 ): Promise<T | null> {
   const server = getRpcServer();
 
-  let source = await server.getAccount(sourceAddress).catch(() => null);
-  if (!source && PAYROLL_VAULT_CONTRACT_ID) {
-    source = await server
-      .getAccount(PAYROLL_VAULT_CONTRACT_ID)
-      .catch(() => null);
-  }
+  // Only G... accounts exist in the ledger AccountEntry store.
+  // Fetch the real account so we get the correct sequence number.
+  const source = await server.getAccount(sourceAddress).catch(() => null);
   if (!source) return null;
 
   const tx = new TransactionBuilder(source, { fee: "100", networkPassphrase })
@@ -92,15 +86,20 @@ async function simulateContractRead<T>(
     .setTimeout(10)
     .build();
 
-  const response = await server.simulateTransaction(tx);
-  if (SorobanRpc.Api.isSimulationError(response)) return null;
+  try {
+    const response = await server.simulateTransaction(tx);
+    if (SorobanRpc.Api.isSimulationError(response)) return null;
 
-  const retval = (response as SorobanRpc.Api.SimulateTransactionSuccessResponse)
-    .result?.retval;
-  if (!retval) return null;
+    const retval = (
+      response as SorobanRpc.Api.SimulateTransactionSuccessResponse
+    ).result?.retval;
+    if (!retval) return null;
 
-  const native = scValToNative(retval) as T | undefined;
-  return native ?? null;
+    const native = scValToNative(retval) as T | undefined;
+    return native ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ─── buildDepositTx ─────────────────────────────────────────────────────────
@@ -134,7 +133,48 @@ export async function buildDepositTx(
         nativeToScVal(amount, { type: "i128" }),
       ),
     )
-    .setTimeout(30)
+    .setTimeout(300)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  return { preparedXdr: prepared.toXDR() };
+}
+
+// ─── buildVaultWithdrawTx ────────────────────────────────────────────────────
+
+/**
+ * Builds a `withdraw` transaction so the admin can pull funds back out
+ * of the vault to a given address.
+ *
+ * Signature: withdraw(to: Address, token: Address, amount: i128)
+ */
+export async function buildVaultWithdrawTx(
+  adminAddress: string,
+  toAddress: string,
+  token: string,
+  amount: bigint,
+): Promise<{ preparedXdr: string }> {
+  if (!PAYROLL_VAULT_CONTRACT_ID) {
+    throw new Error("VITE_PAYROLL_VAULT_CONTRACT_ID is not set.");
+  }
+
+  const server = getRpcServer();
+  const account = await server.getAccount(adminAddress);
+  const contract = new Contract(PAYROLL_VAULT_CONTRACT_ID);
+
+  const tx = new TransactionBuilder(account, {
+    fee: "1000000",
+    networkPassphrase,
+  })
+    .addOperation(
+      contract.call(
+        "withdraw",
+        new Address(toAddress).toScVal(),
+        tokenToScVal(token),
+        nativeToScVal(amount, { type: "i128" }),
+      ),
+    )
+    .setTimeout(300)
     .build();
 
   const prepared = await server.prepareTransaction(tx);
@@ -144,22 +184,43 @@ export async function buildDepositTx(
 // ─── getVaultBalance ─────────────────────────────────────────────────────────
 
 /**
+ * Returns ONLY this employer's deposited balance for a token.
+ * Each employer has their own balance — calling the global get_balance would
+ * show the combined balance of all employers, which is wrong.
+ */
+export async function getEmployerVaultBalance(
+  employerAddress: string,
+  token: string,
+): Promise<bigint | null> {
+  if (!PAYROLL_VAULT_CONTRACT_ID) return null;
+  const contract = new Contract(PAYROLL_VAULT_CONTRACT_ID);
+  return simulateContractRead<bigint>(
+    employerAddress,
+    contract.call(
+      "get_employer_balance",
+      new Address(employerAddress).toScVal(),
+      tokenToScVal(token),
+    ),
+  );
+}
+
+/**
  * Calls `get_balance` on the PayrollVault contract to get the total balance
  * for a specific token.
  *
  * @param token Token contract address (or empty string for XLM)
  * @returns Balance in stroops, or null if error
  */
-export async function getVaultBalance(token: string): Promise<bigint | null> {
+export async function getVaultBalance(
+  token: string,
+  sourceAddress: string,
+): Promise<bigint | null> {
   if (!PAYROLL_VAULT_CONTRACT_ID) return null;
-
   const contract = new Contract(PAYROLL_VAULT_CONTRACT_ID);
-  const balance = await simulateContractRead<bigint>(
-    PAYROLL_VAULT_CONTRACT_ID,
+  return simulateContractRead<bigint>(
+    sourceAddress,
     contract.call("get_balance", tokenToScVal(token)),
   );
-
-  return balance ?? null;
 }
 
 // ─── getVaultLiability ───────────────────────────────────────────────────────
@@ -171,16 +232,16 @@ export async function getVaultBalance(token: string): Promise<bigint | null> {
  * @param token Token contract address (or empty string for XLM)
  * @returns Liability in stroops, or null if error
  */
-export async function getVaultLiability(token: string): Promise<bigint | null> {
+export async function getVaultLiability(
+  token: string,
+  sourceAddress: string,
+): Promise<bigint | null> {
   if (!PAYROLL_VAULT_CONTRACT_ID) return null;
-
   const contract = new Contract(PAYROLL_VAULT_CONTRACT_ID);
-  const liability = await simulateContractRead<bigint>(
-    PAYROLL_VAULT_CONTRACT_ID,
+  return simulateContractRead<bigint>(
+    sourceAddress,
     contract.call("get_liability", tokenToScVal(token)),
   );
-
-  return liability ?? null;
 }
 
 // ─── getVaultAvailableBalance ────────────────────────────────────────────────
@@ -194,16 +255,14 @@ export async function getVaultLiability(token: string): Promise<bigint | null> {
  */
 export async function getVaultAvailableBalance(
   token: string,
+  sourceAddress: string,
 ): Promise<bigint | null> {
   if (!PAYROLL_VAULT_CONTRACT_ID) return null;
-
   const contract = new Contract(PAYROLL_VAULT_CONTRACT_ID);
-  const available = await simulateContractRead<bigint>(
-    PAYROLL_VAULT_CONTRACT_ID,
+  return simulateContractRead<bigint>(
+    sourceAddress,
     contract.call("get_available_balance", tokenToScVal(token)),
   );
-
-  return available ?? null;
 }
 
 // ─── getVaultData ────────────────────────────────────────────────────────────
@@ -220,62 +279,80 @@ export async function getVaultAvailableBalance(
 export async function getVaultData(
   token: string,
   tokenSymbol: string,
+  sourceAddress: string,
   monthlyBurnRate: bigint = BigInt(0),
 ): Promise<TokenVaultData | null> {
   if (!PAYROLL_VAULT_CONTRACT_ID) return null;
 
   const [balance, liability, available] = await Promise.all([
-    getVaultBalance(token),
-    getVaultLiability(token),
-    getVaultAvailableBalance(token),
+    getVaultBalance(token, sourceAddress),
+    getVaultLiability(token, sourceAddress),
+    getVaultAvailableBalance(token, sourceAddress),
   ]);
 
-  if (balance === null || liability === null || available === null) {
-    return null;
-  }
+  if (balance === null && liability === null && available === null) return null;
 
-  // Calculate runway in days
+  const bal = balance ?? BigInt(0);
+  const liab = liability ?? BigInt(0);
+  const avail = available ?? (bal > liab ? bal - liab : BigInt(0));
+
   let runwayDays = 0;
   if (monthlyBurnRate > BigInt(0)) {
     const dailyBurnRate = monthlyBurnRate / BigInt(30);
-    if (dailyBurnRate > BigInt(0)) {
-      runwayDays = Number(available / dailyBurnRate);
-    }
-  } else if (available > BigInt(0)) {
-    // If no burn rate, show infinity (use large number)
+    if (dailyBurnRate > BigInt(0)) runwayDays = Number(avail / dailyBurnRate);
+  } else if (avail > BigInt(0)) {
     runwayDays = 9999;
   }
 
   return {
     token,
     tokenSymbol,
-    balance,
-    liability,
-    available,
+    balance: bal,
+    liability: liab,
+    available: avail,
     monthlyBurnRate,
     runwayDays,
   };
 }
 
-// ─── getAllVaultData ─────────────────────────────────────────────────────────
-
-/**
- * Fetches vault data for all configured tokens (XLM and USDC by default).
- *
- * @param tokens Array of { token: string, tokenSymbol: string, monthlyBurnRate: bigint }
- * @returns Array of vault data for each token
- */
 export async function getAllVaultData(
   tokens: Array<{
     token: string;
     tokenSymbol: string;
     monthlyBurnRate: bigint;
   }>,
+  sourceAddress: string,
 ): Promise<TokenVaultData[]> {
-  const results = await Promise.all(
-    tokens.map((t) => getVaultData(t.token, t.tokenSymbol, t.monthlyBurnRate)),
-  );
+  if (!sourceAddress) return [];
 
+  // Use per-employer balance — never the global vault balance.
+  // Each employer only sees what THEY deposited.
+  const results = await Promise.all(
+    tokens.map(async (t) => {
+      const [empBalance, globalAvailable] = await Promise.all([
+        getEmployerVaultBalance(sourceAddress, t.token),
+        getVaultAvailableBalance(t.token, sourceAddress),
+      ]);
+
+      const bal = empBalance ?? BigInt(0);
+      const avail = globalAvailable ?? BigInt(0);
+      // Liability = how much of this employer's balance is committed to streams
+      const liab = bal > avail ? bal - avail : BigInt(0);
+      const empAvail = bal > liab ? bal - liab : BigInt(0);
+
+      if (bal === BigInt(0)) return null; // employer has no balance here
+
+      return {
+        token: t.token,
+        tokenSymbol: t.tokenSymbol,
+        balance: bal,
+        liability: liab,
+        available: empAvail,
+        monthlyBurnRate: t.monthlyBurnRate,
+        runwayDays: 0,
+      } as TokenVaultData;
+    }),
+  );
   return results.filter((r): r is TokenVaultData => r !== null);
 }
 

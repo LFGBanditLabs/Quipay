@@ -6,6 +6,7 @@ import {
   getWorkerWithdrawalEvents,
   ContractStream,
 } from "../contracts/payroll_stream";
+import { getCache, setCache } from "../services/offlineService";
 
 /**
  * Normalised view of a single on-chain payroll stream for a worker.
@@ -24,6 +25,8 @@ export interface WorkerStream {
   tokenSymbol: string;
   /** Stream start time as a Unix timestamp in seconds. */
   startTime: number;
+  /** Stream end time as a Unix timestamp in seconds. */
+  endTime: number;
   /** Cliff unlock time as a Unix timestamp in seconds. No withdrawals before this point. */
   cliffTime: number;
   /** Total allocated amount in token units (= on-chain `total_amount` / 10^7). */
@@ -57,13 +60,34 @@ export interface WithdrawalRecord {
 /** Stellar uses 7 decimal places (10^7 stroops = 1 token unit). */
 const STROOPS_PER_UNIT = 1e7;
 
-const BACKEND_URL =
-  import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "") ??
-  "http://localhost:3001";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "");
+const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+
+const _employerNameCache = new Map<string, string>();
+
+async function resolveEmployerName(stellarAddress: string): Promise<string> {
+  if (_employerNameCache.has(stellarAddress)) {
+    return _employerNameCache.get(stellarAddress)!;
+  }
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/employers/by-address?address=${encodeURIComponent(stellarAddress)}`,
+    );
+    const data = (await res.json()) as {
+      employer: { business_name: string } | null;
+    };
+    const name = data.employer?.business_name ?? stellarAddress;
+    _employerNameCache.set(stellarAddress, name);
+    return name;
+  } catch {
+    return stellarAddress;
+  }
+}
 
 const fetchProof = async (
   streamId: string,
 ): Promise<{ cid: string; gatewayUrl: string } | null> => {
+  if (!BACKEND_URL) return null;
   try {
     const res = await fetch(`${BACKEND_URL}/proofs/${streamId}`);
     if (!res.ok) return null;
@@ -143,13 +167,15 @@ export const useStreams = (workerAddress: string | undefined) => {
               const tokenSymbol = await getTokenSymbol(workerAddress, s.token);
               const isCompleted = s.status === 2;
               const proof = isCompleted ? await fetchProof(streamId) : null;
+              const employerName = await resolveEmployerName(s.employer);
               return {
                 id: streamId,
-                employerName: s.employer,
+                employerName,
                 employerAddress: s.employer,
                 flowRate: Number(s.rate) / STROOPS_PER_UNIT,
                 tokenSymbol,
                 startTime: Number(s.start_ts),
+                endTime: Number(s.end_ts),
                 cliffTime: Number(s.cliff_ts),
                 totalAmount: Number(s.total_amount) / STROOPS_PER_UNIT,
                 claimedAmount: Number(s.withdrawn_amount) / STROOPS_PER_UNIT,
@@ -179,12 +205,26 @@ export const useStreams = (workerAddress: string | undefined) => {
         );
 
         setWithdrawalHistory(history);
+        void setCache(`worker-streams-${workerAddress}`, workerStreams);
+        void setCache(`withdrawal-history-${workerAddress}`, history);
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Failed to load stream data";
-        setError(message);
-        setStreams([]);
-        setWithdrawalHistory([]);
+        // Try cache on failure
+        const cachedStreams = await getCache(`worker-streams-${workerAddress}`);
+        const cachedHistory = await getCache(
+          `withdrawal-history-${workerAddress}`,
+        );
+
+        if (cachedStreams || cachedHistory) {
+          setStreams(cachedStreams || []);
+          setWithdrawalHistory(cachedHistory || []);
+          setError(null); // Clear error if we have cached data
+        } else {
+          const message =
+            err instanceof Error ? err.message : "Failed to load stream data";
+          setError(message);
+          setStreams([]);
+          setWithdrawalHistory([]);
+        }
       } finally {
         setIsLoading(false);
       }

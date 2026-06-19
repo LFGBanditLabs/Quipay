@@ -120,8 +120,8 @@ const StreamTemplates: React.FC = () => {
           </div>
 
           {templates.length === 0 ? (
-            <div className="py-20 flex flex-col items-center justify-center text-center rounded-3xl border-2 border-dashed border-[var(--border)] bg-[var(--surface-subtle)]">
-              <div className="w-16 h-16 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-full flex items-center justify-center mb-4">
+            <div className="py-20 flex flex-col items-center justify-center text-center rounded-3xl border-2 border-dashed border-[rgba(255,255,255,0.07)] bg-[#0a0a0a]">
+              <div className="w-16 h-16 bg-yellow-400/10 rounded-full flex items-center justify-center mb-4">
                 <Icon name="fileText" size="lg" className="text-secondary" />
               </div>
               <Text as="h3" size="lg" weight="bold" className="mb-2">
@@ -151,7 +151,7 @@ const StreamTemplates: React.FC = () => {
               {templates.map((template) => (
                 <Card
                   key={template.id}
-                  className="p-6 rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] hover:border-indigo-500/30 hover:shadow-lg transition-all flex flex-col h-full"
+                  className="p-6 rounded-2xl border border-[rgba(255,255,255,0.07)] bg-[#0a0a0a] hover:border-white/[0.07] hover:shadow-lg transition-all flex flex-col h-full"
                 >
                   <div className="flex justify-between items-start mb-4">
                     <div>
@@ -189,7 +189,7 @@ const StreamTemplates: React.FC = () => {
                   </div>
 
                   <div className="flex-1 space-y-3 mb-6">
-                    <div className="flex justify-between border-b border-[var(--border)] pb-2">
+                    <div className="flex justify-between border-b border-[rgba(255,255,255,0.07)] pb-2">
                       <Text as="span" size="sm" variant="secondary">
                         Recipient
                       </Text>
@@ -203,7 +203,7 @@ const StreamTemplates: React.FC = () => {
                         {template.workerName || "Unnamed"}
                       </Text>
                     </div>
-                    <div className="flex justify-between border-b border-[var(--border)] pb-2">
+                    <div className="flex justify-between border-b border-[rgba(255,255,255,0.07)] pb-2">
                       <Text as="span" size="sm" variant="secondary">
                         Amount
                       </Text>
@@ -211,7 +211,7 @@ const StreamTemplates: React.FC = () => {
                         {template.amount} {template.token}
                       </Text>
                     </div>
-                    <div className="flex justify-between border-b border-[var(--border)] pb-2">
+                    <div className="flex justify-between border-b border-[rgba(255,255,255,0.07)] pb-2">
                       <Text as="span" size="sm" variant="secondary">
                         Schedule
                       </Text>
@@ -307,7 +307,7 @@ const StreamTemplates: React.FC = () => {
               <div>
                 <label className="mb-2 block text-sm font-medium">Token</label>
                 <select
-                  className="w-full rounded-lg border border-[var(--border)] px-3.5 py-2.5 text-sm transition focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-transparent)] focus:outline-none"
+                  className="w-full rounded-lg border border-[rgba(255,255,255,0.07)] px-3.5 py-2.5 text-sm transition focus:border-[#facc15] focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] focus:outline-none"
                   value={editForm.token || "USDC"}
                   onChange={(e) =>
                     setEditForm({ ...editForm, token: e.target.value })
@@ -324,7 +324,7 @@ const StreamTemplates: React.FC = () => {
                   Frequency
                 </label>
                 <select
-                  className="w-full rounded-lg border border-[var(--border)] px-3.5 py-2.5 text-sm transition focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-transparent)] focus:outline-none"
+                  className="w-full rounded-lg border border-[rgba(255,255,255,0.07)] px-3.5 py-2.5 text-sm transition focus:border-[#facc15] focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] focus:outline-none"
                   value={editForm.frequency || "monthly"}
                   onChange={(e) =>
                     setEditForm({ ...editForm, frequency: e.target.value })

@@ -27,6 +27,12 @@ const STATUS_STYLES: Record<
     border: "border-emerald-500/25",
     text: "text-emerald-300",
   },
+  paused: {
+    badge: "bg-amber-500/15 text-amber-300",
+    border: "border-amber-500/25",
+    text: "text-amber-300",
+    strokeDasharray: "2 2",
+  },
   completed: {
     badge: "bg-sky-500/15 text-sky-300",
     border: "border-sky-500/25",
@@ -108,9 +114,9 @@ const StreamComparison: React.FC = () => {
   const palette =
     theme === "dark"
       ? {
-          page: "bg-[linear-gradient(180deg,#08111f_0%,#0f172a_42%,#111827_100%)] text-slate-100",
+          page: "bg-[#0a0a0a] text-white",
           surface: "bg-white/5 border-white/10",
-          subtle: "text-slate-400",
+          subtle: "text-neutral-500",
           tooltip: {
             background: "#0f172a",
             border: "1px solid rgba(148,163,184,0.2)",
@@ -120,9 +126,9 @@ const StreamComparison: React.FC = () => {
           grid: "rgba(148,163,184,0.14)",
         }
       : {
-          page: "bg-[linear-gradient(180deg,#f7fbff_0%,#eef4ff_42%,#fefefe_100%)] text-slate-900",
-          surface: "bg-white/80 border-slate-200/80",
-          subtle: "text-slate-500",
+          page: "bg-[#0a0a0a] text-white",
+          surface: "bg-white/80 border-white/[0.07]",
+          subtle: "text-neutral-600",
           tooltip: {
             background: "#ffffff",
             border: "1px solid rgba(148,163,184,0.35)",
@@ -343,7 +349,7 @@ const StreamComparison: React.FC = () => {
                   </p>
                 </div>
                 <Link
-                  className="text-sm font-semibold text-[var(--accent)] underline-offset-4 hover:underline"
+                  className="text-sm font-semibold text-[#facc15] underline-offset-4 hover:underline"
                   to="/analytics"
                 >
                   Open full analytics

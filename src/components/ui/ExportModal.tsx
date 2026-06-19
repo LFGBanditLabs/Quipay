@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ExportFilters } from "../../util/exportData";
 
 interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: (format: "csv" | "xlsx", filters: ExportFilters) => void;
+  onExport: (format: "csv" | "xlsx" | "pdf", filters: ExportFilters) => void;
   isExporting: boolean;
 }
 
@@ -14,10 +14,56 @@ export const ExportModal = ({
   onExport,
   isExporting,
 }: ExportModalProps) => {
-  const [format, setFormat] = useState<"csv" | "xlsx">("csv");
+  const [format, setFormat] = useState<"csv" | "xlsx" | "pdf">("csv");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [status, setStatus] = useState<ExportFilters["status"]>("all");
+  const modalRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const getFocusable = () => {
+      const container = modalRef.current;
+      if (!container) return [] as HTMLElement[];
+      return Array.from(
+        container.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+    };
+
+    const focusable = getFocusable();
+    focusable[0]?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const currentFocusable = getFocusable();
+      if (currentFocusable.length === 0) return;
+
+      const first = currentFocusable[0];
+      const last = currentFocusable[currentFocusable.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -37,7 +83,10 @@ export const ExportModal = ({
       aria-modal="true"
       aria-labelledby="export-modal-title"
     >
-      <div className="w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-6 shadow-xl space-y-5">
+      <div
+        ref={modalRef}
+        className="w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-6 shadow-xl space-y-5"
+      >
         <h2
           id="export-modal-title"
           className="text-lg font-semibold text-[var(--color-text-primary)]"
@@ -51,7 +100,7 @@ export const ExportModal = ({
             Format
           </label>
           <div className="flex gap-3">
-            {(["csv", "xlsx"] as const).map((f) => (
+            {(["csv", "xlsx", "pdf"] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFormat(f)}

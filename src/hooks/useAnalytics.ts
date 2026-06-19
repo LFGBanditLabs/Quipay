@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 export interface TrendPoint {
   bucket: string;
@@ -22,6 +22,10 @@ export function useAnalytics(address?: string): AnalyticsData {
 
   useEffect(() => {
     async function fetchAnalytics() {
+      if (!API_BASE) {
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
         setError(null);

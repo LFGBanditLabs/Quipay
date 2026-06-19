@@ -334,7 +334,7 @@ export default function HelpCenter() {
           color: var(--muted);
           transition: background .2s, color .2s;
         }
-        .hc-search-clear:hover { background: var(--accent); color: #fff; }
+        .hc-search-clear:hover { background: var(--accent); color: var(--token-color-text-inverse); }
 
         .hc-stats {
           display: flex;
@@ -391,7 +391,7 @@ export default function HelpCenter() {
         .hc-chip.active {
           background: var(--accent);
           border-color: var(--accent);
-          color: #fff;
+          color: var(--token-color-text-inverse);
           box-shadow: 0 2px 12px var(--accent-transparent-strong);
         }
 
@@ -413,7 +413,7 @@ export default function HelpCenter() {
           font-size: 11px;
           font-weight: 700;
           letter-spacing: .08em;
-          color: #fff;
+          color: var(--token-color-text-inverse);
           background: var(--accent);
           border-radius: 99px;
           padding: 2px 8px;
@@ -491,14 +491,14 @@ export default function HelpCenter() {
         .hc-contact-text h3 {
           font-family: 'Playfair Display', serif;
           font-size: 22px;
-          color: #f5f3ff;
+          color: var(--token-color-neutral-50);
           margin-bottom: 6px;
         }
-        .hc-contact-text p { font-size: 14px; color: #8a7f74; line-height: 1.5; }
+        .hc-contact-text p { font-size: 14px; color: var(--token-color-neutral-300); line-height: 1.5; }
         .hc-contact-btn {
           padding: 13px 28px;
           background: var(--accent);
-          color: #fff;
+          color: var(--token-color-text-inverse);
           border: none;
           border-radius: 10px;
           font-family: 'Mulish', sans-serif;

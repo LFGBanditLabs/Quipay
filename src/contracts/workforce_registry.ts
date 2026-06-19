@@ -14,6 +14,7 @@
  */
 
 import {
+  Account,
   Contract,
   rpc as SorobanRpc,
   TransactionBuilder,
@@ -55,28 +56,38 @@ async function simulateContractRead<T>(
 ): Promise<T | null> {
   const server = getRpcServer();
 
-  let source = await server.getAccount(sourceAddress).catch(() => null);
-  if (!source && WORKFORCE_REGISTRY_CONTRACT_ID) {
-    source = await server
-      .getAccount(WORKFORCE_REGISTRY_CONTRACT_ID)
-      .catch(() => null);
+  // For G... accounts, fetch from network. For C... contracts (no AccountEntry),
+  // use a synthetic Account with seq=0 so simulation doesn't need a real account.
+  let source = sourceAddress.startsWith("G")
+    ? await server.getAccount(sourceAddress).catch(() => null)
+    : null;
+
+  if (!source) {
+    source = new Account(
+      "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
+      "0",
+    );
   }
-  if (!source) return null;
 
   const tx = new TransactionBuilder(source, { fee: "100", networkPassphrase })
     .addOperation(operation)
     .setTimeout(10)
     .build();
 
-  const response = await server.simulateTransaction(tx);
-  if (SorobanRpc.Api.isSimulationError(response)) return null;
+  try {
+    const response = await server.simulateTransaction(tx);
+    if (SorobanRpc.Api.isSimulationError(response)) return null;
 
-  const retval = (response as SorobanRpc.Api.SimulateTransactionSuccessResponse)
-    .result?.retval;
-  if (!retval) return null;
+    const retval = (
+      response as SorobanRpc.Api.SimulateTransactionSuccessResponse
+    ).result?.retval;
+    if (!retval) return null;
 
-  const native = scValToNative(retval) as T | undefined;
-  return native ?? null;
+    const native = scValToNative(retval) as T | undefined;
+    return native ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ─── getWorkersByEmployer ─────────────────────────────────────────────────────
@@ -147,6 +158,55 @@ export async function isWorkerRegistered(
   return result ?? false;
 }
 
+// ─── buildRegisterWorkerTx ───────────────────────────────────────────────────
+
+// USDC issuer on Stellar testnet (Circle)
+const USDC_TESTNET = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+
+/**
+ * Builds and prepares a `register_worker` transaction.
+ * The worker signs and is automatically added to the employer's roster
+ * in a single transaction — no separate action needed from the employer.
+ *
+ * Signature: register_worker(worker, employer, preferred_token, metadata_hash)
+ *
+ * @param worker         - Worker's Stellar address (requires_auth)
+ * @param employer       - Employer's Stellar address to register under
+ * @param preferredToken - Token address the worker prefers to be paid in
+ */
+export async function buildRegisterWorkerTx(
+  worker: string,
+  employer: string,
+  preferredToken: string = USDC_TESTNET,
+): Promise<{ preparedXdr: string }> {
+  if (!WORKFORCE_REGISTRY_CONTRACT_ID) {
+    throw new Error("VITE_WORKFORCE_REGISTRY_CONTRACT_ID is not set.");
+  }
+
+  const server = getRpcServer();
+  const account = await server.getAccount(worker);
+  const contract = new Contract(WORKFORCE_REGISTRY_CONTRACT_ID);
+
+  const tx = new TransactionBuilder(account, {
+    fee: "1000000",
+    networkPassphrase,
+  })
+    .addOperation(
+      contract.call(
+        "register_worker",
+        new Address(worker).toScVal(),
+        new Address(employer).toScVal(),
+        new Address(preferredToken).toScVal(),
+        nativeToScVal("", { type: "string" }),
+      ),
+    )
+    .setTimeout(300)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  return { preparedXdr: prepared.toXDR() };
+}
+
 // ─── buildSetStreamActiveTx ───────────────────────────────────────────────────
 
 /**
@@ -184,7 +244,7 @@ export async function buildSetStreamActiveTx(
         nativeToScVal(active, { type: "bool" }),
       ),
     )
-    .setTimeout(30)
+    .setTimeout(300)
     .build();
 
   const prepared = await server.prepareTransaction(tx);

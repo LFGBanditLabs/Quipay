@@ -1,69 +1,50 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense } from "react";
 import { Routes, Route, Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Navbar from "./components/layout/Navbar";
-import OnboardingTour from "./components/OnboardingTour";
 import Footer from "./components/layout/Footer";
+import DashboardLayout from "./components/layout/DashboardLayout";
 import WalletGuard from "./components/WalletGuard";
-import ErrorBoundary from "./components/ErrorBoundary";
-import NotificationCenter from "./components/NotificationCenter";
-import BugReportModal from "./components/BugReportModal";
 import { TooltipProvider } from "./components/ui";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
-import { useGlobalErrorCatcher } from "./hooks/useGlobalErrorCatcher";
-import { useTreasuryAlerts } from "./hooks/useTreasuryAlerts";
-import { useNetworkAlerts } from "./hooks/useNetworkAlerts";
 import KeyboardShortcutsModal from "./components/KeyboardShortcutsModal";
 
+// ─── Lazy pages ───────────────────────────────────────────────────────────────
+
 const Home = lazy(() => import("./pages/Home"));
+const About = lazy(() => import("./pages/About"));
 const Debugger = lazy(() => import("./pages/Debugger"));
-const EmployerDashboard = lazy(() => import("./pages/EmployerDashboard"));
-const GovernanceOverview = lazy(() => import("./pages/GovernanceOverview"));
-const Settings = lazy(() => import("./pages/Settings"));
-const CreateStream = lazy(() => import("./pages/CreateStream"));
 const HelpPage = lazy(() => import("./pages/HelpPage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const UIPrimitivesPreview = lazy(() => import("./pages/UIPrimitivesPreview"));
+
+// Dashboard pages
+const EmployerDashboard = lazy(() => import("./pages/EmployerDashboard"));
 const PayrollDashboard = lazy(() => import("./pages/PayrollDashboard"));
 const TreasuryManager = lazy(() => import("./pages/TreasuryManager"));
+const TreasuryAnalytics = lazy(() => import("./pages/TreasuryAnalytics"));
 const WithdrawPage = lazy(() => import("./pages/WithdrawPage"));
+const CreateStream = lazy(() => import("./pages/CreateStream"));
+const GovernanceOverview = lazy(() => import("./pages/GovernanceOverview"));
 const Reports = lazy(() => import("./pages/Reports"));
-const TestReceipt = lazy(() => import("./pages/TestReceipt"));
-const NotFound = lazy(() => import("./pages/NotFound"));
-const WorkerDashboard = lazy(() => import("./pages/WorkerDashboard"));
 const Analytics = lazy(() => import("./pages/Analytics"));
+const Settings = lazy(() => import("./pages/Settings"));
+const WorkerDashboard = lazy(() => import("./pages/WorkerDashboard"));
+const TransactionsPage = lazy(() => import("./pages/TransactionsPage"));
 const WorkforceRegistry = lazy(() => import("./pages/WorkforceRegistry"));
-const AddressBook = lazy(() => import("./pages/AddressBook.tsx"));
+const AddressBook = lazy(() => import("./pages/AddressBook"));
 const DashboardCustomization = lazy(
   () => import("./pages/DashboardCustomization"),
 );
 const StreamTemplates = lazy(() => import("./pages/StreamTemplates"));
 const StreamComparison = lazy(() => import("./pages/StreamComparison"));
-const UIPrimitivesPreview = lazy(
-  () => import("./pages/UIPrimitivesPreview.tsx"),
-);
+const EmployerOnboarding = lazy(() => import("./pages/EmployerOnboarding"));
 
-function AppLoadingFallback() {
-  const { t } = useTranslation();
-  return (
-    <div className="flex min-h-[50vh] w-full items-center justify-center px-4 py-16">
-      <div className="rounded-2xl border border-white/15 bg-(--surface)/80 px-6 py-5 text-center shadow-[0_18px_40px_-20px_var(--shadow-color)] backdrop-blur-md">
-        <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full border-2 border-indigo-400/30 border-t-indigo-400 animate-spin" />
-        <p className="bg-linear-to-r from-indigo-400 to-pink-400 bg-clip-text text-sm font-semibold text-transparent">
-          {t("common.loading") || "Loading Quipay Experience"}
-        </p>
-      </div>
-    </div>
-  );
-}
+// ─── Public layout (landing page + help) ─────────────────────────────────────
 
-function AppLayout() {
+function PublicLayout() {
   const { t } = useTranslation();
   const { isHelpModalOpen, toggleHelpModal } = useKeyboardShortcuts();
-  const [isBugReportOpen, setIsBugReportOpen] = useState(false);
-
-  // ── Proactive monitoring hooks ──────────────────────────────────────────
-  useGlobalErrorCatcher(); // Zero silent failures: catch all unhandled errors
-  useTreasuryAlerts(); // Treasury balance threshold alerts
-  useNetworkAlerts(); // Network degradation/recovery alerts
 
   return (
     <TooltipProvider>
@@ -73,63 +54,27 @@ function AppLayout() {
         </a>
         <Navbar />
         <main id="main-content" tabIndex={-1} className="flex-1 outline-none">
-          <OnboardingTour />
-          <ErrorBoundary region="page-content">
-            <Suspense fallback={<AppLoadingFallback />}>
-              <Outlet />
-            </Suspense>
-          </ErrorBoundary>
+          <Suspense
+            fallback={
+              <div className="p-8 text-center text-neutral-500">
+                {t("common.loading")}
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
         </main>
         <Footer />
         <KeyboardShortcutsModal
           isOpen={isHelpModalOpen}
           onClose={toggleHelpModal}
         />
-        <BugReportModal
-          open={isBugReportOpen}
-          onClose={() => setIsBugReportOpen(false)}
-        />
-
-        {/* Floating action buttons */}
-        <div
-          style={{
-            position: "fixed",
-            bottom: "20px",
-            right: "20px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "8px",
-            zIndex: 900,
-          }}
-        >
-          <NotificationCenter />
-          <button
-            onClick={() => setIsBugReportOpen(true)}
-            title={t("bug_report.title", "Report a Bug")}
-            aria-label={t("bug_report.title", "Report a Bug")}
-            style={{
-              width: "40px",
-              height: "40px",
-              borderRadius: "50%",
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              boxShadow: "0 4px 12px var(--shadow-color, rgba(0,0,0,0.15))",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "16px",
-              color: "var(--text)",
-              transition: "transform 0.2s",
-            }}
-          >
-            🐛
-          </button>
-        </div>
       </div>
     </TooltipProvider>
   );
 }
+
+// ─── App ──────────────────────────────────────────────────────────────────────
 
 function App() {
   const { t } = useTranslation();
@@ -138,10 +83,20 @@ function App() {
       fallback={<div className="p-8 text-center">{t("common.loading")}</div>}
     >
       <Routes>
-        <Route element={<AppLayout />}>
+        {/* ── Public routes (site navbar + footer) ── */}
+        <Route element={<PublicLayout />}>
           <Route path="/" element={<Home />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/onboard" element={<EmployerOnboarding />} />
+          <Route path="/help" element={<HelpPage />} />
+          <Route path="/ui-primitives" element={<UIPrimitivesPreview />} />
+          <Route path="/debug" element={<Debugger />} />
+          <Route path="/debug/:contractName" element={<Debugger />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
 
-          {/* Protected Routes */}
+        {/* ── Protected routes (dashboard sidebar, no site navbar) ── */}
+        <Route element={<DashboardLayout />}>
           <Route
             path="/dashboard"
             element={
@@ -166,6 +121,7 @@ function App() {
               </WalletGuard>
             }
           />
+
           <Route
             path="/treasury-management"
             element={
@@ -174,6 +130,15 @@ function App() {
               </WalletGuard>
             }
           />
+          <Route
+            path="/treasury-analytics"
+            element={
+              <WalletGuard>
+                <TreasuryAnalytics />
+              </WalletGuard>
+            }
+          />
+
           <Route
             path="/create-stream"
             element={
@@ -248,6 +213,14 @@ function App() {
             }
           />
           <Route
+            path="/transactions"
+            element={
+              <WalletGuard>
+                <TransactionsPage />
+              </WalletGuard>
+            }
+          />
+          <Route
             path="/workforce"
             element={
               <WalletGuard>
@@ -255,7 +228,6 @@ function App() {
               </WalletGuard>
             }
           />
-
           <Route
             path="/address-book"
             element={
@@ -264,15 +236,6 @@ function App() {
               </WalletGuard>
             }
           />
-
-          {/* Public Routes */}
-          <Route path="/help" element={<HelpPage />} />
-          <Route path="/ui-primitives" element={<UIPrimitivesPreview />} />
-          <Route path="/debug" element={<Debugger />} />
-          <Route path="/debug/:contractName" element={<Debugger />} />
-          {/* Test-only route to trigger a paycheck PDF without wallet auth */}
-          <Route path="/__test/receipt" element={<TestReceipt />} />
-          <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
     </Suspense>

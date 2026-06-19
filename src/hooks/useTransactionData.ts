@@ -13,8 +13,9 @@ import type {
   MonthlySummary,
   ReportFilter,
 } from "../types/reports";
+import { getCache, setCache } from "../services/offlineService";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 /** Stellar amounts are stored in stroops (1 XLM = 10,000,000 stroops). */
 const STROOPS_PER_UNIT = 1e7;
@@ -167,7 +168,7 @@ export function useTransactionData() {
   const [selectedMonth, setSelectedMonth] = useState<string>("");
 
   useEffect(() => {
-    if (!address) {
+    if (!address || !API_BASE) {
       setAllTransactions(generateDemoTransactions());
       return;
     }
@@ -183,11 +184,18 @@ export function useTransactionData() {
           data?: StreamApiRecord[];
         };
         if (json.ok && Array.isArray(json.data)) {
-          setAllTransactions(json.data.map(mapStreamToTransaction));
+          const mapped = json.data.map(mapStreamToTransaction);
+          setAllTransactions(mapped);
+          void setCache(`transactions-${address}`, mapped);
         }
       } catch {
-        // Backend unavailable — fall through to empty state
-        setAllTransactions([]);
+        // Backend unavailable — try cache
+        const cached = await getCache(`transactions-${address}`);
+        if (cached) {
+          setAllTransactions(cached);
+        } else {
+          setAllTransactions([]);
+        }
       } finally {
         setLoading(false);
       }

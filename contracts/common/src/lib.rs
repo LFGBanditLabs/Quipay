@@ -1,5 +1,0 @@
-#![no_std]
-
-pub mod error;
-
-pub use error::{QuipayError, QuipayHelpers, QuipayResult};

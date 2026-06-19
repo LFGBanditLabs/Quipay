@@ -1,2 +1,33 @@
-Cargo.lock text -merge eol=lf linguist-generated=true -diff
-package-lock.json linguist-generated=true -diff
+# ── Generated / lock files ───────────────────────────────────────────────────
+package-lock.json  linguist-generated=true -diff
+*.lock             linguist-generated=true -diff
+
+# ── Binary files ─────────────────────────────────────────────────────────────
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.wasm   binary
+*.pdf    binary
+*.zip    binary
+*.tar    binary
+*.gz     binary
+
+# ── Line endings ─────────────────────────────────────────────────────────────
+*        text=auto eol=lf
+*.sh     text eol=lf
+*.ts     text eol=lf
+*.tsx    text eol=lf
+*.toml   text eol=lf
+Makefile text eol=lf
+
+# ── Linguist (GitHub language stats) ─────────────────────────────────────────
+docs/**  linguist-documentation=true
+
+# ── export-ignore (GitHub "Download ZIP") ────────────────────────────────────
+.github      export-ignore
+docs         export-ignore
+scripts      export-ignore
+tests        export-ignore
+.eslintcache export-ignore

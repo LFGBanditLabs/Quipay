@@ -20,6 +20,7 @@
  */
 
 import {
+  Account,
   Contract,
   rpc as SorobanRpc,
   Transaction,
@@ -76,13 +77,14 @@ function getRpcServer(): SorobanRpc.Server {
  * Converts a token string to a ScVal suitable for the contract.
  * Empty string → native XLM address bytes.
  */
+// Native XLM SAC contract address on testnet
+const XLM_SAC_TESTNET =
+  "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+
 function tokenToScVal(token: string): xdr.ScVal {
-  // Native XLM is represented as a zero-bytes contract address on Soroban
-  if (!token || token === "native") {
-    return nativeToScVal(null, { type: "address" });
-  }
-  // SAC (Stellar Asset Contract) — pass as address string
-  return new Address(token).toScVal();
+  // Always pass a real SAC address — never Void
+  const addr = !token || token === "native" ? XLM_SAC_TESTNET : token;
+  return new Address(addr).toScVal();
 }
 
 // ─── buildCreateStreamTx ─────────────────────────────────────────────────────
@@ -126,7 +128,7 @@ export async function buildCreateStreamTx(
           : xdr.ScVal.scvVoid(),
       ),
     )
-    .setTimeout(30)
+    .setTimeout(300)
     .build();
 
   const prepared = await server.prepareTransaction(tx);
@@ -165,11 +167,58 @@ export async function buildCancelStreamTx(
         nativeToScVal(null), // For the 'to' option in Soroban which is an Option<Address> or something? Wait...
       ),
     )
-    .setTimeout(30)
+    .setTimeout(300)
     .build();
 
   const prepared = await server.prepareTransaction(tx);
   return { preparedXdr: prepared.toXDR() };
+}
+
+async function buildSimpleStreamActionTx(
+  functionName: "pause_stream" | "resume_stream",
+  streamId: bigint,
+  employer: string,
+): Promise<{ preparedXdr: string }> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) {
+    throw new Error(
+      "VITE_PAYROLL_STREAM_CONTRACT_ID is not set in environment variables.",
+    );
+  }
+
+  const server = getRpcServer();
+  const account = await server.getAccount(employer);
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+
+  const tx = new TransactionBuilder(account, {
+    fee: "1000000",
+    networkPassphrase,
+  })
+    .addOperation(
+      contract.call(
+        functionName,
+        nativeToScVal(streamId, { type: "u64" }),
+        new Address(employer).toScVal(),
+      ),
+    )
+    .setTimeout(300)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  return { preparedXdr: prepared.toXDR() };
+}
+
+export async function buildPauseStreamTx(
+  streamId: bigint,
+  employer: string,
+): Promise<{ preparedXdr: string }> {
+  return buildSimpleStreamActionTx("pause_stream", streamId, employer);
+}
+
+export async function buildResumeStreamTx(
+  streamId: bigint,
+  employer: string,
+): Promise<{ preparedXdr: string }> {
+  return buildSimpleStreamActionTx("resume_stream", streamId, employer);
 }
 
 // ─── checkTreasurySolvency ────────────────────────────────────────────────────
@@ -232,6 +281,45 @@ export async function checkTreasurySolvency(
 // ─── getWithdrawable ─────────────────────────────────────────────────────────
 
 /**
+/**
+ * Builds and prepares a `withdraw` transaction for a worker to claim
+ * their available earnings from a stream.
+ *
+ * Signature: withdraw(stream_id: u64, worker: Address) → i128
+ */
+export async function buildWithdrawTx(
+  streamId: bigint,
+  workerAddress: string,
+): Promise<{ preparedXdr: string }> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) {
+    throw new Error("VITE_PAYROLL_STREAM_CONTRACT_ID is not set.");
+  }
+
+  const server = getRpcServer();
+  const account = await server.getAccount(workerAddress);
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+
+  const tx = new TransactionBuilder(account, {
+    fee: "1000000",
+    networkPassphrase,
+  })
+    .addOperation(
+      contract.call(
+        "withdraw",
+        nativeToScVal(streamId, { type: "u64" }),
+        new Address(workerAddress).toScVal(),
+      ),
+    )
+    .setTimeout(300)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  return { preparedXdr: prepared.toXDR() };
+}
+
+// ─── getWithdrawable ──────────────────────────────────────────────────────────
+
+/**
  * Calls `get_withdrawable` on the PayrollStream contract to get the
  * amount currently available for the worker to withdraw.
  *
@@ -283,6 +371,10 @@ export async function getWithdrawable(
  * Submits a signed transaction XDR to the Soroban RPC and polls until
  * it is confirmed (SUCCESS) or fails.
  *
+ * Uses exponential backoff with jitter to reduce RPC load and prevent
+ * thundering-herd effects during high-traffic periods while maintaining
+ * the same ~30 second total timeout as the original implementation.
+ *
  * Returns the transaction hash on success.
  */
 export async function submitAndAwaitTx(signedTxXdr: string): Promise<string> {
@@ -302,9 +394,15 @@ export async function submitAndAwaitTx(signedTxXdr: string): Promise<string> {
 
   const hash = sendResponse.hash;
 
-  // Poll for confirmation
+  // Polling configuration
   let attempts = 0;
   const maxAttempts = 30;
+  const timeoutMs = 30000; // 30 second total timeout (unchanged from original)
+  const baseDelayMs = 500; // Start at 500ms
+  const maxDelayMs = 2000; // Cap at 2 seconds to keep total time ~30s
+  const jitterFactor = 0.3; // ±30% randomness
+
+  const startTime = Date.now();
 
   while (attempts < maxAttempts) {
     const statusResponse = await server.getTransaction(hash);
@@ -317,13 +415,33 @@ export async function submitAndAwaitTx(signedTxXdr: string): Promise<string> {
       throw new Error(`Transaction failed on-chain. Hash: ${hash}`);
     }
 
-    // PENDING / NOT_FOUND — wait and retry
-    await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+    // NOT_FOUND and PENDING are both treated as "still processing"
+    // NOT_FOUND is normal during congestion and does not indicate a dropped transaction
+
+    // Check elapsed time
+    const elapsed = Date.now() - startTime;
+    if (elapsed >= timeoutMs) {
+      throw new Error(
+        `Transaction confirmation timed out after ${Math.ceil(elapsed / 1000)}s. Hash: ${hash}`,
+      );
+    }
+
+    // Calculate exponential backoff: baseDelay * 2^attempts, capped at maxDelay
+    const exponentialDelay = Math.min(
+      baseDelayMs * Math.pow(2, attempts),
+      maxDelayMs,
+    );
+
+    // Add jitter: randomize by ±jitterFactor to prevent thundering herd
+    const jitter = exponentialDelay * jitterFactor * (Math.random() * 2 - 1);
+    const delayMs = exponentialDelay + jitter;
+
+    await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
     attempts++;
   }
 
   throw new Error(
-    `Transaction confirmation timed out after ${maxAttempts}s. Hash: ${hash}`,
+    `Transaction confirmation timed out after ${maxAttempts} attempts (~${Math.ceil((Date.now() - startTime) / 1000)}s). Hash: ${hash}`,
   );
 }
 
@@ -365,6 +483,21 @@ export interface ContractWithdrawalEvent {
   txHash: string;
 }
 
+export interface ContractPaymentReceipt {
+  receipt_id: bigint;
+  stream_id: bigint;
+  employer: string;
+  worker: string;
+  token: string;
+  total_amount: bigint;
+  total_paid: bigint;
+  created_at: bigint;
+  start_ts: bigint;
+  end_ts: bigint;
+  finalized_at: bigint;
+  status: number;
+}
+
 // ─── simulateContractRead ─────────────────────────────────────────────────────
 
 async function simulateContractRead<T>(
@@ -373,28 +506,38 @@ async function simulateContractRead<T>(
 ): Promise<T | null> {
   const server = getRpcServer();
 
-  let source = await server.getAccount(sourceAddress).catch(() => null);
-  if (!source && PAYROLL_STREAM_CONTRACT_ID) {
-    source = await server
-      .getAccount(PAYROLL_STREAM_CONTRACT_ID)
-      .catch(() => null);
+  // G... accounts have AccountEntry in the ledger — fetch normally.
+  // C... contract addresses do NOT — use a synthetic Account(seq=0) instead.
+  let source = sourceAddress.startsWith("G")
+    ? await server.getAccount(sourceAddress).catch(() => null)
+    : null;
+
+  if (!source) {
+    source = new Account(
+      "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
+      "0",
+    );
   }
-  if (!source) return null;
 
   const tx = new TransactionBuilder(source, { fee: "100", networkPassphrase })
     .addOperation(operation)
     .setTimeout(10)
     .build();
 
-  const response = await server.simulateTransaction(tx);
-  if (SorobanRpc.Api.isSimulationError(response)) return null;
+  try {
+    const response = await server.simulateTransaction(tx);
+    if (SorobanRpc.Api.isSimulationError(response)) return null;
 
-  const retval = (response as SorobanRpc.Api.SimulateTransactionSuccessResponse)
-    .result?.retval;
-  if (!retval) return null;
+    const retval = (
+      response as SorobanRpc.Api.SimulateTransactionSuccessResponse
+    ).result?.retval;
+    if (!retval) return null;
 
-  const native = scValToNative(retval) as T | undefined;
-  return native ?? null;
+    const native = scValToNative(retval) as T | undefined;
+    return native ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ─── getStreamsByWorker ───────────────────────────────────────────────────────
@@ -427,28 +570,28 @@ export async function getStreamsByWorker(
 // ─── getStreamsByEmployer ───────────────────────────────────────────────────────
 
 /**
- * Calls `get_streams_by_employer` on the PayrollStream contract and returns the
- * list of stream IDs created by `employerAddress`.
+ * Calls `get_streams_by_employer` on the PayrollStream contract and returns a
+ * paginated stream page plus total count.
  */
 export async function getStreamsByEmployer(
   employerAddress: string,
-  offset?: number,
-  limit?: number,
-): Promise<bigint[]> {
-  if (!PAYROLL_STREAM_CONTRACT_ID) return [];
+  offset = 0,
+  limit = 20,
+): Promise<{ streams: ContractStream[]; total: number }> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) return { streams: [], total: 0 };
 
   const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
-  const ids = await simulateContractRead<bigint[]>(
+  const page = await simulateContractRead<[ContractStream[], number]>(
     employerAddress,
     contract.call(
       "get_streams_by_employer",
       new Address(employerAddress).toScVal(),
-      nativeToScVal(offset !== undefined ? offset : null),
-      nativeToScVal(limit !== undefined ? limit : null),
+      nativeToScVal(offset, { type: "u32" }),
+      nativeToScVal(limit, { type: "u32" }),
     ),
   );
 
-  return ids ?? [];
+  return { streams: page?.[0] ?? [], total: page?.[1] ?? 0 };
 }
 
 // ─── getStreamById ────────────────────────────────────────────────────────────
@@ -467,6 +610,35 @@ export async function getStreamById(
   return simulateContractRead<ContractStream>(
     sourceAddress,
     contract.call("get_stream", nativeToScVal(streamId, { type: "u64" })),
+  );
+}
+
+export async function getReceiptById(
+  sourceAddress: string,
+  receiptId: bigint,
+): Promise<ContractPaymentReceipt | null> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) return null;
+
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+  return simulateContractRead<ContractPaymentReceipt>(
+    sourceAddress,
+    contract.call("get_receipt", nativeToScVal(receiptId, { type: "u64" })),
+  );
+}
+
+export async function getReceiptForStream(
+  sourceAddress: string,
+  streamId: bigint,
+): Promise<ContractPaymentReceipt | null> {
+  if (!PAYROLL_STREAM_CONTRACT_ID) return null;
+
+  const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+  return simulateContractRead<ContractPaymentReceipt>(
+    sourceAddress,
+    contract.call(
+      "get_receipt_for_stream",
+      nativeToScVal(streamId, { type: "u64" }),
+    ),
   );
 }
 
@@ -616,6 +788,21 @@ export async function getWorkerWithdrawalEvents(
 // ─── buildBatchCreateStreamsTx ────────────────────────────────────────────────
 
 /**
+ * Thrown when a caller provides an invalid `maxSlippageBps` value.
+ */
+export class SlippageConfigError extends TypeError {
+  constructor(value: number) {
+    super(
+      `Invalid maxSlippageBps: ${value}. Must be a non-negative integer between 0 and 9999 (values ≥ 10 000 disable slippage protection).`,
+    );
+    this.name = "SlippageConfigError";
+  }
+}
+
+/** Recommended default slippage tolerance: 100 bps = 1 %. */
+export const DEFAULT_MAX_SLIPPAGE_BPS = 100;
+
+/**
  * A single entry in a batch stream creation request.
  * Mirrors the on-chain `StreamParams` struct.
  */
@@ -630,6 +817,24 @@ export interface BatchStreamEntry {
   endTs: number;
   /** Optional cliff timestamp — defaults to startTs if omitted */
   cliffTs?: number;
+  /**
+   * Maximum acceptable slippage in basis points (0–9999).
+   * 100 bps = 1 %. Values ≥ 10 000 disable protection and are rejected.
+   */
+  maxSlippageBps: number;
+}
+
+/**
+ * Validates a single maxSlippageBps value.
+ * @throws {SlippageConfigError} if the value is invalid.
+ */
+function validateSlippage(value: number): void {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new SlippageConfigError(value);
+  }
+  if (value >= 10000) {
+    throw new SlippageConfigError(value);
+  }
 }
 
 /**
@@ -638,6 +843,11 @@ export interface BatchStreamEntry {
  * All entries must share the same employer (the connected wallet).
  * Solvency for the total batch amount must be validated before calling this
  * via `checkTreasurySolvency`.
+ *
+ * @param employer - The employer's Stellar public key.
+ * @param entries  - Batch entries. Each entry **must** include a
+ *                   `maxSlippageBps` value (0–9999). The recommended default is
+ *                   100 (1 %). Values ≥ 10 000 are rejected at the SDK boundary.
  *
  * Returns the base64-encoded prepared XDR ready for signing.
  */
@@ -658,58 +868,81 @@ export async function buildBatchCreateStreamsTx(
   const account = await server.getAccount(employer);
   const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
 
-  // Build the Vec<StreamParams> ScVal
+  // Build the Vec<StreamParams> ScVal.
+  // IMPORTANT: Soroban requires ScMap keys in strict lexicographic (alphabetical) order.
+  // StreamParams fields sorted: clawback_authority, cliff_ts, employer, end_ts,
+  //   max_slippage_bps, metadata_hash, rate, speed_curve, start_ts, token, worker
   const paramsVec = xdr.ScVal.scvVec(
     entries.map((e) => {
+      validateSlippage(e.maxSlippageBps);
       const cliffTs = e.cliffTs ?? e.startTs;
       return xdr.ScVal.scvMap([
         new xdr.ScMapEntry({
-          key: xdr.ScVal.scvSymbol("employer"),
-          val: new Address(employer).toScVal(),
-        }),
-        new xdr.ScMapEntry({
-          key: xdr.ScVal.scvSymbol("worker"),
-          val: new Address(e.worker).toScVal(),
-        }),
-        new xdr.ScMapEntry({
-          key: xdr.ScVal.scvSymbol("token"),
-          val: tokenToScVal(e.token),
-        }),
-        new xdr.ScMapEntry({
-          key: xdr.ScVal.scvSymbol("rate"),
-          val: nativeToScVal(e.rate, { type: "i128" }),
+          key: xdr.ScVal.scvSymbol("clawback_authority"),
+          val: xdr.ScVal.scvVoid(), // Option::None
         }),
         new xdr.ScMapEntry({
           key: xdr.ScVal.scvSymbol("cliff_ts"),
           val: nativeToScVal(BigInt(cliffTs), { type: "u64" }),
         }),
         new xdr.ScMapEntry({
-          key: xdr.ScVal.scvSymbol("start_ts"),
-          val: nativeToScVal(BigInt(e.startTs), { type: "u64" }),
+          key: xdr.ScVal.scvSymbol("employer"),
+          val: new Address(employer).toScVal(),
         }),
         new xdr.ScMapEntry({
           key: xdr.ScVal.scvSymbol("end_ts"),
           val: nativeToScVal(BigInt(e.endTs), { type: "u64" }),
         }),
         new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("max_slippage_bps"),
+          val: nativeToScVal(e.maxSlippageBps, { type: "u32" }),
+        }),
+        new xdr.ScMapEntry({
           key: xdr.ScVal.scvSymbol("metadata_hash"),
-          val: xdr.ScVal.scvVoid(),
+          val: xdr.ScVal.scvVoid(), // Option::None
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("rate"),
+          val: nativeToScVal(e.rate, { type: "i128" }),
         }),
         new xdr.ScMapEntry({
           key: xdr.ScVal.scvSymbol("speed_curve"),
-          // MaybeSpeedCurve::None
-          val: xdr.ScVal.scvVec([xdr.ScVal.scvSymbol("None")]),
+          val: xdr.ScVal.scvVec([xdr.ScVal.scvSymbol("None")]), // MaybeSpeedCurve::None
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("start_ts"),
+          val: nativeToScVal(BigInt(e.startTs), { type: "u64" }),
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("token"),
+          val: tokenToScVal(e.token),
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("worker"),
+          val: new Address(e.worker).toScVal(),
         }),
       ]);
     }),
   );
 
+  // vault_deposit = total of all streams so the vault is funded in this same tx
+  const vaultDeposit = entries.reduce((sum, e) => {
+    const dur = BigInt(e.endTs - e.startTs);
+    return sum + e.rate * dur;
+  }, BigInt(0));
+
   const tx = new TransactionBuilder(account, {
     fee: "1000000",
     networkPassphrase,
   })
-    .addOperation(contract.call("batch_create_streams", paramsVec))
-    .setTimeout(30)
+    .addOperation(
+      contract.call(
+        "create_stream_batch",
+        paramsVec,
+        nativeToScVal(vaultDeposit, { type: "i128" }),
+      ),
+    )
+    .setTimeout(300)
     .build();
 
   const prepared = await server.prepareTransaction(tx);
