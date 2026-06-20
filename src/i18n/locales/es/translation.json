@@ -345,7 +345,11 @@
     "one_hour_projection": "Proyección 1 hora",
     "twenty_four_hour_projection": "Proyección 24 horas",
     "waiting_for_earnings": "Esperando a que se acumulen ganancias...",
-    "earned": "Ganado"
+    "earned": "Ganado",
+    "cliff_tooltip": "Período de carencia no alcanzado — disponible en {{days}} {{unit}}",
+    "day": "día",
+    "days": "días",
+    "nothing_to_withdraw": "Nada disponible para retirar todavía"
   },
   "settings": {
     "page_title": "Configuración de seguridad y gobernanza | Quipay",

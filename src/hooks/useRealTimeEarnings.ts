@@ -71,7 +71,12 @@ export interface EarningsBreakdown {
   activeStreamsCount: number;
 }
 
-const EMPTY_BREAKDOWN: EarningsBreakdown = {
+/**
+ * Builds a fresh, zeroed {@link EarningsBreakdown}. Returns a new object (with a
+ * new `streamEarned` array) on every call so callers can never mutate a shared
+ * reference.
+ */
+const createEmptyBreakdown = (): EarningsBreakdown => ({
   totalEarned: 0,
   totalVesting: 0,
   totalWithdrawable: 0,
@@ -81,7 +86,7 @@ const EMPTY_BREAKDOWN: EarningsBreakdown = {
   projectedOneHour: 0,
   projectedTwentyFourHours: 0,
   activeStreamsCount: 0,
-};
+});
 
 /**
  * Computes the cliff-aware earnings snapshot for a single stream at time `now`.
@@ -142,7 +147,7 @@ export const computeEarningsBreakdown = (
   streams: WorkerStream[],
   now: number,
 ): EarningsBreakdown => {
-  if (streams.length === 0) return EMPTY_BREAKDOWN;
+  if (streams.length === 0) return createEmptyBreakdown();
 
   let totalVesting = 0;
   let totalWithdrawable = 0;
@@ -218,12 +223,13 @@ export const useRealTimeEarnings = (
   streams: WorkerStream[],
   refreshInterval: number = 100,
 ) => {
-  const [earnings, setEarnings] = useState<EarningsBreakdown>(EMPTY_BREAKDOWN);
+  const [earnings, setEarnings] =
+    useState<EarningsBreakdown>(createEmptyBreakdown);
 
   useEffect(() => {
     if (streams.length === 0) {
       setTimeout(() => {
-        setEarnings(EMPTY_BREAKDOWN);
+        setEarnings(createEmptyBreakdown());
       }, 0);
       return;
     }

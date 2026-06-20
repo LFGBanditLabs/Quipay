@@ -345,7 +345,11 @@
     "one_hour_projection": "1 Hour Projection",
     "twenty_four_hour_projection": "24 Hour Projection",
     "waiting_for_earnings": "Waiting for earnings to accumulate...",
-    "earned": "Earned"
+    "earned": "Earned",
+    "cliff_tooltip": "Cliff not reached — unlocks in {{days}} {{unit}}",
+    "day": "day",
+    "days": "days",
+    "nothing_to_withdraw": "Nothing available to withdraw yet"
   },
   "settings": {
     "page_title": "Security & Governance Settings | Quipay",

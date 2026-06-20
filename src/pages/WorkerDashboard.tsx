@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { recordWithdrawalEvent } from "../util/recordWithdrawal";
 import { useWallet } from "../hooks/useWallet";
 import { useStreamSubscription } from "../hooks/useStreamSubscription";
@@ -562,6 +563,7 @@ const StreamCard: React.FC<{
   workerAddress: string;
   onWithdrawn: () => void;
 }> = ({ stream, withdrawals, workerAddress, onWithdrawn }) => {
+  const { t } = useTranslation();
   const { signTransaction } = useWallet();
   const { addNotification, addStreamNotification } = useNotification();
   const [showTimeline, setShowTimeline] = useState(false);
@@ -611,9 +613,9 @@ const StreamCard: React.FC<{
   const cliffTooltip = useMemo(() => {
     if (!isBeforeCliff) return undefined;
     const days = Math.ceil(timeToCliff / 86400);
-    const unit = days === 1 ? "day" : "days";
-    return `Cliff not reached — unlocks in ${days} ${unit}`;
-  }, [isBeforeCliff, timeToCliff]);
+    const unit = t(days === 1 ? "earnings.day" : "earnings.days");
+    return t("earnings.cliff_tooltip", { days, unit });
+  }, [isBeforeCliff, timeToCliff, t]);
 
   useEffect(() => {
     if (
@@ -794,7 +796,7 @@ const StreamCard: React.FC<{
             title={
               cliffTooltip ??
               (withdrawable <= 0
-                ? "Nothing available to withdraw yet"
+                ? t("earnings.nothing_to_withdraw")
                 : undefined)
             }
             className="flex-1 rounded-xl py-2.5 text-[13px] font-bold text-black transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
