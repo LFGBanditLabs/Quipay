@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useWallet } from "../hooks/useWallet";
+import { useLocalStorage } from "../hooks/useLocalStorage";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 // ─── Contract IDs ─────────────────────────────────────────────────────────────
@@ -84,7 +85,7 @@ const Settings: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  const [notifs, setNotifs] = useState({
+  const [notifs, setNotifs] = useLocalStorage("quipay:settings:notifs", {
     streamCreated: true,
     streamCompleted: true,
     withdrawalReady: true,
