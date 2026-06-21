@@ -238,10 +238,35 @@ export const useRealTimeEarnings = (
       setEarnings(computeEarningsBreakdown(streams, Date.now() / 1000));
     };
 
-    calculate();
-    const interval = setInterval(calculate, refreshInterval);
+    let intervalId: ReturnType<typeof setInterval> | null = null;
 
-    return () => clearInterval(interval);
+    const start = () => {
+      if (intervalId !== null) return;
+      calculate();
+      intervalId = setInterval(calculate, refreshInterval);
+    };
+
+    const stop = () => {
+      if (intervalId === null) return;
+      clearInterval(intervalId);
+      intervalId = null;
+    };
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        start();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    start();
+
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [streams, refreshInterval]);
 
   return earnings;
