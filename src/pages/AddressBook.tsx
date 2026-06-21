@@ -59,10 +59,23 @@ const AddressBook: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       try {
-        await importFromCSV(file);
-        addNotification("Contacts imported successfully", "success");
-      } catch {
-        addNotification("Failed to import contacts", "error");
+        const result = await importFromCSV(file);
+        const skipped =
+          result.skipped > 0 ? ` (${result.skipped} skipped)` : "";
+        if (result.imported > 0) {
+          addNotification(
+            `Imported ${result.imported} contact${result.imported === 1 ? "" : "s"}${skipped}`,
+            "success",
+          );
+        } else {
+          addNotification(`No valid contacts imported${skipped}`, "warning");
+        }
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to import contacts";
+        addNotification(message, "error");
+      } finally {
+        e.target.value = "";
       }
     }
   };

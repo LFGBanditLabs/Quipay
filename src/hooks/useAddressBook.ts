@@ -1,5 +1,79 @@
 import { useState, useCallback, useMemo } from "react";
+import { StrKey } from "@stellar/stellar-sdk";
 import storage, { Contact } from "../util/storage";
+
+export const MAX_IMPORT_BYTES = 1 * 1024 * 1024;
+export const MAX_IMPORT_ROWS = 1_000;
+
+type ImportedContact = Omit<Contact, "id" | "createdAt">;
+
+export interface ImportContactsResult {
+  imported: number;
+  skipped: number;
+}
+
+export interface ParsedAddressBookCSV {
+  contacts: ImportedContact[];
+  skipped: number;
+}
+
+const CSV_CELL_REGEX = /(".*?"|[^,]+)(?=\s*,|\s*$)/g;
+const CSV_OUTER_QUOTES_REGEX = /^"|"$/g;
+
+export const isStellarAddress = (address: string) =>
+  StrKey.isValidEd25519PublicKey(address.trim());
+
+export function validateAddressBookImportFile(file: Pick<File, "size">) {
+  if (file.size > MAX_IMPORT_BYTES) {
+    throw new Error(
+      `CSV file is too large. Maximum size is ${MAX_IMPORT_BYTES / 1024 / 1024} MB.`,
+    );
+  }
+}
+
+const cleanCSVCell = (cell: string) =>
+  cell.replace(CSV_OUTER_QUOTES_REGEX, "").replace(/""/g, '"').trim();
+
+export function parseAddressBookCSV(text: string): ParsedAddressBookCSV {
+  const lines = text.split(/\r?\n/);
+  if (lines.length < 2) {
+    return { contacts: [], skipped: 0 };
+  }
+
+  const contacts: ImportedContact[] = [];
+  let skipped = 0;
+  let processedRows = 0;
+
+  for (const row of lines.slice(1)) {
+    if (!row.trim()) continue;
+
+    if (processedRows >= MAX_IMPORT_ROWS) {
+      skipped += 1;
+      continue;
+    }
+    processedRows += 1;
+
+    const matches = row.match(CSV_CELL_REGEX);
+    if (!matches || matches.length < 2) {
+      skipped += 1;
+      continue;
+    }
+
+    const name = cleanCSVCell(matches[0]);
+    const address = cleanCSVCell(matches[1]);
+    const notes = matches[2] ? cleanCSVCell(matches[2]) : "";
+    const isFavorite = matches[3] ? cleanCSVCell(matches[3]) === "true" : false;
+
+    if (!isStellarAddress(address)) {
+      skipped += 1;
+      continue;
+    }
+
+    contacts.push({ name, address, notes, isFavorite });
+  }
+
+  return { contacts, skipped };
+}
 
 export function useAddressBook() {
   const [contacts, setContacts] = useState<Contact[]>(() => {
@@ -90,60 +164,44 @@ export function useAddressBook() {
   }, [contacts]);
 
   const importFromCSV = useCallback(
-    (file: File): Promise<void> => {
+    (file: File): Promise<ImportContactsResult> => {
+      try {
+        validateAddressBookImportFile(file);
+      } catch (err) {
+        return Promise.reject(
+          err instanceof Error ? err : new Error(String(err)),
+        );
+      }
+
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
           try {
             const text = e.target?.result as string;
-            const lines = text.split("\n");
-            if (lines.length < 2) return resolve();
+            const parsed = parseAddressBookCSV(text);
+            const newContacts = parsed.contacts.map((contact) => ({
+              ...contact,
+              id: `contact_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+              createdAt: new Date().toISOString(),
+            }));
 
-            // Simple CSV parser (assuming first row is headers)
-            const newContacts: Contact[] = [];
-            const rows = lines.slice(1);
+            const combined = [...contacts];
+            let imported = 0;
+            let skipped = parsed.skipped;
 
-            for (const row of rows) {
-              if (!row.trim()) continue;
-
-              // Simple regex to split by comma but preserve quoted commas
-              const matches = row.match(/(".*?"|[^,]+)(?=\s*,|\s*$)/g);
-              if (!matches || matches.length < 2) continue;
-
-              const clean = (s: string) =>
-                s.replace(/^"|"$/g, "").replace(/""/g, '"');
-
-              const name = clean(matches[0]);
-              const address = clean(matches[1]);
-              const notes = matches[2] ? clean(matches[2]) : "";
-              const isFavorite = matches[3]
-                ? clean(matches[3]) === "true"
-                : false;
-
-              // Validate address (simple check)
-              if (address && address.length > 30) {
-                newContacts.push({
-                  id: `contact_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-                  name,
-                  address,
-                  notes,
-                  isFavorite,
-                  createdAt: new Date().toISOString(),
-                });
+            for (const nc of newContacts) {
+              if (combined.some((c) => c.address === nc.address)) {
+                skipped += 1;
+                continue;
               }
+              combined.push(nc);
+              imported += 1;
             }
 
-            if (newContacts.length > 0) {
-              const combined = [...contacts];
-              // Avoid duplicates by address
-              for (const nc of newContacts) {
-                if (!combined.some((c) => c.address === nc.address)) {
-                  combined.push(nc);
-                }
-              }
+            if (imported > 0) {
               saveContacts(combined);
             }
-            resolve();
+            resolve({ imported, skipped });
           } catch (err) {
             reject(err instanceof Error ? err : new Error(String(err)));
           }
