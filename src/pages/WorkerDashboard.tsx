@@ -59,6 +59,7 @@ const JoinEmployer: React.FC<{ workerAddress: string }> = ({
   const [selected, setSelected] = useState<EmployerResult | null>(null);
   const [searching, setSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const [details, setDetails] = useState<EmployeeDetails>({
     fullName: "",
     jobTitle: "",
@@ -74,6 +75,7 @@ const JoinEmployer: React.FC<{ workerAddress: string }> = ({
 
   const employerAddr = selected?.stellar_address ?? "";
   const isValid = employerAddr.startsWith("G") && employerAddr.length >= 56;
+  const optionIds = results.map((_, i) => `employer-opt-${i}`);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -81,6 +83,7 @@ const JoinEmployer: React.FC<{ workerAddress: string }> = ({
       debounceRef.current = setTimeout(() => {
         setResults([]);
         setShowDropdown(false);
+        setActiveIndex(-1);
       }, 0);
       return;
     }
@@ -95,8 +98,10 @@ const JoinEmployer: React.FC<{ workerAddress: string }> = ({
           const data = (await res.json()) as { employers?: typeof results };
           setResults(data.employers ?? []);
           setShowDropdown(true);
+          setActiveIndex(-1);
         } catch {
           setResults([]);
+          setActiveIndex(-1);
         } finally {
           setSearching(false);
         }
@@ -108,6 +113,7 @@ const JoinEmployer: React.FC<{ workerAddress: string }> = ({
     setSelected(employer);
     setQuery(employer.business_name);
     setShowDropdown(false);
+    setActiveIndex(-1);
     setError(null);
     setStep("details");
   };
@@ -314,6 +320,31 @@ const JoinEmployer: React.FC<{ workerAddress: string }> = ({
                     onFocus={() => results.length > 0 && setShowDropdown(true)}
                     placeholder="Search company name…"
                     className="w-full rounded-xl border border-white/[0.1] bg-black px-4 py-3.5 text-[14px] text-white placeholder:text-neutral-700 focus:outline-none focus:border-yellow-400/40 focus:ring-1 focus:ring-yellow-400/20 transition-colors pr-10"
+                    role="combobox"
+                    aria-haspopup="listbox"
+                    aria-expanded={showDropdown}
+                    aria-autocomplete="list"
+                    aria-activedescendant={
+                      activeIndex >= 0 ? optionIds[activeIndex] : undefined
+                    }
+                    onKeyDown={(e) => {
+                      if (!showDropdown) return;
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setActiveIndex((i) =>
+                          Math.min(i + 1, results.length - 1),
+                        );
+                      } else if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setActiveIndex((i) => Math.max(i - 1, 0));
+                      } else if (e.key === "Enter" && activeIndex >= 0) {
+                        e.preventDefault();
+                        handleSelect(results[activeIndex]);
+                      } else if (e.key === "Escape") {
+                        setShowDropdown(false);
+                        setActiveIndex(-1);
+                      }
+                    }}
                   />
                   {searching && (
                     <svg
@@ -338,12 +369,19 @@ const JoinEmployer: React.FC<{ workerAddress: string }> = ({
                   )}
                 </div>
                 {showDropdown && results.length > 0 && (
-                  <div className="absolute z-20 mt-1 w-full rounded-xl border border-white/[0.1] bg-neutral-900 shadow-xl overflow-hidden">
-                    {results.map((emp) => (
+                  <div
+                    className="absolute z-20 mt-1 w-full rounded-xl border border-white/[0.1] bg-neutral-900 shadow-xl overflow-hidden"
+                    role="listbox"
+                    aria-label="Employer results"
+                  >
+                    {results.map((emp, i) => (
                       <button
                         key={emp.employer_id}
+                        id={optionIds[i]}
+                        role="option"
+                        aria-selected={i === activeIndex}
                         onClick={() => handleSelect(emp)}
-                        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/[0.05] transition-colors"
+                        className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${i === activeIndex ? "bg-white/[0.1]" : "hover:bg-white/[0.05]"}`}
                       >
                         <div>
                           <p className="text-[14px] text-white font-medium">

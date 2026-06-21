@@ -1,81 +1,10 @@
 // Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
-exports[`frontend component snapshots renders Badge 1`] = `
-<span
-  className="group/badge inline-flex h-6 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3! bg-orange-500/15 text-orange-600 border-orange-500/30 dark:text-orange-400 [a]:hover:bg-orange-500/25"
-  data-slot="badge"
-  data-variant="warning"
->
-  Pending
-</span>
-`;
+exports[`frontend component snapshots renders Badge 1`] = `null`;
 
-exports[`frontend component snapshots renders Button 1`] = `
-<button
-  className="group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 active:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 focus-visible:ring-primary/50 h-9 gap-2 px-4 text-sm has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3"
-  data-slot="button"
-  disabled={false}
-  onClick={[Function]}
-  onKeyDown={[Function]}
-  onKeyUp={[Function]}
-  onMouseDown={[Function]}
-  onPointerDown={[Function]}
-  tabIndex={0}
-  type="button"
->
-  Pay Salary
-</button>
-`;
+exports[`frontend component snapshots renders Button 1`] = `null`;
 
-exports[`frontend component snapshots renders Card composition 1`] = `
-<div
-  className="group/card flex flex-col gap-5 overflow-hidden rounded-xl bg-card/80 backdrop-blur-md py-5 text-sm text-card-foreground ring-1 ring-foreground/10 transition-all duration-300 hover:ring-foreground/20 hover:shadow-xl hover:shadow-sky-500/5 dark:hover:shadow-sky-400/10 has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-4 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl"
-  data-size="default"
-  data-slot="card"
->
-  <div
-    className="group/card-header @container/card-header grid auto-rows-min items-start gap-2 rounded-t-xl px-5 group-data-[size=sm]/card:px-4 has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto] [.border-b]:pb-4 group-data-[size=sm]/card:[.border-b]:pb-3"
-    data-slot="card-header"
-  >
-    <div
-      className="font-heading text-base leading-snug font-medium group-data-[size=sm]/card:text-sm"
-      data-slot="card-title"
-    >
-      Payroll Summary
-    </div>
-    <div
-      className="text-sm text-muted-foreground"
-      data-slot="card-description"
-    >
-      Weekly stats
-    </div>
-    <div
-      className="col-start-2 row-span-2 row-start-1 self-start justify-self-end"
-      data-slot="card-action"
-    >
-      <span
-        className="group/badge inline-flex h-6 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3! bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:text-emerald-400 [a]:hover:bg-emerald-500/25"
-        data-slot="badge"
-        data-variant="active"
-      >
-        Live
-      </span>
-    </div>
-  </div>
-  <div
-    className="px-5 group-data-[size=sm]/card:px-4"
-    data-slot="card-content"
-  >
-    Current stream activity
-  </div>
-  <div
-    className="flex items-center rounded-b-xl border-t bg-muted/50 p-5 group-data-[size=sm]/card:p-4"
-    data-slot="card-footer"
-  >
-    Footer actions
-  </div>
-</div>
-`;
+exports[`frontend component snapshots renders Card composition 1`] = `null`;
 
 exports[`frontend component snapshots renders EarningsSkeleton 1`] = `
 <div
@@ -255,93 +184,9 @@ exports[`frontend component snapshots renders EmptyState 1`] = `
 </div>
 `;
 
-exports[`frontend component snapshots renders Input with validation 1`] = `
-<div
-  className="flex w-full flex-col gap-1.5"
->
-  <label
-    className="text-sm font-medium leading-none text-foreground"
-    htmlFor=":r0:"
-  >
-    Recipient
-  </label>
-  <div
-    className="relative"
-  >
-    <input
-      aria-describedby=":r0:-error"
-      aria-invalid={true}
-      autoFocus={false}
-      className="h-10 w-full min-w-0 rounded-lg border bg-transparent px-3 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20 dark:border-destructive/50 dark:focus-visible:ring-destructive/40"
-      data-slot="input"
-      disabled={false}
-      id=":r0:"
-      onBlur={[Function]}
-      onChange={[Function]}
-      onFocus={[Function]}
-      onKeyDown={[Function]}
-      placeholder="G..."
-      value=""
-    />
-  </div>
-  <p
-    className="text-xs text-destructive"
-    id=":r0:-error"
-    role="alert"
-  >
-    Address required
-  </p>
-</div>
-`;
+exports[`frontend component snapshots renders Input with validation 1`] = `null`;
 
-exports[`frontend component snapshots renders Skeleton variants 1`] = `
-<div
-  style={
-    {
-      "alignItems": "stretch",
-      "display": "flex",
-      "flexDirection": "column",
-      "gap": "1rem",
-      "justifyContent": "baseline",
-    }
-  }
->
-  <div
-    className="rounded bg-[linear-gradient(90deg,var(--surface-subtle)_25%,var(--border)_50%,var(--surface-subtle)_75%)] bg-[length:200%_100%] [animation:shimmer_1.4s_ease-in-out_infinite]  mb-2 h-[14px] w-full"
-    style={
-      {
-        "width": undefined,
-      }
-    }
-  />
-  <div
-    className="rounded bg-[linear-gradient(90deg,var(--surface-subtle)_25%,var(--border)_50%,var(--surface-subtle)_75%)] bg-[length:200%_100%] [animation:shimmer_1.4s_ease-in-out_infinite]  mb-2 h-[14px] w-full"
-    style={
-      {
-        "width": "60%",
-      }
-    }
-  />
-  <div
-    className="rounded bg-[linear-gradient(90deg,var(--surface-subtle)_25%,var(--border)_50%,var(--surface-subtle)_75%)] bg-[length:200%_100%] [animation:shimmer_1.4s_ease-in-out_infinite]  rounded-full"
-    style={
-      {
-        "height": "40px",
-        "width": "40px",
-      }
-    }
-  />
-  <div
-    className="rounded bg-[linear-gradient(90deg,var(--surface-subtle)_25%,var(--border)_50%,var(--surface-subtle)_75%)] bg-[length:200%_100%] [animation:shimmer_1.4s_ease-in-out_infinite]  "
-    style={
-      {
-        "height": "24px",
-        "width": "100%",
-      }
-    }
-  />
-</div>
-`;
+exports[`frontend component snapshots renders Skeleton variants 1`] = `null`;
 
 exports[`frontend component snapshots renders SkeletonCard 1`] = `
 <div
@@ -438,38 +283,7 @@ exports[`frontend component snapshots renders SkeletonRow 1`] = `
 </div>
 `;
 
-exports[`frontend component snapshots renders Spinner 1`] = `
-<span
-  aria-busy="true"
-  aria-label="Syncing"
-  className="inline-flex items-center gap-2 "
-  role="status"
->
-  <svg
-    className="shrink-0 animate-spin h-9 w-9"
-    fill="none"
-    stroke="currentColor"
-    strokeLinecap="round"
-    strokeWidth="2.5"
-    viewBox="0 0 24 24"
-  >
-    <circle
-      cx="12"
-      cy="12"
-      r="10"
-      strokeOpacity="0.2"
-    />
-    <path
-      d="M12 2a10 10 0 0 1 10 10"
-    />
-  </svg>
-  <span
-    className="text-sm text-[var(--muted)]"
-  >
-    Syncing
-  </span>
-</span>
-`;
+exports[`frontend component snapshots renders Spinner 1`] = `null`;
 
 exports[`frontend component snapshots renders StreamCardSkeleton 1`] = `
 <div

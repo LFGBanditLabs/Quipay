@@ -134,7 +134,7 @@ export const usePayroll = (
     } finally {
       setIsVaultLoading(false);
     }
-  }, []);
+  }, [employerAddress]);
 
   const fetchPayrollSummary = useCallback(async (address: string) => {
     // Payroll summary comes from the backend analytics API.

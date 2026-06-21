@@ -57,8 +57,12 @@ describe("notificationStorage", () => {
     expect(storage.snapshot[getNotificationStorageKey("GABC123")]).toContain(
       "stream_started",
     );
-    expect(loadPersistedNotifications(storage, "GABC123")).toHaveLength(1);
-    expect(loadPersistedNotifications(storage, "GOTHER")).toHaveLength(0);
+    expect(
+      loadPersistedNotifications(storage, "GABC123", Date.parse(timestamp)),
+    ).toHaveLength(1);
+    expect(
+      loadPersistedNotifications(storage, "GOTHER", Date.parse(timestamp)),
+    ).toHaveLength(0);
   });
 
   it("purges notifications older than seven days", () => {

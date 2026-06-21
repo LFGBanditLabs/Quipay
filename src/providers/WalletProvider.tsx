@@ -139,7 +139,6 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
     // Clear all cached queries to remove any contract client data
     queryClient.clear();
     nullify();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryClient, nullify]);
 
   const updateBalances = useCallback(async () => {
@@ -256,6 +255,7 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       isMounted = false;
       if (timer) clearTimeout(timer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const contextValue = useMemo(

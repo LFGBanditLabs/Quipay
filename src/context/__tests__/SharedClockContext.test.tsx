@@ -1,5 +1,5 @@
-import React from "react";
-import renderer, { act } from "react-test-renderer";
+import React, { act } from "react";
+import renderer from "react-test-renderer";
 import { SharedClockProvider, useElapsedTime } from "../SharedClockContext";
 
 const ElapsedConsumer: React.FC<{ startTimestamp: number }> = ({
@@ -45,6 +45,8 @@ describe("SharedClockProvider", () => {
       jest.advanceTimersByTime(3000);
     });
 
-    tree!.unmount();
+    act(() => {
+      tree!.unmount();
+    });
   });
 });
