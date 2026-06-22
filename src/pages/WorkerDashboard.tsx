@@ -13,6 +13,7 @@ import { useNotification } from "../hooks/useNotification";
 import { buildRegisterWorkerTx } from "../contracts/workforce_registry";
 import { buildWithdrawTx, submitAndAwaitTx } from "../contracts/payroll_stream";
 import { formatTokenAmount } from "../util/tokenDecimals";
+import { shortenAddress as shortAddr } from "../util/address";
 import { StreamTimeline } from "../components/StreamTimeline";
 import CopyButton from "../components/CopyButton";
 import {
@@ -20,12 +21,6 @@ import {
   useSharedClockMs,
 } from "../context/SharedClockContext";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function shortAddr(a: string) {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
 
 // ─── Join employer card ───────────────────────────────────────────────────────
 

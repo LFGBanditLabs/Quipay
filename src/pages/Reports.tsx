@@ -12,29 +12,9 @@ import {
   Pie,
   Cell,
 } from "recharts";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const STROOPS = 1e7;
-const YELLOW = "#facc15";
-
-function fmt(n: number, d = 2) {
-  return n.toLocaleString(undefined, {
-    minimumFractionDigits: d,
-    maximumFractionDigits: d,
-  });
-}
-function shortAddr(a: string) {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
-function fmtDate(ts: string) {
-  if (!ts) return "—";
-  return new Date(ts).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
+import { fmt, fmtDate, STROOPS } from "../util/format";
+import { shortenAddress as shortAddr } from "../util/address";
+import { YELLOW } from "../util/constants";
 
 type Tab = "streams" | "workers" | "summary";
 
