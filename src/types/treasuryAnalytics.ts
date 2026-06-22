@@ -141,7 +141,7 @@ export interface PriceFeedData {
 
 /** Price feed configuration */
 export interface PriceFeedConfig {
-  provider: "band" | "pyth" | "coingecko" | "mock";
+  provider: "coingecko" | "mock";
   /** Cache TTL in milliseconds */
   cacheTTL: number;
   /** Contract addresses for Band/Pyth on Stellar/Soroban */
