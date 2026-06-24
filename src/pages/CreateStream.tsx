@@ -10,11 +10,11 @@ import {
   type BatchStreamEntry,
 } from "../contracts/payroll_stream";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
+import { STROOPS } from "../util/format";
+import { shortenAddress as shortAddr } from "../util/address";
 import { getTokenAddresses } from "../lib/tokenAddresses";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const STROOPS = 1e7;
 
 // Token addresses are network-specific. getTokenAddresses() reads
 // PUBLIC_STELLAR_NETWORK and returns the correct SAC/issuer per environment.
@@ -24,10 +24,6 @@ const TOKEN_ADDRESS = getTokenAddresses();
 
 function toUnixSec(d: string) {
   return Math.floor(new Date(d).getTime() / 1000);
-}
-
-function shortAddr(a: string) {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
 function initials(name: string | undefined, wallet: string) {

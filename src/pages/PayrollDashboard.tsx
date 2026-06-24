@@ -14,21 +14,11 @@ import {
 } from "recharts";
 import { useWallet } from "../hooks/useWallet";
 import { usePayroll, Stream } from "../hooks/usePayroll";
+import { fmt, STROOPS } from "../util/format";
+import { shortenAddress as shortAddr } from "../util/address";
+import { CHART_COLORS as COLORS } from "../util/constants";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const STROOPS = 1e7;
-
-function fmt(n: number, decimals = 2) {
-  return n.toLocaleString(undefined, {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-}
-
-function shortAddr(a: string) {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
 
 function fmtRate(rateStr: string) {
   const ratePerSec = parseFloat(rateStr);
@@ -52,15 +42,6 @@ const STATUS_STYLE: Record<Stream["status"], { label: string; cls: string }> = {
   completed: { label: "Completed", cls: "bg-neutral-800 text-neutral-500" },
   cancelled: { label: "Cancelled", cls: "bg-red-500/10 text-red-400" },
 };
-
-const COLORS = [
-  "#facc15",
-  "#eab308",
-  "#ca8a04",
-  "#a16207",
-  "#854d0e",
-  "#713f12",
-];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 

@@ -65,7 +65,6 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
 
   useEffect(() => {
     if (!employerAddress) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setWorkers([]);
       setIsLoading(false);
       return;

@@ -13,29 +13,8 @@ import {
   WorkerEntry,
   WorkerStreamRecord,
 } from "../hooks/useWorkforceRegistry";
-
-/* ── Utilities ──────────────────────────────────────────────────── */
-
-function shortAddr(addr: string): string {
-  if (addr.length <= 14) return addr;
-  return `${addr.slice(0, 8)}…${addr.slice(-6)}`;
-}
-
-function fmtDate(ts: number): string {
-  return new Date(ts * 1000).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function fmtAmount(stroopStr: string): string {
-  const val = parseFloat(stroopStr) / 1e7;
-  return val.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  });
-}
+import { fmtDate, fmtStroops as fmtAmount } from "../util/format";
+import { shortenAddress as shortAddr } from "../util/address";
 
 const STELLAR_ADDR_RE = /^G[A-Z2-7]{55}$/;
 

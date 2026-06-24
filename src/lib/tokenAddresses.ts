@@ -46,9 +46,7 @@ const USDC_ADDRESS: Record<string, string> = {
 // ─── Lookup ───────────────────────────────────────────────────────────────────
 
 function resolveAddress(map: Record<string, string>, symbol: string): string {
-  const override = import.meta.env[`VITE_${symbol}_SAC_CONTRACT_ID`] as
-    | string
-    | undefined;
+  const override = import.meta.env[`VITE_${symbol}_SAC_CONTRACT_ID`];
   if (override) return override;
 
   const addr = map[stellarNetwork];

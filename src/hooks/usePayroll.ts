@@ -310,7 +310,6 @@ export const usePayroll = (
 
   useEffect(() => {
     if (!employerAddress) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStreams([]);
       setPayrollSummary(null);
       setIsLoading(false);
