@@ -147,6 +147,8 @@ export const useStreams = (workerAddress: string | undefined) => {
     }
 
     if (!workerAddress) {
+      // Resetting all state when the wallet disconnects is intentional.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStreams([]);
       setWithdrawalHistory([]);
       setIsLoading(false);
