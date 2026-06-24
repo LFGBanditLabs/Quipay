@@ -121,6 +121,9 @@ export function useAnalyticsData(): AnalyticsDashboardData {
 
   // Initial fetch + re-fetch when granularity changes
   useEffect(() => {
+    // fetchAll is async; calling it here is intentional — setState calls
+    // happen inside the async body after awaits, not synchronously.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchAll();
   }, [fetchAll]);
 
