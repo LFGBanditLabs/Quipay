@@ -16,6 +16,7 @@ import { usePayroll } from "../hooks/usePayroll";
 import { fmt, STROOPS } from "../util/format";
 import { shortenAddress as shortAddr } from "../util/address";
 import { YELLOW, CHART_COLORS as COLORS } from "../util/constants";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 function StatCard({
   label,
@@ -173,6 +174,12 @@ export default function Analytics() {
 
   return (
     <div className="px-6 py-8 sm:px-8 sm:py-10">
+      <SeoHelmet
+        title="Analytics — Payroll Stream Insights"
+        description="View detailed analytics for your Stellar payroll streams."
+        path="/analytics"
+      />
+
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-[24px] font-bold text-white tracking-tight">

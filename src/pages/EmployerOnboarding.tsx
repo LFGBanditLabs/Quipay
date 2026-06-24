@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "../hooks/useWallet";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -139,6 +140,12 @@ export default function EmployerOnboarding() {
 
   return (
     <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-6">
+      <SeoHelmet
+        title="Employer Onboarding — Set Up Your Account"
+        description="Complete business verification to start creating payroll streams on Quipay."
+        path="/onboard"
+      />
+
       <div className="w-full max-w-md rounded-2xl border border-neutral-800 bg-neutral-900 p-8 space-y-6">
         <div>
           <h1 className="text-white text-2xl font-bold">Business onboarding</h1>

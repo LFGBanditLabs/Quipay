@@ -11,6 +11,7 @@ import { submitAndAwaitTx } from "../contracts/payroll_stream";
 import { useNotification } from "../hooks/useNotification";
 import { horizonUrl } from "../contracts/util";
 import { fmt, STROOPS } from "../util/format";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -307,6 +308,12 @@ const TreasuryManager: React.FC = () => {
       {txStep && <TxOverlay step={txStep} />}
 
       <div className="px-6 py-8 sm:px-8 sm:py-10 max-w-[960px]">
+        <SeoHelmet
+          title="Treasury — Deposit and Withdraw Funds"
+          description="Manage your payroll vault. Deposit funds to back streams and withdraw surplus."
+          path="/treasury"
+        />
+
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-[24px] font-bold text-white tracking-tight">
