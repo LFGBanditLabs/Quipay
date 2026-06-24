@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 export default function NotFound() {
   const navigate = useNavigate();
@@ -20,6 +21,13 @@ export default function NotFound() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-black px-6 text-center">
+      <SeoHelmet
+        title="404 — Page Not Found"
+        description="The page you're looking for doesn't exist or has been moved."
+        path="/404"
+        robots="noindex"
+      />
+
       {/* Large 404 */}
       <p
         className="select-none font-black text-white leading-none"
