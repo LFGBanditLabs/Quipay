@@ -10,15 +10,17 @@ import {
   type BatchStreamEntry,
 } from "../contracts/payroll_stream";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
+import { getTokenAddresses } from "../lib/tokenAddresses";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STROOPS = 1e7;
 
-const TOKEN_ADDRESS: Record<string, string> = {
-  XLM: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
-  USDC: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
-};
+// Token addresses are network-specific. getTokenAddresses() reads
+// PUBLIC_STELLAR_NETWORK and returns the correct SAC/issuer per environment.
+// It throws at load time (not silently at tx broadcast) when the network is
+// unrecognised, so misconfiguration is caught immediately (#1051).
+const TOKEN_ADDRESS = getTokenAddresses();
 
 function toUnixSec(d: string) {
   return Math.floor(new Date(d).getTime() / 1000);
