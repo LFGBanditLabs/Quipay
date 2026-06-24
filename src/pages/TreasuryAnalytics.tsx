@@ -11,18 +11,8 @@ import {
   RadialBarChart,
   RadialBar,
 } from "recharts";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const STROOPS = 1e7;
-const YELLOW = "#facc15";
-
-function fmt(n: number, d = 2) {
-  return n.toLocaleString(undefined, {
-    minimumFractionDigits: d,
-    maximumFractionDigits: d,
-  });
-}
+import { fmt, STROOPS } from "../util/format";
+import { YELLOW } from "../util/constants";
 
 function StatCard({
   label,

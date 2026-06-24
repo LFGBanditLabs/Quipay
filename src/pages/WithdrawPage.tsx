@@ -14,12 +14,8 @@ import {
 } from "../context/SharedClockContext";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import { recordWithdrawalEvent } from "../util/recordWithdrawal";
-
-const STROOPS = 1e7;
-
-function shortAddr(a: string) {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
+import { STROOPS } from "../util/format";
+import { shortenAddress as shortAddr } from "../util/address";
 
 function fmtCountdown(secs: number) {
   const d = Math.floor(secs / 86400);

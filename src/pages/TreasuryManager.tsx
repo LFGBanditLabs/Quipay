@@ -10,10 +10,10 @@ import {
 import { submitAndAwaitTx } from "../contracts/payroll_stream";
 import { useNotification } from "../hooks/useNotification";
 import { horizonUrl } from "../contracts/util";
+import { fmt, STROOPS } from "../util/format";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STROOPS = 1e7;
 const XLM_RESERVE = 1; // keep at least 1 XLM for fees
 
 // ─── Fetch wallet balances from Horizon ──────────────────────────────────────
@@ -61,13 +61,6 @@ const TOKEN_MAP: Record<string, { address: string; label: string }> = {
     label: "USDC",
   },
 };
-
-function fmt(n: number, d = 2) {
-  return n.toLocaleString(undefined, {
-    minimumFractionDigits: d,
-    maximumFractionDigits: d,
-  });
-}
 
 // ─── Transaction step overlay ─────────────────────────────────────────────────
 

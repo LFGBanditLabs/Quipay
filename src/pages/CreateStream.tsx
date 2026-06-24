@@ -10,10 +10,10 @@ import {
   type BatchStreamEntry,
 } from "../contracts/payroll_stream";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
+import { STROOPS } from "../util/format";
+import { shortenAddress as shortAddr } from "../util/address";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const STROOPS = 1e7;
 
 const TOKEN_ADDRESS: Record<string, string> = {
   XLM: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
@@ -22,10 +22,6 @@ const TOKEN_ADDRESS: Record<string, string> = {
 
 function toUnixSec(d: string) {
   return Math.floor(new Date(d).getTime() / 1000);
-}
-
-function shortAddr(a: string) {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
 function initials(name: string | undefined, wallet: string) {

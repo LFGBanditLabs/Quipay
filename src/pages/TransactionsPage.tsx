@@ -2,12 +2,9 @@ import { useMemo, useState, useEffect } from "react";
 import { useWallet } from "../hooks/useWallet";
 import { useStreams } from "../hooks/useStreams";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
+import { shortenAddress as shortAddr } from "../util/address";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
-
-function shortAddr(a: string) {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
 
 interface BackendWithdrawal {
   id: number;
