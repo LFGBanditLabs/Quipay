@@ -169,6 +169,7 @@ export function useTransactionData() {
 
   useEffect(() => {
     if (!address || !API_BASE) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAllTransactions(generateDemoTransactions());
       return;
     }
@@ -222,6 +223,7 @@ export function useTransactionData() {
   // Default to most recent available month
   useEffect(() => {
     if (availableMonths.length > 0 && !selectedMonth) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedMonth(availableMonths[availableMonths.length - 1]);
     }
   }, [availableMonths, selectedMonth]);
