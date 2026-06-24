@@ -17,6 +17,7 @@ import { usePayroll, Stream } from "../hooks/usePayroll";
 import { fmt, STROOPS } from "../util/format";
 import { shortenAddress as shortAddr } from "../util/address";
 import { CHART_COLORS as COLORS } from "../util/constants";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -219,6 +220,12 @@ export default function PayrollDashboard() {
 
   return (
     <div className="px-6 py-8 sm:px-8 sm:py-10">
+      <SeoHelmet
+        title="Payroll Dashboard — Stream Management"
+        description="Manage your Stellar payroll streams and monitor treasury health."
+        path="/payroll"
+      />
+
       {/* Header */}
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>

@@ -15,6 +15,7 @@ import {
 } from "../hooks/useWorkforceRegistry";
 import { fmtDate, fmtStroops as fmtAmount } from "../util/format";
 import { shortenAddress as shortAddr } from "../util/address";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 const STELLAR_ADDR_RE = /^G[A-Z2-7]{55}$/;
 
@@ -572,6 +573,12 @@ const WorkforceRegistry: React.FC = () => {
 
   return (
     <div className="px-6 py-8 sm:px-8 sm:py-10">
+      <SeoHelmet
+        title="Workforce Registry — Manage Your Team"
+        description="Register and manage workers for your Stellar payroll streams."
+        path="/workforce"
+      />
+
       {/* Header */}
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>
