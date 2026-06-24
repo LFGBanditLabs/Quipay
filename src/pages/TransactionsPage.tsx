@@ -316,14 +316,22 @@ export default function TransactionsPage() {
               <p className="text-[13px] font-semibold text-red-300">
                 Could not load transaction history
               </p>
-              <p className="mt-0.5 text-[12px] text-red-400/70">{backendError}</p>
+              <p className="mt-0.5 text-[12px] text-red-400/70">
+                {backendError}
+              </p>
             </div>
             <button
               onClick={() => setBackendError(null)}
               className="shrink-0 text-red-400/50 hover:text-red-400 transition-colors"
               aria-label="Dismiss error"
             >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
