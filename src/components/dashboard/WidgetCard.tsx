@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { WidgetId } from "../../hooks/useDashboardLayout";
+import ErrorBoundary from "../ErrorBoundary";
 
 interface Props {
   id: WidgetId;
@@ -55,7 +56,27 @@ export default function WidgetCard({
       </div>
 
       {/* Content */}
-      <div className="min-h-0 flex-1 overflow-auto p-4">{children}</div>
+      <div className="min-h-0 flex-1 overflow-auto p-4">
+        <ErrorBoundary
+          region={`widget-${id}`}
+          fallback={({ error, retry }) => (
+            <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg bg-red-500/10 p-4 text-center">
+              <p className="text-sm font-semibold text-red-400">
+                {title} failed to load
+              </p>
+              <p className="text-xs text-white/40">{error.message}</p>
+              <button
+                onClick={retry}
+                className="mt-2 rounded-md bg-white/10 px-3 py-1 text-xs text-white/60 hover:bg-white/20"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+        >
+          {children}
+        </ErrorBoundary>
+      </div>
 
       {/* Edit mode overlay hint */}
       {editMode && (
