@@ -81,29 +81,31 @@ export function useSubscription(
               },
         );
 
-        const response = await new Promise<Api.GetEventsResponse>((resolve, reject) => {
-          if (controller.signal.aborted) {
-            const abortError = new Error("Aborted");
-            abortError.name = "AbortError";
-            reject(abortError);
-            return;
-          }
-          const abortHandler = () => {
-            const abortError = new Error("Aborted");
-            abortError.name = "AbortError";
-            reject(abortError);
-          };
-          controller.signal.addEventListener("abort", abortHandler);
-          requestPromise
-            .then((res) => {
-              controller.signal.removeEventListener("abort", abortHandler);
-              resolve(res);
-            })
-            .catch((err) => {
-              controller.signal.removeEventListener("abort", abortHandler);
-              reject(err instanceof Error ? err : new Error(String(err)));
-            });
-        });
+        const response = await new Promise<Api.GetEventsResponse>(
+          (resolve, reject) => {
+            if (controller.signal.aborted) {
+              const abortError = new Error("Aborted");
+              abortError.name = "AbortError";
+              reject(abortError);
+              return;
+            }
+            const abortHandler = () => {
+              const abortError = new Error("Aborted");
+              abortError.name = "AbortError";
+              reject(abortError);
+            };
+            controller.signal.addEventListener("abort", abortHandler);
+            requestPromise
+              .then((res) => {
+                controller.signal.removeEventListener("abort", abortHandler);
+                resolve(res);
+              })
+              .catch((err) => {
+                controller.signal.removeEventListener("abort", abortHandler);
+                reject(err instanceof Error ? err : new Error(String(err)));
+              });
+          },
+        );
 
         if (stop || controller.signal.aborted) return;
 
@@ -148,4 +150,3 @@ export function useSubscription(
     };
   }, [contractId, topic, onEvent, id, pollInterval]);
 }
-
