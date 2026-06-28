@@ -101,7 +101,7 @@ export function useSubscription(
             })
             .catch((err) => {
               controller.signal.removeEventListener("abort", abortHandler);
-              reject(err);
+              reject(err instanceof Error ? err : new Error(String(err)));
             });
         });
 
