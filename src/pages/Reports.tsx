@@ -12,29 +12,10 @@ import {
   Pie,
   Cell,
 } from "recharts";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const STROOPS = 1e7;
-const YELLOW = "#facc15";
-
-function fmt(n: number, d = 2) {
-  return n.toLocaleString(undefined, {
-    minimumFractionDigits: d,
-    maximumFractionDigits: d,
-  });
-}
-function shortAddr(a: string) {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
-function fmtDate(ts: string) {
-  if (!ts) return "—";
-  return new Date(ts).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
+import { fmt, fmtDate, STROOPS } from "../util/format";
+import { shortenAddress as shortAddr } from "../util/address";
+import { YELLOW } from "../util/constants";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 type Tab = "streams" | "workers" | "summary";
 
@@ -154,6 +135,12 @@ export default function Reports() {
 
   return (
     <div className="px-6 py-8 sm:px-8 sm:py-10">
+      <SeoHelmet
+        title="Payroll Reports — Stream Data and Analytics"
+        description="Detailed payroll reports and worker summaries from your Stellar contracts."
+        path="/reports"
+      />
+
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-[24px] font-bold text-white tracking-tight">

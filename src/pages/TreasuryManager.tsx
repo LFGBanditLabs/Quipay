@@ -10,10 +10,11 @@ import {
 import { submitAndAwaitTx } from "../contracts/payroll_stream";
 import { useNotification } from "../hooks/useNotification";
 import { horizonUrl } from "../contracts/util";
+import { fmt, STROOPS } from "../util/format";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STROOPS = 1e7;
 const XLM_RESERVE = 1; // keep at least 1 XLM for fees
 
 // ─── Fetch wallet balances from Horizon ──────────────────────────────────────
@@ -61,13 +62,6 @@ const TOKEN_MAP: Record<string, { address: string; label: string }> = {
     label: "USDC",
   },
 };
-
-function fmt(n: number, d = 2) {
-  return n.toLocaleString(undefined, {
-    minimumFractionDigits: d,
-    maximumFractionDigits: d,
-  });
-}
 
 // ─── Transaction step overlay ─────────────────────────────────────────────────
 
@@ -314,6 +308,12 @@ const TreasuryManager: React.FC = () => {
       {txStep && <TxOverlay step={txStep} />}
 
       <div className="px-6 py-8 sm:px-8 sm:py-10 max-w-[960px]">
+        <SeoHelmet
+          title="Treasury — Deposit and Withdraw Funds"
+          description="Manage your payroll vault. Deposit funds to back streams and withdraw surplus."
+          path="/treasury"
+        />
+
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-[24px] font-bold text-white tracking-tight">

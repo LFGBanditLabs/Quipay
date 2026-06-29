@@ -31,6 +31,7 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 import { rpcUrl, networkPassphrase } from "./util";
+import { getXlmSacAddress } from "../lib/tokenAddresses";
 
 // ─── Contract ID ──────────────────────────────────────────────────────────────
 
@@ -77,13 +78,10 @@ function getRpcServer(): SorobanRpc.Server {
  * Converts a token string to a ScVal suitable for the contract.
  * Empty string → native XLM address bytes.
  */
-// Native XLM SAC contract address on testnet
-const XLM_SAC_TESTNET =
-  "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
-
 function tokenToScVal(token: string): xdr.ScVal {
-  // Always pass a real SAC address — never Void
-  const addr = !token || token === "native" ? XLM_SAC_TESTNET : token;
+  // Always pass a real SAC address — never Void. getXlmSacAddress() returns
+  // the correct SAC for the active network instead of a hardcoded testnet value.
+  const addr = !token || token === "native" ? getXlmSacAddress() : token;
   return new Address(addr).toScVal();
 }
 

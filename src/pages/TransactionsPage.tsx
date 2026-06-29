@@ -2,12 +2,9 @@ import { useMemo, useState, useEffect } from "react";
 import { useWallet } from "../hooks/useWallet";
 import { useStreams } from "../hooks/useStreams";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
+import { shortenAddress as shortAddr } from "../util/address";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
-
-function shortAddr(a: string) {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
 
 interface BackendWithdrawal {
   id: number;
@@ -55,11 +52,14 @@ export default function TransactionsPage() {
           `${API_BASE}/api/employers/withdrawal-events?address=${encodeURIComponent(address)}`,
         );
         if (!r.ok) {
-          throw new Error(`Failed to load transaction history (${r.status})`);
+          throw new Error(`Failed to load transactions (${r.status})`);
         }
         const d = (await r.json()) as { withdrawals?: BackendWithdrawal[] };
         setBackendRows(d.withdrawals ?? []);
-      } catch (error) {
+      } catch (err) {
+        setBackendError(
+          err instanceof Error ? err.message : "Failed to load transactions",
+        );
         setBackendRows([]);
         setBackendError(
           error instanceof Error
@@ -315,6 +315,47 @@ export default function TransactionsPage() {
             </button>
           )}
         </div>
+
+        {/* Backend fetch error banner */}
+        {backendError && (
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.07] px-4 py-3">
+            <svg
+              className="mt-0.5 h-4 w-4 shrink-0 text-red-400"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-semibold text-red-300">
+                Could not load transaction history
+              </p>
+              <p className="mt-0.5 text-[12px] text-red-400/70">
+                {backendError}
+              </p>
+            </div>
+            <button
+              onClick={() => setBackendError(null)}
+              className="shrink-0 text-red-400/50 hover:text-red-400 transition-colors"
+              aria-label="Dismiss error"
+            >
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {/* Result count when filtering */}
         {filter.trim() && (

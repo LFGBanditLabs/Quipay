@@ -11,6 +11,7 @@ import {
   scValToNative,
 } from "@stellar/stellar-sdk";
 import { rpcUrl, networkPassphrase } from "../contracts/util";
+import { shortenAddress as shortAddr } from "../util/address";
 
 const VAULT_ID =
   (import.meta.env.VITE_PAYROLL_VAULT_CONTRACT_ID as string) ?? "";
@@ -36,12 +37,6 @@ async function vaultRead<T>(
   } catch {
     return null;
   }
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function shortAddr(a: string) {
-  return `${a.slice(0, 8)}…${a.slice(-6)}`;
 }
 
 function InfoRow({
