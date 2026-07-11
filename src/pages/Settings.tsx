@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import ChainWallets from "../components/ChainWallets";
+import { useQuipayId } from "../hooks/useQuipayId";
 
 // ─── Contract IDs ─────────────────────────────────────────────────────────────
 
@@ -80,6 +81,7 @@ function SectionCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const Settings: React.FC = () => {
+  const { quipayId, email: qpEmail } = useQuipayId();
   const [activeTab, setActiveTab] = useState<TabId>("profile");
   const [toast, setToast] = useState<string | null>(null);
 
@@ -113,13 +115,40 @@ const Settings: React.FC = () => {
 
       <div className="px-6 py-8 sm:px-8 sm:py-10 max-w-[860px]">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-[24px] font-bold text-white tracking-tight">
             Settings
           </h1>
           <p className="mt-1 text-[14px] text-neutral-500">
             Manage your Quipay account and preferences.
           </p>
+        </div>
+
+        {/* Quipay ID — always visible; employers add workers by this ID */}
+        <div className="mb-8 flex items-center justify-between rounded-2xl border border-yellow-400/20 bg-yellow-400/[0.05] px-5 py-4">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-yellow-400/80">
+              Your Quipay ID
+            </p>
+            <p className="mt-0.5 font-mono text-[20px] font-bold text-white">
+              {quipayId ?? "…"}
+            </p>
+            {qpEmail && (
+              <p className="text-[12px] text-neutral-500">{qpEmail}</p>
+            )}
+          </div>
+          <button
+            onClick={() => {
+              if (quipayId) {
+                void navigator.clipboard.writeText(quipayId);
+                showToast("Quipay ID copied");
+              }
+            }}
+            disabled={!quipayId}
+            className="rounded-xl border border-white/[0.1] bg-white/[0.04] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-white/[0.08] disabled:opacity-40 transition-colors"
+          >
+            Copy
+          </button>
         </div>
 
         {/* Tab bar */}

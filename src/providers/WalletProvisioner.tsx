@@ -34,8 +34,41 @@ export function WalletProvisioner() {
 
   const stellarGuard = useRef<string | null>(null);
   const savedSig = useRef<string | null>(null);
+  const emailSig = useRef<string | null>(null);
 
   const uid = authenticated ? (user?.id ?? null) : null;
+
+  // Capture the Privy email (not present in the auth token) so the account —
+  // and the employer roster — can show who someone is by email.
+  useEffect(() => {
+    if (!ready || !uid) return;
+    const u = user as unknown as {
+      email?: { address?: string };
+      google?: { email?: string };
+      apple?: { email?: string };
+    };
+    const email =
+      u?.email?.address ?? u?.google?.email ?? u?.apple?.email ?? null;
+    if (!email) return;
+    const sig = `${uid}|${email}`;
+    if (emailSig.current === sig) return;
+    emailSig.current = sig;
+    void (async () => {
+      try {
+        const token = await getAccessToken();
+        await fetch(`${API_BASE}/api/accounts/email`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ email }),
+        });
+      } catch {
+        emailSig.current = null; // retry next render
+      }
+    })();
+  }, [ready, uid, user, getAccessToken]);
 
   // Create the Stellar wallet if it doesn't exist yet (one attempt per user).
   useEffect(() => {

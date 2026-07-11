@@ -116,6 +116,8 @@ export default defineConfig(() => {
             // Friendbot — testnet/futurenet XLM funding for fresh wallets.
             "https://friendbot.stellar.org",
             "https://friendbot-futurenet.stellar.org",
+            // Arc (EVM) testnet RPC — reading USDC balances on Arc.
+            "https://rpc.testnet.arc.network",
             // Privy auth API + wallet RPC — without these the SDK can never
             // fetch its config and `ready` stays false (login button hangs).
             "https://auth.privy.io",

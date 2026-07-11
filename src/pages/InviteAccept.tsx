@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { useWallet } from "../hooks/useWallet";
-import { WalletButton } from "../components/WalletButton";
+import { useAuth } from "../hooks/useAuth";
+import { useStellarAccount } from "../hooks/useStellarAccount";
+import { useStellarSign } from "../hooks/useStellarSign";
+import { LoginButton } from "../components/LoginButton";
 import { buildRegisterWorkerTx } from "../contracts/workforce_registry";
 import { submitAndAwaitTx } from "../contracts/payroll_stream";
 import { ensureFundedAccount } from "../contracts/util";
@@ -25,7 +27,9 @@ type LoadState = "loading" | "not_found" | "ready" | "error";
 
 const InviteAccept: React.FC = () => {
   const { code } = useParams<{ code: string }>();
-  const { address, signTransaction } = useWallet();
+  const { authenticated, getAccessToken } = useAuth();
+  const { address } = useStellarAccount();
+  const { signXdr } = useStellarSign();
 
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [invite, setInvite] = useState<Invite | null>(null);
@@ -64,7 +68,7 @@ const InviteAccept: React.FC = () => {
   }, [code]);
 
   const handleAccept = useCallback(async () => {
-    if (!invite || !address || !signTransaction) return;
+    if (!invite || !address) return;
     setAccepting(true);
     setAcceptError(null);
     try {
@@ -73,18 +77,20 @@ const InviteAccept: React.FC = () => {
         address,
         invite.employer_address,
       );
-      const { signedTxXdr } = await signTransaction(preparedXdr, {
-        networkPassphrase: import.meta.env
-          .PUBLIC_STELLAR_NETWORK_PASSPHRASE as string,
-      });
-      await submitAndAwaitTx(signedTxXdr);
+      const signed = await signXdr(preparedXdr, address);
+      await submitAndAwaitTx(signed);
 
+      // Backend resolves the worker from the authenticated token and records
+      // the acceptance against the caller's own on-file Stellar address.
+      const token = await getAccessToken();
       const res = await fetch(
         `${API_BASE}/api/employers/invites/${encodeURIComponent(invite.code)}/accept`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ workerAddress: address }),
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
         },
       );
       if (!res.ok) {
@@ -101,7 +107,7 @@ const InviteAccept: React.FC = () => {
     } finally {
       setAccepting(false);
     }
-  }, [invite, address, signTransaction]);
+  }, [invite, address, signXdr, getAccessToken]);
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (loadState === "loading") {
@@ -222,12 +228,19 @@ const InviteAccept: React.FC = () => {
             </p>
           )}
 
-          {!address ? (
+          {!authenticated ? (
             <div className="flex flex-col items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-5">
               <p className="text-[13px] text-neutral-400">
-                Connect your wallet to accept this invite.
+                Log in to accept this invite — you'll get a QP ID and wallet
+                automatically.
               </p>
-              <WalletButton />
+              <LoginButton />
+            </div>
+          ) : !address ? (
+            <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-5">
+              <p className="text-[13px] text-neutral-400">
+                Setting up your wallet…
+              </p>
             </div>
           ) : (
             <div>

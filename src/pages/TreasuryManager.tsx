@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useWallet } from "../hooks/useWallet";
 import ChainWallets from "../components/ChainWallets";
+import VaultFunding from "../components/VaultFunding";
 import {
   buildDepositTx,
   buildVaultWithdrawTx,
@@ -300,6 +301,13 @@ const TreasuryManager: React.FC = () => {
         </div>
 
         <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-6 mb-5">
+          <h3 className="mb-5 text-[15px] font-bold text-white">
+            Fund the payroll vault
+          </h3>
+          <VaultFunding onToast={undefined} />
+        </div>
+
+        <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-6">
           <div className="mb-5 flex items-center justify-between">
             <h3 className="text-[15px] font-bold text-white">
               Your funding wallets
@@ -313,18 +321,6 @@ const TreasuryManager: React.FC = () => {
           </div>
           {/* Read-only — the addresses are added once in Settings, not here. */}
           <ChainWallets readOnly manageHref="/settings" />
-        </div>
-
-        <div className="rounded-2xl border border-yellow-400/15 bg-yellow-400/[0.04] p-5">
-          <p className="text-[13px] text-neutral-300 leading-relaxed">
-            <span className="font-semibold text-yellow-400">
-              On-chain funding is next.
-            </span>{" "}
-            Your addresses above are where payroll settles. To move USDC into
-            the vault you'll authorize that wallet once (a signature, not
-            re-entering the address) — that step is being wired in. Streams can
-            already be set to pay out to these addresses.
-          </p>
         </div>
       </div>
     );

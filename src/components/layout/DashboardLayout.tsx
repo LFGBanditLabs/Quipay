@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useWallet } from "../../hooks/useWallet";
 import { useAuth } from "../../hooks/useAuth";
+import { useQuipayId } from "../../hooks/useQuipayId";
 import { useRoleDetect } from "../../hooks/useRoleDetect";
 import { Suspense } from "react";
 import NotificationCenter from "../NotificationCenter";
@@ -414,6 +415,7 @@ function SidebarContent({
   shortAddr,
   role,
   email,
+  quipayId,
   setCollapsed,
   onDisconnect,
   onLogout,
@@ -423,6 +425,7 @@ function SidebarContent({
   shortAddr: string;
   role: string;
   email: string | undefined;
+  quipayId: string | null;
   setCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
   onDisconnect: () => void;
   onLogout: () => void;
@@ -458,12 +461,11 @@ function SidebarContent({
         )}
       </div>
 
-      {/* Nav */}
+      {/* Nav — only confirmed employers (KYB complete) see the full employer
+          nav. Workers and not-yet-classified accounts get the simple worker
+          view, so a worker never sees employer tools. */}
       <div className="flex-1 px-2 py-3 overflow-y-auto scrollbar-none">
-        {role === "worker" ? (
-          /* ── Worker view — simple ── */
-          <NavSection items={WORKER_MAIN_NAV} collapsed={collapsed} />
-        ) : (
+        {role === "employer" ? (
           /* ── Employer view — full ── */
           <>
             <NavSection items={MAIN_NAV} collapsed={collapsed} />
@@ -476,6 +478,9 @@ function SidebarContent({
             <div className="my-2 border-t border-white/[0.05]" />
             <NavSection label="Tools" items={TOOLS_NAV} collapsed={collapsed} />
           </>
+        ) : (
+          /* ── Worker view — simple ── */
+          <NavSection items={WORKER_MAIN_NAV} collapsed={collapsed} />
         )}
       </div>
 
@@ -484,12 +489,12 @@ function SidebarContent({
         <div className="px-4 pb-1">
           <span
             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest ${
-              role === "worker"
-                ? "bg-blue-500/10 text-blue-400"
-                : "bg-yellow-400/10 text-yellow-400"
+              role === "employer"
+                ? "bg-yellow-400/10 text-yellow-400"
+                : "bg-blue-500/10 text-blue-400"
             }`}
           >
-            {role === "worker" ? "Worker" : "Employer"}
+            {role === "employer" ? "Employer" : "Worker"}
           </span>
         </div>
       )}
@@ -530,10 +535,15 @@ function SidebarContent({
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="truncate text-[13px] font-medium text-white">
+              {quipayId && (
+                <p className="truncate font-mono text-[13px] font-bold text-white">
+                  {quipayId}
+                </p>
+              )}
+              <p className="truncate text-[11px] text-neutral-500">
                 {email ?? (address ? shortAddr : "Signed in")}
               </p>
-              <div className="flex items-center gap-2">
+              <div className="mt-0.5 flex items-center gap-2">
                 <button
                   onClick={onLogout}
                   className="text-[12px] text-neutral-600 hover:text-red-400 transition-colors"
@@ -566,6 +576,7 @@ export default function DashboardLayout() {
   const navigate = useNavigate();
   const { address, disconnect } = useWallet();
   const { email, logout } = useAuth();
+  const { quipayId } = useQuipayId();
   const { role, resetRole: clearRole } = useRoleDetect(address);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -615,6 +626,7 @@ export default function DashboardLayout() {
           setCollapsed={setCollapsed}
           role={role}
           email={email}
+          quipayId={quipayId}
           onDisconnect={handleDisconnect}
           onLogout={handleLogout}
         />
@@ -641,6 +653,7 @@ export default function DashboardLayout() {
           setCollapsed={setCollapsed}
           role={role}
           email={email}
+          quipayId={quipayId}
           onDisconnect={handleDisconnect}
           onLogout={handleLogout}
         />

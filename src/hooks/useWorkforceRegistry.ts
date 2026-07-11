@@ -23,6 +23,7 @@ import {
 } from "../contracts/payroll_stream";
 import { wallet } from "../util/wallet";
 import { networkPassphrase } from "../contracts/util";
+import { useAuth } from "./useAuth";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 const STROOPS_PER_UNIT = 1e7;
@@ -46,6 +47,7 @@ export interface WorkerEntry extends WorkerProfile {
   totalPaid: number;
   streams: WorkerStreamRecord[];
   // Employee profile data from backend (set after on-chain registration)
+  quipayId?: string | null;
   fullName?: string;
   jobTitle?: string;
   department?: string;
@@ -78,7 +80,7 @@ export interface WorkerInvite {
 }
 
 export interface CreateInviteInput {
-  candidateName: string;
+  candidateQuipayId: string;
   jobTitle: string;
   description?: string;
   payAmount: number;
@@ -89,6 +91,7 @@ export interface CreateInviteInput {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useWorkforceRegistry(employerAddress: string | undefined) {
+  const { getAccessToken } = useAuth();
   const [workers, setWorkers] = useState<WorkerEntry[]>([]);
   const [pendingRequests, setPendingRequests] = useState<PendingJoinRequest[]>(
     [],
@@ -122,7 +125,7 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
         // 2. Fetch streams directly from the payroll_stream contract (no backend needed)
         let contractStreams: ContractStream[] = [];
         try {
-          const page = await getStreamsByEmployer(employerAddress!, 0, 200);
+          const page = await getStreamsByEmployer(employerAddress!, 0, 50);
           contractStreams = page.streams;
         } catch {
           // Contract unavailable — stream counts will be 0
@@ -150,6 +153,8 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
         // Fetch employee profiles (name, job title, dept, etc.)
         type EmpProfile = {
           worker_address: string;
+          quipay_id: string | null;
+          email: string | null;
           full_name: string;
           job_title: string;
           department: string | null;
@@ -160,11 +165,9 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
         let employeeProfiles: EmpProfile[] = [];
         if (API_BASE)
           try {
+            const token = await getAccessToken();
             const res = await fetch(`${API_BASE}/api/employers/employees`, {
-              headers: {
-                "x-user-id": employerAddress!,
-                "x-user-role": "user",
-              },
+              headers: { Authorization: `Bearer ${token}` },
             });
             if (res.ok) {
               const json = (await res.json()) as { employees?: EmpProfile[] };
@@ -178,11 +181,9 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
         let fetchedInvites: WorkerInvite[] = [];
         if (API_BASE)
           try {
+            const token = await getAccessToken();
             const res = await fetch(`${API_BASE}/api/employers/invites`, {
-              headers: {
-                "x-user-id": employerAddress!,
-                "x-user-role": "user",
-              },
+              headers: { Authorization: `Bearer ${token}` },
             });
             if (res.ok) {
               const json = (await res.json()) as { invites?: WorkerInvite[] };
@@ -210,10 +211,11 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
           );
 
           const profileFields = {
+            quipayId: empProfile?.quipay_id,
             fullName: empProfile?.full_name,
             jobTitle: empProfile?.job_title,
             department: empProfile?.department ?? undefined,
-            workEmail: empProfile?.work_email ?? undefined,
+            workEmail: empProfile?.email ?? empProfile?.work_email ?? undefined,
             employeeRef: empProfile?.employee_ref ?? undefined,
           };
 
@@ -326,7 +328,7 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
       await submitAndAwaitTx(signedTxXdr);
       refetch();
     },
-    [employerAddress, refetch],
+    [employerAddress, getAccessToken, refetch],
   );
 
   // ─── removeWorker ────────────────────────────────────────────────────────────
@@ -348,7 +350,7 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
       await submitAndAwaitTx(signedTxXdr);
       refetch();
     },
-    [employerAddress, refetch],
+    [employerAddress, getAccessToken, refetch],
   );
 
   // ─── rejectWorker ───────────────────────────────────────────────────────────
@@ -358,14 +360,12 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
       if (!employerAddress) throw new Error("Wallet not connected");
       if (!API_BASE) throw new Error("Backend not configured");
 
+      const token = await getAccessToken();
       const res = await fetch(
         `${API_BASE}/api/employers/worker-registrations/${encodeURIComponent(workerAddress)}`,
         {
           method: "DELETE",
-          headers: {
-            "x-user-id": employerAddress,
-            "x-user-role": "user",
-          },
+          headers: { Authorization: `Bearer ${token}` },
         },
       );
       if (!res.ok) {
@@ -373,22 +373,21 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
       }
       refetch();
     },
-    [employerAddress, refetch],
+    [employerAddress, getAccessToken, refetch],
   );
 
   // ─── createInvite ───────────────────────────────────────────────────────────
 
   const createInvite = useCallback(
     async (input: CreateInviteInput): Promise<{ inviteUrl: string }> => {
-      if (!employerAddress) throw new Error("Wallet not connected");
       if (!API_BASE) throw new Error("Backend not configured");
 
+      const token = await getAccessToken();
       const res = await fetch(`${API_BASE}/api/employers/invites`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": employerAddress,
-          "x-user-role": "user",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(input),
       });
@@ -406,24 +405,21 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
         inviteUrl: `${window.location.origin}/invite/${data.invite.code}`,
       };
     },
-    [employerAddress, refetch],
+    [getAccessToken, refetch],
   );
 
   // ─── cancelInvite ───────────────────────────────────────────────────────────
 
   const cancelInvite = useCallback(
     async (code: string): Promise<void> => {
-      if (!employerAddress) throw new Error("Wallet not connected");
       if (!API_BASE) throw new Error("Backend not configured");
 
+      const token = await getAccessToken();
       const res = await fetch(
         `${API_BASE}/api/employers/invites/${encodeURIComponent(code)}`,
         {
           method: "DELETE",
-          headers: {
-            "x-user-id": employerAddress,
-            "x-user-role": "user",
-          },
+          headers: { Authorization: `Bearer ${token}` },
         },
       );
       if (!res.ok) {
@@ -431,7 +427,7 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
       }
       refetch();
     },
-    [employerAddress, refetch],
+    [getAccessToken, refetch],
   );
 
   return {

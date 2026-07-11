@@ -7,7 +7,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { useWallet } from "../hooks/useWallet";
+import { useStellarAccount } from "../hooks/useStellarAccount";
 import {
   useWorkforceRegistry,
   WorkerEntry,
@@ -171,43 +171,59 @@ function WorkerCard({
 
         {/* Info */}
         <div className="min-w-0 flex-1">
+          {/* Primary identity: QP ID (+ job title). Falls back to address. */}
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => void copyAddress()}
-              title={t("workforce.copy_address")}
-              className="flex items-center gap-1.5 font-mono text-[13px] font-semibold text-white transition-colors hover:text-yellow-400"
+            <span className="font-mono text-[14px] font-bold text-white">
+              {worker.quipayId ?? shortAddr(worker.wallet)}
+            </span>
+            {worker.jobTitle && (
+              <span className="text-[12px] text-neutral-500">
+                · {worker.jobTitle}
+              </span>
+            )}
+          </div>
+          {worker.workEmail && (
+            <p className="truncate text-[12px] text-neutral-500">
+              {worker.workEmail}
+            </p>
+          )}
+
+          {/* Secondary: the wallet address, copyable */}
+          <button
+            onClick={() => void copyAddress()}
+            title={t("workforce.copy_address")}
+            className="mt-0.5 flex items-center gap-1.5 font-mono text-[11px] text-neutral-600 transition-colors hover:text-yellow-400"
+          >
+            {shortAddr(worker.wallet)}
+            <svg
+              className="h-3 w-3 text-neutral-700"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              {shortAddr(worker.wallet)}
-              <svg
-                className="h-3 w-3 text-neutral-700"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <rect
-                  x="9"
-                  y="9"
-                  width="13"
-                  height="13"
-                  rx="2"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                />
-              </svg>
-            </button>
+              <rect
+                x="9"
+                y="9"
+                width="13"
+                height="13"
+                rx="2"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+              />
+            </svg>
             {copied && (
               <span className="text-[11px] font-semibold text-green-400">
                 Copied!
               </span>
             )}
-          </div>
+          </button>
 
           {worker.metadata_hash && (
             <p
@@ -341,7 +357,7 @@ function InviteWorkerModal({
   onClose: () => void;
   onCreate: (input: CreateInviteInput) => Promise<{ inviteUrl: string }>;
 }) {
-  const [candidateName, setCandidateName] = useState("");
+  const [candidateQuipayId, setCandidateQuipayId] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [description, setDescription] = useState("");
   const [payAmount, setPayAmount] = useState("");
@@ -357,7 +373,7 @@ function InviteWorkerModal({
   }, []);
 
   const isValid =
-    candidateName.trim().length >= 2 &&
+    /^QP\d+$/i.test(candidateQuipayId.trim()) &&
     jobTitle.trim().length >= 2 &&
     Number(payAmount) > 0 &&
     Number(durationDays) > 0;
@@ -370,7 +386,7 @@ function InviteWorkerModal({
     setError(null);
     try {
       const { inviteUrl: url } = await onCreate({
-        candidateName: candidateName.trim(),
+        candidateQuipayId: candidateQuipayId.trim().toUpperCase(),
         jobTitle: jobTitle.trim(),
         description: description.trim() || undefined,
         payAmount: Number(payAmount),
@@ -451,17 +467,20 @@ function InviteWorkerModal({
             >
               <div className="flex flex-col gap-1.5">
                 <label className="text-[13px] font-semibold text-white">
-                  Candidate name
+                  Employee QP ID
                 </label>
                 <input
                   ref={inputRef}
                   type="text"
-                  className="w-full rounded-xl border border-white/[0.1] bg-black px-4 py-3 text-[13px] text-white placeholder:text-neutral-700 focus:border-yellow-400/40 focus:outline-none focus:ring-1 focus:ring-yellow-400/20"
-                  placeholder="Jane Doe"
-                  value={candidateName}
-                  onChange={(e) => setCandidateName(e.target.value)}
+                  className="w-full rounded-xl border border-white/[0.1] bg-black px-4 py-3 text-[13px] font-mono text-white placeholder:text-neutral-700 focus:border-yellow-400/40 focus:outline-none focus:ring-1 focus:ring-yellow-400/20"
+                  placeholder="QP100000042"
+                  value={candidateQuipayId}
+                  onChange={(e) => setCandidateQuipayId(e.target.value)}
                   disabled={submitting}
                 />
+                <p className="text-[11px] text-neutral-600">
+                  Ask the employee for their QP ID (shown on their dashboard).
+                </p>
               </div>
 
               <div className="flex flex-col gap-1.5">
@@ -739,7 +758,7 @@ function AddWorkerModal({
 
 const WorkforceRegistry: React.FC = () => {
   const { t } = useTranslation();
-  const { address } = useWallet();
+  const { address } = useStellarAccount();
   const navigate = useNavigate();
   const {
     workers,

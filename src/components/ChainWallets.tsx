@@ -33,6 +33,37 @@ async function fetchStellarBalance(
   }
 }
 
+const ARC_RPC_URL =
+  import.meta.env.VITE_ARC_RPC_URL ?? "https://rpc.testnet.arc.network";
+const ARC_USDC_ADDRESS =
+  import.meta.env.VITE_ARC_USDC_ADDRESS ??
+  "0x3600000000000000000000000000000000000000";
+
+/** Live USDC balance (6dp) for an Arc/EVM address, via eth_call balanceOf. */
+async function fetchArcUsdc(address: string): Promise<number | null> {
+  try {
+    const data = `0x70a08231000000000000000000000000${address
+      .replace(/^0x/, "")
+      .toLowerCase()}`;
+    const res = await fetch(ARC_RPC_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "eth_call",
+        params: [{ to: ARC_USDC_ADDRESS, data }, "latest"],
+      }),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { result?: string };
+    if (!json.result || json.result === "0x") return 0;
+    return Number(BigInt(json.result)) / 1e6;
+  } catch {
+    return null;
+  }
+}
+
 const IS_TESTNET =
   ((import.meta.env.PUBLIC_STELLAR_NETWORK as string) ?? "").toUpperCase() !==
   "PUBLIC";
@@ -95,6 +126,7 @@ export default function ChainWallets({
     usdc: number;
     xlm: number;
   } | null>(null);
+  const [arcUsdc, setArcUsdc] = useState<number | null>(null);
   const [drafts, setDrafts] = useState<Record<Chain, string>>({
     stellar: "",
     arc: "",
@@ -128,6 +160,7 @@ export default function ChainWallets({
     wallets.find((w) => w.chain === chain)?.address ?? null;
 
   const stellarAddr = linkedFor("stellar");
+  const arcAddr = linkedFor("arc");
 
   // Live-read the Stellar wallet balance once linked, and after funding.
   const refreshBalance = useCallback(async () => {
@@ -138,6 +171,12 @@ export default function ChainWallets({
   useEffect(() => {
     void refreshBalance();
   }, [refreshBalance, fundState]);
+
+  // Live-read the Arc USDC balance once linked.
+  useEffect(() => {
+    if (!arcAddr) return;
+    void fetchArcUsdc(arcAddr).then(setArcUsdc);
+  }, [arcAddr]);
 
   async function save(chain: Chain) {
     const address = drafts[chain].trim();
@@ -229,6 +268,17 @@ export default function ChainWallets({
                         maximumFractionDigits: 2,
                       })}{" "}
                       XLM
+                    </span>
+                  </div>
+                )}
+                {c.id === "arc" && arcUsdc !== null && (
+                  <div className="text-[13px]">
+                    <span className="font-semibold text-white">
+                      {arcUsdc.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      <span className="text-neutral-500">USDC</span>
                     </span>
                   </div>
                 )}

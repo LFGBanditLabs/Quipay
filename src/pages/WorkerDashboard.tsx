@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { recordWithdrawalEvent } from "../util/recordWithdrawal";
-import { useWallet } from "../hooks/useWallet";
+import { useStellarSign } from "../hooks/useStellarSign";
+import { useStellarAccount } from "../hooks/useStellarAccount";
 import { useStreamSubscription } from "../hooks/useStreamSubscription";
 import {
   useStreams,
@@ -108,7 +109,7 @@ const StreamCard: React.FC<{
   onWithdrawn: () => void;
 }> = ({ stream, withdrawals, workerAddress, onWithdrawn }) => {
   const { t } = useTranslation();
-  const { signTransaction } = useWallet();
+  const { signXdr } = useStellarSign();
   const { addNotification, addStreamNotification } = useNotification();
   const [showTimeline, setShowTimeline] = useState(false);
   const [lastEventAmount, setLastEventAmount] = useState<number | null>(null);
@@ -180,7 +181,7 @@ const StreamCard: React.FC<{
   const remaining = Math.max(0, stream.totalAmount - currentEarnings);
 
   const handleWithdraw = async () => {
-    if (!signTransaction || withdrawable <= 0) return;
+    if (withdrawable <= 0) return;
     setWithdrawing(true);
     setWithdrawError(null);
     try {
@@ -188,11 +189,8 @@ const StreamCard: React.FC<{
         BigInt(stream.id),
         workerAddress,
       );
-      const { signedTxXdr } = await signTransaction(preparedXdr, {
-        networkPassphrase: import.meta.env
-          .PUBLIC_STELLAR_NETWORK_PASSPHRASE as string,
-      });
-      const txHash = await submitAndAwaitTx(signedTxXdr);
+      const signed = await signXdr(preparedXdr, workerAddress);
+      const txHash = await submitAndAwaitTx(signed);
       void recordWithdrawalEvent({
         workerAddress,
         employerAddress: stream.employerAddress,
@@ -496,7 +494,7 @@ function useBackendTotalWithdrawn(address: string | undefined, tick: number) {
 }
 
 const WorkerDashboard: React.FC = () => {
-  const { address } = useWallet();
+  const { address } = useStellarAccount();
   const { streams, withdrawalHistory, isLoading, error, refetch } =
     useStreams(address);
   const registeredEmployers = useRegisteredEmployers(address);

@@ -514,7 +514,7 @@ async function simulateContractRead<T>(
 
   if (!source) {
     source = new Account(
-      "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
+      "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
       "0",
     );
   }
@@ -573,6 +573,11 @@ export async function getStreamsByWorker(
  * Calls `get_streams_by_employer` on the PayrollStream contract and returns a
  * paginated stream page plus total count.
  */
+// The contract rejects pages larger than this with BatchTooLarge (#1030),
+// which surfaces as an empty read (and e.g. "0 active streams"). Clamp here so
+// no caller can trip it.
+const MAX_EMPLOYER_STREAM_PAGE_SIZE = 50;
+
 export async function getStreamsByEmployer(
   employerAddress: string,
   offset = 0,
@@ -580,6 +585,7 @@ export async function getStreamsByEmployer(
 ): Promise<{ streams: ContractStream[]; total: number }> {
   if (!PAYROLL_STREAM_CONTRACT_ID) return { streams: [], total: 0 };
 
+  const pageLimit = Math.min(limit, MAX_EMPLOYER_STREAM_PAGE_SIZE);
   const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
   const page = await simulateContractRead<[ContractStream[], number]>(
     employerAddress,
@@ -587,7 +593,7 @@ export async function getStreamsByEmployer(
       "get_streams_by_employer",
       new Address(employerAddress).toScVal(),
       nativeToScVal(offset, { type: "u32" }),
-      nativeToScVal(limit, { type: "u32" }),
+      nativeToScVal(pageLimit, { type: "u32" }),
     ),
   );
 
