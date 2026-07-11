@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import { useWallet } from "../hooks/useWallet";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
+import ChainWallets from "../components/ChainWallets";
 
 // ─── Contract IDs ─────────────────────────────────────────────────────────────
 
@@ -80,9 +80,7 @@ function SectionCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const Settings: React.FC = () => {
-  const { address, disconnect } = useWallet();
   const [activeTab, setActiveTab] = useState<TabId>("profile");
-  const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const [notifs, setNotifs] = useLocalStorage("quipay:settings:notifs", {
@@ -96,13 +94,6 @@ const Settings: React.FC = () => {
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
-  };
-
-  const copyAddress = () => {
-    if (!address) return;
-    void navigator.clipboard.writeText(address);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   const tabs: { id: TabId; label: string }[] = [
@@ -152,115 +143,8 @@ const Settings: React.FC = () => {
         {/* ── Profile & Wallet ── */}
         {activeTab === "profile" && (
           <div className="flex flex-col gap-5">
-            <SectionCard title="Wallet">
-              {address ? (
-                <div className="flex flex-col gap-4">
-                  {/* Avatar + address */}
-                  <div className="flex items-center gap-4">
-                    <div
-                      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-[18px] font-black text-black"
-                      style={{ backgroundColor: "#facc15" }}
-                    >
-                      {address.slice(1, 3).toUpperCase()}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-semibold text-neutral-500 mb-0.5">
-                        Connected wallet
-                      </p>
-                      <p className="font-mono text-[14px] text-white truncate">
-                        {address}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex gap-3">
-                    <button
-                      onClick={copyAddress}
-                      className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-white/[0.08] transition-colors"
-                    >
-                      <svg
-                        className="h-3.5 w-3.5"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <rect x="9" y="9" width="13" height="13" rx="2" />
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                      </svg>
-                      {copied ? "Copied!" : "Copy address"}
-                    </button>
-                    <a
-                      href={`https://stellar.expert/explorer/testnet/account/${address}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-[13px] font-semibold text-white no-underline hover:bg-white/[0.08] transition-colors"
-                    >
-                      <svg
-                        className="h-3.5 w-3.5"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      >
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                        <polyline points="15 3 21 3 21 9" />
-                        <line x1="10" y1="14" x2="21" y2="3" />
-                      </svg>
-                      View on Explorer
-                    </a>
-                  </div>
-
-                  <div className="border-t border-white/[0.05] pt-4">
-                    <button
-                      onClick={() => void disconnect()}
-                      className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/[0.05] px-4 py-2.5 text-[13px] font-semibold text-red-400 hover:bg-red-500/[0.12] transition-colors"
-                    >
-                      <svg
-                        className="h-3.5 w-3.5"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                      >
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                        <polyline points="16 17 21 12 16 7" />
-                        <line x1="21" y1="12" x2="9" y2="12" />
-                      </svg>
-                      Disconnect wallet
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-[14px] text-neutral-500">
-                  No wallet connected.
-                </p>
-              )}
-            </SectionCard>
-
-            <SectionCard title="About Quipay">
-              <div className="flex flex-col gap-3 text-[13px]">
-                {[
-                  { label: "Version", value: "Beta" },
-                  { label: "Protocol", value: "Stellar + Soroban" },
-                  { label: "Network", value: NETWORK },
-                  {
-                    label: "Repository",
-                    value: "github.com/LFGBanditLabs/Quipay",
-                  },
-                ].map(({ label, value }) => (
-                  <div
-                    key={label}
-                    className="flex items-center justify-between"
-                  >
-                    <span className="text-neutral-600">{label}</span>
-                    <span className="font-medium text-white">{value}</span>
-                  </div>
-                ))}
-              </div>
+            <SectionCard title="Wallets">
+              <ChainWallets onToast={showToast} />
             </SectionCard>
           </div>
         )}
@@ -268,36 +152,68 @@ const Settings: React.FC = () => {
         {/* ── Network & Contracts ── */}
         {activeTab === "network" && (
           <div className="flex flex-col gap-5">
-            <SectionCard title="Network">
-              <div className="flex flex-col gap-3 text-[13px]">
-                {[
-                  { label: "Network", value: NETWORK },
-                  {
-                    label: "RPC",
-                    value:
-                      (import.meta.env.PUBLIC_STELLAR_RPC_URL as string) ?? "—",
-                  },
-                  {
-                    label: "Horizon",
-                    value:
-                      (import.meta.env.PUBLIC_STELLAR_HORIZON_URL as string) ??
-                      "—",
-                  },
-                ].map(({ label, value }) => (
-                  <div
-                    key={label}
-                    className="flex items-start justify-between gap-4"
-                  >
-                    <span className="shrink-0 text-neutral-600">{label}</span>
-                    <span className="font-mono text-[11px] text-white break-all text-right">
-                      {value}
+            <SectionCard title="Chains">
+              <p className="mb-4 text-[13px] text-neutral-500">
+                Quipay settles USDC payroll across two chains. Stellar is live;
+                Arc (EVM) support is being wired in.
+              </p>
+              <div className="flex flex-col gap-3">
+                <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-3.5">
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-green-400" />
+                    <span className="text-[13px] font-bold text-white">
+                      Stellar (Soroban)
+                    </span>
+                    <span className="ml-auto rounded-full bg-green-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-400">
+                      Live
                     </span>
                   </div>
-                ))}
+                  {[
+                    { label: "Network", value: NETWORK },
+                    {
+                      label: "RPC",
+                      value:
+                        (import.meta.env.PUBLIC_STELLAR_RPC_URL as string) ??
+                        "—",
+                    },
+                    {
+                      label: "Horizon",
+                      value:
+                        (import.meta.env
+                          .PUBLIC_STELLAR_HORIZON_URL as string) ?? "—",
+                    },
+                  ].map(({ label, value }) => (
+                    <div
+                      key={label}
+                      className="flex items-start justify-between gap-4 text-[12px]"
+                    >
+                      <span className="shrink-0 text-neutral-600">{label}</span>
+                      <span className="font-mono text-[11px] text-white break-all text-right">
+                        {value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-3.5">
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-yellow-400" />
+                    <span className="text-[13px] font-bold text-white">
+                      Arc (EVM)
+                    </span>
+                    <span className="ml-auto rounded-full bg-yellow-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-yellow-400">
+                      In progress
+                    </span>
+                  </div>
+                  <p className="text-[12px] text-neutral-500">
+                    EVM-compatible USDC settlement. Link an Arc address under
+                    Profile &amp; Wallet to be ready when funding goes live.
+                  </p>
+                </div>
               </div>
             </SectionCard>
 
-            <SectionCard title="Deployed Contracts">
+            <SectionCard title="Deployed Contracts (Stellar)">
               <div className="flex flex-col gap-3">
                 {CONTRACTS.map(({ label, id }) => (
                   <div

@@ -39,6 +39,7 @@ const DashboardCustomization = lazy(
 const StreamTemplates = lazy(() => import("./pages/StreamTemplates"));
 const StreamComparison = lazy(() => import("./pages/StreamComparison"));
 const EmployerOnboarding = lazy(() => import("./pages/EmployerOnboarding"));
+const InviteAccept = lazy(() => import("./pages/InviteAccept"));
 
 // ─── Public layout (landing page + help) ─────────────────────────────────────
 
@@ -88,6 +89,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
           <Route path="/onboard" element={<EmployerOnboarding />} />
+          <Route path="/invite/:code" element={<InviteAccept />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/ui-primitives" element={<UIPrimitivesPreview />} />
           <Route path="/debug" element={<Debugger />} />

@@ -100,7 +100,9 @@ export default defineConfig(() => {
         // WebSocket). Production keeps the strict policy in nginx.conf.
         "Content-Security-Policy": [
           "default-src 'self'",
-          "script-src 'self' 'unsafe-inline'",
+          // challenges.cloudflare.com: Privy email login uses a Cloudflare
+          // Turnstile captcha whose script + iframe load from there.
+          "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
           "font-src 'self' https://fonts.gstatic.com",
           [
@@ -111,8 +113,18 @@ export default defineConfig(() => {
             "https://horizon.stellar.org",
             "https://horizon-testnet.stellar.org",
             "https://soroban-testnet.stellar.org",
+            // Friendbot — testnet/futurenet XLM funding for fresh wallets.
+            "https://friendbot.stellar.org",
+            "https://friendbot-futurenet.stellar.org",
+            // Privy auth API + wallet RPC — without these the SDK can never
+            // fetch its config and `ready` stays false (login button hangs).
+            "https://auth.privy.io",
+            "https://*.privy.io",
+            "https://*.rpc.privy.systems",
           ].join(" "),
           "img-src 'self' data: blob: https:",
+          // Privy renders its Turnstile captcha + auth flow inside iframes.
+          "frame-src 'self' https://auth.privy.io https://challenges.cloudflare.com",
           "worker-src 'self' blob:",
           "report-uri /csp-report",
         ].join("; "),

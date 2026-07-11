@@ -53,10 +53,47 @@ export interface WorkerEntry extends WorkerProfile {
   employeeRef?: string;
 }
 
+/** A worker who registered under this employer but hasn't been approved onto
+ *  the on-chain roster yet (registration = request; approval = set_stream_active). */
+export interface PendingJoinRequest {
+  wallet: string;
+  fullName: string;
+  jobTitle: string;
+  department?: string;
+  workEmail?: string;
+  employeeRef?: string;
+  registeredAt?: string;
+}
+
+export interface WorkerInvite {
+  code: string;
+  candidate_name: string;
+  job_title: string;
+  description: string | null;
+  pay_amount: string;
+  pay_token: string;
+  duration_days: number;
+  status: "pending" | "accepted" | "expired" | "cancelled";
+  created_at: string;
+}
+
+export interface CreateInviteInput {
+  candidateName: string;
+  jobTitle: string;
+  description?: string;
+  payAmount: number;
+  payToken?: string;
+  durationDays: number;
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useWorkforceRegistry(employerAddress: string | undefined) {
   const [workers, setWorkers] = useState<WorkerEntry[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<PendingJoinRequest[]>(
+    [],
+  );
+  const [invites, setInvites] = useState<WorkerInvite[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fetchTick, setFetchTick] = useState(0);
@@ -118,6 +155,7 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
           department: string | null;
           work_email: string | null;
           employee_ref: string | null;
+          registered_at?: string;
         };
         let employeeProfiles: EmpProfile[] = [];
         if (API_BASE)
@@ -135,6 +173,25 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
           } catch {
             /* backend unavailable */
           }
+
+        // Fetch invites this employer has sent
+        let fetchedInvites: WorkerInvite[] = [];
+        if (API_BASE)
+          try {
+            const res = await fetch(`${API_BASE}/api/employers/invites`, {
+              headers: {
+                "x-user-id": employerAddress!,
+                "x-user-role": "user",
+              },
+            });
+            if (res.ok) {
+              const json = (await res.json()) as { invites?: WorkerInvite[] };
+              fetchedInvites = json.invites ?? [];
+            }
+          } catch {
+            /* backend unavailable */
+          }
+        setInvites(fetchedInvites);
 
         // 3. Merge: prefer backend data if available, otherwise use contract data
         const entries: WorkerEntry[] = profiles.map((p) => {
@@ -212,6 +269,23 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
         });
 
         setWorkers(entries);
+
+        // Registered in the backend but not on the on-chain roster yet —
+        // these are join requests awaiting the employer's approval.
+        const rosterWallets = new Set(profiles.map((p) => p.wallet));
+        setPendingRequests(
+          employeeProfiles
+            .filter((ep) => !rosterWallets.has(ep.worker_address))
+            .map((ep) => ({
+              wallet: ep.worker_address,
+              fullName: ep.full_name,
+              jobTitle: ep.job_title,
+              department: ep.department ?? undefined,
+              workEmail: ep.work_email ?? undefined,
+              employeeRef: ep.employee_ref ?? undefined,
+              registeredAt: ep.registered_at,
+            })),
+        );
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Failed to load workforce data",
@@ -277,12 +351,100 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
     [employerAddress, refetch],
   );
 
+  // ─── rejectWorker ───────────────────────────────────────────────────────────
+
+  const rejectWorker = useCallback(
+    async (workerAddress: string): Promise<void> => {
+      if (!employerAddress) throw new Error("Wallet not connected");
+      if (!API_BASE) throw new Error("Backend not configured");
+
+      const res = await fetch(
+        `${API_BASE}/api/employers/worker-registrations/${encodeURIComponent(workerAddress)}`,
+        {
+          method: "DELETE",
+          headers: {
+            "x-user-id": employerAddress,
+            "x-user-role": "user",
+          },
+        },
+      );
+      if (!res.ok) {
+        throw new Error(`Failed to reject request (${res.status})`);
+      }
+      refetch();
+    },
+    [employerAddress, refetch],
+  );
+
+  // ─── createInvite ───────────────────────────────────────────────────────────
+
+  const createInvite = useCallback(
+    async (input: CreateInviteInput): Promise<{ inviteUrl: string }> => {
+      if (!employerAddress) throw new Error("Wallet not connected");
+      if (!API_BASE) throw new Error("Backend not configured");
+
+      const res = await fetch(`${API_BASE}/api/employers/invites`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": employerAddress,
+          "x-user-role": "user",
+        },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(
+          data.error ?? `Failed to create invite (${res.status})`,
+        );
+      }
+      const data = (await res.json()) as { invite: WorkerInvite };
+      refetch();
+      return {
+        inviteUrl: `${window.location.origin}/invite/${data.invite.code}`,
+      };
+    },
+    [employerAddress, refetch],
+  );
+
+  // ─── cancelInvite ───────────────────────────────────────────────────────────
+
+  const cancelInvite = useCallback(
+    async (code: string): Promise<void> => {
+      if (!employerAddress) throw new Error("Wallet not connected");
+      if (!API_BASE) throw new Error("Backend not configured");
+
+      const res = await fetch(
+        `${API_BASE}/api/employers/invites/${encodeURIComponent(code)}`,
+        {
+          method: "DELETE",
+          headers: {
+            "x-user-id": employerAddress,
+            "x-user-role": "user",
+          },
+        },
+      );
+      if (!res.ok) {
+        throw new Error(`Failed to cancel invite (${res.status})`);
+      }
+      refetch();
+    },
+    [employerAddress, refetch],
+  );
+
   return {
     workers,
+    pendingRequests,
+    invites,
     isLoading,
     error,
     refetch,
     addWorker,
     removeWorker,
+    rejectWorker,
+    createInvite,
+    cancelInvite,
   };
 }
