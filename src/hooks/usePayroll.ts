@@ -174,82 +174,79 @@ export const usePayroll = (employerAddress: string | undefined) => {
     await fetchPayrollSummary(employerAddress);
   }, [employerAddress, fetchPayrollSummary]);
 
-  const fetchStreams = useCallback(
-    async (address: string) => {
-      try {
-        // The contract's get_streams_by_employer returns Stream structs with
-        // NO ids, so we resolve real ids the way the contract exposes them:
-        // per worker via get_streams_by_worker, then get_stream(id). This
-        // makes each row's id the true on-chain stream id (so /stream/:id
-        // links work) instead of a fabricated index.
-        const workers = await dedupRequest(`workers-${address}`, () =>
-          getWorkersByEmployer(address, address).catch(() => []),
-        );
+  const fetchStreams = useCallback(async (address: string) => {
+    try {
+      // The contract's get_streams_by_employer returns Stream structs with
+      // NO ids, so we resolve real ids the way the contract exposes them:
+      // per worker via get_streams_by_worker, then get_stream(id). This
+      // makes each row's id the true on-chain stream id (so /stream/:id
+      // links work) instead of a fabricated index.
+      const workers = await dedupRequest(`workers-${address}`, () =>
+        getWorkersByEmployer(address, address).catch(() => []),
+      );
 
-        const idSet = new Set<string>();
-        await Promise.all(
-          workers.map(async (w) => {
-            const ids = await getStreamsByWorker(w.wallet).catch(() => []);
-            ids.forEach((id) => idSet.add(id.toString()));
+      const idSet = new Set<string>();
+      await Promise.all(
+        workers.map(async (w) => {
+          const ids = await getStreamsByWorker(w.wallet).catch(() => []);
+          ids.forEach((id) => idSet.add(id.toString()));
+        }),
+      );
+
+      const detailed = await Promise.all(
+        [...idSet].map(async (idStr) => {
+          const s = await getStreamById(address, BigInt(idStr)).catch(
+            () => null,
+          );
+          return s ? { id: idStr, s } : null;
+        }),
+      );
+
+      const employerStreams: Stream[] = await Promise.all(
+        detailed
+          .filter((x): x is { id: string; s: ContractStream } => x !== null)
+          .filter(({ s }) => s.employer === address)
+          .sort((a, b) => Number(a.id) - Number(b.id))
+          .map(async ({ id, s }) => {
+            const tokenSymbol = await getTokenSymbol(address, s.token);
+            return {
+              id,
+              employeeName: `${s.worker.slice(0, 6)}…${s.worker.slice(-4)}`,
+              employeeAddress: s.worker,
+              flowRate: (Number(s.rate) / STROOPS_PER_UNIT).toFixed(7),
+              tokenSymbol,
+              startDate: new Date(Number(s.start_ts) * 1000)
+                .toISOString()
+                .split("T")[0],
+              endDate: new Date(Number(s.end_ts) * 1000)
+                .toISOString()
+                .split("T")[0],
+              totalAmount: (Number(s.total_amount) / STROOPS_PER_UNIT).toFixed(
+                2,
+              ),
+              totalStreamed: (
+                Number(s.withdrawn_amount) / STROOPS_PER_UNIT
+              ).toFixed(2),
+              status:
+                s.status === 1
+                  ? "cancelled"
+                  : s.status === 2
+                    ? "completed"
+                    : s.status === 3
+                      ? "paused"
+                      : "active",
+            };
           }),
-        );
+      );
 
-        const detailed = await Promise.all(
-          [...idSet].map(async (idStr) => {
-            const s = await getStreamById(address, BigInt(idStr)).catch(
-              () => null,
-            );
-            return s ? { id: idStr, s } : null;
-          }),
-        );
-
-        const employerStreams: Stream[] = await Promise.all(
-          detailed
-            .filter((x): x is { id: string; s: ContractStream } => x !== null)
-            .filter(({ s }) => s.employer === address)
-            .sort((a, b) => Number(a.id) - Number(b.id))
-            .map(async ({ id, s }) => {
-              const tokenSymbol = await getTokenSymbol(address, s.token);
-              return {
-                id,
-                employeeName: `${s.worker.slice(0, 6)}…${s.worker.slice(-4)}`,
-                employeeAddress: s.worker,
-                flowRate: (Number(s.rate) / STROOPS_PER_UNIT).toFixed(7),
-                tokenSymbol,
-                startDate: new Date(Number(s.start_ts) * 1000)
-                  .toISOString()
-                  .split("T")[0],
-                endDate: new Date(Number(s.end_ts) * 1000)
-                  .toISOString()
-                  .split("T")[0],
-                totalAmount: (
-                  Number(s.total_amount) / STROOPS_PER_UNIT
-                ).toFixed(2),
-                totalStreamed: (
-                  Number(s.withdrawn_amount) / STROOPS_PER_UNIT
-                ).toFixed(2),
-                status:
-                  s.status === 1
-                    ? "cancelled"
-                    : s.status === 2
-                      ? "completed"
-                      : s.status === 3
-                        ? "paused"
-                        : "active",
-              };
-            }),
-        );
-
-        setStreams(employerStreams);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to load stream data",
-        );
-        setStreams([]);
-      }
-    },
-    [],
-  );
+      setStreams(employerStreams);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load stream data",
+      );
+      setStreams([]);
+    }
+  }, []);
 
   const refetch = useCallback(() => {
     setFetchTick((t) => t + 1);
