@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useWallet } from "../../hooks/useWallet";
+import { useAuth } from "../../hooks/useAuth";
+import { useQuipayId } from "../../hooks/useQuipayId";
 import { useRoleDetect } from "../../hooks/useRoleDetect";
 import { Suspense } from "react";
 import NotificationCenter from "../NotificationCenter";
@@ -412,15 +414,21 @@ function SidebarContent({
   address,
   shortAddr,
   role,
+  email,
+  quipayId,
   setCollapsed,
   onDisconnect,
+  onLogout,
 }: {
   collapsed: boolean;
   address: string | undefined;
   shortAddr: string;
   role: string;
+  email: string | undefined;
+  quipayId: string | null;
   setCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
   onDisconnect: () => void;
+  onLogout: () => void;
 }) {
   return (
     <div className="flex h-full flex-col bg-[#050505]">
@@ -453,12 +461,11 @@ function SidebarContent({
         )}
       </div>
 
-      {/* Nav */}
+      {/* Nav — only confirmed employers (KYB complete) see the full employer
+          nav. Workers and not-yet-classified accounts get the simple worker
+          view, so a worker never sees employer tools. */}
       <div className="flex-1 px-2 py-3 overflow-y-auto scrollbar-none">
-        {role === "worker" ? (
-          /* ── Worker view — simple ── */
-          <NavSection items={WORKER_MAIN_NAV} collapsed={collapsed} />
-        ) : (
+        {role === "employer" ? (
           /* ── Employer view — full ── */
           <>
             <NavSection items={MAIN_NAV} collapsed={collapsed} />
@@ -471,6 +478,9 @@ function SidebarContent({
             <div className="my-2 border-t border-white/[0.05]" />
             <NavSection label="Tools" items={TOOLS_NAV} collapsed={collapsed} />
           </>
+        ) : (
+          /* ── Worker view — simple ── */
+          <NavSection items={WORKER_MAIN_NAV} collapsed={collapsed} />
         )}
       </div>
 
@@ -479,12 +489,12 @@ function SidebarContent({
         <div className="px-4 pb-1">
           <span
             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest ${
-              role === "worker"
-                ? "bg-blue-500/10 text-blue-400"
-                : "bg-yellow-400/10 text-yellow-400"
+              role === "employer"
+                ? "bg-yellow-400/10 text-yellow-400"
+                : "bg-blue-500/10 text-blue-400"
             }`}
           >
-            {role === "worker" ? "Worker" : "Employer"}
+            {role === "employer" ? "Employer" : "Worker"}
           </span>
         </div>
       )}
@@ -512,32 +522,49 @@ function SidebarContent({
           {!collapsed && <span>Collapse</span>}
         </button>
 
-        {/* User pill */}
-        {address ? (
+        {/* User pill — always shown for the logged-in account. The wallet
+            "Disconnect" is a secondary action, only when one is connected. */}
+        <div
+          className={`flex items-center gap-2.5 rounded-lg px-2 py-2 ${collapsed ? "justify-center" : ""}`}
+        >
           <div
-            className={`flex items-center gap-2.5 rounded-lg px-2 py-2 ${collapsed ? "justify-center" : ""}`}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-black text-black uppercase"
+            style={{ backgroundColor: "#facc15" }}
           >
-            <div
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-black text-black"
-              style={{ backgroundColor: "#facc15" }}
-            >
-              {address.slice(1, 3).toUpperCase()}
-            </div>
-            {!collapsed && (
-              <div className="flex-1 min-w-0">
-                <p className="truncate font-mono text-[13px] font-medium text-white">
-                  {shortAddr}
+            {(email?.[0] ?? address?.slice(1, 2) ?? "Q").toUpperCase()}
+          </div>
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              {quipayId && (
+                <p className="truncate font-mono text-[13px] font-bold text-white">
+                  {quipayId}
                 </p>
+              )}
+              <p className="truncate text-[11px] text-neutral-500">
+                {email ?? (address ? shortAddr : "Signed in")}
+              </p>
+              <div className="mt-0.5 flex items-center gap-2">
                 <button
-                  onClick={onDisconnect}
+                  onClick={onLogout}
                   className="text-[12px] text-neutral-600 hover:text-red-400 transition-colors"
                 >
-                  Disconnect
+                  Log out
                 </button>
+                {address && (
+                  <>
+                    <span className="text-neutral-700">·</span>
+                    <button
+                      onClick={onDisconnect}
+                      className="text-[12px] text-neutral-600 hover:text-neutral-300 transition-colors"
+                    >
+                      Disconnect wallet
+                    </button>
+                  </>
+                )}
               </div>
-            )}
-          </div>
-        ) : null}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -548,6 +575,8 @@ function SidebarContent({
 export default function DashboardLayout() {
   const navigate = useNavigate();
   const { address, disconnect } = useWallet();
+  const { email, logout } = useAuth();
+  const { quipayId } = useQuipayId();
   const { role, resetRole: clearRole } = useRoleDetect(address);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -566,7 +595,21 @@ export default function DashboardLayout() {
   const sidebarWidth = collapsed ? 56 : 220;
   const handleDisconnect = () => {
     clearRole();
-    void disconnect().then(() => navigate("/"));
+    void disconnect();
+  };
+
+  // Full sign-out: drop the wallet (if any), clear cached role, end the Privy
+  // session, then land back on the public home page.
+  const handleLogout = () => {
+    clearRole();
+    void (async () => {
+      try {
+        if (address) await disconnect();
+      } finally {
+        await logout();
+        void navigate("/");
+      }
+    })();
   };
 
   return (
@@ -582,7 +625,10 @@ export default function DashboardLayout() {
           shortAddr={shortAddr}
           setCollapsed={setCollapsed}
           role={role}
+          email={email}
+          quipayId={quipayId}
           onDisconnect={handleDisconnect}
+          onLogout={handleLogout}
         />
       </aside>
 
@@ -606,7 +652,10 @@ export default function DashboardLayout() {
           shortAddr={shortAddr}
           setCollapsed={setCollapsed}
           role={role}
+          email={email}
+          quipayId={quipayId}
           onDisconnect={handleDisconnect}
+          onLogout={handleLogout}
         />
       </aside>
 

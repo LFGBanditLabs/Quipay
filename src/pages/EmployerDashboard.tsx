@@ -6,14 +6,13 @@ import { fmtStroops } from "../util/format";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import EmptyState from "../components/EmptyState";
 import { ErrorMessage } from "../components/ErrorMessage";
-import StreamVisualizer from "../components/StreamVisualizer";
 import { CancelStreamModal } from "../components/CancelStreamModal";
 import {
   buildCancelStreamTx,
   buildPauseStreamTx,
   buildResumeStreamTx,
 } from "../contracts/payroll_stream";
-import { useWallet } from "../hooks/useWallet";
+import { useStellarAccount } from "../hooks/useStellarAccount";
 import { useNotification } from "../hooks/useNotification";
 import { SkeletonRow, StatTileSkeleton } from "../components/Loading";
 import CopyButton from "../components/CopyButton";
@@ -190,7 +189,7 @@ const EmployerDashboard: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
-  const { address } = useWallet();
+  const { address } = useStellarAccount();
 
   const {
     treasuryBalances,
@@ -383,30 +382,6 @@ const EmployerDashboard: React.FC = () => {
             label={t("dashboard.active_streams")}
             value={activeStreamsCount ?? 0}
             sub={`${activeStreamsCount ?? 0} running right now`}
-          />
-        </div>
-
-        {/* ── Network topology ─────────────────────────────────────── */}
-        <div className="mb-8 rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-[14px] font-bold text-white">
-                Network Topology
-              </h2>
-              <p className="text-[11px] text-neutral-600 mt-0.5">
-                Live stream visualisation across your treasury
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400" />
-              <span className="text-[10px] font-mono text-neutral-600">
-                LIVE
-              </span>
-            </div>
-          </div>
-          <StreamVisualizer
-            streams={activeStreams}
-            treasuryBalance={treasuryDisplay}
           />
         </div>
 

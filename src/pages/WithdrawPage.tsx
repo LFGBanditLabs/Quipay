@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { useWallet } from "../hooks/useWallet";
+import { useStellarAccount } from "../hooks/useStellarAccount";
+import { useStellarSign } from "../hooks/useStellarSign";
 import { useStreams, WorkerStream } from "../hooks/useStreams";
 import {
   getWithdrawable,
@@ -125,7 +126,7 @@ function StreamCard({
   workerAddress: string;
   onSuccess: (amount: number) => void;
 }) {
-  const { signTransaction } = useWallet();
+  const { signXdr } = useStellarSign();
   const { addNotification } = useNotification();
   const nowMs = useSharedClockMs();
   const nowSec = Math.floor(nowMs / 1000);
@@ -188,7 +189,7 @@ function StreamCard({
   const [done, setDone] = useState(false);
 
   const handleWithdraw = async () => {
-    if (!signTransaction || !canWithdraw) return;
+    if (!canWithdraw) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -198,12 +199,9 @@ function StreamCard({
         workerAddress,
       );
       setTxStep("signing");
-      const { signedTxXdr } = await signTransaction(preparedXdr, {
-        networkPassphrase: import.meta.env
-          .PUBLIC_STELLAR_NETWORK_PASSPHRASE as string,
-      });
+      const signed = await signXdr(preparedXdr, workerAddress);
       setTxStep("sending");
-      const txHash = await submitAndAwaitTx(signedTxXdr);
+      const txHash = await submitAndAwaitTx(signed);
       const withdrawn = onChainAmt ?? displayAmt;
       void recordWithdrawalEvent({
         workerAddress,
@@ -443,7 +441,8 @@ function StreamCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function WithdrawPage() {
-  const { address, signTransaction } = useWallet();
+  const { address } = useStellarAccount();
+  const { signXdr } = useStellarSign();
   const { streams, isLoading, error, refetch, withdrawalHistory } =
     useStreams(address);
   const { addNotification } = useNotification();
@@ -473,19 +472,16 @@ export default function WithdrawPage() {
 
   // Withdraw All — sequential (each TX needs different sequence number)
   const handleWithdrawAll = async () => {
-    if (!signTransaction || readyStreams.length === 0) return;
+    if (!address || readyStreams.length === 0) return;
     setWithdrawingAll(true);
     setWithdrawAllProgress({ done: 0, total: readyStreams.length });
     let withdrawn = 0;
     for (let i = 0; i < readyStreams.length; i++) {
       const s = readyStreams[i];
       try {
-        const { preparedXdr } = await buildWithdrawTx(BigInt(s.id), address!);
-        const { signedTxXdr } = await signTransaction(preparedXdr, {
-          networkPassphrase: import.meta.env
-            .PUBLIC_STELLAR_NETWORK_PASSPHRASE as string,
-        });
-        await submitAndAwaitTx(signedTxXdr);
+        const { preparedXdr } = await buildWithdrawTx(BigInt(s.id), address);
+        const signed = await signXdr(preparedXdr, address);
+        await submitAndAwaitTx(signed);
         withdrawn++;
       } catch {
         // Skip failed streams, continue with rest

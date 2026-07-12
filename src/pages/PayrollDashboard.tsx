@@ -12,7 +12,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { useWallet } from "../hooks/useWallet";
+import { useStellarAccount } from "../hooks/useStellarAccount";
 import { usePayroll, Stream } from "../hooks/usePayroll";
 import { fmt, STROOPS } from "../util/format";
 import { shortenAddress as shortAddr } from "../util/address";
@@ -77,7 +77,7 @@ function StatCard({
 
 export default function PayrollDashboard() {
   const navigate = useNavigate();
-  const { address } = useWallet();
+  const { address } = useStellarAccount();
   const { streams, vaultData, isLoading, error } = usePayroll(address);
 
   const activeStreams = streams.filter((s) => s.status === "active");

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useWallet } from "../hooks/useWallet";
+import ChainWallets from "../components/ChainWallets";
+import VaultFunding from "../components/VaultFunding";
 import {
   buildDepositTx,
   buildVaultWithdrawTx,
@@ -281,24 +283,39 @@ const TreasuryManager: React.FC = () => {
 
   if (!address) {
     return (
-      <div className="flex flex-col items-center justify-center py-32 px-6 text-center">
-        <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-yellow-400/20 bg-yellow-400/10">
-          <svg
-            className="h-8 w-8 text-yellow-400"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.75"
-          >
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-          </svg>
+      <div className="px-6 py-8 sm:px-8 sm:py-10 max-w-[860px]">
+        <div className="mb-8">
+          <h1 className="text-[24px] font-bold text-white tracking-tight">
+            Treasury
+          </h1>
+          <p className="mt-1 text-[14px] text-neutral-500">
+            Fund payroll on the chain you operate on — Stellar or Arc. USDC on
+            either.
+          </p>
         </div>
-        <h2 className="text-[20px] font-bold text-white mb-2">
-          Connect your wallet
-        </h2>
-        <p className="text-[14px] text-neutral-500">
-          Connect to manage your payroll treasury.
-        </p>
+
+        <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-6 mb-5">
+          <h3 className="mb-5 text-[15px] font-bold text-white">
+            Fund the payroll vault
+          </h3>
+          <VaultFunding onToast={undefined} />
+        </div>
+
+        <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <h3 className="text-[15px] font-bold text-white">
+              Your funding wallets
+            </h3>
+            <a
+              href="/settings"
+              className="text-[12px] font-semibold text-neutral-500 no-underline hover:text-white transition-colors"
+            >
+              Manage in Settings →
+            </a>
+          </div>
+          {/* Read-only — the addresses are added once in Settings, not here. */}
+          <ChainWallets readOnly manageHref="/settings" />
+        </div>
       </div>
     );
   }

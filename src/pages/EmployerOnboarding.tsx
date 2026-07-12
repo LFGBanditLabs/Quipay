@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "../hooks/useWallet";
+import { useAuth } from "../hooks/useAuth";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -35,6 +36,7 @@ const COUNTRIES = [
 
 export default function EmployerOnboarding() {
   const { address } = useWallet();
+  const { getAccessToken } = useAuth();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -56,22 +58,23 @@ export default function EmployerOnboarding() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!address) {
-      setError("Connect your wallet first.");
-      return;
-    }
     setLoading(true);
     setError(null);
     try {
+      const token = await getAccessToken();
       const res = await fetch(`${API_BASE}/api/employers/onboard`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": address,
-          "x-user-role": "user",
+          Authorization: `Bearer ${token}`,
         },
         credentials: "include",
-        body: JSON.stringify({ ...form, stellarAddress: address }),
+        // Wallet is optional at onboarding — link/fund one later from the
+        // dashboard. Only send stellarAddress when a wallet is connected.
+        body: JSON.stringify({
+          ...form,
+          ...(address ? { stellarAddress: address } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Onboarding failed.");
@@ -154,13 +157,17 @@ export default function EmployerOnboarding() {
           </p>
         </div>
 
-        {/* Wallet address pill */}
+        {/* Wallet address pill — optional at this stage */}
         <div className="rounded-xl bg-neutral-800 px-4 py-3 flex items-center gap-3">
-          <span className="h-2 w-2 rounded-full bg-green-400 flex-shrink-0" />
+          <span
+            className={`h-2 w-2 rounded-full flex-shrink-0 ${
+              address ? "bg-green-400" : "bg-neutral-500"
+            }`}
+          />
           <div className="min-w-0">
             <p className="text-neutral-400 text-xs">Connected wallet</p>
             <p className="text-white font-mono text-xs truncate">
-              {address ?? "No wallet connected"}
+              {address ?? "No wallet yet — you can add one later"}
             </p>
           </div>
         </div>
@@ -262,7 +269,7 @@ export default function EmployerOnboarding() {
 
           <button
             type="submit"
-            disabled={loading || !address}
+            disabled={loading}
             className="w-full rounded-xl bg-yellow-400 py-3 text-sm font-semibold text-black hover:bg-yellow-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? "Submitting…" : "Submit for verification"}

@@ -65,7 +65,7 @@ async function simulateContractRead<T>(
 
   if (!source) {
     source = new Account(
-      "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
+      "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
       "0",
     );
   }
