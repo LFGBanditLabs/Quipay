@@ -93,13 +93,7 @@ const DEFAULT_TOKENS = [
   { token: USDC_SAC, tokenSymbol: "USDC", monthlyBurnRate: BigInt(0) },
 ];
 
-export const usePayroll = (
-  employerAddress: string | undefined,
-  options?: {
-    offset?: number;
-    limit?: number;
-  },
-) => {
+export const usePayroll = (employerAddress: string | undefined) => {
   const [treasuryBalances, setTreasuryBalances] = useState<TokenBalance[]>([]);
   const [totalLiabilities, setTotalLiabilities] = useState<string>("0");
   const [streams, setStreams] = useState<Stream[]>([]);
@@ -254,7 +248,7 @@ export const usePayroll = (
         setStreams([]);
       }
     },
-    [options],
+    [],
   );
 
   const refetch = useCallback(() => {
@@ -340,6 +334,7 @@ export const usePayroll = (
 
   useEffect(() => {
     if (!employerAddress) {
+      // Resetting all state when the wallet disconnects is intentional.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setStreams([]);
       setPayrollSummary(null);

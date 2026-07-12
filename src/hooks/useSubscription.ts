@@ -41,18 +41,20 @@ export function useSubscription(
     if (!paging[id]) paging[id] = {};
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let stop = false;
+    const controller = new AbortController();
 
     async function pollEvents(): Promise<void> {
       try {
         if (!paging[id].lastLedgerStart) {
           const latestLedgerState = await server.getLatestLedger();
+          if (stop || controller.signal.aborted) return;
           paging[id].lastLedgerStart = latestLedgerState.sequence;
         }
 
         // lastLedgerStart is now guaranteed to be a number
         const lastLedger = paging[id].lastLedgerStart;
 
-        const response = await server.getEvents(
+        const requestPromise = server.getEvents(
           paging[id].pagingToken
             ? {
                 cursor: paging[id].pagingToken,
@@ -79,6 +81,34 @@ export function useSubscription(
               },
         );
 
+        const response = await new Promise<Api.GetEventsResponse>(
+          (resolve, reject) => {
+            if (controller.signal.aborted) {
+              const abortError = new Error("Aborted");
+              abortError.name = "AbortError";
+              reject(abortError);
+              return;
+            }
+            const abortHandler = () => {
+              const abortError = new Error("Aborted");
+              abortError.name = "AbortError";
+              reject(abortError);
+            };
+            controller.signal.addEventListener("abort", abortHandler);
+            requestPromise
+              .then((res) => {
+                controller.signal.removeEventListener("abort", abortHandler);
+                resolve(res);
+              })
+              .catch((err) => {
+                controller.signal.removeEventListener("abort", abortHandler);
+                reject(err instanceof Error ? err : new Error(String(err)));
+              });
+          },
+        );
+
+        if (stop || controller.signal.aborted) return;
+
         paging[id].pagingToken = undefined;
         if (response.latestLedger) {
           paging[id].lastLedgerStart = response.latestLedger;
@@ -99,7 +129,10 @@ export function useSubscription(
             paging[id].pagingToken = response.cursor;
           }
         }
-      } catch (error) {
+      } catch (error: unknown) {
+        if ((error instanceof Error && error.name === "AbortError") || stop) {
+          return; // Ignore expected cancellations
+        }
         console.error("Poll Events: error: ", error);
       } finally {
         if (!stop) {
@@ -113,6 +146,7 @@ export function useSubscription(
     return () => {
       if (timeoutId != null) clearTimeout(timeoutId);
       stop = true;
+      controller.abort();
     };
   }, [contractId, topic, onEvent, id, pollInterval]);
 }

@@ -11,18 +11,9 @@ import {
   RadialBarChart,
   RadialBar,
 } from "recharts";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const STROOPS = 1e7;
-const YELLOW = "#facc15";
-
-function fmt(n: number, d = 2) {
-  return n.toLocaleString(undefined, {
-    minimumFractionDigits: d,
-    maximumFractionDigits: d,
-  });
-}
+import { fmt, STROOPS } from "../util/format";
+import { YELLOW } from "../util/constants";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 function StatCard({
   label,
@@ -184,6 +175,12 @@ export default function TreasuryAnalytics() {
 
   return (
     <div className="px-6 py-8 sm:px-8 sm:py-10">
+      <SeoHelmet
+        title="Treasury Analytics — Vault Health and Runway"
+        description="Monitor treasury health, burn rate, and runway for your payroll vault."
+        path="/treasury-analytics"
+      />
+
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-[24px] font-bold text-white tracking-tight">

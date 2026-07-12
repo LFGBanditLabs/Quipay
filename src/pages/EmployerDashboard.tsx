@@ -2,16 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { usePayroll, Stream } from "../hooks/usePayroll";
 import { useNavigate } from "react-router-dom";
-
-const STROOPS = 1e7;
-function fmtStroops(raw: string | number | bigint, decimals = 2): string {
-  const n = typeof raw === "bigint" ? Number(raw) : Number(raw);
-  if (!n) return "0";
-  return (n / STROOPS).toLocaleString(undefined, {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-}
+import { fmtStroops } from "../util/format";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import EmptyState from "../components/EmptyState";
 import { ErrorMessage } from "../components/ErrorMessage";

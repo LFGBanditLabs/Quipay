@@ -5,6 +5,7 @@ import { formatCurrency } from "../util/formatters";
 import { useWallet } from "../hooks/useWallet";
 import { useAuth } from "../hooks/useAuth";
 import { useRoleDetect } from "../hooks/useRoleDetect";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -931,6 +932,12 @@ const Home: React.FC = () => {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden text-white bg-black">
+      <SeoHelmet
+        title="Quipay — Stellar Payroll Streaming"
+        description="Stream real-time payroll on Stellar. Pay workers by the second with Quipay."
+        path="/"
+      />
+
       {/* ── Detecting overlay ────────────────────────────────── */}
       {(authenticated || address) && isDetecting && <DetectingOverlay />}
 

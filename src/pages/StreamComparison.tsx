@@ -14,6 +14,7 @@ import {
 import { usePayroll, type Stream } from "../hooks/usePayroll";
 import { useTheme } from "../providers/ThemeProvider";
 import { useWallet } from "../hooks/useWallet";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 const MAX_SELECTED = 4;
 const MIN_SELECTED = 2;
@@ -160,6 +161,12 @@ const StreamComparison: React.FC = () => {
         <div
           className={`min-h-screen rounded-[32px] px-6 py-8 ${palette.page}`}
         >
+          <SeoHelmet
+            title="Stream Comparison — Side-by-Side Analysis"
+            description="Compare payroll streams across amount, progress, rate, and lifecycle status."
+            path="/stream-comparison"
+          />
+
           <div className="mx-auto max-w-[1240px]">
             <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
               <div>

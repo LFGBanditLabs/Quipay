@@ -82,43 +82,6 @@ async function fetchFromCoinGecko(
 }
 
 /**
- * Simulate Band Protocol feed integration
- * In production, this would call the actual Band contract on Stellar
- */
-function fetchFromBand(
-  tokenSymbol: string,
-): { price: number; confidence: number } | null {
-  // In a real implementation:
-  // 1. Call Band's Stellar contract (e.g., via Soroban RPC)
-  // 2. Decode the price data
-  // 3. Return with confidence interval
-  // For now, return mock data
-  const mock = MOCK_PRICES[tokenSymbol];
-  if (!mock) return null;
-  return {
-    price: mock.price,
-    confidence: 0.01, // 1% confidence interval
-  };
-}
-
-/**
- * Simulate Pyth Network feed integration
- * In production, this would call Pyth's contract on Soroban
- */
-function fetchFromPyth(
-  tokenSymbol: string,
-): { price: number; confidence: number } | null {
-  // Similar to Band but using Pyth contract/API
-  // Pyth provides very low latency price feeds with confidence intervals
-  const mock = MOCK_PRICES[tokenSymbol];
-  if (!mock) return null;
-  return {
-    price: mock.price,
-    confidence: 0.001, // 0.1% confidence interval
-  };
-}
-
-/**
  * Get price from configured provider or fallback chain
  */
 async function fetchPrice(
@@ -130,34 +93,6 @@ async function fetchPrice(
   // Try primary provider
   try {
     switch (config.provider) {
-      case "band": {
-        const data = fetchFromBand(tokenSymbol);
-        if (data) {
-          return {
-            tokenSymbol,
-            price: data.price,
-            timestamp: now,
-            source: "band",
-            confidence: data.confidence,
-          };
-        }
-        break;
-      }
-
-      case "pyth": {
-        const data = fetchFromPyth(tokenSymbol);
-        if (data) {
-          return {
-            tokenSymbol,
-            price: data.price,
-            timestamp: now,
-            source: "pyth",
-            confidence: data.confidence,
-          };
-        }
-        break;
-      }
-
       case "coingecko": {
         const data = await fetchFromCoinGecko(tokenSymbol);
         if (data) {
@@ -223,7 +158,14 @@ export const priceFeedService = {
     tokenSymbol: string,
     config: PriceFeedConfig | undefined = undefined,
   ): Promise<PriceFeedData | null> {
-    const cfg = config || { provider: "mock", cacheTTL: 60000 };
+    const cfg = config || { provider: "mock" as const, cacheTTL: 60000 };
+    const provider = cfg.provider as string;
+    if (provider === "band" || provider === "pyth") {
+      throw new Error(
+        "Band/Pyth provider not yet implemented — use 'coingecko' or 'mock'",
+      );
+    }
+
     const cacheKey = `price_${tokenSymbol}`;
     const cached = priceCache.get(cacheKey);
 

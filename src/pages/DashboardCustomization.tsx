@@ -14,6 +14,7 @@ import BurnRateChart from "../components/dashboard/widgets/BurnRateChart";
 import ActiveStreamsList from "../components/dashboard/widgets/ActiveStreamsList";
 import TreasuryStatus from "../components/dashboard/widgets/TreasuryStatus";
 import AIAgentLogs from "../components/dashboard/widgets/AIAgentLogs";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 const WIDGET_CONFIG: Record<
   WidgetId,
@@ -52,6 +53,12 @@ export default function DashboardCustomization() {
 
   return (
     <div className="min-h-screen bg-[#0d0d18] px-4 py-8 sm:px-8">
+      <SeoHelmet
+        title="Dashboard Customization — Configure Your Workspace"
+        description="Customize your dashboard layout and widget configuration."
+        path="/dashboard/customize"
+      />
+
       {/* Page header */}
       <div className="mx-auto mb-8 max-w-7xl">
         <div className="flex flex-wrap items-center justify-between gap-4">

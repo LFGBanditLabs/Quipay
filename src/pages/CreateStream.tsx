@@ -10,22 +10,20 @@ import {
   type BatchStreamEntry,
 } from "../contracts/payroll_stream";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
+import { STROOPS } from "../util/format";
+import { shortenAddress as shortAddr } from "../util/address";
+import { getTokenAddresses } from "../lib/tokenAddresses";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STROOPS = 1e7;
-
-const TOKEN_ADDRESS: Record<string, string> = {
-  XLM: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
-  USDC: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
-};
+// Token addresses are network-specific. getTokenAddresses() reads
+// PUBLIC_STELLAR_NETWORK and returns the correct SAC/issuer per environment.
+// It throws at load time (not silently at tx broadcast) when the network is
+// unrecognised, so misconfiguration is caught immediately (#1051).
+const TOKEN_ADDRESS = getTokenAddresses();
 
 function toUnixSec(d: string) {
   return Math.floor(new Date(d).getTime() / 1000);
-}
-
-function shortAddr(a: string) {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
 function initials(name: string | undefined, wallet: string) {
@@ -108,6 +106,14 @@ const CreateStream: React.FC = () => {
   const cliffTs = cliffDate ? toUnixSec(cliffDate) : startTs;
   const durDays = startTs && endTs ? Math.round((endTs - startTs) / 86400) : 0;
 
+  const dateError =
+    endTs && startTs && endTs <= startTs
+      ? "End date must be after start date"
+      : cliffTs && startTs && cliffTs < startTs
+        ? "Cliff must be on or after start date"
+        : cliffTs && endTs && cliffTs > endTs
+          ? "Cliff cannot be after end date"
+          : null;
   // ── Slippage validation ────────────────────────────────────────────────────
   const slippageWarning = maxSlippageBps > 500 && maxSlippageBps < 10000;
   const slippageBlocked =
@@ -116,14 +122,13 @@ const CreateStream: React.FC = () => {
     !Number.isInteger(maxSlippageBps);
 
   const canSubmit =
+    !dateError &&
     !!address &&
     !slippageBlocked &&
     selectedWorkers.length > 0 &&
     selectedWorkers.every((w) => parseFloat(amounts[w.wallet] ?? "") > 0) &&
     startDate.length > 0 &&
-    endDate.length > 0 &&
-    endTs > startTs &&
-    (!cliffDate || (cliffTs >= startTs && cliffTs <= endTs));
+    endDate.length > 0;
 
   const missingAmounts = selectedWorkers.filter(
     (w) => !(parseFloat(amounts[w.wallet] ?? "") > 0),
@@ -150,7 +155,7 @@ const CreateStream: React.FC = () => {
         const rate = durSec > 0 ? totalStroops / BigInt(durSec) : BigInt(1);
         return {
           worker: w.wallet,
-          token: TOKEN_ADDRESS[token] ?? "",
+          token: TOKEN_ADDRESS[token as keyof typeof TOKEN_ADDRESS] ?? "",
           rate,
           startTs,
           endTs,
@@ -574,6 +579,26 @@ const CreateStream: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {dateError && (
+                <div className="mt-4 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-4 py-3">
+                  <svg
+                    className="h-4 w-4 shrink-0 text-red-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <p className="text-[12px] font-medium text-red-400">
+                    {dateError}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* ── Advanced Settings ─────────────────────────────────────── */}

@@ -14,6 +14,7 @@ import type { AppError } from "../util/errors";
 import { translateError } from "../util/errors";
 import { ErrorMessage } from "./ErrorMessage";
 import { useNotification } from "../hooks/useNotification";
+import { formatTokenAmount } from "../util/tokenDecimals";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -179,11 +180,7 @@ function BalanceRow({ b }: { b: TokenBalance }) {
   const isCredit = b.delta > 0;
   const unchanged = b.delta === 0;
 
-  const fmt = (n: number) =>
-    n.toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 6,
-    });
+  const fmt = (n: number) => formatTokenAmount(n, b.symbol);
 
   return (
     <div className="tsm-balance-row">
@@ -320,12 +317,6 @@ export default function TransactionSimulationModal({
     simResult.estimatedFeeXLM > nativeXlmBalance;
 
   if (!open) return null;
-
-  //   const fmtXLM = (n: number) =>
-  //     n.toLocaleString("en-US", {
-  //       minimumFractionDigits: 7,
-  //       maximumFractionDigits: 7,
-  //     });
 
   const fmtStroops = (n: number) => n.toLocaleString("en-US");
 
