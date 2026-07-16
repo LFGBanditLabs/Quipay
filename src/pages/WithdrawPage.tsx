@@ -468,7 +468,17 @@ export default function WithdrawPage() {
     return sum + Math.max(0, earned - s.claimedAmount);
   }, 0);
 
-  const totalFlowRate = readyStreams.reduce((sum, s) => sum + s.flowRate, 0);
+  const hourlyFlowRatesByToken = readyStreams.reduce<Record<string, number>>(
+    (rates, stream) => {
+      rates[stream.tokenSymbol] =
+        (rates[stream.tokenSymbol] ?? 0) + stream.flowRate * 3600;
+      return rates;
+    },
+    {},
+  );
+  const hourlyFlowRateEntries = Object.entries(hourlyFlowRatesByToken).filter(
+    ([, hourlyRate]) => hourlyRate > 0,
+  );
 
   // Withdraw All — sequential (each TX needs different sequence number)
   const handleWithdrawAll = async () => {
@@ -686,11 +696,19 @@ export default function WithdrawPage() {
             <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-600 mb-1">
               Flow Rate
             </p>
-            <p className="text-[26px] font-black text-white">
-              {totalFlowRate > 0
-                ? formatTokenAmount(totalFlowRate * 3600, "USDC", 4)
-                : "—"}
-            </p>
+            <div className="text-[26px] font-black leading-tight text-white">
+              {hourlyFlowRateEntries.length > 0 ? (
+                <div className="flex flex-col gap-1">
+                  {hourlyFlowRateEntries.map(([tokenSymbol, hourlyRate]) => (
+                    <span key={tokenSymbol}>
+                      {formatTokenAmount(hourlyRate, tokenSymbol, 4)}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                "—"
+              )}
+            </div>
             <p className="text-[11px] text-neutral-600 mt-0.5">per hour</p>
           </div>
           <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-4">
