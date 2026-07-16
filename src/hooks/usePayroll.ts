@@ -13,6 +13,8 @@ import {
   ContractStream,
 } from "../contracts/payroll_stream";
 import { getWorkersByEmployer } from "../contracts/workforce_registry";
+import { buildPayrollSocketQuery } from "./payrollSocketAuth";
+import { useAuth } from "./useAuth";
 
 /** ---------------- REQUEST DEDUP ---------------- */
 
@@ -94,6 +96,7 @@ const DEFAULT_TOKENS = [
 ];
 
 export const usePayroll = (employerAddress: string | undefined) => {
+  const { getAccessToken } = useAuth();
   const [treasuryBalances, setTreasuryBalances] = useState<TokenBalance[]>([]);
   const [totalLiabilities, setTotalLiabilities] = useState<string>("0");
   const [streams, setStreams] = useState<Stream[]>([]);
@@ -315,19 +318,36 @@ export const usePayroll = (employerAddress: string | undefined) => {
     const WS_URL = import.meta.env.PUBLIC_BACKEND_URL;
     if (!employerAddress || !WS_URL) return;
 
-    const socket = io(WS_URL, {
-      path: "/socket.io",
-      query: { token: localStorage.getItem("auth_token") || "dummy" },
-    });
+    let disconnected = false;
+    let socket: ReturnType<typeof io> | null = null;
 
-    socket.on("stream:event", () => {
-      refetch();
-    });
+    void (async () => {
+      let token: string | null = null;
+      try {
+        token = await getAccessToken();
+      } catch (err) {
+        console.error("Failed to get socket auth token:", err);
+        return;
+      }
+
+      const query = buildPayrollSocketQuery(token);
+      if (disconnected || !query) return;
+
+      socket = io(WS_URL, {
+        path: "/socket.io",
+        query,
+      });
+
+      socket.on("stream:event", () => {
+        refetch();
+      });
+    })();
 
     return () => {
-      socket.disconnect();
+      disconnected = true;
+      socket?.disconnect();
     };
-  }, [employerAddress, refetch]);
+  }, [employerAddress, getAccessToken, refetch]);
 
   useEffect(() => {
     if (!employerAddress) {
