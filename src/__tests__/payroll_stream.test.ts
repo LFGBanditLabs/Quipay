@@ -58,14 +58,21 @@ jest.mock("../contracts/util", () => ({
   networkPassphrase: "Test SDF Network ; September 2015",
 }));
 
+jest.mock("../lib/tokenAddresses", () => ({
+  getXlmSacAddress: () =>
+    "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+}));
+
 // ─── Imports (real module, resolved through the env transform) ────────────────
 
 import {
   SlippageConfigError,
   DEFAULT_MAX_SLIPPAGE_BPS,
   buildBatchCreateStreamsTx,
+  buildCreateStreamTx,
   type BatchStreamEntry,
 } from "../contracts/payroll_stream";
+import { Contract } from "@stellar/stellar-sdk";
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
@@ -165,5 +172,58 @@ describe("buildBatchCreateStreamsTx — ScVal encoding", () => {
 
     expect(nativeToScValMock).toHaveBeenCalledWith(50, { type: "u32" });
     expect(nativeToScValMock).toHaveBeenCalledWith(200, { type: "u32" });
+  });
+});
+
+describe("buildCreateStreamTx — deployed contract signature", () => {
+  const employer = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+  const worker = "GBMISS7BICV3F3M5IVBMK25Y5F5V3G5X5V3G5X5V3G5X5V3G5X5V3G5X5";
+  const token = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+
+  beforeEach(() => {
+    nativeToScValMock.mockClear();
+    (Contract as unknown as jest.Mock).mockClear();
+  });
+
+  it("passes cliff_ts in the fifth contract argument and includes speed_curve", async () => {
+    await buildCreateStreamTx({
+      employer,
+      worker,
+      token,
+      rate: 1000n,
+      cliffTs: 1_500_000,
+      startTs: 1_000_000,
+      endTs: 2_000_000,
+    });
+
+    const contractInstance = (Contract as unknown as jest.Mock).mock.results[0]
+      .value as { call: jest.Mock };
+    const callArgs = contractInstance.call.mock.calls[0];
+
+    expect(callArgs).toHaveLength(10);
+    expect(callArgs[0]).toBe("create_stream");
+    expect(callArgs[4]).toEqual({ val: 1000n, opts: { type: "i128" } });
+    expect(callArgs[5]).toEqual({ val: 1_500_000n, opts: { type: "u64" } });
+    expect(callArgs[6]).toEqual({ val: 1_000_000n, opts: { type: "u64" } });
+    expect(callArgs[7]).toEqual({ val: 2_000_000n, opts: { type: "u64" } });
+    expect(callArgs[8]).toBe("void");
+    expect(callArgs[9]).toBe("void");
+  });
+
+  it("defaults cliff_ts to startTs when no cliff is provided", async () => {
+    await buildCreateStreamTx({
+      employer,
+      worker,
+      token,
+      rate: 1000n,
+      startTs: 1_000_000,
+      endTs: 2_000_000,
+    });
+
+    const contractInstance = (Contract as unknown as jest.Mock).mock.results[0]
+      .value as { call: jest.Mock };
+    const callArgs = contractInstance.call.mock.calls[0];
+
+    expect(callArgs[5]).toEqual({ val: 1_000_000n, opts: { type: "u64" } });
   });
 });
