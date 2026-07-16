@@ -33,8 +33,10 @@ export interface WorkerStream {
   totalAmount: number;
   /** Amount already withdrawn in token units (= on-chain `withdrawn_amount` / 10^7). */
   claimedAmount: number;
-  /** `0` = Active, `1` = Canceled, `2` = Completed (mirrors on-chain `StreamStatus` enum). */
+  /** `0` = Active, `1` = Canceled, `2` = Completed, `3` = Paused. */
   status: number;
+  /** Stream closure or pause timestamp as a Unix timestamp in seconds. */
+  closedAt: number;
   /** IPFS CID of the payroll proof — only present for completed streams. */
   proofCid?: string;
   /** Public HTTPS gateway URL for the proof — only present for completed streams. */
@@ -195,6 +197,7 @@ export const useStreams = (workerAddress: string | undefined) => {
                 totalAmount: Number(s.total_amount) / STROOPS_PER_UNIT,
                 claimedAmount: Number(s.withdrawn_amount) / STROOPS_PER_UNIT,
                 status: s.status,
+                closedAt: Number(s.closed_at),
                 proofCid: proof?.cid,
                 proofGatewayUrl: proof?.gatewayUrl,
               };

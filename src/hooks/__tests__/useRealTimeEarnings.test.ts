@@ -17,6 +17,7 @@ const makeStream = (overrides: Partial<WorkerStream> = {}): WorkerStream => ({
   totalAmount: 1_000_000,
   claimedAmount: 0,
   status: 0,
+  closedAt: 0,
   ...overrides,
 });
 
