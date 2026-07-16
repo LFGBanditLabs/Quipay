@@ -24,13 +24,12 @@ import {
 } from "@stellar/stellar-sdk";
 import { rpcUrl, networkPassphrase } from "./util";
 import { getXlmSacAddress } from "../lib/tokenAddresses";
+import { getStreamsByEmployer, type ContractStream } from "./payroll_stream";
 
 // ─── Contract ID ──────────────────────────────────────────────────────────────
 
 export const PAYROLL_VAULT_CONTRACT_ID: string =
-  (
-    import.meta.env.VITE_PAYROLL_VAULT_CONTRACT_ID as string | undefined
-  )?.trim() ?? "";
+  import.meta.env.VITE_PAYROLL_VAULT_CONTRACT_ID?.trim() ?? "";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,9 +59,64 @@ function getRpcServer(): SorobanRpc.Server {
   return new SorobanRpc.Server(rpcUrl, { allowHttp: true });
 }
 
+function resolveTokenAddress(token: string): string {
+  return !token || token === "native" ? getXlmSacAddress() : token;
+}
+
 function tokenToScVal(token: string): ReturnType<typeof nativeToScVal> {
-  const addr = !token || token === "native" ? getXlmSacAddress() : token;
-  return new Address(addr).toScVal();
+  return new Address(resolveTokenAddress(token)).toScVal();
+}
+
+const ACTIVE_STREAM_STATUS = 0;
+const PAUSED_STREAM_STATUS = 3;
+const EMPLOYER_STREAM_PAGE_SIZE = 50;
+
+export function calculateEmployerTokenLiability(
+  streams: ContractStream[],
+  token: string,
+): bigint {
+  const tokenAddress = resolveTokenAddress(token);
+
+  return streams.reduce((sum, stream) => {
+    if (stream.token !== tokenAddress) return sum;
+    if (
+      stream.status !== ACTIVE_STREAM_STATUS &&
+      stream.status !== PAUSED_STREAM_STATUS
+    ) {
+      return sum;
+    }
+
+    const remaining =
+      stream.total_amount > stream.withdrawn_amount
+        ? stream.total_amount - stream.withdrawn_amount
+        : BigInt(0);
+
+    return sum + remaining;
+  }, BigInt(0));
+}
+
+async function getAllEmployerStreams(
+  employerAddress: string,
+): Promise<ContractStream[]> {
+  const streams: ContractStream[] = [];
+  let offset = 0;
+  let total = 0;
+
+  do {
+    const page = await getStreamsByEmployer(
+      employerAddress,
+      offset,
+      EMPLOYER_STREAM_PAGE_SIZE,
+    ).catch(() => ({ streams: [], total: 0 }));
+
+    streams.push(...page.streams);
+    total = page.total;
+
+    if (page.streams.length === 0) break;
+    offset += page.streams.length;
+  } while (offset < total);
+
+  return streams;
 }
 
 /**
@@ -88,9 +142,7 @@ async function simulateContractRead<T>(
     const response = await server.simulateTransaction(tx);
     if (SorobanRpc.Api.isSimulationError(response)) return null;
 
-    const retval = (
-      response as SorobanRpc.Api.SimulateTransactionSuccessResponse
-    ).result?.retval;
+    const retval = response.result?.retval;
     if (!retval) return null;
 
     const native = scValToNative(retval) as T | undefined;
@@ -323,19 +375,16 @@ export async function getAllVaultData(
 ): Promise<TokenVaultData[]> {
   if (!sourceAddress) return [];
 
-  // Use per-employer balance — never the global vault balance.
-  // Each employer only sees what THEY deposited.
+  const employerStreams = await getAllEmployerStreams(sourceAddress);
+
+  // Use per-employer balance and streams — never the global vault balance.
+  // Global available funds include other employers' surplus and can mask this
+  // employer's committed liability.
   const results = await Promise.all(
     tokens.map(async (t) => {
-      const [empBalance, globalAvailable] = await Promise.all([
-        getEmployerVaultBalance(sourceAddress, t.token),
-        getVaultAvailableBalance(t.token, sourceAddress),
-      ]);
-
+      const empBalance = await getEmployerVaultBalance(sourceAddress, t.token);
       const bal = empBalance ?? BigInt(0);
-      const avail = globalAvailable ?? BigInt(0);
-      // Liability = how much of this employer's balance is committed to streams
-      const liab = bal > avail ? bal - avail : BigInt(0);
+      const liab = calculateEmployerTokenLiability(employerStreams, t.token);
       const empAvail = bal > liab ? bal - liab : BigInt(0);
 
       if (bal === BigInt(0)) return null; // employer has no balance here
@@ -348,7 +397,7 @@ export async function getAllVaultData(
         available: empAvail,
         monthlyBurnRate: t.monthlyBurnRate,
         runwayDays: 0,
-      } as TokenVaultData;
+      };
     }),
   );
   return results.filter((r): r is TokenVaultData => r !== null);
