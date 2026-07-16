@@ -7,12 +7,8 @@ import { SeoHelmet } from "../components/seo/SeoHelmet";
 import EmptyState from "../components/EmptyState";
 import { ErrorMessage } from "../components/ErrorMessage";
 import { CancelStreamModal } from "../components/CancelStreamModal";
-import {
-  buildCancelStreamTx,
-  buildPauseStreamTx,
-  buildResumeStreamTx,
-} from "../contracts/payroll_stream";
 import { useStellarAccount } from "../hooks/useStellarAccount";
+import { useStellarSign } from "../hooks/useStellarSign";
 import { useNotification } from "../hooks/useNotification";
 import { SkeletonRow, StatTileSkeleton } from "../components/Loading";
 import CopyButton from "../components/CopyButton";
@@ -20,6 +16,7 @@ import {
   type StreamAction,
   useStreamActionMutation,
 } from "../hooks/useStreamActions";
+import { submitEmployerStreamAction } from "../lib/employerStreamActions";
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
 
@@ -190,6 +187,7 @@ const EmployerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { addNotification } = useNotification();
   const { address } = useStellarAccount();
+  const { signXdr } = useStellarSign();
 
   const {
     treasuryBalances,
@@ -210,10 +208,12 @@ const EmployerDashboard: React.FC = () => {
     runAction: async (stream, action) => {
       if (!address)
         throw new Error("Connect your wallet before updating a stream.");
-      const id = BigInt(stream.id);
-      if (action === "pause") await buildPauseStreamTx(id, address);
-      else if (action === "resume") await buildResumeStreamTx(id, address);
-      else await buildCancelStreamTx(id, address);
+      await submitEmployerStreamAction({
+        streamId: BigInt(stream.id),
+        employerAddress: address,
+        action,
+        signXdr,
+      });
     },
   });
 
