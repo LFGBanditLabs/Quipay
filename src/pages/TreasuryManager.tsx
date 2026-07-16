@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useWallet } from "../hooks/useWallet";
 import ChainWallets from "../components/ChainWallets";
 import VaultFunding from "../components/VaultFunding";
 import {
@@ -14,6 +13,8 @@ import { useNotification } from "../hooks/useNotification";
 import { horizonUrl } from "../contracts/util";
 import { fmt, STROOPS } from "../util/format";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
+import { useStellarAccount } from "../hooks/useStellarAccount";
+import { useStellarSign } from "../hooks/useStellarSign";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -70,10 +71,7 @@ const TOKEN_MAP: Record<string, { address: string; label: string }> = {
 function TxOverlay({ step }: { step: string }) {
   const labels: Record<string, [string, string]> = {
     building: ["Preparing transaction…", "Simulating on Stellar RPC"],
-    signing: [
-      "Check Freighter to sign",
-      "Approve the transaction in your wallet",
-    ],
+    signing: ["Approve transaction", "Sign with your embedded wallet"],
     sending: [
       "Broadcasting to Stellar…",
       "Waiting for ledger confirmation (~5s)",
@@ -163,7 +161,8 @@ function VaultCard({ v }: { v: TokenVaultData }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const TreasuryManager: React.FC = () => {
-  const { address, signTransaction } = useWallet();
+  const { address, ready: accountReady } = useStellarAccount();
+  const { signXdr } = useStellarSign();
   const { addNotification } = useNotification();
 
   const [vaultData, setVaultData] = useState<TokenVaultData[]>([]);
@@ -182,21 +181,25 @@ const TreasuryManager: React.FC = () => {
 
   const load = useCallback(async () => {
     setIsLoading(true);
+    if (!accountReady) return;
+    if (!address) {
+      setVaultData([]);
+      setWalletBal({ XLM: 0, USDC: 0 });
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const [data, bal] = await Promise.all([
-        address
-          ? getAllVaultData(
-              Object.entries(TOKEN_MAP).map(([sym]) => ({
-                token: TOKEN_MAP[sym].address,
-                tokenSymbol: sym,
-                monthlyBurnRate: BigInt(0),
-              })),
-              address,
-            )
-          : Promise.resolve([]),
-        address
-          ? fetchWalletBalances(address)
-          : Promise.resolve({ XLM: 0, USDC: 0 }),
+        getAllVaultData(
+          Object.entries(TOKEN_MAP).map(([sym]) => ({
+            token: TOKEN_MAP[sym].address,
+            tokenSymbol: sym,
+            monthlyBurnRate: BigInt(0),
+          })),
+          address,
+        ),
+        fetchWalletBalances(address),
       ]);
       setVaultData(data);
       setWalletBal(bal);
@@ -205,7 +208,7 @@ const TreasuryManager: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [address]);
+  }, [accountReady, address]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -213,7 +216,7 @@ const TreasuryManager: React.FC = () => {
   }, [load]);
 
   const handleSubmit = async () => {
-    if (!address || !signTransaction || !amount) return;
+    if (!address || !amount) return;
     const amtNum = parseFloat(amount);
     if (!amtNum || amtNum <= 0) {
       setError("Enter a valid amount.");
@@ -248,10 +251,7 @@ const TreasuryManager: React.FC = () => {
           : await buildVaultWithdrawTx(address, address, tokenAddr, amtStroops);
 
       setTxStep("signing");
-      const { signedTxXdr } = await signTransaction(preparedXdr, {
-        networkPassphrase: import.meta.env
-          .PUBLIC_STELLAR_NETWORK_PASSPHRASE as string,
-      });
+      const signedTxXdr = await signXdr(preparedXdr, address);
 
       setTxStep("sending");
       await submitAndAwaitTx(signedTxXdr);
@@ -280,6 +280,26 @@ const TreasuryManager: React.FC = () => {
   const vaultAvail = Math.max(0, vaultBal - vaultLiab);
 
   // ── Guards ────────────────────────────────────────────────────────────────
+
+  if (!accountReady) {
+    return (
+      <div className="px-6 py-8 sm:px-8 sm:py-10 max-w-[960px]">
+        <div className="mb-8">
+          <div className="mb-2 h-8 w-36 animate-pulse rounded-xl bg-white/[0.06]" />
+          <div className="h-5 w-96 max-w-full animate-pulse rounded-lg bg-white/[0.04]" />
+        </div>
+        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {[1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-44 animate-pulse rounded-2xl bg-white/[0.04]"
+            />
+          ))}
+        </div>
+        <div className="h-80 animate-pulse rounded-2xl bg-white/[0.04]" />
+      </div>
+    );
+  }
 
   if (!address) {
     return (
