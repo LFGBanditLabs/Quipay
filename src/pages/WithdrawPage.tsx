@@ -479,10 +479,23 @@ export default function WithdrawPage() {
     for (let i = 0; i < readyStreams.length; i++) {
       const s = readyStreams[i];
       try {
-        const { preparedXdr } = await buildWithdrawTx(BigInt(s.id), address);
-        const signed = await signXdr(preparedXdr, address);
-        await submitAndAwaitTx(signed);
-        withdrawn++;
+        const rawWithdrawable = await getWithdrawable(BigInt(s.id));
+        const amount =
+          rawWithdrawable !== null ? Number(rawWithdrawable) / STROOPS : 0;
+        if (amount > 0) {
+          const { preparedXdr } = await buildWithdrawTx(BigInt(s.id), address);
+          const signed = await signXdr(preparedXdr, address);
+          const txHash = await submitAndAwaitTx(signed);
+          await recordWithdrawalEvent({
+            workerAddress: address,
+            employerAddress: s.employerAddress,
+            streamId: s.id,
+            amount,
+            tokenSymbol: s.tokenSymbol,
+            txHash,
+          });
+          withdrawn++;
+        }
       } catch {
         // Skip failed streams, continue with rest
       }
