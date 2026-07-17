@@ -105,8 +105,10 @@ export const computeStreamEarning = (
   stream: WorkerStream,
   now: number,
 ): StreamEarning => {
-  // When paused, use the pause timestamp instead of current time to calculate earnings
-  // This prevents earning time from accruing during pause periods
+  // When paused, use the pause timestamp instead of current time to calculate earnings.
+  // This prevents earning time from accruing during pause periods, matching on-chain behavior.
+  // If paused_at is not available from the contract, we fall back to now, which may slightly
+  // overstate earnings until the pause timestamp is exposed in the stream data.
   const effectiveNow =
     stream.status === 3 && stream.paused_at
       ? Math.min(stream.paused_at, now)
