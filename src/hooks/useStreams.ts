@@ -6,7 +6,11 @@ import {
   getWorkerWithdrawalEvents,
   ContractStream,
 } from "../contracts/payroll_stream";
-import { getCache, setCache } from "../services/offlineService";
+import {
+  DYNAMIC_DATA_CACHE_TTL_MS,
+  getCache,
+  setCache,
+} from "../services/offlineService";
 
 /**
  * Normalised view of a single on-chain payroll stream for a worker.
@@ -224,9 +228,13 @@ export const useStreams = (workerAddress: string | undefined) => {
         void setCache(`withdrawal-history-${workerAddress}`, history);
       } catch (err) {
         // Try cache on failure
-        const cachedStreams = await getCache(`worker-streams-${workerAddress}`);
-        const cachedHistory = await getCache(
+        const cachedStreams = await getCache<WorkerStream[]>(
+          `worker-streams-${workerAddress}`,
+          DYNAMIC_DATA_CACHE_TTL_MS,
+        );
+        const cachedHistory = await getCache<WithdrawalRecord[]>(
           `withdrawal-history-${workerAddress}`,
+          DYNAMIC_DATA_CACHE_TTL_MS,
         );
 
         if (cachedStreams || cachedHistory) {
