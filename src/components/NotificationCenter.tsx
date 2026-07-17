@@ -7,6 +7,7 @@ import {
   type NotificationType,
   type PersistentNotification,
 } from "../hooks/usePersistentNotifications";
+import { useRelativeTime } from "../hooks/useRelativeTime";
 
 /* ── UI Constants ── */
 
@@ -25,19 +26,6 @@ const TYPE_CONFIG: Record<
   },
 };
 
-/* ── Utility ── */
-
-const formatTimeAgo = (timestamp: number): string => {
-  const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-};
-
 /* ── Notification item ── */
 
 const NotificationItem: React.FC<{
@@ -45,6 +33,7 @@ const NotificationItem: React.FC<{
   onRead: (id: string) => void;
 }> = ({ notification, onRead }) => {
   const config = TYPE_CONFIG[notification.type];
+  const relativeTime = useRelativeTime(notification.timestamp);
 
   return (
     <div
@@ -68,7 +57,7 @@ const NotificationItem: React.FC<{
             {config.label}
           </span>
           <span className="text-[10px] text-neutral-700 whitespace-nowrap">
-            {formatTimeAgo(notification.timestamp)}
+            {relativeTime}
           </span>
         </div>
         <p className="text-[13px] font-medium text-white leading-snug break-words">
