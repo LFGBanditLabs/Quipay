@@ -45,6 +45,13 @@ const NotificationItem: React.FC<{
   onRead: (id: string) => void;
 }> = ({ notification, onRead }) => {
   const config = TYPE_CONFIG[notification.type];
+  const [, setTick] = useState(0);
+
+  // Re-render every 60s so relative timestamps stay fresh
+  useEffect(() => {
+    const interval = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div
