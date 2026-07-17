@@ -33,12 +33,14 @@ export interface WorkerStream {
   totalAmount: number;
   /** Amount already withdrawn in token units (= on-chain `withdrawn_amount` / 10^7). */
   claimedAmount: number;
-  /** `0` = Active, `1` = Canceled, `2` = Completed (mirrors on-chain `StreamStatus` enum). */
+  /** `0` = Active, `1` = Canceled, `2` = Completed, `3` = Paused (mirrors on-chain `StreamStatus` enum). */
   status: number;
   /** IPFS CID of the payroll proof — only present for completed streams. */
   proofCid?: string;
   /** Public HTTPS gateway URL for the proof — only present for completed streams. */
   proofGatewayUrl?: string;
+  /** Unix timestamp when stream was paused (only present for paused streams). */
+  paused_at?: number;
 }
 
 /** A single historical withdrawal event emitted by the payroll stream contract. */

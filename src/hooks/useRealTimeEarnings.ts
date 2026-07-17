@@ -105,18 +105,25 @@ export const computeStreamEarning = (
   stream: WorkerStream,
   now: number,
 ): StreamEarning => {
-  const elapsed = Math.max(0, now - stream.startTime);
+  // When paused, use the pause timestamp instead of current time to calculate earnings
+  // This prevents earning time from accruing during pause periods
+  const effectiveNow =
+    stream.status === 3 && stream.paused_at
+      ? Math.min(stream.paused_at, now)
+      : now;
+
+  const elapsed = Math.max(0, effectiveNow - stream.startTime);
   const vesting = Math.min(elapsed * stream.flowRate, stream.totalAmount);
 
   // cliffTime === 0 means "no cliff" → withdrawable from startTime.
-  const cliffPassed = stream.cliffTime === 0 || now >= stream.cliffTime;
+  const cliffPassed = stream.cliffTime === 0 || effectiveNow >= stream.cliffTime;
   const withdrawable = cliffPassed ? vesting : 0;
 
   // Locked *because of the cliff* — distinct from "nothing has accrued yet".
   const cliffLocked = !cliffPassed;
   const secondsUntilCliff = cliffPassed
     ? 0
-    : Math.max(0, Math.ceil(stream.cliffTime - now));
+    : Math.max(0, Math.ceil(stream.cliffTime - effectiveNow));
 
   return {
     id: stream.id,
