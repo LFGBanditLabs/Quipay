@@ -175,8 +175,9 @@ function StreamCard({
     })();
   }, [stream.id, onChainFetchTick]);
 
-  // Use client estimate for display; on-chain for the TX check
-  const displayAmt = clientAvailable;
+  // Use on-chain value for display since it accounts for pause periods
+  // Client estimate doesn't subtract paused duration, so it would overstate earnings
+  const displayAmt = onChainAmt ?? 0;
   const canWithdraw =
     !loadingAmt && !isBeforeCliff && !isPaused && (onChainAmt ?? 0) > 0;
 
