@@ -118,7 +118,8 @@ export const computeStreamEarning = (
   const vesting = Math.min(elapsed * stream.flowRate, stream.totalAmount);
 
   // cliffTime === 0 means "no cliff" → withdrawable from startTime.
-  const cliffPassed = stream.cliffTime === 0 || effectiveNow >= stream.cliffTime;
+  const cliffPassed =
+    stream.cliffTime === 0 || effectiveNow >= stream.cliffTime;
   const withdrawable = cliffPassed ? vesting : 0;
 
   // Locked *because of the cliff* — distinct from "nothing has accrued yet".
