@@ -7,6 +7,7 @@ import {
   ContractStream,
 } from "../contracts/payroll_stream";
 import { getCache, setCache } from "../services/offlineService";
+import { rawToUnitNumber, rawToUnitString } from "../util/stroops";
 
 /**
  * Normalised view of a single on-chain payroll stream for a worker.
@@ -56,9 +57,6 @@ export interface WithdrawalRecord {
   /** Stellar transaction hash for the withdrawal. */
   txHash: string;
 }
-
-/** Stellar uses 7 decimal places (10^7 stroops = 1 token unit). */
-const STROOPS_PER_UNIT = 1e7;
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "");
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -187,13 +185,13 @@ export const useStreams = (workerAddress: string | undefined) => {
                 id: streamId,
                 employerName,
                 employerAddress: s.employer,
-                flowRate: Number(s.rate) / STROOPS_PER_UNIT,
+                flowRate: rawToUnitNumber(s.rate),
                 tokenSymbol,
                 startTime: Number(s.start_ts),
                 endTime: Number(s.end_ts),
                 cliffTime: Number(s.cliff_ts),
-                totalAmount: Number(s.total_amount) / STROOPS_PER_UNIT,
-                claimedAmount: Number(s.withdrawn_amount) / STROOPS_PER_UNIT,
+                totalAmount: rawToUnitNumber(s.total_amount),
+                claimedAmount: rawToUnitNumber(s.withdrawn_amount),
                 status: s.status,
                 proofCid: proof?.cid,
                 proofGatewayUrl: proof?.gatewayUrl,
@@ -211,7 +209,7 @@ export const useStreams = (workerAddress: string | undefined) => {
             return {
               id: ev.txHash,
               streamId: ev.streamId.toString(),
-              amount: (Number(ev.amount) / STROOPS_PER_UNIT).toFixed(7),
+              amount: rawToUnitString(ev.amount),
               tokenSymbol,
               date: new Date(ev.ledgerClosedAt).toLocaleString(),
               txHash: ev.txHash,
