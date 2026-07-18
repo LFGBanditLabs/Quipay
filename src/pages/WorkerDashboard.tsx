@@ -129,7 +129,9 @@ const StreamCard: React.FC<{
       setLastEventAmount(update.amount);
   });
 
-  // Fetch on-chain withdrawable amount to account for paused periods
+  // Fetch on-chain withdrawable amount to account for paused periods.
+  // Refetches on stream.status change (e.g. active -> paused) so the frozen
+  // value reflects the actual pause point instead of a stale initial fetch.
   useEffect(() => {
     void (async () => {
       setLoadingWithdrawable(true);
@@ -142,7 +144,7 @@ const StreamCard: React.FC<{
         setLoadingWithdrawable(false);
       }
     })();
-  }, [stream.id]);
+  }, [stream.id, stream.status]);
 
   const nowSeconds = Math.floor(nowMs / 1000);
   // cliff_ts = 0 means no cliff — use startTime so we don't measure from Unix epoch
@@ -150,6 +152,7 @@ const StreamCard: React.FC<{
     stream.cliffTime > 0 ? stream.cliffTime : stream.startTime;
   const timeToCliff = effectiveCliff - nowSeconds;
   const isBeforeCliff = timeToCliff > 0;
+  const isPaused = stream.status === 3;
 
   const timeUntilCliff = useMemo(() => {
     if (!isBeforeCliff) return "Unlocked";
@@ -162,16 +165,21 @@ const StreamCard: React.FC<{
     return `${m}m ${s}s`;
   }, [isBeforeCliff, timeToCliff]);
 
-  // Earnings always accrue from startTime — cliff only gates withdrawal
-  const elapsedSinceStart = useElapsedTime(stream.startTime);
-  const currentEarnings = Math.min(
-    elapsedSinceStart * stream.flowRate,
-    stream.totalAmount,
-  );
-
   // Use on-chain withdrawable if available, falls back to 0 while loading
   // The on-chain value accounts for paused periods properly
   const withdrawable = onChainWithdrawable ?? 0;
+
+  // Earnings always accrue from startTime — cliff only gates withdrawal.
+  // While active, keep the real-time client-side tick (matches the "● Live"
+  // badge and the per-second rate display). Once paused, switch to the
+  // on-chain "already withdrawn + currently withdrawable" total instead —
+  // that stays frozen at the pause point (getWithdrawable() doesn't accrue
+  // during a pause), whereas the client-side elapsedTime * flowRate calc has
+  // no way to know a stream was paused and would keep counting up.
+  const elapsedSinceStart = useElapsedTime(stream.startTime);
+  const currentEarnings = isPaused
+    ? Math.min(stream.claimedAmount + withdrawable, stream.totalAmount)
+    : Math.min(elapsedSinceStart * stream.flowRate, stream.totalAmount);
 
   // Distinguish "locked by cliff" from "withdrawable 0 because nothing accrued".
   // When locked by the cliff, show an explicit countdown tooltip on the button.
