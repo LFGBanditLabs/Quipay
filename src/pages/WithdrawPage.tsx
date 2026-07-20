@@ -448,7 +448,19 @@ export default function WithdrawPage() {
     return sum + Math.max(0, earned - s.claimedAmount);
   }, 0);
 
-  const totalFlowRate = readyStreams.reduce((sum, s) => sum + s.flowRate, 0);
+  // Flow rates must be grouped by token — summing raw flowRate across
+  // different tokens (e.g. XLM + USDC) would produce a number that doesn't
+  // correspond to any real currency amount.
+  const flowRatesByToken = readyStreams.reduce<Record<string, number>>(
+    (acc, s) => {
+      acc[s.tokenSymbol] = (acc[s.tokenSymbol] ?? 0) + s.flowRate;
+      return acc;
+    },
+    {},
+  );
+  const flowRateEntries = Object.entries(flowRatesByToken).filter(
+    ([, rate]) => rate > 0,
+  );
 
   // Withdraw All — sequential (each TX needs different sequence number)
   const handleWithdrawAll = async () => {
@@ -666,11 +678,23 @@ export default function WithdrawPage() {
             <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-600 mb-1">
               Flow Rate
             </p>
-            <p className="text-[26px] font-black text-white">
-              {totalFlowRate > 0
-                ? formatTokenAmount(totalFlowRate * 3600, "USDC", 4)
-                : "—"}
-            </p>
+            {flowRateEntries.length > 0 ? (
+              <div className="space-y-0.5">
+                {flowRateEntries.map(([symbol, rate]) => (
+                  <p
+                    key={symbol}
+                    className="text-[26px] font-black text-white leading-tight"
+                  >
+                    {formatTokenAmount(rate * 3600, symbol, 4)}{" "}
+                    <span className="text-[13px] font-bold text-neutral-500">
+                      {symbol}
+                    </span>
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[26px] font-black text-white">—</p>
+            )}
             <p className="text-[11px] text-neutral-600 mt-0.5">per hour</p>
           </div>
           <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-4">
