@@ -11,7 +11,12 @@ import {
   WithdrawalRecord,
 } from "../hooks/useStreams";
 import { useNotification } from "../hooks/useNotification";
-import { buildWithdrawTx, submitAndAwaitTx } from "../contracts/payroll_stream";
+import {
+  buildWithdrawTx,
+  submitAndAwaitTx,
+  getWithdrawable,
+} from "../contracts/payroll_stream";
+import { STROOPS } from "../util/format";
 import { formatTokenAmount } from "../util/tokenDecimals";
 import { shortenAddress as shortAddr } from "../util/address";
 import { StreamTimeline } from "../components/StreamTimeline";
@@ -112,6 +117,10 @@ const StreamCard: React.FC<{
   const [lastEventAmount, setLastEventAmount] = useState<number | null>(null);
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  const [onChainWithdrawable, setOnChainWithdrawable] = useState<number | null>(
+    null,
+  );
+  const [loadingWithdrawable, setLoadingWithdrawable] = useState(true);
   const previousAvailableRef = useRef<number | null>(null);
   const nowMs = useSharedClockMs();
 
@@ -120,12 +129,30 @@ const StreamCard: React.FC<{
       setLastEventAmount(update.amount);
   });
 
+  // Fetch on-chain withdrawable amount to account for paused periods.
+  // Refetches on stream.status change (e.g. active -> paused) so the frozen
+  // value reflects the actual pause point instead of a stale initial fetch.
+  useEffect(() => {
+    void (async () => {
+      setLoadingWithdrawable(true);
+      try {
+        const raw = await getWithdrawable(BigInt(stream.id));
+        setOnChainWithdrawable(raw !== null ? Number(raw) / STROOPS : 0);
+      } catch {
+        setOnChainWithdrawable(0);
+      } finally {
+        setLoadingWithdrawable(false);
+      }
+    })();
+  }, [stream.id, stream.status]);
+
   const nowSeconds = Math.floor(nowMs / 1000);
   // cliff_ts = 0 means no cliff — use startTime so we don't measure from Unix epoch
   const effectiveCliff =
     stream.cliffTime > 0 ? stream.cliffTime : stream.startTime;
   const timeToCliff = effectiveCliff - nowSeconds;
   const isBeforeCliff = timeToCliff > 0;
+  const isPaused = stream.status === 3;
 
   const timeUntilCliff = useMemo(() => {
     if (!isBeforeCliff) return "Unlocked";
@@ -138,17 +165,21 @@ const StreamCard: React.FC<{
     return `${m}m ${s}s`;
   }, [isBeforeCliff, timeToCliff]);
 
-  // Earnings always accrue from startTime — cliff only gates withdrawal
-  const elapsedSinceStart = useElapsedTime(stream.startTime);
-  const currentEarnings = Math.min(
-    elapsedSinceStart * stream.flowRate,
-    stream.totalAmount,
-  );
+  // Use on-chain withdrawable if available, falls back to 0 while loading
+  // The on-chain value accounts for paused periods properly
+  const withdrawable = onChainWithdrawable ?? 0;
 
-  // What the user can actually withdraw (0 until cliff passes)
-  const withdrawable = isBeforeCliff
-    ? 0
-    : Math.max(0, currentEarnings - stream.claimedAmount);
+  // Earnings always accrue from startTime — cliff only gates withdrawal.
+  // While active, keep the real-time client-side tick (matches the "● Live"
+  // badge and the per-second rate display). Once paused, switch to the
+  // on-chain "already withdrawn + currently withdrawable" total instead —
+  // that stays frozen at the pause point (getWithdrawable() doesn't accrue
+  // during a pause), whereas the client-side elapsedTime * flowRate calc has
+  // no way to know a stream was paused and would keep counting up.
+  const elapsedSinceStart = useElapsedTime(stream.startTime);
+  const currentEarnings = isPaused
+    ? Math.min(stream.claimedAmount + withdrawable, stream.totalAmount)
+    : Math.min(elapsedSinceStart * stream.flowRate, stream.totalAmount);
 
   // Distinguish "locked by cliff" from "withdrawable 0 because nothing accrued".
   // When locked by the cliff, show an explicit countdown tooltip on the button.
@@ -161,6 +192,7 @@ const StreamCard: React.FC<{
 
   useEffect(() => {
     if (
+      !loadingWithdrawable &&
       previousAvailableRef.current !== null &&
       previousAvailableRef.current <= 0 &&
       withdrawable > 0
@@ -171,7 +203,7 @@ const StreamCard: React.FC<{
       });
     }
     previousAvailableRef.current = withdrawable;
-  }, [addStreamNotification, withdrawable, stream.id]);
+  }, [addStreamNotification, withdrawable, loadingWithdrawable, stream.id]);
 
   const pct =
     stream.totalAmount > 0 ? (currentEarnings / stream.totalAmount) * 100 : 0;

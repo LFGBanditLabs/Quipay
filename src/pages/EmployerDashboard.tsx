@@ -11,8 +11,10 @@ import {
   buildCancelStreamTx,
   buildPauseStreamTx,
   buildResumeStreamTx,
+  submitAndAwaitTx,
 } from "../contracts/payroll_stream";
 import { useStellarAccount } from "../hooks/useStellarAccount";
+import { useStellarSign } from "../hooks/useStellarSign";
 import { useNotification } from "../hooks/useNotification";
 import { SkeletonRow, StatTileSkeleton } from "../components/Loading";
 import CopyButton from "../components/CopyButton";
@@ -190,6 +192,7 @@ const EmployerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { addNotification } = useNotification();
   const { address } = useStellarAccount();
+  const { signXdr } = useStellarSign();
 
   const {
     treasuryBalances,
@@ -211,9 +214,18 @@ const EmployerDashboard: React.FC = () => {
       if (!address)
         throw new Error("Connect your wallet before updating a stream.");
       const id = BigInt(stream.id);
-      if (action === "pause") await buildPauseStreamTx(id, address);
-      else if (action === "resume") await buildResumeStreamTx(id, address);
-      else await buildCancelStreamTx(id, address);
+      let result;
+      if (action === "pause") {
+        result = await buildPauseStreamTx(id, address);
+      } else if (action === "resume") {
+        result = await buildResumeStreamTx(id, address);
+      } else {
+        result = await buildCancelStreamTx(id, address);
+      }
+      // Sign the prepared XDR with the employer's wallet
+      const signed = await signXdr(result.preparedXdr, address);
+      // Submit the signed transaction to the network
+      await submitAndAwaitTx(signed);
     },
   });
 
