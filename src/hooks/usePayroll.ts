@@ -15,6 +15,7 @@ import {
 import { getWorkersByEmployer } from "../contracts/workforce_registry";
 import { buildPayrollSocketQuery } from "./payrollSocketAuth";
 import { useAuth } from "./useAuth";
+import { rawToUnitNumber } from "../util/stroops";
 
 /** ---------------- REQUEST DEDUP ---------------- */
 
@@ -45,9 +46,6 @@ async function dedupRequest<T>(key: string, fn: () => Promise<T>): Promise<T> {
     throw err;
   }
 }
-
-/** Stellar uses 7 decimal places (10^7 stroops = 1 token unit). */
-const STROOPS_PER_UNIT = 1e7;
 
 export interface Stream {
   id: string;
@@ -216,7 +214,7 @@ export const usePayroll = (employerAddress: string | undefined) => {
               id,
               employeeName: `${s.worker.slice(0, 6)}…${s.worker.slice(-4)}`,
               employeeAddress: s.worker,
-              flowRate: (Number(s.rate) / STROOPS_PER_UNIT).toFixed(7),
+              flowRate: rawToUnitNumber(s.rate).toFixed(7),
               tokenSymbol,
               startDate: new Date(Number(s.start_ts) * 1000)
                 .toISOString()
@@ -224,12 +222,8 @@ export const usePayroll = (employerAddress: string | undefined) => {
               endDate: new Date(Number(s.end_ts) * 1000)
                 .toISOString()
                 .split("T")[0],
-              totalAmount: (Number(s.total_amount) / STROOPS_PER_UNIT).toFixed(
-                2,
-              ),
-              totalStreamed: (
-                Number(s.withdrawn_amount) / STROOPS_PER_UNIT
-              ).toFixed(2),
+              totalAmount: rawToUnitNumber(s.total_amount).toFixed(2),
+              totalStreamed: rawToUnitNumber(s.withdrawn_amount).toFixed(2),
               status:
                 s.status === 1
                   ? "cancelled"

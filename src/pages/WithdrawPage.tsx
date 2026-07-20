@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useStellarAccount } from "../hooks/useStellarAccount";
 import { useStellarSign } from "../hooks/useStellarSign";
 import { useStreams, WorkerStream } from "../hooks/useStreams";
@@ -9,10 +9,7 @@ import {
 } from "../contracts/payroll_stream";
 import { formatTokenAmount } from "../util/tokenDecimals";
 import { useNotification } from "../hooks/useNotification";
-import {
-  useSharedClockMs,
-  useElapsedTime,
-} from "../context/SharedClockContext";
+import { useSharedClockMs } from "../context/SharedClockContext";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import { recordWithdrawalEvent } from "../util/recordWithdrawal";
 import { STROOPS } from "../util/format";
@@ -138,24 +135,6 @@ function StreamCard({
   const cliffSecsLeft = Math.max(0, effectiveCliff - nowSec);
   const isPaused = stream.status === 3;
 
-  // Client-side live available estimate (ticks every second via shared clock)
-  const elapsedAfterCliff = useElapsedTime(effectiveCliff);
-  const clientAvailable = useMemo(() => {
-    if (isBeforeCliff || isPaused) return 0;
-    const earned = Math.min(
-      elapsedAfterCliff * stream.flowRate,
-      stream.totalAmount,
-    );
-    return Math.max(0, earned - stream.claimedAmount);
-  }, [
-    isBeforeCliff,
-    isPaused,
-    elapsedAfterCliff,
-    stream.flowRate,
-    stream.totalAmount,
-    stream.claimedAmount,
-  ]);
-
   // On-chain confirmed withdrawable (fetched once, accurate)
   const [onChainAmt, setOnChainAmt] = useState<number | null>(null);
   const [loadingAmt, setLoadingAmt] = useState(true);
@@ -175,8 +154,9 @@ function StreamCard({
     })();
   }, [stream.id, onChainFetchTick]);
 
-  // Use client estimate for display; on-chain for the TX check
-  const displayAmt = clientAvailable;
+  // Use on-chain value for display since it accounts for pause periods
+  // Client estimate doesn't subtract paused duration, so it would overstate earnings
+  const displayAmt = onChainAmt ?? 0;
   const canWithdraw =
     !loadingAmt && !isBeforeCliff && !isPaused && (onChainAmt ?? 0) > 0;
 
