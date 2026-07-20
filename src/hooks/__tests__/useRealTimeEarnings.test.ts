@@ -100,6 +100,39 @@ describe("computeStreamEarning (per-stream cliff math)", () => {
     expect(result.vesting).toBe(0);
     expect(result.withdrawable).toBe(0);
   });
+
+  it("paused stream: earning frozen at pause time, not current time", () => {
+    const stream = makeStream({
+      startTime: 1000,
+      cliffTime: 0,
+      status: 3, // paused
+      paused_at: 2000, // paused after 1000s of earnings
+      flowRate: 10,
+    });
+
+    // Current time is 5000, but stream was paused at 2000
+    const result = computeStreamEarning(stream, 5000);
+
+    // Should have earnings from 1000 to 2000 (1000s * 10 = 10000)
+    // NOT from 1000 to 5000 (would be 40000)
+    expect(result.vesting).toBe(10000);
+    expect(result.withdrawable).toBe(10000);
+  });
+
+  it("paused stream without paused_at: uses current time (degraded behavior)", () => {
+    const stream = makeStream({
+      startTime: 1000,
+      cliffTime: 0,
+      status: 3, // paused
+      // no paused_at provided
+      flowRate: 10,
+    });
+
+    const result = computeStreamEarning(stream, 5000);
+
+    // Falls back to current time calculation (not ideal, but safe)
+    expect(result.vesting).toBe(40000); // (5000-1000) * 10
+  });
 });
 
 describe("computeEarningsBreakdown (multi-stream aggregation)", () => {
