@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * Compatibility shim for @stellar/design-system
  * Provides Tailwind-based equivalents of all used components.

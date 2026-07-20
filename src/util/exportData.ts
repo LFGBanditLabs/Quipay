@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { jsPDF } from "jspdf";
 import autoTable, { RowInput } from "jspdf-autotable";
 import { calculateStreamProgress, Stream } from "../lib/streams";
+import { formatTokenAmount } from "./tokenDecimals";
 
 export interface ExportRow {
   "Stream ID": string;
@@ -30,22 +31,32 @@ export interface StreamRecord {
   startTime: number;
   endTime: number;
   curve?: "Linear" | "FrontLoaded" | "BackLoaded";
+  tokenSymbol?: string;
 }
 
-const formatRow = (stream: StreamRecord): ExportRow => ({
-  "Stream ID": stream.id,
-  "Worker Address": stream.recipient,
-  "Amount/sec": stream.amount,
-  "Total Paid": stream.totalPaid,
-  Status: stream.status,
-  "Created Date": format(
-    new Date(stream.startTime * 1000),
-    "yyyy-MM-dd HH:mm:ss",
-  ),
-  "Cancelled Date": stream.endTime
-    ? format(new Date(stream.endTime * 1000), "yyyy-MM-dd HH:mm:ss")
-    : "—",
-});
+const formatRow = (stream: StreamRecord): ExportRow => {
+  const symbol = stream.tokenSymbol ?? "";
+  const symbolSuffix = symbol ? ` ${symbol}` : "";
+
+  return {
+    "Stream ID": stream.id,
+    "Worker Address": stream.recipient,
+    "Amount/sec": symbol
+      ? `${formatTokenAmount(Number(stream.amount), symbol)} ${symbol}/s`
+      : stream.amount,
+    "Total Paid": symbol
+      ? `${formatTokenAmount(Number(stream.totalPaid), symbol)}${symbolSuffix}`
+      : stream.totalPaid,
+    Status: stream.status,
+    "Created Date": format(
+      new Date(stream.startTime * 1000),
+      "yyyy-MM-dd HH:mm:ss",
+    ),
+    "Cancelled Date": stream.endTime
+      ? format(new Date(stream.endTime * 1000), "yyyy-MM-dd HH:mm:ss")
+      : "—",
+  };
+};
 
 const applyFilters = (
   streams: StreamRecord[],
@@ -139,8 +150,16 @@ export const generatePayrollReport = (
       streamId: stream.id,
       earnedInPeriod,
       status: stream.status,
+      tokenSymbol: stream.tokenSymbol,
     };
   });
+
+  const formatEarned = (value: number, tokenSymbol?: string): string => {
+    if (tokenSymbol) {
+      return `${formatTokenAmount(value, tokenSymbol)} ${tokenSymbol}`;
+    }
+    return value.toFixed(7);
+  };
 
   const grouped: Record<string, typeof reportData> = {};
   reportData.forEach((row) => {
@@ -159,11 +178,16 @@ export const generatePayrollReport = (
           worker,
           row.streamId,
           row.status,
-          row.earnedInPeriod.toFixed(7),
+          formatEarned(row.earnedInPeriod, row.tokenSymbol),
         ]);
         workerTotal += row.earnedInPeriod;
       });
-      csvRows.push(["", "", "SUBTOTAL", workerTotal.toFixed(7)]);
+      csvRows.push([
+        "",
+        "",
+        "SUBTOTAL",
+        formatEarned(workerTotal, rows[0]?.tokenSymbol),
+      ]);
     });
 
     const csvContent = csvRows.map((r) => r.join(",")).join("\n");
@@ -193,7 +217,7 @@ export const generatePayrollReport = (
           worker,
           row.streamId,
           row.status,
-          row.earnedInPeriod.toFixed(7),
+          formatEarned(row.earnedInPeriod, row.tokenSymbol),
         ]);
         workerTotal += row.earnedInPeriod;
       });
@@ -203,7 +227,10 @@ export const generatePayrollReport = (
           colSpan: 3,
           styles: { halign: "right", fontStyle: "bold" },
         },
-        { content: workerTotal.toFixed(7), styles: { fontStyle: "bold" } },
+        {
+          content: formatEarned(workerTotal, rows[0]?.tokenSymbol),
+          styles: { fontStyle: "bold" },
+        },
       ]);
     });
 

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { act } from "react";
 import renderer from "react-test-renderer";
 
 import { Button } from "@/components/ui/button";
@@ -60,15 +60,17 @@ jest.mock("@stellar/design-system", () => {
 
 describe("frontend component snapshots", () => {
   it("renders Button", () => {
-    const tree = renderer
-      .create(<Button variant="primary">Pay Salary</Button>)
-      .toJSON();
-    expect(tree).toMatchSnapshot();
+    let tree = null as unknown as ReturnType<typeof renderer.create>;
+    act(() => {
+      tree = renderer.create(<Button variant="primary">Pay Salary</Button>);
+    });
+    expect(tree.toJSON()).toMatchSnapshot();
   });
 
   it("renders Card composition", () => {
-    const tree = renderer
-      .create(
+    let tree = null as unknown as ReturnType<typeof renderer.create>;
+    act(() => {
+      tree = renderer.create(
         <Card>
           <CardHeader>
             <CardTitle>Payroll Summary</CardTitle>
@@ -80,14 +82,15 @@ describe("frontend component snapshots", () => {
           <CardContent>Current stream activity</CardContent>
           <CardFooter>Footer actions</CardFooter>
         </Card>,
-      )
-      .toJSON();
-    expect(tree).toMatchSnapshot();
+      );
+    });
+    expect(tree.toJSON()).toMatchSnapshot();
   });
 
   it("renders Input with validation", () => {
-    const tree = renderer
-      .create(
+    let tree = null as unknown as ReturnType<typeof renderer.create>;
+    act(() => {
+      tree = renderer.create(
         <Input
           label="Recipient"
           placeholder="G..."
@@ -95,66 +98,85 @@ describe("frontend component snapshots", () => {
           value=""
           onChange={() => undefined}
         />,
-      )
-      .toJSON();
-    expect(tree).toMatchSnapshot();
+      );
+    });
+    expect(tree.toJSON()).toMatchSnapshot();
   });
 
   it("renders Badge", () => {
-    const tree = renderer
-      .create(<Badge variant="warning">Pending</Badge>)
-      .toJSON();
-    expect(tree).toMatchSnapshot();
+    let tree = null as unknown as ReturnType<typeof renderer.create>;
+    act(() => {
+      tree = renderer.create(<Badge variant="warning">Pending</Badge>);
+    });
+    expect(tree.toJSON()).toMatchSnapshot();
   });
 
   it("renders Spinner", () => {
-    const tree = renderer
-      .create(<Spinner size="lg" label="Syncing" />)
-      .toJSON();
-    expect(tree).toMatchSnapshot();
+    let tree = null as unknown as ReturnType<typeof renderer.create>;
+    act(() => {
+      tree = renderer.create(<Spinner size="lg" label="Syncing" />);
+    });
+    expect(tree.toJSON()).toMatchSnapshot();
   });
 
   it("renders Skeleton variants", () => {
-    const tree = renderer
-      .create(
+    let tree = null as unknown as ReturnType<typeof renderer.create>;
+    act(() => {
+      tree = renderer.create(
         <Box gap="md">
           <Skeleton variant="text" lines={2} />
           <Skeleton variant="circle" width="40px" height="40px" />
           <Skeleton variant="rect" width="100%" height="24px" />
         </Box>,
-      )
-      .toJSON();
-    expect(tree).toMatchSnapshot();
+      );
+    });
+    expect(tree.toJSON()).toMatchSnapshot();
   });
 
   it("renders SkeletonCard", () => {
-    const tree = renderer.create(<SkeletonCard lines={4} />).toJSON();
-    expect(tree).toMatchSnapshot();
+    let tree = null as unknown as ReturnType<typeof renderer.create>;
+    act(() => {
+      tree = renderer.create(<SkeletonCard lines={4} />);
+    });
+    expect(tree.toJSON()).toMatchSnapshot();
   });
 
   it("renders SkeletonRow", () => {
-    const tree = renderer.create(<SkeletonRow />).toJSON();
-    expect(tree).toMatchSnapshot();
+    let tree = null as unknown as ReturnType<typeof renderer.create>;
+    act(() => {
+      tree = renderer.create(<SkeletonRow />);
+    });
+    expect(tree.toJSON()).toMatchSnapshot();
   });
 
   it("renders StreamCardSkeleton", () => {
-    const tree = renderer.create(<StreamCardSkeleton />).toJSON();
-    expect(tree).toMatchSnapshot();
+    let tree = null as unknown as ReturnType<typeof renderer.create>;
+    act(() => {
+      tree = renderer.create(<StreamCardSkeleton />);
+    });
+    expect(tree.toJSON()).toMatchSnapshot();
   });
 
   it("renders EarningsSkeleton", () => {
-    const tree = renderer.create(<EarningsSkeleton />).toJSON();
-    expect(tree).toMatchSnapshot();
+    let tree = null as unknown as ReturnType<typeof renderer.create>;
+    act(() => {
+      tree = renderer.create(<EarningsSkeleton />);
+    });
+    expect(tree.toJSON()).toMatchSnapshot();
   });
 
   it("renders VaultBalanceSkeleton", () => {
-    const tree = renderer.create(<VaultBalanceSkeleton />).toJSON();
-    expect(tree).toMatchSnapshot();
+    let tree = null as unknown as ReturnType<typeof renderer.create>;
+    act(() => {
+      tree = renderer.create(<VaultBalanceSkeleton />);
+    });
+    expect(tree.toJSON()).toMatchSnapshot();
   });
 
   it("renders EmptyState", () => {
-    const tree = renderer
-      .create(
+    let tree = null as unknown as ReturnType<typeof renderer.create>;
+    act(() => {
+      tree = renderer.create(
         <EmptyState
           title="No Streams"
           description="Create your first payroll stream"
@@ -162,15 +184,16 @@ describe("frontend component snapshots", () => {
           onAction={() => undefined}
           variant="streams"
         />,
-      )
-      .toJSON();
-    expect(tree).toMatchSnapshot();
+      );
+    });
+    expect(tree.toJSON()).toMatchSnapshot();
   });
 
   it("renders Tooltip", () => {
-    const tree = renderer
-      .create(<Tooltip content="Current network status" />)
-      .toJSON();
-    expect(tree).toMatchSnapshot();
+    let tree = null as unknown as ReturnType<typeof renderer.create>;
+    act(() => {
+      tree = renderer.create(<Tooltip content="Current network status" />);
+    });
+    expect(tree.toJSON()).toMatchSnapshot();
   });
 });

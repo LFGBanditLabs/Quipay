@@ -1,14 +1,19 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { io } from "socket.io-client";
+import { Asset } from "@stellar/stellar-sdk";
+import { networkPassphrase } from "../contracts/util";
 import {
   getAllVaultData,
   type TokenVaultData,
 } from "../contracts/payroll_vault";
 import {
-  getStreamsByEmployer,
+  getStreamsByWorker,
+  getStreamById,
   getTokenSymbol,
   ContractStream,
 } from "../contracts/payroll_stream";
+import { getWorkersByEmployer } from "../contracts/workforce_registry";
+import { rawToUnitNumber } from "../util/stroops";
 
 /** ---------------- REQUEST DEDUP ---------------- */
 
@@ -40,9 +45,6 @@ async function dedupRequest<T>(key: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Stellar uses 7 decimal places (10^7 stroops = 1 token unit). */
-const STROOPS_PER_UNIT = 1e7;
-
 export interface Stream {
   id: string;
   employeeName: string;
@@ -73,26 +75,23 @@ export interface PayrollSummary {
   streams_active: number;
 }
 
-// Use the actual SAC contract addresses so vault balance queries match deposit keys
+// Use the actual SAC (contract) addresses so vault balance queries match the
+// keys deposits are stored under. USDC's SAC is derived from its classic asset
+// — the raw issuer G-address is NOT the token contract and returns 0.
 const XLM_SAC =
   import.meta.env.PUBLIC_XLM_SAC ??
   "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 const USDC_ISSUER =
   import.meta.env.PUBLIC_USDC_ISSUER ??
   "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+const USDC_SAC = new Asset("USDC", USDC_ISSUER).contractId(networkPassphrase);
 
 const DEFAULT_TOKENS = [
   { token: XLM_SAC, tokenSymbol: "XLM", monthlyBurnRate: BigInt(0) },
-  { token: USDC_ISSUER, tokenSymbol: "USDC", monthlyBurnRate: BigInt(0) },
+  { token: USDC_SAC, tokenSymbol: "USDC", monthlyBurnRate: BigInt(0) },
 ];
 
-export const usePayroll = (
-  employerAddress: string | undefined,
-  options?: {
-    offset?: number;
-    limit?: number;
-  },
-) => {
+export const usePayroll = (employerAddress: string | undefined) => {
   const [treasuryBalances, setTreasuryBalances] = useState<TokenBalance[]>([]);
   const [totalLiabilities, setTotalLiabilities] = useState<string>("0");
   const [streams, setStreams] = useState<Stream[]>([]);
@@ -134,7 +133,7 @@ export const usePayroll = (
     } finally {
       setIsVaultLoading(false);
     }
-  }, []);
+  }, [employerAddress]);
 
   const fetchPayrollSummary = useCallback(async (address: string) => {
     // Payroll summary comes from the backend analytics API.
@@ -173,24 +172,46 @@ export const usePayroll = (
     await fetchPayrollSummary(employerAddress);
   }, [employerAddress, fetchPayrollSummary]);
 
-  const fetchStreams = useCallback(
-    async (address: string) => {
-      try {
-        const streamPage = await dedupRequest(
-          `streams-${address}-${options?.offset}-${options?.limit}`,
-          () => getStreamsByEmployer(address, options?.offset, options?.limit),
-        );
+  const fetchStreams = useCallback(async (address: string) => {
+    try {
+      // The contract's get_streams_by_employer returns Stream structs with
+      // NO ids, so we resolve real ids the way the contract exposes them:
+      // per worker via get_streams_by_worker, then get_stream(id). This
+      // makes each row's id the true on-chain stream id (so /stream/:id
+      // links work) instead of a fabricated index.
+      const workers = await dedupRequest(`workers-${address}`, () =>
+        getWorkersByEmployer(address, address).catch(() => []),
+      );
 
-        const employerStreams: Stream[] = await Promise.all(
-          streamPage.streams.map(async (s: ContractStream, index: number) => {
-            const streamId = String((options?.offset ?? 0) + index + 1);
+      const idSet = new Set<string>();
+      await Promise.all(
+        workers.map(async (w) => {
+          const ids = await getStreamsByWorker(w.wallet).catch(() => []);
+          ids.forEach((id) => idSet.add(id.toString()));
+        }),
+      );
+
+      const detailed = await Promise.all(
+        [...idSet].map(async (idStr) => {
+          const s = await getStreamById(address, BigInt(idStr)).catch(
+            () => null,
+          );
+          return s ? { id: idStr, s } : null;
+        }),
+      );
+
+      const employerStreams: Stream[] = await Promise.all(
+        detailed
+          .filter((x): x is { id: string; s: ContractStream } => x !== null)
+          .filter(({ s }) => s.employer === address)
+          .sort((a, b) => Number(a.id) - Number(b.id))
+          .map(async ({ id, s }) => {
             const tokenSymbol = await getTokenSymbol(address, s.token);
-
             return {
-              id: streamId,
-              employeeName: `Worker ${streamId.slice(0, 8)}`,
+              id,
+              employeeName: `${s.worker.slice(0, 6)}…${s.worker.slice(-4)}`,
               employeeAddress: s.worker,
-              flowRate: (Number(s.rate) / STROOPS_PER_UNIT).toFixed(7),
+              flowRate: rawToUnitNumber(s.rate).toFixed(7),
               tokenSymbol,
               startDate: new Date(Number(s.start_ts) * 1000)
                 .toISOString()
@@ -198,12 +219,8 @@ export const usePayroll = (
               endDate: new Date(Number(s.end_ts) * 1000)
                 .toISOString()
                 .split("T")[0],
-              totalAmount: (Number(s.total_amount) / STROOPS_PER_UNIT).toFixed(
-                2,
-              ),
-              totalStreamed: (
-                Number(s.withdrawn_amount) / STROOPS_PER_UNIT
-              ).toFixed(2),
+              totalAmount: rawToUnitNumber(s.total_amount).toFixed(2),
+              totalStreamed: rawToUnitNumber(s.withdrawn_amount).toFixed(2),
               status:
                 s.status === 1
                   ? "cancelled"
@@ -214,18 +231,16 @@ export const usePayroll = (
                       : "active",
             };
           }),
-        );
+      );
 
-        setStreams(employerStreams);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to load stream data",
-        );
-        setStreams([]);
-      }
-    },
-    [options],
-  );
+      setStreams(employerStreams);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load stream data",
+      );
+      setStreams([]);
+    }
+  }, []);
 
   const refetch = useCallback(() => {
     setFetchTick((t) => t + 1);
@@ -310,6 +325,7 @@ export const usePayroll = (
 
   useEffect(() => {
     if (!employerAddress) {
+      // Resetting all state when the wallet disconnects is intentional.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setStreams([]);
       setPayrollSummary(null);

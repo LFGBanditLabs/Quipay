@@ -29,10 +29,10 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
 
   const chartData = useMemo(() => {
     return earnings.streamEarned
-      .filter((s: StreamEarning) => s.earned > 0)
+      .filter((s: StreamEarning) => s.vesting > 0)
       .map((s: StreamEarning) => ({
         name: s.name,
-        value: s.earned,
+        value: s.vesting,
         symbol: s.symbol,
       }));
   }, [earnings.streamEarned]);
@@ -44,13 +44,24 @@ export const EarningsDisplay: React.FC<EarningsDisplayProps> = ({
       <div className="z-[1] flex items-center justify-between max-[992px]:flex-col max-[992px]:items-start max-[992px]:gap-8">
         <div className="flex flex-col">
           <span className="mb-2 text-sm uppercase tracking-[0.1em] text-[var(--muted)]">
-            {t("earnings.realtime_total")}
+            {t("earnings.realtime_vesting")}
           </span>
           <div className="text-[3.5rem] font-extrabold leading-none text-[var(--text)] max-[992px]:text-[2.5rem]">
-            {formatTokenAmount(earnings.totalEarned, activeToken)}
+            {formatTokenAmount(earnings.totalVesting, activeToken)}
             <span className="ml-2 text-2xl font-normal text-[var(--text)]/80">
               {activeToken}
             </span>
+          </div>
+          <div className="mt-4 flex flex-col gap-1">
+            <span className="text-xs uppercase tracking-[0.1em] text-[var(--muted)]">
+              {t("earnings.realtime_withdrawable")}
+            </span>
+            <div className="text-2xl font-bold leading-none text-emerald-500">
+              {formatTokenAmount(earnings.totalWithdrawable, activeToken)}
+              <span className="ml-1.5 text-base font-normal text-[var(--text)]/70">
+                {activeToken}
+              </span>
+            </div>
           </div>
           <div className="mt-4 inline-flex w-fit items-center gap-2 rounded-[20px] bg-[var(--token-color-success-soft)] px-3 py-1 text-sm text-emerald-500">
             <div className="h-2 w-2 rounded-full bg-emerald-500 [animation:pulse_2s_infinite]"></div>

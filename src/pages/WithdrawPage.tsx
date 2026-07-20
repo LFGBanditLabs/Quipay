@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
-import { useWallet } from "../hooks/useWallet";
+import { useState, useEffect } from "react";
+import { useStellarAccount } from "../hooks/useStellarAccount";
+import { useStellarSign } from "../hooks/useStellarSign";
 import { useStreams, WorkerStream } from "../hooks/useStreams";
 import {
   getWithdrawable,
@@ -8,18 +9,11 @@ import {
 } from "../contracts/payroll_stream";
 import { formatTokenAmount } from "../util/tokenDecimals";
 import { useNotification } from "../hooks/useNotification";
-import {
-  useSharedClockMs,
-  useElapsedTime,
-} from "../context/SharedClockContext";
+import { useSharedClockMs } from "../context/SharedClockContext";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import { recordWithdrawalEvent } from "../util/recordWithdrawal";
-
-const STROOPS = 1e7;
-
-function shortAddr(a: string) {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
+import { STROOPS } from "../util/format";
+import { shortenAddress as shortAddr } from "../util/address";
 
 function fmtCountdown(secs: number) {
   const d = Math.floor(secs / 86400);
@@ -129,7 +123,7 @@ function StreamCard({
   workerAddress: string;
   onSuccess: (amount: number) => void;
 }) {
-  const { signTransaction } = useWallet();
+  const { signXdr } = useStellarSign();
   const { addNotification } = useNotification();
   const nowMs = useSharedClockMs();
   const nowSec = Math.floor(nowMs / 1000);
@@ -140,24 +134,6 @@ function StreamCard({
   const isBeforeCliff = effectiveCliff > nowSec;
   const cliffSecsLeft = Math.max(0, effectiveCliff - nowSec);
   const isPaused = stream.status === 3;
-
-  // Client-side live available estimate (ticks every second via shared clock)
-  const elapsedAfterCliff = useElapsedTime(effectiveCliff);
-  const clientAvailable = useMemo(() => {
-    if (isBeforeCliff || isPaused) return 0;
-    const earned = Math.min(
-      elapsedAfterCliff * stream.flowRate,
-      stream.totalAmount,
-    );
-    return Math.max(0, earned - stream.claimedAmount);
-  }, [
-    isBeforeCliff,
-    isPaused,
-    elapsedAfterCliff,
-    stream.flowRate,
-    stream.totalAmount,
-    stream.claimedAmount,
-  ]);
 
   // On-chain confirmed withdrawable (fetched once, accurate)
   const [onChainAmt, setOnChainAmt] = useState<number | null>(null);
@@ -178,8 +154,9 @@ function StreamCard({
     })();
   }, [stream.id, onChainFetchTick]);
 
-  // Use client estimate for display; on-chain for the TX check
-  const displayAmt = clientAvailable;
+  // Use on-chain value for display since it accounts for pause periods
+  // Client estimate doesn't subtract paused duration, so it would overstate earnings
+  const displayAmt = onChainAmt ?? 0;
   const canWithdraw =
     !loadingAmt && !isBeforeCliff && !isPaused && (onChainAmt ?? 0) > 0;
 
@@ -192,7 +169,7 @@ function StreamCard({
   const [done, setDone] = useState(false);
 
   const handleWithdraw = async () => {
-    if (!signTransaction || !canWithdraw) return;
+    if (!canWithdraw) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -202,12 +179,9 @@ function StreamCard({
         workerAddress,
       );
       setTxStep("signing");
-      const { signedTxXdr } = await signTransaction(preparedXdr, {
-        networkPassphrase: import.meta.env
-          .PUBLIC_STELLAR_NETWORK_PASSPHRASE as string,
-      });
+      const signed = await signXdr(preparedXdr, workerAddress);
       setTxStep("sending");
-      const txHash = await submitAndAwaitTx(signedTxXdr);
+      const txHash = await submitAndAwaitTx(signed);
       const withdrawn = onChainAmt ?? displayAmt;
       void recordWithdrawalEvent({
         workerAddress,
@@ -447,7 +421,8 @@ function StreamCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function WithdrawPage() {
-  const { address, signTransaction } = useWallet();
+  const { address } = useStellarAccount();
+  const { signXdr } = useStellarSign();
   const { streams, isLoading, error, refetch, withdrawalHistory } =
     useStreams(address);
   const { addNotification } = useNotification();
@@ -477,19 +452,16 @@ export default function WithdrawPage() {
 
   // Withdraw All — sequential (each TX needs different sequence number)
   const handleWithdrawAll = async () => {
-    if (!signTransaction || readyStreams.length === 0) return;
+    if (!address || readyStreams.length === 0) return;
     setWithdrawingAll(true);
     setWithdrawAllProgress({ done: 0, total: readyStreams.length });
     let withdrawn = 0;
     for (let i = 0; i < readyStreams.length; i++) {
       const s = readyStreams[i];
       try {
-        const { preparedXdr } = await buildWithdrawTx(BigInt(s.id), address!);
-        const { signedTxXdr } = await signTransaction(preparedXdr, {
-          networkPassphrase: import.meta.env
-            .PUBLIC_STELLAR_NETWORK_PASSPHRASE as string,
-        });
-        await submitAndAwaitTx(signedTxXdr);
+        const { preparedXdr } = await buildWithdrawTx(BigInt(s.id), address);
+        const signed = await signXdr(preparedXdr, address);
+        await submitAndAwaitTx(signed);
         withdrawn++;
       } catch {
         // Skip failed streams, continue with rest

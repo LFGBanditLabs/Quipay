@@ -1,15 +1,30 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck — @stellar/design-system types are incomplete for Badge, Card, Modal, Icon
 import React, { useState, useRef } from "react";
 import {
   Layout,
-  Text,
+  Text as UntypedText,
   Button,
-  Card,
-  Icon,
+  Card as UntypedCard,
+  Icon as UntypedIcon,
   Modal,
   Input,
 } from "@stellar/design-system";
+
+const Card = UntypedCard as unknown as React.FC<React.ComponentProps<"div">>;
+const Icon = UntypedIcon as unknown as React.FC<{
+  name: string;
+  size?: string;
+  className?: string;
+}>;
+const Text = UntypedText as unknown as React.FC<{
+  as?: React.ElementType;
+  size?: "xs" | "sm" | "md" | "lg" | "xl";
+  weight?: "normal" | "medium" | "bold";
+  variant?: "primary" | "secondary";
+  className?: string;
+  title?: string;
+  children?: React.ReactNode;
+}>;
+
 import {
   useStreamTemplates,
   StreamTemplate,
@@ -86,6 +101,7 @@ const StreamTemplates: React.FC = () => {
       <SeoHelmet
         title="Stream Templates | Quipay"
         description="Manage your reusable stream configurations."
+        path=""
       />
       <Layout.Inset>
         <div className="flex flex-col gap-8 animate-fade-in-up">
@@ -357,10 +373,14 @@ const StreamTemplates: React.FC = () => {
           </div>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setEditingTemplate(null)}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setEditingTemplate(null)}
+          >
             Cancel
           </Button>
-          <Button variant="primary" onClick={handleSaveEdit}>
+          <Button variant="primary" size="sm" onClick={handleSaveEdit}>
             Save Changes
           </Button>
         </Modal.Footer>

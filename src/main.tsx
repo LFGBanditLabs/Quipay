@@ -16,6 +16,7 @@ import { NetworkStatusProvider } from "./providers/NetworkStatusProvider.tsx";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WalletProvider } from "./providers/WalletProvider.tsx";
+import { AuthProvider } from "./providers/AuthProvider.tsx";
 import { SharedClockProvider } from "./context/SharedClockContext.tsx";
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,15 +33,17 @@ createRoot(document.getElementById("root") as HTMLElement).render(
       <ThemeProvider>
         <SharedClockProvider>
           <QueryClientProvider client={queryClient}>
-            <WalletProvider>
-              <NotificationProvider>
-                <NetworkStatusProvider>
-                  <BrowserRouter>
-                    <App />
-                  </BrowserRouter>
-                </NetworkStatusProvider>
-              </NotificationProvider>
-            </WalletProvider>
+            <AuthProvider>
+              <WalletProvider>
+                <NotificationProvider>
+                  <NetworkStatusProvider>
+                    <BrowserRouter>
+                      <App />
+                    </BrowserRouter>
+                  </NetworkStatusProvider>
+                </NotificationProvider>
+              </WalletProvider>
+            </AuthProvider>
           </QueryClientProvider>
         </SharedClockProvider>
       </ThemeProvider>

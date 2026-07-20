@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { NavLink, Link } from "react-router-dom";
-import { WalletButton } from "../WalletButton";
+// Wallet-connect is no longer the login mechanism — see LoginButton.
+// import { WalletButton } from "../WalletButton";
+import { LoginButton } from "../LoginButton";
 import NotificationCenter from "../NotificationCenter";
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
@@ -91,7 +93,7 @@ const Navbar: React.FC = () => {
             <NotificationCenter />
 
             {/* Log in — ghost pill (Tertiary style from Figma) */}
-            <WalletButton />
+            <LoginButton />
 
             {/* Get Started — yellow filled pill (Secondary style from Figma) */}
           </div>
@@ -160,7 +162,7 @@ const Navbar: React.FC = () => {
               </NavLink>
             ))}
             <div className="mt-4 border-t border-white/[0.06] pt-4">
-              <WalletButton />
+              <LoginButton />
             </div>
           </div>
         </div>

@@ -13,25 +13,10 @@ import {
 } from "recharts";
 import { useWallet } from "../hooks/useWallet";
 import { usePayroll } from "../hooks/usePayroll";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const STROOPS = 1e7;
-const YELLOW = "#facc15";
-const COLORS = [YELLOW, "#eab308", "#ca8a04", "#a16207", "#854d0e"];
-
-function fmt(n: number, d = 2) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(d)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return n.toLocaleString(undefined, {
-    minimumFractionDigits: d,
-    maximumFractionDigits: d,
-  });
-}
-
-function shortAddr(a: string) {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
+import { fmt, STROOPS } from "../util/format";
+import { shortenAddress as shortAddr } from "../util/address";
+import { YELLOW, CHART_COLORS as COLORS } from "../util/constants";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 function StatCard({
   label,
@@ -189,6 +174,12 @@ export default function Analytics() {
 
   return (
     <div className="px-6 py-8 sm:px-8 sm:py-10">
+      <SeoHelmet
+        title="Analytics — Payroll Stream Insights"
+        description="View detailed analytics for your Stellar payroll streams."
+        path="/analytics"
+      />
+
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-[24px] font-bold text-white tracking-tight">

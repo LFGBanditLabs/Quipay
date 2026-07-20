@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -163,6 +164,12 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 export default function About() {
   return (
     <div className="bg-black text-white">
+      <SeoHelmet
+        title="About Quipay — Our Mission and Values"
+        description="Learn about Quipay, a real-time payroll streaming protocol built on Stellar."
+        path="/about"
+      />
+
       {/* ─── Hero ──────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden border-b border-white/[0.06] py-28 px-6">
         {/* Background glow */}

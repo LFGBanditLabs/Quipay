@@ -337,13 +337,19 @@
   },
   "earnings": {
     "realtime_total": "סה\"כ רווחים בזמן אמת",
+    "realtime_vesting": "הבשלה בזמן אמת",
+    "realtime_withdrawable": "זמין למשיכה",
     "active_stream": "זרם פעיל",
     "active_streams": "זרמים פעילים",
     "current_flow_rate": "קצב זרימה נוכחי",
     "one_hour_projection": "תחזית שעה",
     "twenty_four_hour_projection": "תחזית 24 שעות",
     "waiting_for_earnings": "ממתין לצבירת רווחים...",
-    "earned": "נצבר"
+    "earned": "נצבר",
+    "cliff_tooltip": "מועד ההבשלה טרם הגיע — נפתח בעוד {{days}} {{unit}}",
+    "day": "יום",
+    "days": "ימים",
+    "nothing_to_withdraw": "אין כרגע יתרה זמינה למשיכה"
   },
   "settings": {
     "page_title": "הגדרות אבטחה וממשל | Quipay",

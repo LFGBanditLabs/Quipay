@@ -337,13 +337,19 @@
   },
   "earnings": {
     "realtime_total": "Revenus totaux en temps réel",
+    "realtime_vesting": "Acquisition en temps réel",
+    "realtime_withdrawable": "Disponible au retrait",
     "active_stream": "Flux actif",
     "active_streams": "Flux actifs",
     "current_flow_rate": "Taux de flux actuel",
     "one_hour_projection": "Projection 1 heure",
     "twenty_four_hour_projection": "Projection 24 heures",
     "waiting_for_earnings": "En attente de l'accumulation des revenus...",
-    "earned": "Gagné"
+    "earned": "Gagné",
+    "cliff_tooltip": "Cliff non atteint — déblocage dans {{days}} {{unit}}",
+    "day": "jour",
+    "days": "jours",
+    "nothing_to_withdraw": "Rien à retirer pour le moment"
   },
   "settings": {
     "page_title": "Paramètres de sécurité et gouvernance | Quipay",

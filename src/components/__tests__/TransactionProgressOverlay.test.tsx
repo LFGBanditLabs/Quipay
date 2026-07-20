@@ -1,4 +1,5 @@
-import renderer, { act } from "react-test-renderer";
+import { act } from "react";
+import renderer from "react-test-renderer";
 import { TransactionProgressOverlay } from "../TransactionProgressOverlay";
 
 const nodeText = (value: unknown): string => {
@@ -40,9 +41,12 @@ describe("TransactionProgressOverlay", () => {
   });
 
   it("renders processing title and all stages when visible", () => {
-    const root = renderer.create(
-      <TransactionProgressOverlay isVisible stage="signing" />,
-    ).root;
+    let root = null as unknown as ReturnType<typeof renderer.create>["root"];
+    act(() => {
+      root = renderer.create(
+        <TransactionProgressOverlay isVisible stage="signing" />,
+      ).root;
+    });
 
     expect(nodeText(root.findByType("h2").children)).toContain(
       "Processing Transaction",
@@ -50,7 +54,9 @@ describe("TransactionProgressOverlay", () => {
 
     const labels = root
       .findAllByType("p")
-      .map((node) => nodeText(node.children));
+      .map((node: ReturnType<typeof renderer.create>["root"]) =>
+        nodeText(node.children),
+      );
 
     expect(labels).toEqual(
       expect.arrayContaining([
@@ -64,13 +70,16 @@ describe("TransactionProgressOverlay", () => {
 
   it("shows Done button on confirmed stage and calls onDismiss", () => {
     const onDismiss = jest.fn();
-    const root = renderer.create(
-      <TransactionProgressOverlay
-        isVisible
-        stage="confirmed"
-        onDismiss={onDismiss}
-      />,
-    ).root;
+    let root = null as unknown as ReturnType<typeof renderer.create>["root"];
+    act(() => {
+      root = renderer.create(
+        <TransactionProgressOverlay
+          isVisible
+          stage="confirmed"
+          onDismiss={onDismiss}
+        />,
+      ).root;
+    });
 
     const doneButton = root.findByType("button");
     expect(nodeText(doneButton.children)).toBe("Done");

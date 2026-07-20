@@ -1,3 +1,5 @@
+import { TextEncoder, TextDecoder } from "util";
+
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: (query: string) => ({
@@ -11,3 +13,7 @@ Object.defineProperty(window, "matchMedia", {
     dispatchEvent: () => false,
   }),
 });
+
+global.TextEncoder = TextEncoder;
+global.TextDecoder = TextDecoder;
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

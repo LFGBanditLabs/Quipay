@@ -7,35 +7,17 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { useWallet } from "../hooks/useWallet";
+import { useStellarAccount } from "../hooks/useStellarAccount";
 import {
   useWorkforceRegistry,
   WorkerEntry,
   WorkerStreamRecord,
+  CreateInviteInput,
 } from "../hooks/useWorkforceRegistry";
-
-/* ── Utilities ──────────────────────────────────────────────────── */
-
-function shortAddr(addr: string): string {
-  if (addr.length <= 14) return addr;
-  return `${addr.slice(0, 8)}…${addr.slice(-6)}`;
-}
-
-function fmtDate(ts: number): string {
-  return new Date(ts * 1000).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function fmtAmount(stroopStr: string): string {
-  const val = parseFloat(stroopStr) / 1e7;
-  return val.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  });
-}
+import CopyButton from "../components/CopyButton";
+import { fmtDate, fmtStroops as fmtAmount } from "../util/format";
+import { shortenAddress as shortAddr } from "../util/address";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 const STELLAR_ADDR_RE = /^G[A-Z2-7]{55}$/;
 
@@ -169,43 +151,59 @@ function WorkerCard({
 
         {/* Info */}
         <div className="min-w-0 flex-1">
+          {/* Primary identity: QP ID (+ job title). Falls back to address. */}
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => void copyAddress()}
-              title={t("workforce.copy_address")}
-              className="flex items-center gap-1.5 font-mono text-[13px] font-semibold text-white transition-colors hover:text-yellow-400"
+            <span className="font-mono text-[14px] font-bold text-white">
+              {worker.quipayId ?? shortAddr(worker.wallet)}
+            </span>
+            {worker.jobTitle && (
+              <span className="text-[12px] text-neutral-500">
+                · {worker.jobTitle}
+              </span>
+            )}
+          </div>
+          {worker.workEmail && (
+            <p className="truncate text-[12px] text-neutral-500">
+              {worker.workEmail}
+            </p>
+          )}
+
+          {/* Secondary: the wallet address, copyable */}
+          <button
+            onClick={() => void copyAddress()}
+            title={t("workforce.copy_address")}
+            className="mt-0.5 flex items-center gap-1.5 font-mono text-[11px] text-neutral-600 transition-colors hover:text-yellow-400"
+          >
+            {shortAddr(worker.wallet)}
+            <svg
+              className="h-3 w-3 text-neutral-700"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              {shortAddr(worker.wallet)}
-              <svg
-                className="h-3 w-3 text-neutral-700"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <rect
-                  x="9"
-                  y="9"
-                  width="13"
-                  height="13"
-                  rx="2"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                />
-              </svg>
-            </button>
+              <rect
+                x="9"
+                y="9"
+                width="13"
+                height="13"
+                rx="2"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+              />
+            </svg>
             {copied && (
               <span className="text-[11px] font-semibold text-green-400">
                 Copied!
               </span>
             )}
-          </div>
+          </button>
 
           {worker.metadata_hash && (
             <p
@@ -326,6 +324,241 @@ function WorkerCard({
           <StreamHistoryTable streams={worker.streams} />
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Invite Worker Modal ────────────────────────────────────────── */
+
+function InviteWorkerModal({
+  onClose,
+  onCreate,
+}: {
+  onClose: () => void;
+  onCreate: (input: CreateInviteInput) => Promise<{ inviteUrl: string }>;
+}) {
+  const [candidateQuipayId, setCandidateQuipayId] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [payAmount, setPayAmount] = useState("");
+  const [payToken, setPayToken] = useState("USDC");
+  const [durationDays, setDurationDays] = useState("30");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const isValid =
+    /^QP\d+$/i.test(candidateQuipayId.trim()) &&
+    jobTitle.trim().length >= 2 &&
+    Number(payAmount) > 0 &&
+    Number(durationDays) > 0;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isValid) return;
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const { inviteUrl: url } = await onCreate({
+        candidateQuipayId: candidateQuipayId.trim().toUpperCase(),
+        jobTitle: jobTitle.trim(),
+        description: description.trim() || undefined,
+        payAmount: Number(payAmount),
+        payToken: payToken.trim() || "USDC",
+        durationDays: Number(durationDays),
+      });
+      setInviteUrl(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create invite.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl border border-white/[0.1] bg-[#111] shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-5">
+          <div>
+            <h2 className="text-[16px] font-bold text-white">
+              {inviteUrl ? "Invite created" : "Invite a worker"}
+            </h2>
+            <p className="mt-0.5 text-[12px] text-neutral-600">
+              {inviteUrl
+                ? "Share this link with them."
+                : "Define the role and pay — they accept via a link, you approve them onto the roster."}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-600 hover:bg-white/[0.06] hover:text-white transition-colors"
+            aria-label="Close"
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2.5}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-6">
+          {inviteUrl ? (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
+                <span className="flex-1 truncate font-mono text-[12px] text-neutral-400">
+                  {inviteUrl}
+                </span>
+                <CopyButton value={inviteUrl} />
+              </div>
+              <button
+                onClick={onClose}
+                className="w-full rounded-xl py-3 text-[14px] font-bold text-black transition-all hover:opacity-90 active:scale-[0.97]"
+                style={{ backgroundColor: "#facc15" }}
+              >
+                Done
+              </button>
+            </div>
+          ) : (
+            <form
+              onSubmit={(e) => void handleSubmit(e)}
+              className="flex flex-col gap-4"
+            >
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[13px] font-semibold text-white">
+                  Employee QP ID
+                </label>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  className="w-full rounded-xl border border-white/[0.1] bg-black px-4 py-3 text-[13px] font-mono text-white placeholder:text-neutral-700 focus:border-yellow-400/40 focus:outline-none focus:ring-1 focus:ring-yellow-400/20"
+                  placeholder="QP100000042"
+                  value={candidateQuipayId}
+                  onChange={(e) => setCandidateQuipayId(e.target.value)}
+                  disabled={submitting}
+                />
+                <p className="text-[11px] text-neutral-600">
+                  Ask the employee for their QP ID (shown on their dashboard).
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[13px] font-semibold text-white">
+                  Job title
+                </label>
+                <input
+                  type="text"
+                  className="w-full rounded-xl border border-white/[0.1] bg-black px-4 py-3 text-[13px] text-white placeholder:text-neutral-700 focus:border-yellow-400/40 focus:outline-none focus:ring-1 focus:ring-yellow-400/20"
+                  placeholder="Marketing Manager"
+                  value={jobTitle}
+                  onChange={(e) => setJobTitle(e.target.value)}
+                  disabled={submitting}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[13px] font-semibold text-white">
+                  Description (optional)
+                </label>
+                <textarea
+                  className="w-full rounded-xl border border-white/[0.1] bg-black px-4 py-3 text-[13px] text-white placeholder:text-neutral-700 focus:border-yellow-400/40 focus:outline-none focus:ring-1 focus:ring-yellow-400/20"
+                  placeholder="What they'll be doing"
+                  rows={2}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  disabled={submitting}
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2 flex flex-col gap-1.5">
+                  <label className="text-[13px] font-semibold text-white">
+                    Pay
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="w-full rounded-xl border border-white/[0.1] bg-black px-4 py-3 text-[13px] text-white placeholder:text-neutral-700 focus:border-yellow-400/40 focus:outline-none focus:ring-1 focus:ring-yellow-400/20"
+                    placeholder="2000"
+                    value={payAmount}
+                    onChange={(e) => setPayAmount(e.target.value)}
+                    disabled={submitting}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[13px] font-semibold text-white">
+                    Token
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full rounded-xl border border-white/[0.1] bg-black px-4 py-3 text-[13px] text-white placeholder:text-neutral-700 focus:border-yellow-400/40 focus:outline-none focus:ring-1 focus:ring-yellow-400/20"
+                    value={payToken}
+                    onChange={(e) => setPayToken(e.target.value)}
+                    disabled={submitting}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[13px] font-semibold text-white">
+                  Duration (days)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  className="w-full rounded-xl border border-white/[0.1] bg-black px-4 py-3 text-[13px] text-white placeholder:text-neutral-700 focus:border-yellow-400/40 focus:outline-none focus:ring-1 focus:ring-yellow-400/20"
+                  value={durationDays}
+                  onChange={(e) => setDurationDays(e.target.value)}
+                  disabled={submitting}
+                />
+              </div>
+
+              {error && <p className="text-[11px] text-red-400">{error}</p>}
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={submitting}
+                  className="flex-1 rounded-xl border border-white/[0.08] bg-white/[0.04] py-3 text-[14px] font-semibold text-white hover:bg-white/[0.08] transition-colors disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || !isValid}
+                  className="flex-1 rounded-xl py-3 text-[14px] font-bold text-black transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: "#facc15" }}
+                >
+                  {submitting ? "Creating…" : "Create invite"}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -505,19 +738,82 @@ function AddWorkerModal({
 
 const WorkforceRegistry: React.FC = () => {
   const { t } = useTranslation();
-  const { address } = useWallet();
+  const { address } = useStellarAccount();
   const navigate = useNavigate();
-  const { workers, isLoading, error, addWorker, removeWorker, refetch } =
-    useWorkforceRegistry(address);
+  const {
+    workers,
+    pendingRequests,
+    invites,
+    isLoading,
+    error,
+    addWorker,
+    removeWorker,
+    rejectWorker,
+    createInvite,
+    cancelInvite,
+    refetch,
+  } = useWorkforceRegistry(address);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [processingRequest, setProcessingRequest] = useState<string | null>(
+    null,
+  );
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
   }, []);
+
+  const handleApproveRequest = useCallback(
+    async (workerAddress: string) => {
+      setProcessingRequest(workerAddress);
+      try {
+        await addWorker(workerAddress);
+        showToast("Worker approved and added to your roster.");
+      } catch (err) {
+        showToast(
+          err instanceof Error ? err.message : "Failed to approve request.",
+        );
+      } finally {
+        setProcessingRequest(null);
+      }
+    },
+    [addWorker, showToast],
+  );
+
+  const handleRejectRequest = useCallback(
+    async (workerAddress: string) => {
+      setProcessingRequest(workerAddress);
+      try {
+        await rejectWorker(workerAddress);
+        showToast("Join request rejected.");
+      } catch (err) {
+        showToast(
+          err instanceof Error ? err.message : "Failed to reject request.",
+        );
+      } finally {
+        setProcessingRequest(null);
+      }
+    },
+    [rejectWorker, showToast],
+  );
+
+  const handleCancelInvite = useCallback(
+    async (code: string) => {
+      try {
+        await cancelInvite(code);
+        showToast("Invite cancelled.");
+      } catch (err) {
+        showToast(
+          err instanceof Error ? err.message : "Failed to cancel invite.",
+        );
+      }
+    },
+    [cancelInvite, showToast],
+  );
 
   const handleAddWorker = useCallback(
     async (workerAddress: string) => {
@@ -593,6 +889,12 @@ const WorkforceRegistry: React.FC = () => {
 
   return (
     <div className="px-6 py-8 sm:px-8 sm:py-10">
+      <SeoHelmet
+        title="Workforce Registry — Manage Your Team"
+        description="Register and manage workers for your Stellar payroll streams."
+        path="/workforce"
+      />
+
       {/* Header */}
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -625,6 +927,13 @@ const WorkforceRegistry: React.FC = () => {
           </button>
           <button
             onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-white/[0.08] transition-colors"
+            title="Add a worker you already have the wallet address for"
+          >
+            {t("workforce.add_worker")}
+          </button>
+          <button
+            onClick={() => setShowInviteModal(true)}
             className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-bold text-black transition-all hover:opacity-90 active:scale-[0.97]"
             style={{ backgroundColor: "#facc15" }}
           >
@@ -641,7 +950,7 @@ const WorkforceRegistry: React.FC = () => {
                 d="M12 4v16m8-8H4"
               />
             </svg>
-            {t("workforce.add_worker")}
+            Invite worker
           </button>
         </div>
       </div>
@@ -720,6 +1029,111 @@ const WorkforceRegistry: React.FC = () => {
           </p>
         )}
       </div>
+
+      {/* Pending join requests — workers who registered under this employer
+          but haven't been approved onto the on-chain roster yet */}
+      {pendingRequests.length > 0 && (
+        <div className="mb-8 rounded-2xl border border-yellow-400/20 bg-yellow-400/[0.03] p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <span
+              className="flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-[12px] font-black text-black"
+              style={{ backgroundColor: "#facc15" }}
+            >
+              {pendingRequests.length}
+            </span>
+            <h2 className="text-[15px] font-bold text-white">
+              Pending join requests
+            </h2>
+            <p className="text-[12px] text-neutral-600">
+              Approving signs a transaction adding the worker to your roster.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3">
+            {pendingRequests.map((req) => (
+              <div
+                key={req.wallet}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-[#0a0a0a] px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-[14px] font-semibold text-white">
+                    {req.fullName}
+                    <span className="ml-2 text-[12px] font-normal text-neutral-500">
+                      {req.jobTitle}
+                      {req.department ? ` · ${req.department}` : ""}
+                    </span>
+                  </p>
+                  <p className="truncate font-mono text-[11px] text-neutral-600">
+                    {req.wallet}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    onClick={() => void handleApproveRequest(req.wallet)}
+                    disabled={processingRequest !== null}
+                    className="rounded-lg px-3.5 py-2 text-[12px] font-bold text-black transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-50"
+                    style={{ backgroundColor: "#facc15" }}
+                  >
+                    {processingRequest === req.wallet
+                      ? "Processing…"
+                      : "Approve"}
+                  </button>
+                  <button
+                    onClick={() => void handleRejectRequest(req.wallet)}
+                    disabled={processingRequest !== null}
+                    className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2 text-[12px] font-semibold text-neutral-300 hover:bg-white/[0.08] transition-colors disabled:opacity-50"
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Invites sent — offers this employer has created, awaiting acceptance */}
+      {invites.filter((i) => i.status === "pending").length > 0 && (
+        <div className="mb-8 rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-5">
+          <h2 className="mb-4 text-[15px] font-bold text-white">
+            Invites sent
+          </h2>
+          <div className="flex flex-col gap-3">
+            {invites
+              .filter((i) => i.status === "pending")
+              .map((inv) => (
+                <div
+                  key={inv.code}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-semibold text-white">
+                      {inv.candidate_name}
+                      <span className="ml-2 text-[12px] font-normal text-neutral-500">
+                        {inv.job_title} · {inv.pay_amount} {inv.pay_token} ·{" "}
+                        {inv.duration_days}d
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-neutral-600">
+                      Waiting for them to accept
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <CopyButton
+                      value={`${window.location.origin}/invite/${inv.code}`}
+                      label="Copy invite link"
+                    />
+                    <button
+                      onClick={() => void handleCancelInvite(inv.code)}
+                      className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2 text-[12px] font-semibold text-neutral-300 hover:bg-white/[0.08] transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* Workers grid */}
       {isLoading ? (
@@ -805,6 +1219,14 @@ const WorkforceRegistry: React.FC = () => {
         <AddWorkerModal
           onClose={() => setShowAddModal(false)}
           onAdd={handleAddWorker}
+        />
+      )}
+
+      {/* Invite Worker Modal */}
+      {showInviteModal && (
+        <InviteWorkerModal
+          onClose={() => setShowInviteModal(false)}
+          onCreate={createInvite}
         />
       )}
 

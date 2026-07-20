@@ -24,6 +24,7 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 import { rpcUrl, networkPassphrase } from "./util";
+import { getTokenAddresses } from "../lib/tokenAddresses";
 
 // ─── Contract ID ──────────────────────────────────────────────────────────────
 
@@ -64,7 +65,7 @@ async function simulateContractRead<T>(
 
   if (!source) {
     source = new Account(
-      "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
+      "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
       "0",
     );
   }
@@ -160,9 +161,6 @@ export async function isWorkerRegistered(
 
 // ─── buildRegisterWorkerTx ───────────────────────────────────────────────────
 
-// USDC issuer on Stellar testnet (Circle)
-const USDC_TESTNET = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
-
 /**
  * Builds and prepares a `register_worker` transaction.
  * The worker signs and is automatically added to the employer's roster
@@ -177,7 +175,7 @@ const USDC_TESTNET = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 export async function buildRegisterWorkerTx(
   worker: string,
   employer: string,
-  preferredToken: string = USDC_TESTNET,
+  preferredToken: string = getTokenAddresses().USDC,
 ): Promise<{ preparedXdr: string }> {
   if (!WORKFORCE_REGISTRY_CONTRACT_ID) {
     throw new Error("VITE_WORKFORCE_REGISTRY_CONTRACT_ID is not set.");

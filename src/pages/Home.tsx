@@ -3,7 +3,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { formatCurrency } from "../util/formatters";
 import { useWallet } from "../hooks/useWallet";
+import { useAuth } from "../hooks/useAuth";
 import { useRoleDetect } from "../hooks/useRoleDetect";
+import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -812,6 +814,7 @@ const Home: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { address } = useWallet();
+  const { authenticated } = useAuth();
   const { role, isDetecting, forceRole } = useRoleDetect(address);
   const [showOnboarding, setShowOnboarding] = useState(false);
   // Prevents the useEffect from re-running the KYB check when the user
@@ -819,7 +822,10 @@ const Home: React.FC = () => {
   const userJustChoseRole = useRef(false);
 
   useEffect(() => {
-    if (!address) {
+    // Login (Privy) is what gates this, not a connected wallet — an account
+    // can complete onboarding and reach the dashboard without ever touching
+    // a chain wallet.
+    if (!authenticated) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setShowOnboarding(false);
       return;
@@ -834,30 +840,17 @@ const Home: React.FC = () => {
     }
 
     if (role === "employer") {
-      const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
-      fetch(`${apiBase}/api/employers/status`, {
-        credentials: "include",
-        headers: {
-          "x-user-id": address,
-          "x-user-role": "user",
-        },
-      })
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.status === "not_started") {
-            void navigate("/onboard", { replace: true });
-          } else {
-            void navigate("/dashboard", { replace: true });
-          }
-        })
-        .catch(() => void navigate("/dashboard", { replace: true }));
+      // useRoleDetect only reports "employer" once the backend confirms
+      // this account's KYB status isn't "not_started" — safe to go straight
+      // to the dashboard.
+      void navigate("/dashboard", { replace: true });
     } else if (role === "worker") {
       void navigate("/worker", { replace: true });
     } else {
-      // New user — no on-chain history yet, let them choose
+      // New user — no confirmed role yet, let them choose
       setShowOnboarding(true);
     }
-  }, [address, role, isDetecting, navigate]);
+  }, [authenticated, role, isDetecting, navigate]);
 
   const handleOnboardingChoice = (chosen: "employer" | "worker") => {
     userJustChoseRole.current = true;
@@ -939,8 +932,14 @@ const Home: React.FC = () => {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden text-white bg-black">
+      <SeoHelmet
+        title="Quipay — Stellar Payroll Streaming"
+        description="Stream real-time payroll on Stellar. Pay workers by the second with Quipay."
+        path="/"
+      />
+
       {/* ── Detecting overlay ────────────────────────────────── */}
-      {address && isDetecting && <DetectingOverlay />}
+      {(authenticated || address) && isDetecting && <DetectingOverlay />}
 
       {/* ── First-time onboarding ─────────────────────────────── */}
       {showOnboarding && !isDetecting && (

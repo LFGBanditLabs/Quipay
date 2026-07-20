@@ -337,13 +337,19 @@
   },
   "earnings": {
     "realtime_total": "إجمالي الأرباح في الوقت الفعلي",
+    "realtime_vesting": "الاستحقاق في الوقت الفعلي",
+    "realtime_withdrawable": "متاح للسحب",
     "active_stream": "بث نشط",
     "active_streams": "عمليات بث نشطة",
     "current_flow_rate": "معدل التدفق الحالي",
     "one_hour_projection": "توقعات ساعة واحدة",
     "twenty_four_hour_projection": "توقعات 24 ساعة",
     "waiting_for_earnings": "في انتظار تراكم الأرباح...",
-    "earned": "المكتسب"
+    "earned": "المكتسب",
+    "cliff_tooltip": "لم يتم بلوغ فترة الاستحقاق — يُفتح خلال {{days}} {{unit}}",
+    "day": "يوم",
+    "days": "أيام",
+    "nothing_to_withdraw": "لا يوجد رصيد متاح للسحب بعد"
   },
   "settings": {
     "page_title": "إعدادات الأمان والحوكمة | Quipay",

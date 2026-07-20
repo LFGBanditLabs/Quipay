@@ -24,7 +24,7 @@ const PayrollDashboard = lazy(() => import("./pages/PayrollDashboard"));
 const TreasuryManager = lazy(() => import("./pages/TreasuryManager"));
 const TreasuryAnalytics = lazy(() => import("./pages/TreasuryAnalytics"));
 const WithdrawPage = lazy(() => import("./pages/WithdrawPage"));
-const CreateStream = lazy(() => import("./pages/CreateStream"));
+const CreateStream = lazy(() => import("./pages/CreateStreamByQpId"));
 const GovernanceOverview = lazy(() => import("./pages/GovernanceOverview"));
 const Reports = lazy(() => import("./pages/Reports"));
 const Analytics = lazy(() => import("./pages/Analytics"));
@@ -39,6 +39,8 @@ const DashboardCustomization = lazy(
 const StreamTemplates = lazy(() => import("./pages/StreamTemplates"));
 const StreamComparison = lazy(() => import("./pages/StreamComparison"));
 const EmployerOnboarding = lazy(() => import("./pages/EmployerOnboarding"));
+const InviteAccept = lazy(() => import("./pages/InviteAccept"));
+const StreamDetail = lazy(() => import("./pages/StreamDetail"));
 
 // ─── Public layout (landing page + help) ─────────────────────────────────────
 
@@ -88,6 +90,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
           <Route path="/onboard" element={<EmployerOnboarding />} />
+          <Route path="/invite/:code" element={<InviteAccept />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/ui-primitives" element={<UIPrimitivesPreview />} />
           <Route path="/debug" element={<Debugger />} />
@@ -144,6 +147,14 @@ function App() {
             element={
               <WalletGuard>
                 <CreateStream />
+              </WalletGuard>
+            }
+          />
+          <Route
+            path="/stream/:id"
+            element={
+              <WalletGuard>
+                <StreamDetail />
               </WalletGuard>
             }
           />
