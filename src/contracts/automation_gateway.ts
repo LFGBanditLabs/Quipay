@@ -6,7 +6,7 @@ import {
   scValToNative,
   Address,
 } from "@stellar/stellar-sdk";
-import { rpcUrl } from "./util";
+import { rpcUrl, networkPassphrase } from "./util";
 
 export const AUTOMATION_GATEWAY_CONTRACT_ID: string =
   (
@@ -40,7 +40,7 @@ export async function getAdmin(): Promise<string> {
   const response = await server.simulateTransaction(
     new TransactionBuilder(
       await server.getAccount(AUTOMATION_GATEWAY_CONTRACT_ID), // Dummy account for simulation
-      { fee: "100", networkPassphrase: "" },
+      { fee: "100", networkPassphrase },
     )
       .addOperation(tx)
       .build(),
@@ -60,7 +60,7 @@ export async function getAgent(agentAddress: string): Promise<Agent | null> {
   const response = await server.simulateTransaction(
     new TransactionBuilder(
       await server.getAccount(AUTOMATION_GATEWAY_CONTRACT_ID),
-      { fee: "100", networkPassphrase: "" },
+      { fee: "100", networkPassphrase },
     )
       .addOperation(tx)
       .build(),
@@ -92,7 +92,7 @@ export async function isAuthorized(
   const response = await server.simulateTransaction(
     new TransactionBuilder(
       await server.getAccount(AUTOMATION_GATEWAY_CONTRACT_ID),
-      { fee: "100", networkPassphrase: "" },
+      { fee: "100", networkPassphrase },
     )
       .addOperation(tx)
       .build(),
