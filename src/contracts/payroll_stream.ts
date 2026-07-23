@@ -54,8 +54,8 @@ export interface CreateStreamParams {
   token: string;
   /** Flow rate in stroops per second */
   rate: bigint;
-  /** Total amount deposited into the stream in stroops */
-  amount: bigint;
+  /** Optional cliff timestamp; defaults to startTs for no lock period */
+  cliffTs?: number;
   /** Unix timestamp (seconds) for stream start */
   startTs: number;
   /** Unix timestamp (seconds) for stream end */
@@ -104,6 +104,7 @@ export async function buildCreateStreamTx(
   const account = await server.getAccount(params.employer);
 
   const contract = new Contract(PAYROLL_STREAM_CONTRACT_ID);
+  const cliffTs = params.cliffTs ?? params.startTs;
 
   const tx = new TransactionBuilder(account, {
     fee: "1000000",
@@ -116,7 +117,7 @@ export async function buildCreateStreamTx(
         new Address(params.worker).toScVal(),
         tokenToScVal(params.token),
         nativeToScVal(params.rate, { type: "i128" }),
-        nativeToScVal(params.amount, { type: "i128" }),
+        nativeToScVal(BigInt(cliffTs), { type: "u64" }),
         nativeToScVal(BigInt(params.startTs), { type: "u64" }),
         nativeToScVal(BigInt(params.endTs), { type: "u64" }),
         params.metadataHash
@@ -124,6 +125,7 @@ export async function buildCreateStreamTx(
               type: "bytes",
             })
           : xdr.ScVal.scvVoid(),
+        xdr.ScVal.scvVoid(),
       ),
     )
     .setTimeout(300)
