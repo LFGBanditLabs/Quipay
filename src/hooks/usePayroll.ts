@@ -330,7 +330,10 @@ export const usePayroll = (employerAddress: string | undefined) => {
         });
       } catch (err) {
         // If the token cannot be retrieved, do not connect unauthenticated.
-        console.warn("Payroll WebSocket connection skipped due to auth token error:", err);
+        console.warn(
+          "Payroll WebSocket connection skipped due to auth token error:",
+          err,
+        );
       }
     };
 
