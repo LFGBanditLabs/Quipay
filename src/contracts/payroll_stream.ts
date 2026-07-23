@@ -121,7 +121,9 @@ export async function buildCreateStreamTx(
         new Address(params.worker).toScVal(),
         tokenToScVal(params.token),
         nativeToScVal(params.rate, { type: "i128" }),
-        nativeToScVal(params.amount, { type: "i128" }),
+        nativeToScVal(BigInt(params.cliffTs ?? params.startTs), {
+          type: "u64",
+        }),
         nativeToScVal(BigInt(params.startTs), { type: "u64" }),
         nativeToScVal(BigInt(params.endTs), { type: "u64" }),
         params.metadataHash
@@ -129,6 +131,7 @@ export async function buildCreateStreamTx(
               type: "bytes",
             })
           : xdr.ScVal.scvVoid(),
+        xdr.ScVal.scvVoid(), // speed_curve: None
       ),
     )
     .setTimeout(300)
