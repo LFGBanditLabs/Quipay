@@ -61,6 +61,11 @@ export interface CreateStreamParams {
   /** Unix timestamp (seconds) for stream end */
   endTs: number;
   /**
+   * Unix timestamp (seconds) before which the worker can't withdraw anything.
+   * Must fall within [startTs, endTs]. Defaults to startTs (no cliff).
+   */
+  cliffTs?: number;
+  /**
    * Optional 32-byte metadata hash (hex string) referencing an off-chain
    * record (e.g. IPFS CID or database key) with stream context such as
    * description, department, and payment type.
