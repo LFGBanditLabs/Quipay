@@ -61,6 +61,11 @@ export interface CreateStreamParams {
   /** Unix timestamp (seconds) for stream end */
   endTs: number;
   /**
+   * Unix timestamp (seconds) before which the worker can't withdraw anything.
+   * Must fall within [startTs, endTs]. Defaults to startTs (no cliff).
+   */
+  cliffTs?: number;
+  /**
    * Optional 32-byte metadata hash (hex string) referencing an off-chain
    * record (e.g. IPFS CID or database key) with stream context such as
    * description, department, and payment type.
@@ -116,7 +121,9 @@ export async function buildCreateStreamTx(
         new Address(params.worker).toScVal(),
         tokenToScVal(params.token),
         nativeToScVal(params.rate, { type: "i128" }),
-        nativeToScVal(params.amount, { type: "i128" }),
+        nativeToScVal(BigInt(params.cliffTs ?? params.startTs), {
+          type: "u64",
+        }),
         nativeToScVal(BigInt(params.startTs), { type: "u64" }),
         nativeToScVal(BigInt(params.endTs), { type: "u64" }),
         params.metadataHash
@@ -124,6 +131,7 @@ export async function buildCreateStreamTx(
               type: "bytes",
             })
           : xdr.ScVal.scvVoid(),
+        xdr.ScVal.scvVoid(), // speed_curve: None
       ),
     )
     .setTimeout(300)

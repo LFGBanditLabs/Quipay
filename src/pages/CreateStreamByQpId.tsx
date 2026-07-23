@@ -1,67 +1,20 @@
 import { useEffect, useState } from "react";
-import {
-  Asset,
-  Address,
-  Contract,
-  nativeToScVal,
-  rpc as SorobanRpc,
-  TransactionBuilder,
-  xdr,
-} from "@stellar/stellar-sdk";
+import { Asset } from "@stellar/stellar-sdk";
 import { useAuth } from "../hooks/useAuth";
 import { useStellarAccount } from "../hooks/useStellarAccount";
 import { useStellarSign } from "../hooks/useStellarSign";
-import { submitAndAwaitTx } from "../contracts/payroll_stream";
-import { networkPassphrase, rpcUrl } from "../contracts/util";
+import {
+  buildCreateStreamTx,
+  submitAndAwaitTx,
+} from "../contracts/payroll_stream";
+import { networkPassphrase } from "../contracts/util";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 const USDC_ISSUER = import.meta.env.PUBLIC_USDC_ISSUER ?? "";
-const STREAM_CONTRACT = import.meta.env.VITE_PAYROLL_STREAM_CONTRACT_ID ?? "";
 const STROOPS = 1e7; // USDC uses 7 decimals on Stellar
 const USDC_SAC = USDC_ISSUER
   ? new Asset("USDC", USDC_ISSUER).contractId(networkPassphrase)
   : "";
-
-/**
- * Builds a create_stream tx matching the DEPLOYED contract's 9-arg signature
- * (employer, worker, token, rate, cliff_ts, start_ts, end_ts, metadata?,
- * speed_curve?). The shared buildCreateStreamTx helper is stale — it sends an
- * `amount` where the contract expects `cliff_ts` and omits speed_curve.
- */
-async function buildCreateStream(args: {
-  employer: string;
-  worker: string;
-  token: string;
-  rate: bigint;
-  startTs: number;
-  endTs: number;
-}): Promise<string> {
-  const server = new SorobanRpc.Server(rpcUrl, { allowHttp: true });
-  const account = await server.getAccount(args.employer);
-  const c = new Contract(STREAM_CONTRACT);
-  const tx = new TransactionBuilder(account, {
-    fee: "1000000",
-    networkPassphrase,
-  })
-    .addOperation(
-      c.call(
-        "create_stream",
-        new Address(args.employer).toScVal(),
-        new Address(args.worker).toScVal(),
-        new Address(args.token).toScVal(),
-        nativeToScVal(args.rate, { type: "i128" }),
-        nativeToScVal(BigInt(args.startTs), { type: "u64" }), // cliff_ts = start (no cliff)
-        nativeToScVal(BigInt(args.startTs), { type: "u64" }),
-        nativeToScVal(BigInt(args.endTs), { type: "u64" }),
-        xdr.ScVal.scvVoid(), // metadata_hash: None
-        xdr.ScVal.scvVoid(), // speed_curve: None
-      ),
-    )
-    .setTimeout(300)
-    .build();
-  const prepared = await server.prepareTransaction(tx);
-  return prepared.toXDR();
-}
 
 interface Resolved {
   quipayId: string;
@@ -182,11 +135,12 @@ export default function CreateStreamByQpId() {
       const startTs = Math.floor(Date.now() / 1000) + 60; // small buffer
       const endTs = startTs + Number(durationSecs);
 
-      const preparedXdr = await buildCreateStream({
+      const { preparedXdr } = await buildCreateStreamTx({
         employer,
         worker: resolved.walletStellar,
         token: USDC_SAC,
         rate,
+        amount: exactAmount,
         startTs,
         endTs,
       });
