@@ -58,14 +58,11 @@ export default function TransactionsPage() {
         setBackendRows(d.withdrawals ?? []);
       } catch (err) {
         setBackendError(
-          err instanceof Error ? err.message : "Failed to load transactions",
-        );
-        setBackendRows([]);
-        setBackendError(
-          error instanceof Error
-            ? error.message
+          err instanceof Error
+            ? err.message
             : "Failed to load transaction history.",
         );
+        setBackendRows([]);
       } finally {
         setBackendLoading(false);
       }
