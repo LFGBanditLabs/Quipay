@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, ChangeEvent } from "react";
+import { useState, useCallback, useRef, useEffect, ChangeEvent } from "react";
 import { useWallet } from "../hooks/useWallet";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -66,10 +66,10 @@ export default function BrandingSettings({
     }
   }, [employerAddress]);
 
-  // Load branding on mount
-  useState(() => {
+  // Load branding on mount and when fetchBranding changes
+  useEffect(() => {
     void fetchBranding();
-  });
+  }, [fetchBranding]);
 
   const handleLogoSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
