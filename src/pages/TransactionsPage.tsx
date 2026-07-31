@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
-import { useWallet } from "../hooks/useWallet";
 import { useStreams } from "../hooks/useStreams";
+import { useStellarAccount } from "../hooks/useStellarAccount";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import { shortenAddress as shortAddr } from "../util/address";
 
@@ -29,7 +29,7 @@ interface TxRow {
 }
 
 export default function TransactionsPage() {
-  const { address } = useWallet();
+  const { address, ready: accountReady } = useStellarAccount();
   const {
     streams,
     withdrawalHistory,
@@ -114,6 +114,7 @@ export default function TransactionsPage() {
   }, [streams]);
 
   const isLoading = streamsLoading || backendLoading;
+  const isResolvingAccount = !accountReady;
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -142,6 +143,25 @@ export default function TransactionsPage() {
     }
     return [...m.entries()];
   }, [merged]);
+
+  // ── Resolving Privy wallet ────────────────────────────────────────────────
+  if (isResolvingAccount) {
+    return (
+      <div className="px-6 py-8 sm:px-8 sm:py-10">
+        <div className="mb-6 h-8 w-44 animate-pulse rounded-xl bg-white/[0.06]" />
+        <div className="mb-6 grid grid-cols-3 gap-3">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-20 animate-pulse rounded-2xl bg-white/[0.04]"
+            />
+          ))}
+        </div>
+        <div className="h-10 animate-pulse rounded-xl bg-white/[0.04] mb-4" />
+        <div className="h-64 animate-pulse rounded-2xl bg-white/[0.04]" />
+      </div>
+    );
+  }
 
   // ── No wallet ──────────────────────────────────────────────────────────────
   if (!address) {
