@@ -7,6 +7,10 @@ export async function recordWithdrawalEvent(params: {
   amount: number;
   tokenSymbol: string;
   txHash: string;
+  /** Destination chain for cross-chain withdrawals */
+  destChain?: string;
+  /** Destination EVM address for cross-chain withdrawals */
+  destAddress?: string;
 }): Promise<void> {
   if (!API_BASE) return;
   try {
@@ -20,6 +24,8 @@ export async function recordWithdrawalEvent(params: {
         amount: params.amount.toFixed(7),
         tokenSymbol: params.tokenSymbol,
         txHash: params.txHash,
+        destChain: params.destChain ?? null,
+        destAddress: params.destAddress ?? null,
       }),
     });
   } catch {

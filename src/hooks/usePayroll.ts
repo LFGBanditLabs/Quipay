@@ -15,6 +15,7 @@ import {
 } from "../contracts/payroll_stream";
 import { getWorkersByEmployer } from "../contracts/workforce_registry";
 import { rawToUnitNumber } from "../util/stroops";
+import type { SupportedEvmChain } from "../lib/evmAddresses";
 
 /** ---------------- REQUEST DEDUP ---------------- */
 
@@ -107,6 +108,15 @@ export const usePayroll = (employerAddress: string | undefined) => {
     null,
   );
   const [fetchTick, setFetchTick] = useState(0);
+  const [crossChainWithdrawals, setCrossChainWithdrawals] = useState<
+    Array<{
+      amount: number;
+      destChain: SupportedEvmChain;
+      destAddress: string;
+      txHash: string;
+      timestamp: number;
+    }>
+  >([]);
 
   const fetchVaultData = useCallback(async () => {
     setIsVaultLoading(true);
@@ -246,6 +256,22 @@ export const usePayroll = (employerAddress: string | undefined) => {
   const refetch = useCallback(() => {
     setFetchTick((t) => t + 1);
   }, []);
+
+  /** Record a cross-chain withdrawal for the current session */
+  const recordCrossChainWithdrawal = useCallback(
+    (withdrawal: {
+      amount: number;
+      destChain: SupportedEvmChain;
+      destAddress: string;
+      txHash: string;
+    }) => {
+      setCrossChainWithdrawals((prev) => [
+        { ...withdrawal, timestamp: Date.now() },
+        ...prev,
+      ]);
+    },
+    [],
+  );
 
   const applyOptimisticStreamStatus = useCallback(
     (
@@ -421,5 +447,7 @@ export const usePayroll = (employerAddress: string | undefined) => {
     applyOptimisticStreamStatus,
     restoreStream,
     clearStreamPending,
+    crossChainWithdrawals,
+    recordCrossChainWithdrawal,
   };
 };
