@@ -18,7 +18,9 @@ export interface EvmChainConfig {
   nativeSymbol: string;
   /** USDC contract address on this chain */
   usdcAddress: string;
-  /** CCTP Message Transmitter contract address */
+  /** CCTP Token Messenger contract address (depositForBurn) */
+  cctpTokenMessenger: string;
+  /** CCTP Message Transmitter contract address (receiveMessage) */
   cctpMessageTransmitter: string;
   /** Block explorer base URL for tx links */
   explorerUrl: string;
@@ -34,6 +36,7 @@ const EVM_CHAINS: Record<SupportedEvmChain, EvmChainConfig> = {
     chainId: 1,
     nativeSymbol: "ETH",
     usdcAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    cctpTokenMessenger: "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     cctpMessageTransmitter: "0xAD09768cB16C74Fc5E66a01442107DaEE58aBB05",
     explorerUrl: "https://etherscan.io/tx/",
     explorerName: "Etherscan",
@@ -43,6 +46,7 @@ const EVM_CHAINS: Record<SupportedEvmChain, EvmChainConfig> = {
     chainId: 8453,
     nativeSymbol: "ETH",
     usdcAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    cctpTokenMessenger: "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     cctpMessageTransmitter: "0x096356f4d52663f3AF2F898F4af7aaFaF9C07B8F",
     explorerUrl: "https://basescan.org/tx/",
     explorerName: "BaseScan",
@@ -52,6 +56,7 @@ const EVM_CHAINS: Record<SupportedEvmChain, EvmChainConfig> = {
     chainId: 42161,
     nativeSymbol: "ETH",
     usdcAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    cctpTokenMessenger: "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     cctpMessageTransmitter: "0x096356f4d52663f3AF2F898F4af7aaFaF9C07B8F",
     explorerUrl: "https://arbiscan.io/tx/",
     explorerName: "Arbiscan",
@@ -61,6 +66,7 @@ const EVM_CHAINS: Record<SupportedEvmChain, EvmChainConfig> = {
     chainId: 10,
     nativeSymbol: "ETH",
     usdcAddress: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+    cctpTokenMessenger: "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     cctpMessageTransmitter: "0x096356f4d52663f3AF2F898F4af7aaFaF9C07B8F",
     explorerUrl: "https://optimistic.etherscan.io/tx/",
     explorerName: "Optimism Etherscan",
@@ -98,3 +104,29 @@ export function validateEvmAddress(address: string): string | null {
   if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return "Invalid hex characters";
   return null;
 }
+
+// ─── CCTP Domain IDs ──────────────────────────────────────────────────────────
+
+/**
+ * CCTP domain IDs for each chain. These are used by the Token Messenger
+ * to route cross-chain transfers. Stellar's CCTP domain is 5.
+ */
+export const CCTP_DOMAIN_IDS: Record<SupportedEvmChain | "stellar", number> = {
+  ethereum: 0,
+  optimism: 2,
+  arbitrum: 3,
+  stellar: 5,
+  base: 6,
+};
+
+/**
+ * Returns the CCTP domain ID for a given EVM chain.
+ */
+export function getCctpDomainId(chain: SupportedEvmChain): number {
+  return CCTP_DOMAIN_IDS[chain];
+}
+
+/**
+ * Stellar's CCTP domain ID — the destination for deposits.
+ */
+export const STELLAR_CCTP_DOMAIN = CCTP_DOMAIN_IDS.stellar;
