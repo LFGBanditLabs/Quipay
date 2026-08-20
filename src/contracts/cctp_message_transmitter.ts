@@ -194,39 +194,8 @@ export async function getMessageHash(txHash: string): Promise<string | null> {
       return null;
     }
 
-    // Try to extract from Soroban transaction meta
-    if ("resultMetaXdr" in response && response.resultMetaXdr) {
-      try {
-        const meta = xdr.TransactionMeta.fromXDR(
-          String(response.resultMetaXdr),
-          "base64",
-        );
-
-        // Soroban meta is in v3
-        const v3 = meta.v3();
-        if (v3) {
-          const sorobanMeta = v3.sorobanMeta();
-          if (sorobanMeta) {
-            const events = sorobanMeta.events();
-            for (const event of events) {
-              // Check event value for 32-byte data
-              const val = event.value();
-              if (val.switch() === xdr.ScValType.scvBytes()) {
-                const bytes = val.bytes();
-                if (bytes && bytes.length === 32) {
-                  return Buffer.from(bytes).toString("hex");
-                }
-              }
-            }
-          }
-        }
-      } catch {
-        // XDR parsing failed — fall through to fallback
-      }
-    }
-
-    // Fallback: use the tx hash as the lookup key.
-    // Circle's attestation service may accept it directly.
+    // Use the tx hash as the lookup key.
+    // Circle's attestation service accepts the Stellar tx hash directly.
     return txHash;
   } catch {
     return null;
