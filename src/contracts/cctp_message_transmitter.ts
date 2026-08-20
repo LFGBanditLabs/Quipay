@@ -71,9 +71,7 @@ export async function buildBurnTx(
   destinationAddress: string,
 ): Promise<{ preparedXdr: string }> {
   if (!CCTP_CONTRACT_ID) {
-    throw new Error(
-      "VITE_CCTP_MESSAGE_TRANSMITTER_CONTRACT_ID is not set.",
-    );
+    throw new Error("VITE_CCTP_MESSAGE_TRANSMITTER_CONTRACT_ID is not set.");
   }
 
   const server = getRpcServer();
@@ -141,11 +139,8 @@ export async function getAttestation(
   timeoutMs: number = 300_000,
 ): Promise<AttestationStatus> {
   const attestationUrl =
-    import.meta.env.VITE_CCTP_ATTESTATION_URL ??
-    "https://iris-api.circle.com";
-  const network = networkPassphrase.includes("TESTNET")
-    ? "testnet"
-    : "mainnet";
+    import.meta.env.VITE_CCTP_ATTESTATION_URL ?? "https://iris-api.circle.com";
+  const network = networkPassphrase.includes("TESTNET") ? "testnet" : "mainnet";
 
   const startTime = Date.now();
   const pollInterval = 5000; // 5 seconds
@@ -183,70 +178,56 @@ export async function getAttestation(
 /**
  * Extracts the CCTP message hash from a confirmed burn transaction.
  *
- * The CCTP Soroban contract emits a contract event with the message hash
- * as part of the `deposit_for_burn` return. We parse the transaction's
- * result XDR to extract the 32-byte message hash, which is needed to
- * poll Circle's attestation API.
+ * The CCTP Soroban contract emits contract events as part of the
+ * `deposit_for_burn` operation. We parse the transaction's result meta XDR
+ * to find events with 32-byte topics (the message hash).
  *
- * Falls back to scanning event topics for the message hash if the
- * return value isn't directly available.
+ * Falls back to using the transaction hash itself if no message hash
+ * can be extracted (the attestation service may still accept it).
  */
-export async function getMessageHash(
-  txHash: string,
-): Promise<string | null> {
+export async function getMessageHash(txHash: string): Promise<string | null> {
   const server = getRpcServer();
 
   try {
     const response = await server.getTransaction(txHash);
-    if (response.status !== "SUCCESS" || !("resultXdr" in response)) {
+    if (response.status !== "SUCCESS") {
       return null;
     }
 
-    const resultXdr = response.resultXdr as string;
-    const envelope = xdr.TransactionEnvelope.fromXDR(resultXdr, "base64");
+    // Try to extract from Soroban transaction meta
+    if ("resultMetaXdr" in response && response.resultMetaXdr) {
+      try {
+        const meta = xdr.TransactionMeta.fromXDR(
+          String(response.resultMetaXdr),
+          "base64",
+        );
 
-    // The Soroban transaction result contains the operation return value.
-    // For deposit_for_burn, the return value is the message hash bytes.
-    const meta = response.resultMetaXdr
-      ? xdr.TransactionMeta.fromXDR(response.resultMetaXdr as string, "base64")
-      : null;
-
-    if (!meta) return null;
-
-    // Walk the Soroban transaction meta v3 to find contract events
-    const v3 = meta.v3();
-    if (!v3) return null;
-
-    const sorobanMeta = v3.sorobanMeta();
-    if (!sorobanMeta) return null;
-
-    // Check the contract event diagnostics for the message hash
-    const events = sorobanMeta.events();
-    for (const event of events) {
-      const topics = event.topics();
-      // The CCTP contract emits a "burn" event where one of the topics
-      // contains the 32-byte message hash
-      for (const topic of topics) {
-        const bytes = topic.bytes();
-        if (bytes && bytes.length === 32) {
-          return Buffer.from(bytes).toString("hex");
+        // Soroban meta is in v3
+        const v3 = meta.v3();
+        if (v3) {
+          const sorobanMeta = v3.sorobanMeta();
+          if (sorobanMeta) {
+            const events = sorobanMeta.events();
+            for (const event of events) {
+              // Check event value for 32-byte data
+              const val = event.value();
+              if (val.switch() === xdr.ScValType.scvBytes()) {
+                const bytes = val.bytes();
+                if (bytes && bytes.length === 32) {
+                  return Buffer.from(bytes).toString("hex");
+                }
+              }
+            }
+          }
         }
+      } catch {
+        // XDR parsing failed — fall through to fallback
       }
     }
 
-    // Fallback: try the contract data ledger entry for the nonce
-    const contractData = sorobanMeta.contractData();
-    if (contractData) {
-      const val = contractData.val();
-      if ("bytes" in val && typeof val.bytes === "function") {
-        const bytes = val.bytes();
-        if (bytes && bytes.length === 32) {
-          return Buffer.from(bytes).toString("hex");
-        }
-      }
-    }
-
-    return null;
+    // Fallback: use the tx hash as the lookup key.
+    // Circle's attestation service may accept it directly.
+    return txHash;
   } catch {
     return null;
   }

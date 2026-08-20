@@ -5,7 +5,7 @@
  * cross-chain USDC withdrawals via CCTP.
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   useCrossChainWithdraw,
   getExplorerUrl,
@@ -69,7 +69,6 @@ function ProgressSteps({ progress }: { progress: CrossChainProgress }) {
       {steps.map((step, idx) => {
         const isDone = idx < currentIdx;
         const isCurrent = idx === currentIdx;
-        const isPending = idx > currentIdx;
 
         return (
           <div key={step.key} className="flex items-center gap-3">
@@ -141,17 +140,9 @@ export function CrossChainWithdraw({
     useCrossChainWithdraw(workerAddress);
   const { evmAddress } = useEvmWallet();
 
-  const [selectedChain, setSelectedChain] =
-    useState<SupportedEvmChain>("base");
-  const [destAddress, setDestAddress] = useState("");
+  const [selectedChain, setSelectedChain] = useState<SupportedEvmChain>("base");
+  const [destAddress, setDestAddress] = useState(evmAddress ?? "");
   const [amount, setAmount] = useState("");
-
-  // Auto-fill from Privy embedded EVM wallet
-  useEffect(() => {
-    if (evmAddress && !destAddress) {
-      setDestAddress(evmAddress);
-    }
-  }, [evmAddress]);
 
   // Derive address validation inline instead of useEffect
   const addressError = useMemo(() => {
@@ -361,7 +352,11 @@ export function CrossChainWithdraw({
           </button>
         </div>
         <p className="mt-1.5 text-[11px] text-neutral-600">
-          Available: {availableAmount.toLocaleString(undefined, { maximumFractionDigits: 4 })} USDC
+          Available:{" "}
+          {availableAmount.toLocaleString(undefined, {
+            maximumFractionDigits: 4,
+          })}{" "}
+          USDC
         </p>
       </div>
 

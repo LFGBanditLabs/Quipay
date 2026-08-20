@@ -7,10 +7,8 @@
  */
 
 import { useState, useCallback, useRef } from "react";
-import {
-  Server,
-  TransactionBuilder,
-} from "@stellar/stellar-sdk";
+import { Server, Api } from "@stellar/stellar-sdk/rpc";
+import { TransactionBuilder } from "@stellar/stellar-sdk";
 import { useStellarSign } from "./useStellarSign";
 import { useNotification } from "./useNotification";
 import {
@@ -234,10 +232,10 @@ async function submitBurnTx(signedXdr: string): Promise<string> {
   let attempts = 0;
   while (attempts < 30) {
     const txResult = await server.getTransaction(result.hash);
-    if (txResult.status === "SUCCESS") {
+    if (txResult.status === Api.GetTransactionStatus.SUCCESS) {
       return result.hash;
     }
-    if (txResult.status === "FAILED") {
+    if (txResult.status === Api.GetTransactionStatus.FAILED) {
       throw new Error("Burn transaction failed on-chain");
     }
     await new Promise((r) => setTimeout(r, 2000));

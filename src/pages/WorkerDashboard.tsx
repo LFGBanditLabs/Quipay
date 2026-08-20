@@ -723,15 +723,13 @@ const WorkerDashboard: React.FC = () => {
                   <div className="mt-4">
                     <CrossChainWithdraw
                       workerAddress={address}
-                      availableAmount={
-                        activeStreams.reduce((sum, s) => {
-                          const avail = Math.max(
-                            0,
-                            s.totalAmount - s.claimedAmount,
-                          );
-                          return sum + avail;
-                        }, 0)
-                      }
+                      availableAmount={activeStreams.reduce((sum, s) => {
+                        const avail = Math.max(
+                          0,
+                          s.totalAmount - s.claimedAmount,
+                        );
+                        return sum + avail;
+                      }, 0)}
                       onSuccess={() => {
                         setWithdrawTick((t) => t + 1);
                         refetch();
