@@ -58,6 +58,10 @@ export interface WithdrawalRecord {
   date: string;
   /** Stellar transaction hash for the withdrawal. */
   txHash: string;
+  /** Destination chain for cross-chain withdrawals (e.g., "Base"). */
+  destChain?: string;
+  /** Destination EVM address for cross-chain withdrawals. */
+  destAddress?: string;
 }
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "");

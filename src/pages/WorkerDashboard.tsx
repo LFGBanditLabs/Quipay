@@ -26,6 +26,7 @@ import {
   useSharedClockMs,
 } from "../context/SharedClockContext";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
+import { CrossChainWithdraw } from "../components/CrossChainWithdraw";
 
 // ─── Join employer card ───────────────────────────────────────────────────────
 
@@ -528,6 +529,7 @@ const WorkerDashboard: React.FC = () => {
     useStreams(address);
   const registeredEmployers = useRegisteredEmployers(address);
   const [withdrawTick, setWithdrawTick] = useState(0);
+  const [showCrossChain, setShowCrossChain] = useState(false);
   useBackendTotalWithdrawn(address, withdrawTick);
   const { addStreamNotification } = useNotification();
   const previousStreamStatusesRef = useRef<Record<string, number>>({});
@@ -705,6 +707,38 @@ const WorkerDashboard: React.FC = () => {
                 </p>
               </div>
             </div>
+
+            {/* Cross-chain withdrawal toggle */}
+            {activeStreams.length > 0 && (
+              <div className="mb-8">
+                <button
+                  onClick={() => setShowCrossChain(!showCrossChain)}
+                  className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-5 py-2.5 text-[13px] font-semibold text-neutral-400 hover:text-white transition-colors"
+                >
+                  {showCrossChain
+                    ? "Hide Cross-Chain Withdraw"
+                    : "Withdraw to EVM Chain"}
+                </button>
+                {showCrossChain && (
+                  <div className="mt-4">
+                    <CrossChainWithdraw
+                      workerAddress={address}
+                      availableAmount={activeStreams.reduce((sum, s) => {
+                        const avail = Math.max(
+                          0,
+                          s.totalAmount - s.claimedAmount,
+                        );
+                        return sum + avail;
+                      }, 0)}
+                      onSuccess={() => {
+                        setWithdrawTick((t) => t + 1);
+                        refetch();
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Active streams */}
             {activeStreams.length > 0 && (

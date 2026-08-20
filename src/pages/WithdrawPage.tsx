@@ -14,6 +14,7 @@ import { SeoHelmet } from "../components/seo/SeoHelmet";
 import { recordWithdrawalEvent } from "../util/recordWithdrawal";
 import { STROOPS } from "../util/format";
 import { shortenAddress as shortAddr } from "../util/address";
+import { CrossChainWithdraw } from "../components/CrossChainWithdraw";
 
 function fmtCountdown(secs: number) {
   const d = Math.floor(secs / 86400);
@@ -427,6 +428,9 @@ export default function WithdrawPage() {
     useStreams(address);
   const { addNotification } = useNotification();
   const [totalWithdrawnThisSession, setTotalWithdrawnThisSession] = useState(0);
+  const [withdrawMode, setWithdrawMode] = useState<"stellar" | "crosschain">(
+    "stellar",
+  );
   const [withdrawingAll, setWithdrawingAll] = useState(false);
   const [withdrawAllProgress, setWithdrawAllProgress] = useState<{
     done: number;
@@ -675,6 +679,43 @@ export default function WithdrawPage() {
             </button>
           )}
         </div>
+
+        {/* Mode toggle */}
+        <div className="mb-6 flex gap-2">
+          <button
+            onClick={() => setWithdrawMode("stellar")}
+            className={`rounded-xl px-5 py-2.5 text-[13px] font-semibold transition-all ${
+              withdrawMode === "stellar"
+                ? "bg-yellow-400/10 text-yellow-400 border border-yellow-400/20"
+                : "bg-white/[0.03] text-neutral-500 border border-white/[0.06] hover:text-white"
+            }`}
+          >
+            Stellar
+          </button>
+          <button
+            onClick={() => setWithdrawMode("crosschain")}
+            className={`rounded-xl px-5 py-2.5 text-[13px] font-semibold transition-all ${
+              withdrawMode === "crosschain"
+                ? "bg-yellow-400/10 text-yellow-400 border border-yellow-400/20"
+                : "bg-white/[0.03] text-neutral-500 border border-white/[0.06] hover:text-white"
+            }`}
+          >
+            Cross-Chain (EVM)
+          </button>
+        </div>
+
+        {/* Cross-chain withdrawal */}
+        {withdrawMode === "crosschain" && address && (
+          <div className="mb-8">
+            <CrossChainWithdraw
+              workerAddress={address}
+              availableAmount={totalClientAvailable}
+              onSuccess={() => {
+                refetch();
+              }}
+            />
+          </div>
+        )}
 
         {/* Summary bar */}
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3">

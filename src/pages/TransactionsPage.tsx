@@ -26,6 +26,10 @@ interface TxRow {
   streamId: string;
   employerAddress: string | null;
   txHash: string;
+  /** Destination chain for cross-chain withdrawals (e.g., "Base", "Ethereum") */
+  destChain?: string;
+  /** Destination address for cross-chain withdrawals */
+  destAddress?: string;
 }
 
 export default function TransactionsPage() {
@@ -390,6 +394,9 @@ export default function TransactionsPage() {
                     <th className="text-right px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-neutral-600 hidden sm:table-cell">
                       Stream
                     </th>
+                    <th className="text-right px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-neutral-600 hidden lg:table-cell">
+                      Destination
+                    </th>
                     <th className="text-right px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-neutral-600">
                       Transaction
                     </th>
@@ -425,6 +432,20 @@ export default function TransactionsPage() {
                         </td>
                         <td className="px-5 py-4 text-right font-mono text-[12px] text-neutral-600 hidden sm:table-cell whitespace-nowrap">
                           #{rec.streamId}
+                        </td>
+                        <td className="px-5 py-4 text-right text-[12px] hidden lg:table-cell whitespace-nowrap">
+                          {rec.destChain ? (
+                            <span className="text-neutral-400">
+                              {rec.destChain}{" "}
+                              <span className="font-mono text-neutral-600">
+                                {rec.destAddress
+                                  ? `${rec.destAddress.slice(0, 6)}…${rec.destAddress.slice(-4)}`
+                                  : ""}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-neutral-700">Stellar</span>
+                          )}
                         </td>
                         <td className="px-5 py-4 text-right">
                           <a

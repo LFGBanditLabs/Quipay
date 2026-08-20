@@ -155,7 +155,7 @@ const CreateStream: React.FC = () => {
         const rate = durSec > 0 ? totalStroops / BigInt(durSec) : BigInt(1);
         return {
           worker: w.wallet,
-          token: TOKEN_ADDRESS[token as keyof typeof TOKEN_ADDRESS] ?? "",
+          token: TOKEN_ADDRESS[token as "XLM" | "USDC"] ?? "",
           rate,
           startTs,
           endTs,
