@@ -24,6 +24,7 @@ import {
 import { submitAndAwaitTx } from "../contracts/payroll_stream";
 import { rpcUrl, networkPassphrase } from "../contracts/util";
 import { Asset } from "@stellar/stellar-sdk";
+import { recordDepositEvent } from "../util/recordDeposit";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -204,6 +205,15 @@ export function useCrossChainDeposit(
           step: "complete",
           message: `Successfully deposited ${amount.toLocaleString()} USDC from ${chainConfig.name}`,
           evmTxHash,
+        });
+
+        // Record the deposit event with source chain tag
+        void recordDepositEvent({
+          employerAddress: recipient,
+          amount,
+          tokenSymbol: "USDC",
+          txHash: evmTxHash,
+          sourceChain: chainConfig.name,
         });
 
         addNotification(
