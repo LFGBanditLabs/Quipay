@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { io } from "socket.io-client";
 import { Asset } from "@stellar/stellar-sdk";
+import { useAuth } from "./useAuth";
 import { networkPassphrase } from "../contracts/util";
 import {
   getAllVaultData,
@@ -13,6 +14,7 @@ import {
   ContractStream,
 } from "../contracts/payroll_stream";
 import { getWorkersByEmployer } from "../contracts/workforce_registry";
+import { rawToUnitNumber } from "../util/stroops";
 
 /** ---------------- REQUEST DEDUP ---------------- */
 
@@ -43,9 +45,6 @@ async function dedupRequest<T>(key: string, fn: () => Promise<T>): Promise<T> {
     throw err;
   }
 }
-
-/** Stellar uses 7 decimal places (10^7 stroops = 1 token unit). */
-const STROOPS_PER_UNIT = 1e7;
 
 export interface Stream {
   id: string;
@@ -213,7 +212,7 @@ export const usePayroll = (employerAddress: string | undefined) => {
               id,
               employeeName: `${s.worker.slice(0, 6)}…${s.worker.slice(-4)}`,
               employeeAddress: s.worker,
-              flowRate: (Number(s.rate) / STROOPS_PER_UNIT).toFixed(7),
+              flowRate: rawToUnitNumber(s.rate).toFixed(7),
               tokenSymbol,
               startDate: new Date(Number(s.start_ts) * 1000)
                 .toISOString()
@@ -221,12 +220,8 @@ export const usePayroll = (employerAddress: string | undefined) => {
               endDate: new Date(Number(s.end_ts) * 1000)
                 .toISOString()
                 .split("T")[0],
-              totalAmount: (Number(s.total_amount) / STROOPS_PER_UNIT).toFixed(
-                2,
-              ),
-              totalStreamed: (
-                Number(s.withdrawn_amount) / STROOPS_PER_UNIT
-              ).toFixed(2),
+              totalAmount: rawToUnitNumber(s.total_amount).toFixed(2),
+              totalStreamed: rawToUnitNumber(s.withdrawn_amount).toFixed(2),
               status:
                 s.status === 1
                   ? "cancelled"
@@ -309,25 +304,46 @@ export const usePayroll = (employerAddress: string | undefined) => {
     }
   }, [employerAddress, fetchPayrollSummary, fetchStreams, fetchVaultData]);
 
+  const { authenticated, getAccessToken } = useAuth();
+
   useEffect(() => {
     // Only connect to WebSocket when a backend URL is explicitly configured.
     // Without a backend the socket just floods the console with ERR_CONNECTION_REFUSED.
     const WS_URL = import.meta.env.PUBLIC_BACKEND_URL;
-    if (!employerAddress || !WS_URL) return;
+    if (!employerAddress || !WS_URL || !authenticated) return;
 
-    const socket = io(WS_URL, {
-      path: "/socket.io",
-      query: { token: localStorage.getItem("auth_token") || "dummy" },
-    });
+    let socket: ReturnType<typeof io> | null = null;
+    let isCancelled = false;
 
-    socket.on("stream:event", () => {
-      refetch();
-    });
+    const connectSocket = async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token || isCancelled) return;
+
+        socket = io(WS_URL, {
+          path: "/socket.io",
+          query: { token },
+        });
+
+        socket.on("stream:event", () => {
+          refetch();
+        });
+      } catch (err) {
+        // If the token cannot be retrieved, do not connect unauthenticated.
+        console.warn(
+          "Payroll WebSocket connection skipped due to auth token error:",
+          err,
+        );
+      }
+    };
+
+    void connectSocket();
 
     return () => {
-      socket.disconnect();
+      isCancelled = true;
+      socket?.disconnect();
     };
-  }, [employerAddress, refetch]);
+  }, [authenticated, employerAddress, getAccessToken, refetch]);
 
   useEffect(() => {
     if (!employerAddress) {

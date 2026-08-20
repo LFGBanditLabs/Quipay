@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useStellarAccount } from "../hooks/useStellarAccount";
 import { useStellarSign } from "../hooks/useStellarSign";
 import { useStreams, WorkerStream } from "../hooks/useStreams";
@@ -9,10 +9,7 @@ import {
 } from "../contracts/payroll_stream";
 import { formatTokenAmount } from "../util/tokenDecimals";
 import { useNotification } from "../hooks/useNotification";
-import {
-  useSharedClockMs,
-  useElapsedTime,
-} from "../context/SharedClockContext";
+import { useSharedClockMs } from "../context/SharedClockContext";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 import { recordWithdrawalEvent } from "../util/recordWithdrawal";
 import { STROOPS } from "../util/format";
@@ -138,24 +135,6 @@ function StreamCard({
   const cliffSecsLeft = Math.max(0, effectiveCliff - nowSec);
   const isPaused = stream.status === 3;
 
-  // Client-side live available estimate (ticks every second via shared clock)
-  const elapsedAfterCliff = useElapsedTime(effectiveCliff);
-  const clientAvailable = useMemo(() => {
-    if (isBeforeCliff || isPaused) return 0;
-    const earned = Math.min(
-      elapsedAfterCliff * stream.flowRate,
-      stream.totalAmount,
-    );
-    return Math.max(0, earned - stream.claimedAmount);
-  }, [
-    isBeforeCliff,
-    isPaused,
-    elapsedAfterCliff,
-    stream.flowRate,
-    stream.totalAmount,
-    stream.claimedAmount,
-  ]);
-
   // On-chain confirmed withdrawable (fetched once, accurate)
   const [onChainAmt, setOnChainAmt] = useState<number | null>(null);
   const [loadingAmt, setLoadingAmt] = useState(true);
@@ -175,8 +154,9 @@ function StreamCard({
     })();
   }, [stream.id, onChainFetchTick]);
 
-  // Use client estimate for display; on-chain for the TX check
-  const displayAmt = clientAvailable;
+  // Use on-chain value for display since it accounts for pause periods
+  // Client estimate doesn't subtract paused duration, so it would overstate earnings
+  const displayAmt = onChainAmt ?? 0;
   const canWithdraw =
     !loadingAmt && !isBeforeCliff && !isPaused && (onChainAmt ?? 0) > 0;
 
@@ -468,7 +448,19 @@ export default function WithdrawPage() {
     return sum + Math.max(0, earned - s.claimedAmount);
   }, 0);
 
-  const totalFlowRate = readyStreams.reduce((sum, s) => sum + s.flowRate, 0);
+  // Flow rates must be grouped by token — summing raw flowRate across
+  // different tokens (e.g. XLM + USDC) would produce a number that doesn't
+  // correspond to any real currency amount.
+  const flowRatesByToken = readyStreams.reduce<Record<string, number>>(
+    (acc, s) => {
+      acc[s.tokenSymbol] = (acc[s.tokenSymbol] ?? 0) + s.flowRate;
+      return acc;
+    },
+    {},
+  );
+  const flowRateEntries = Object.entries(flowRatesByToken).filter(
+    ([, rate]) => rate > 0,
+  );
 
   // Withdraw All — sequential (each TX needs different sequence number)
   const handleWithdrawAll = async () => {
@@ -479,9 +471,31 @@ export default function WithdrawPage() {
     for (let i = 0; i < readyStreams.length; i++) {
       const s = readyStreams[i];
       try {
+        let amount = 0;
+        try {
+          const raw = await getWithdrawable(BigInt(s.id));
+          if (raw !== null) {
+            amount = Number(raw) / STROOPS;
+          }
+        } catch {
+          const elapsed = Math.max(0, nowSec - s.cliffTime);
+          const earned = Math.min(elapsed * s.flowRate, s.totalAmount);
+          amount = Math.max(0, earned - s.claimedAmount);
+        }
+
         const { preparedXdr } = await buildWithdrawTx(BigInt(s.id), address);
         const signed = await signXdr(preparedXdr, address);
-        await submitAndAwaitTx(signed);
+        const txHash = await submitAndAwaitTx(signed);
+
+        void recordWithdrawalEvent({
+          workerAddress: address,
+          employerAddress: s.employerAddress,
+          streamId: s.id,
+          amount,
+          tokenSymbol: s.tokenSymbol,
+          txHash,
+        });
+
         withdrawn++;
       } catch {
         // Skip failed streams, continue with rest
@@ -686,11 +700,23 @@ export default function WithdrawPage() {
             <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-600 mb-1">
               Flow Rate
             </p>
-            <p className="text-[26px] font-black text-white">
-              {totalFlowRate > 0
-                ? formatTokenAmount(totalFlowRate * 3600, "USDC", 4)
-                : "—"}
-            </p>
+            {flowRateEntries.length > 0 ? (
+              <div className="space-y-0.5">
+                {flowRateEntries.map(([symbol, rate]) => (
+                  <p
+                    key={symbol}
+                    className="text-[26px] font-black text-white leading-tight"
+                  >
+                    {formatTokenAmount(rate * 3600, symbol, 4)}{" "}
+                    <span className="text-[13px] font-bold text-neutral-500">
+                      {symbol}
+                    </span>
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[26px] font-black text-white">—</p>
+            )}
             <p className="text-[11px] text-neutral-600 mt-0.5">per hour</p>
           </div>
           <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-4">
