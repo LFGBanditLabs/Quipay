@@ -43,6 +43,20 @@ const USDC_ADDRESS: Record<string, string> = {
   LOCAL: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
 };
 
+// ─── USDC on EVM chains ──────────────────────────────────────────────────────
+
+/**
+ * USDC contract addresses on supported EVM chains for cross-chain withdrawals.
+ * These are used by the CCTP flow when burning USDC on Stellar and minting on
+ * the destination chain.
+ */
+const USDC_EVM_ADDRESSES: Record<string, string> = {
+  ethereum: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  base: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  arbitrum: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+  optimism: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+};
+
 // ─── Lookup ───────────────────────────────────────────────────────────────────
 
 function resolveAddress(map: Record<string, string>, symbol: string): string {
@@ -64,6 +78,8 @@ function resolveAddress(map: Record<string, string>, symbol: string): string {
 export interface TokenAddresses {
   XLM: string;
   USDC: string;
+  /** USDC contract addresses on EVM chains for cross-chain withdrawals */
+  USDC_EVM: Record<string, string>;
 }
 
 /**
@@ -80,6 +96,7 @@ export function getTokenAddresses(): TokenAddresses {
   return {
     XLM: resolveAddress(XLM_SAC, "XLM"),
     USDC: resolveAddress(USDC_ADDRESS, "USDC"),
+    USDC_EVM: USDC_EVM_ADDRESSES,
   };
 }
 
