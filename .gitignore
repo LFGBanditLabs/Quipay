@@ -78,6 +78,7 @@ src/contracts/*
 !src/contracts/payroll_vault.ts
 !src/contracts/workforce_registry.ts
 !src/contracts/cctp_message_transmitter.ts
+!src/contracts/cctp_deposit.ts
 !src/contracts/__tests__/
 
 # ── Build / cache artifacts (reduce clone / checkout size) ───────────────────
