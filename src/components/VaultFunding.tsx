@@ -5,6 +5,7 @@ import { useStellarSign } from "../hooks/useStellarSign";
 import { buildDepositTx, getVaultData } from "../contracts/payroll_vault";
 import { submitAndAwaitTx } from "../contracts/payroll_stream";
 import { horizonUrl, networkPassphrase } from "../contracts/util";
+import { CrossChainDeposit } from "./CrossChainDeposit";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 const USDC_ISSUER = import.meta.env.PUBLIC_USDC_ISSUER ?? "";
@@ -54,6 +55,9 @@ export default function VaultFunding({
   const { getAccessToken } = useAuth();
   const { signXdr } = useStellarSign();
 
+  const [depositMode, setDepositMode] = useState<"stellar" | "cross-chain">(
+    "stellar",
+  );
   const [stellarAddr, setStellarAddr] = useState<string | null>(null);
   const [walletUsdc, setWalletUsdc] = useState<number | null>(null);
   const [vaultUsdc, setVaultUsdc] = useState<number | null>(null);
@@ -160,29 +164,66 @@ export default function VaultFunding({
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex gap-2">
-          <input
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            inputMode="decimal"
-            placeholder="Amount to deposit"
-            className="flex-1 rounded-lg bg-neutral-800 border border-neutral-700 text-white px-3 py-2.5 text-[14px] placeholder-neutral-600 focus:outline-none focus:border-yellow-400 transition-colors"
-          />
+      {/* Deposit mode toggle */}
+      <div className="flex gap-1 rounded-xl border border-white/[0.07] bg-black p-1">
+        {(["stellar", "cross-chain"] as const).map((mode) => (
           <button
-            onClick={() => void deposit()}
-            disabled={busy || !stellarAddr}
-            className="rounded-lg bg-yellow-400 px-5 py-2.5 text-[14px] font-semibold text-black hover:bg-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            key={mode}
+            onClick={() => {
+              setDepositMode(mode);
+              setError(null);
+            }}
+            className={`flex-1 rounded-lg py-2.5 text-[13px] font-semibold capitalize transition-all ${
+              depositMode === mode
+                ? "text-black"
+                : "text-neutral-500 hover:text-white"
+            }`}
+            style={
+              depositMode === mode ? { backgroundColor: "#facc15" } : {}
+            }
           >
-            {busy ? "Depositing…" : "Deposit"}
+            {mode === "stellar" ? "Stellar Wallet" : "Cross-Chain"}
           </button>
-        </div>
-        {error && <p className="text-[12px] text-red-400">{error}</p>}
-        <p className="text-[12px] text-neutral-600">
-          Moves USDC from your wallet into the payroll vault. Streams pay out
-          from the vault balance.
-        </p>
+        ))}
       </div>
+
+      {/* Cross-chain deposit */}
+      {depositMode === "cross-chain" && stellarAddr && (
+        <CrossChainDeposit
+          stellarAddress={stellarAddr}
+          onSuccess={() => {
+            void refresh();
+            onToast?.("Cross-chain deposit complete");
+          }}
+        />
+      )}
+
+      {/* Stellar deposit */}
+      {depositMode === "stellar" && (
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            <input
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              inputMode="decimal"
+              placeholder="Amount to deposit"
+              className="flex-1 rounded-lg bg-neutral-800 border border-neutral-700 text-white px-3 py-2.5 text-[14px] placeholder-neutral-600 focus:outline-none focus:border-yellow-400 transition-colors"
+            />
+            <button
+              onClick={() => void deposit()}
+              disabled={busy || !stellarAddr}
+              className="rounded-lg bg-yellow-400 px-5 py-2.5 text-[14px] font-semibold text-black hover:bg-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {busy ? "Depositing…" : "Deposit"}
+            </button>
+          </div>
+          {error && <p className="text-[12px] text-red-400">{error}</p>}
+          <p className="text-[12px] text-neutral-600">
+            Moves USDC from your wallet into the payroll vault. Streams pay out
+            from the vault balance.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
