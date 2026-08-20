@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useWallet } from "../hooks/useWallet";
 import ChainWallets from "../components/ChainWallets";
 import VaultFunding from "../components/VaultFunding";
+import { CrossChainDeposit } from "../components/CrossChainDeposit";
 import {
   buildDepositTx,
   buildVaultWithdrawTx,
@@ -179,6 +180,7 @@ const TreasuryManager: React.FC = () => {
   const [action, setAction] = useState<"deposit" | "withdraw">("deposit");
   const [token, setToken] = useState("XLM");
   const [amount, setAmount] = useState("");
+  const [showCrossChain, setShowCrossChain] = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -603,6 +605,26 @@ const TreasuryManager: React.FC = () => {
               ? "Funds are transferred on-chain to the vault contract and immediately available to back streams."
               : "Only available balance (above stream liabilities) can be withdrawn."}
           </p>
+        </div>
+
+        {/* Cross-chain deposit */}
+        <div className="mt-4">
+          <button
+            onClick={() => setShowCrossChain(!showCrossChain)}
+            className="w-full rounded-xl border border-white/[0.07] bg-white/[0.02] py-3 text-[13px] font-semibold text-neutral-400 hover:bg-white/[0.04] transition-colors"
+          >
+            {showCrossChain
+              ? "Hide Cross-Chain Deposit"
+              : "Fund from Ethereum, Base, Arbitrum, or Optimism"}
+          </button>
+          {showCrossChain && address && (
+            <div className="mt-4">
+              <CrossChainDeposit
+                stellarAddress={address}
+                onSuccess={() => void load()}
+              />
+            </div>
+          )}
         </div>
 
         {/* Vault contract info */}
