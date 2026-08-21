@@ -89,7 +89,7 @@ export async function extractCctpMessage(
       const decoded = decodeEventLog({
         abi: [MESSAGE_SENT_EVENT],
         data: log.data,
-        topics: log.topics,
+        topics: [...log.topics] as [Hex, ...Hex[]],
       });
 
       if (decoded.eventName === "MessageSent" && decoded.args) {
@@ -139,10 +139,9 @@ async function computeMessageHash(message: Hex): Promise<Hex> {
  */
 export async function pollAttestation(
   messageHash: string,
-  sourceChain: SupportedEvmChain,
+  _sourceChain: SupportedEvmChain,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<AttestationResult> {
-  const config = getEvmChainConfig(sourceChain);
   const network = import.meta.env.VITE_CCTP_NETWORK ?? "testnet";
 
   const startTime = Date.now();

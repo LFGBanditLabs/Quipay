@@ -35,7 +35,8 @@ const ERC20_BALANCE_ABI = [
 
 // ─── Public client cache ──────────────────────────────────────────────────────
 
-const clientCache = new Map<SupportedEvmChain, ReturnType<typeof createPublicClient>>();
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const clientCache = new Map<SupportedEvmChain, any>();
 
 function getClient(chain: SupportedEvmChain) {
   if (!clientCache.has(chain)) {

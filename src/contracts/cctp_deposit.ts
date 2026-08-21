@@ -14,7 +14,6 @@
 import { encodeFunctionData, type Address, type Hex } from "viem";
 import {
   getEvmChainConfig,
-  getCctpDomainId,
   STELLAR_CCTP_DOMAIN,
   type SupportedEvmChain,
 } from "../lib/evmAddresses";

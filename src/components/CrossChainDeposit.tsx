@@ -8,7 +8,7 @@
  * The flow: approve → burn → attest → mint → deposit into vault.
  */
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   useCrossChainDeposit,
   getExplorerUrl,
@@ -22,7 +22,6 @@ import {
 } from "../lib/evmAddresses";
 import { useEvmWallet } from "../hooks/useEvmWallet";
 import { shortenAddress } from "../util/address";
-import { stellarNetwork } from "../contracts/util";
 import { readEvmUsdcBalance } from "../lib/evmBalances";
 
 // ─── Chain Icon ───────────────────────────────────────────────────────────────

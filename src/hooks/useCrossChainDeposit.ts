@@ -8,7 +8,7 @@
  */
 
 import { useState, useCallback, useRef } from "react";
-import { createPublicClient, http, type Hex } from "viem";
+import { createPublicClient, http } from "viem";
 import { mainnet, base, arbitrum, optimism } from "viem/chains";
 import { useStellarSign } from "./useStellarSign";
 import { useEvmSigner } from "./useEvmSigner";
@@ -22,7 +22,7 @@ import {
   type SupportedEvmChain,
 } from "../lib/evmAddresses";
 import { submitAndAwaitTx } from "../contracts/payroll_stream";
-import { rpcUrl, networkPassphrase } from "../contracts/util";
+import { networkPassphrase } from "../contracts/util";
 import { Asset } from "@stellar/stellar-sdk";
 import { recordDepositEvent } from "../util/recordDeposit";
 
@@ -155,7 +155,7 @@ export function useCrossChainDeposit(
           transport: http(),
         });
 
-        const { message, attestation } = await extractAndAttest(
+        await extractAndAttest(
           evmTxHash,
           sourceChain,
           publicClient,

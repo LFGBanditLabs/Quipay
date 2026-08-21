@@ -6,12 +6,13 @@
  * Privy auto-creates an EVM embedded wallet on login (see AuthProvider).
  * This hook wraps Privy's useSendTransaction to provide a simple interface
  * for sending raw EVM transactions (approve, depositForBurn, etc.).
+ *
+ * Privy handles chain switching internally when chainId is specified
+ * in the transaction request — no separate switchChain call needed.
  */
 
 import { useCallback, useState } from "react";
-import { useSendTransaction, useSwitchChain } from "@privy-io/react-auth";
-import type { SupportedEvmChain } from "../lib/evmAddresses";
-import { getEvmChainConfig } from "../lib/evmAddresses";
+import { useSendTransaction } from "@privy-io/react-auth";
 import type { EvmTxRequest } from "../contracts/cctp_deposit";
 
 export interface EvmSignerResult {
@@ -20,7 +21,7 @@ export interface EvmSignerResult {
 }
 
 export interface UseEvmSignerReturn {
-  /** Send an EVM transaction. Handles chain switching automatically. */
+  /** Send an EVM transaction. Privy switches chain automatically. */
   sendEvmTx: (tx: EvmTxRequest) => Promise<EvmSignerResult>;
   /** Whether a transaction is currently being sent */
   isSending: boolean;
@@ -32,7 +33,6 @@ export interface UseEvmSignerReturn {
 
 export function useEvmSigner(): UseEvmSignerReturn {
   const { sendTransaction } = useSendTransaction();
-  const { switchChain } = useSwitchChain();
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,10 +42,7 @@ export function useEvmSigner(): UseEvmSignerReturn {
       setError(null);
 
       try {
-        // Switch to the correct chain if needed
-        await switchChain(tx.chainId);
-
-        // Send the transaction via Privy embedded wallet
+        // Privy handles chain switching when chainId is provided
         const result = await sendTransaction({
           to: tx.to,
           data: tx.data,
@@ -53,9 +50,7 @@ export function useEvmSigner(): UseEvmSignerReturn {
           chainId: tx.chainId,
         });
 
-        // Privy returns the tx hash directly
         const txHash = typeof result === "string" ? result : result.hash;
-
         return { txHash };
       } catch (err) {
         const msg =
@@ -66,17 +61,8 @@ export function useEvmSigner(): UseEvmSignerReturn {
         setIsSending(false);
       }
     },
-    [sendTransaction, switchChain],
+    [sendTransaction],
   );
 
   return { sendEvmTx, isSending, error, clearError: () => setError(null) };
-}
-
-// ─── Chain name helper ────────────────────────────────────────────────────────
-
-/**
- * Returns the Viem-compatible chain name for wallet switching.
- */
-export function getChainName(chain: SupportedEvmChain): string {
-  return getEvmChainConfig(chain).name;
 }
