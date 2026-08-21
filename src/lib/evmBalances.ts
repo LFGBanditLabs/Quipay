@@ -113,12 +113,9 @@ export async function readAllEvmBalances(
   );
 
   return {
-    ethereum:
-      results[0].status === "fulfilled" ? results[0].value : 0,
+    ethereum: results[0].status === "fulfilled" ? results[0].value : 0,
     base: results[1].status === "fulfilled" ? results[1].value : 0,
-    arbitrum:
-      results[2].status === "fulfilled" ? results[2].value : 0,
-    optimism:
-      results[3].status === "fulfilled" ? results[3].value : 0,
+    arbitrum: results[2].status === "fulfilled" ? results[2].value : 0,
+    optimism: results[3].status === "fulfilled" ? results[3].value : 0,
   };
 }

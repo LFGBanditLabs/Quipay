@@ -178,9 +178,7 @@ export default function VaultFunding({
                 ? "text-black"
                 : "text-neutral-500 hover:text-white"
             }`}
-            style={
-              depositMode === mode ? { backgroundColor: "#facc15" } : {}
-            }
+            style={depositMode === mode ? { backgroundColor: "#facc15" } : {}}
           >
             {mode === "stellar" ? "Stellar Wallet" : "Cross-Chain"}
           </button>

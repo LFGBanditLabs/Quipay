@@ -13,7 +13,10 @@ import { mainnet, base, arbitrum, optimism } from "viem/chains";
 import { useStellarSign } from "./useStellarSign";
 import { useEvmSigner } from "./useEvmSigner";
 import { useNotification } from "./useNotification";
-import { buildApproveTx, buildDepositForBurnTx } from "../contracts/cctp_deposit";
+import {
+  buildApproveTx,
+  buildDepositForBurnTx,
+} from "../contracts/cctp_deposit";
 import { buildDepositTx } from "../contracts/payroll_vault";
 import { extractAndAttest } from "../lib/cctp";
 import {
@@ -153,12 +156,8 @@ export function useCrossChainDeposit(): UseCrossChainDepositReturn {
           transport: http(),
         });
 
-        await extractAndAttest(
-          evmTxHash,
-          sourceChain,
-          publicClient,
-          (step) =>
-            setProgress({ step: "attesting", message: step, evmTxHash }),
+        await extractAndAttest(evmTxHash, sourceChain, publicClient, (step) =>
+          setProgress({ step: "attesting", message: step, evmTxHash }),
         );
 
         // ── Step 4: Mint USDC on Stellar ─────────────────────────────
@@ -220,9 +219,7 @@ export function useCrossChainDeposit(): UseCrossChainDepositReturn {
         );
       } catch (err) {
         const rawMsg =
-          err instanceof Error
-            ? err.message
-            : "Cross-chain deposit failed";
+          err instanceof Error ? err.message : "Cross-chain deposit failed";
         const msg = rawMsg.includes("insufficient")
           ? "Insufficient balance or gas on the source chain."
           : rawMsg.includes("rejected") || rawMsg.includes("declined")

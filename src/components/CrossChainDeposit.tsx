@@ -140,12 +140,10 @@ export function CrossChainDeposit({
   stellarAddress,
   onSuccess,
 }: CrossChainDepositProps) {
-  const { progress, deposit, reset, isBusy } =
-    useCrossChainDeposit();
+  const { progress, deposit, reset, isBusy } = useCrossChainDeposit();
   const { evmAddress } = useEvmWallet();
 
-  const [selectedChain, setSelectedChain] =
-    useState<SupportedEvmChain>("base");
+  const [selectedChain, setSelectedChain] = useState<SupportedEvmChain>("base");
   const [amount, setAmount] = useState("");
   const [chainBalance, setChainBalance] = useState<number | null>(null);
   const [loadingBalance, setLoadingBalance] = useState(false);
@@ -208,9 +206,7 @@ export function CrossChainDeposit({
             </svg>
           </div>
           <div>
-            <p className="text-[15px] font-bold text-white">
-              Deposit Complete
-            </p>
+            <p className="text-[15px] font-bold text-white">Deposit Complete</p>
             <p className="text-[12px] text-neutral-500">
               USDC deposited from {chainConfig.name} into vault
             </p>
@@ -303,8 +299,8 @@ export function CrossChainDeposit({
       {/* No EVM wallet warning */}
       {!evmAddress && (
         <div className="mb-4 rounded-xl border border-yellow-400/20 bg-yellow-400/[0.06] px-4 py-3 text-[12px] text-yellow-400">
-          No embedded EVM wallet found. Log in with Privy to enable
-          cross-chain deposits.
+          No embedded EVM wallet found. Log in with Privy to enable cross-chain
+          deposits.
         </div>
       )}
 

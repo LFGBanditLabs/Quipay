@@ -46,9 +46,7 @@ const POLL_INTERVAL_MS = 5_000; // 5 seconds
 const MESSAGE_SENT_EVENT = {
   type: "event" as const,
   name: "MessageSent",
-  inputs: [
-    { name: "message", type: "bytes", indexed: false },
-  ],
+  inputs: [{ name: "message", type: "bytes", indexed: false }],
 } as const;
 
 // ─── Extract message from tx logs ─────────────────────────────────────────────
@@ -164,7 +162,8 @@ export async function pollAttestation(
         if (data.status === "error") {
           return {
             status: "error",
-            error: "Circle attestation failed. The burn may still complete later.",
+            error:
+              "Circle attestation failed. The burn may still complete later.",
           };
         }
       }
