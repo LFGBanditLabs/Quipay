@@ -93,7 +93,7 @@ export async function extractCctpMessage(
       });
 
       if (decoded.eventName === "MessageSent" && decoded.args) {
-        const message = decoded.args.message as Hex;
+        const message = decoded.args.message;
         // Compute keccak256 hash of the message bytes
         const messageHash = await computeMessageHash(message);
         return { message, messageHash };

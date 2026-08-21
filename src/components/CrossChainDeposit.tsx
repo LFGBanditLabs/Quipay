@@ -141,7 +141,7 @@ export function CrossChainDeposit({
   onSuccess,
 }: CrossChainDepositProps) {
   const { progress, deposit, reset, isBusy } =
-    useCrossChainDeposit(stellarAddress);
+    useCrossChainDeposit();
   const { evmAddress } = useEvmWallet();
 
   const [selectedChain, setSelectedChain] =
@@ -171,6 +171,7 @@ export function CrossChainDeposit({
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchBalance(selectedChain);
   }, [selectedChain, fetchBalance]);
 

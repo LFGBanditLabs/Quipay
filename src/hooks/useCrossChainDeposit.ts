@@ -78,9 +78,7 @@ const IDLE_PROGRESS: DepositProgress = { step: "idle", message: "" };
 
 const USDC_ISSUER = import.meta.env.PUBLIC_USDC_ISSUER ?? "";
 
-export function useCrossChainDeposit(
-  stellarAddress: string,
-): UseCrossChainDepositReturn {
+export function useCrossChainDeposit(): UseCrossChainDepositReturn {
   const { signXdr } = useStellarSign();
   const { sendEvmTx } = useEvmSigner();
   const { addNotification } = useNotification();
@@ -237,7 +235,7 @@ export function useCrossChainDeposit(
         setIsBusy(false);
       }
     },
-    [stellarAddress, signXdr, sendEvmTx, addNotification],
+    [signXdr, sendEvmTx, addNotification],
   );
 
   return { progress, deposit, reset, isBusy };
