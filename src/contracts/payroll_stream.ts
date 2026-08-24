@@ -170,7 +170,6 @@ export async function buildCancelStreamTx(
         "cancel_stream",
         nativeToScVal(streamId, { type: "u64" }),
         new Address(employer).toScVal(),
-        nativeToScVal(null), // For the 'to' option in Soroban which is an Option<Address> or something? Wait...
       ),
     )
     .setTimeout(300)
