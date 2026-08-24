@@ -175,6 +175,14 @@ function StreamCard({
     setError(null);
     try {
       setTxStep("building");
+      const freshWithdrawable = await getWithdrawable(BigInt(stream.id));
+      const withdrawn =
+        freshWithdrawable !== null ? Number(freshWithdrawable) / STROOPS : 0;
+      if (withdrawn <= 0) {
+        throw new Error("Nothing to withdraw yet.");
+      }
+      setOnChainAmt(withdrawn);
+
       const { preparedXdr } = await buildWithdrawTx(
         BigInt(stream.id),
         workerAddress,
@@ -183,7 +191,6 @@ function StreamCard({
       const signed = await signXdr(preparedXdr, workerAddress);
       setTxStep("sending");
       const txHash = await submitAndAwaitTx(signed);
-      const withdrawn = onChainAmt ?? displayAmt;
       void recordWithdrawalEvent({
         workerAddress,
         employerAddress: stream.employerAddress,
