@@ -8,6 +8,8 @@ import {
   submitAndAwaitTx,
 } from "../contracts/payroll_stream";
 import { networkPassphrase } from "../contracts/util";
+import { BulkPayrollImport } from "../components/BulkPayrollImport";
+import { Sparkles, Users } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 const USDC_ISSUER = import.meta.env.PUBLIC_USDC_ISSUER ?? "";
@@ -35,6 +37,7 @@ export default function CreateStreamByQpId() {
   const { address: employer } = useStellarAccount();
   const { signXdr } = useStellarSign();
 
+  const [mode, setMode] = useState<"single" | "bulk">("single");
   const [roster, setRoster] = useState<RosterWorker[]>([]);
   const [showManual, setShowManual] = useState(false);
   const [qpId, setQpId] = useState("");
@@ -126,8 +129,6 @@ export default function CreateStreamByQpId() {
     try {
       const durationSecs = BigInt(days * 24 * 60 * 60);
       const amountStroops = BigInt(Math.round(amt * STROOPS));
-      // Per-second rate; recompute the exact total so rate*duration == amount
-      // (avoids on-chain rounding/solvency mismatches).
       const rate = amountStroops / durationSecs;
       if (rate <= 0n)
         throw new Error("Amount is too small for that duration — increase it.");
@@ -158,153 +159,198 @@ export default function CreateStreamByQpId() {
   }
 
   return (
-    <div className="px-6 py-8 sm:px-8 sm:py-10 max-w-[640px]">
-      <div className="mb-8">
+    <div
+      className={`px-6 py-8 sm:px-8 sm:py-10 transition-all ${
+        mode === "bulk" ? "max-w-[1100px]" : "max-w-[640px]"
+      }`}
+    >
+      <div className="mb-6">
         <h1 className="text-[24px] font-bold text-white tracking-tight">
-          Create a payroll stream
+          Create Payroll Streams
         </h1>
         <p className="mt-1 text-[14px] text-neutral-500">
-          Pay an employee continuously in USDC from your vault. Pick them from
-          your workers.
+          Stream continuous payroll in USDC or XLM directly from your treasury
+          vault.
         </p>
-      </div>
 
-      {/* Step 1 — pick an employee */}
-      <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-6 mb-5">
-        <label className="block text-neutral-400 text-xs mb-2.5 font-medium uppercase tracking-wide">
-          Employee
-        </label>
-
-        {roster.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            {roster.map((w) => {
-              const selected = resolved?.walletStellar === w.worker_address;
-              return (
-                <button
-                  key={w.worker_address}
-                  onClick={() => pickWorker(w)}
-                  className={`flex items-center justify-between rounded-lg border px-4 py-3 text-left transition-colors ${
-                    selected
-                      ? "border-yellow-400/50 bg-yellow-400/[0.08]"
-                      : "border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05]"
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <p className="font-mono text-[13px] font-bold text-white">
-                      {w.quipay_id ?? w.full_name}
-                    </p>
-                    <p className="truncate text-[12px] text-neutral-500">
-                      {w.email ? `${w.email} · ` : ""}
-                      {w.job_title}
-                    </p>
-                  </div>
-                  {selected && (
-                    <span className="text-[12px] font-semibold text-yellow-400">
-                      Selected
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-[13px] text-neutral-500">
-            No workers yet — add one from Workforce, or enter a QP ID below.
-          </p>
-        )}
-
-        {/* Manual QP ID — for someone not on the roster yet */}
-        <button
-          onClick={() => setShowManual((v) => !v)}
-          className="mt-3 text-[12px] font-semibold text-neutral-500 hover:text-white transition-colors"
-        >
-          {showManual ? "− Hide QP ID entry" : "+ Enter a QP ID instead"}
-        </button>
-        {showManual && (
-          <div className="mt-2 flex gap-2">
-            <input
-              value={qpId}
-              onChange={(e) => setQpId(e.target.value)}
-              placeholder="QP100000042"
-              className="flex-1 rounded-lg bg-neutral-800 border border-neutral-700 text-white px-3 py-2.5 text-[14px] font-mono placeholder-neutral-600 focus:outline-none focus:border-yellow-400 transition-colors"
-            />
-            <button
-              onClick={() => void lookup()}
-              disabled={looking || !qpId.trim()}
-              className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-4 py-2.5 text-[14px] font-semibold text-white hover:bg-white/[0.08] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        {/* Mode Selector Tabs */}
+        <div className="mt-6 flex items-center gap-2 rounded-xl border border-white/[0.08] bg-[#0c0c0c] p-1.5 w-fit">
+          <button
+            onClick={() => setMode("single")}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition-all ${
+              mode === "single"
+                ? "bg-white/[0.12] text-white shadow"
+                : "text-neutral-400 hover:text-white"
+            }`}
+          >
+            <Users className="h-4 w-4" />
+            <span>Single Stream</span>
+          </button>
+          <button
+            onClick={() => setMode("bulk")}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition-all ${
+              mode === "bulk"
+                ? "bg-yellow-400 text-black shadow font-bold"
+                : "text-neutral-400 hover:text-white"
+            }`}
+          >
+            <Sparkles className="h-4 w-4" />
+            <span>Bulk Import (CSV)</span>
+            <span
+              className={`rounded-full px-1.5 py-0.2 text-[10px] font-black uppercase ${
+                mode === "bulk"
+                  ? "bg-black text-yellow-400"
+                  : "bg-yellow-400/20 text-yellow-400"
+              }`}
             >
-              {looking ? "Finding…" : "Find"}
-            </button>
-          </div>
-        )}
-
-        {resolved && (
-          <div className="mt-3 rounded-lg border border-green-500/20 bg-green-500/[0.06] px-4 py-3">
-            <p className="text-[13px] font-semibold text-white">
-              Paying {resolved.quipayId}
-              {resolved.email ? (
-                <span className="text-neutral-400"> · {resolved.email}</span>
-              ) : null}
-            </p>
-            <p className="mt-0.5 font-mono text-[11px] text-neutral-500 break-all">
-              {resolved.walletStellar}
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Step 2 — amount + duration */}
-      <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-6 mb-5">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-neutral-400 text-xs mb-1.5 font-medium uppercase tracking-wide">
-              Total amount (USDC)
-            </label>
-            <input
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              inputMode="decimal"
-              placeholder="1000"
-              className="w-full rounded-lg bg-neutral-800 border border-neutral-700 text-white px-3 py-2.5 text-[14px] placeholder-neutral-600 focus:outline-none focus:border-yellow-400 transition-colors"
-            />
-          </div>
-          <div>
-            <label className="block text-neutral-400 text-xs mb-1.5 font-medium uppercase tracking-wide">
-              Duration (days)
-            </label>
-            <input
-              value={durationDays}
-              onChange={(e) => setDurationDays(e.target.value)}
-              inputMode="numeric"
-              placeholder="30"
-              className="w-full rounded-lg bg-neutral-800 border border-neutral-700 text-white px-3 py-2.5 text-[14px] placeholder-neutral-600 focus:outline-none focus:border-yellow-400 transition-colors"
-            />
-          </div>
+              Batch
+            </span>
+          </button>
         </div>
       </div>
 
-      {error && (
-        <p className="mb-4 text-[13px] text-red-400 rounded-xl bg-red-950/40 border border-red-800/50 px-4 py-3">
-          {error}
-        </p>
-      )}
-      {okMsg && (
-        <p className="mb-4 text-[13px] text-green-400 rounded-xl bg-green-950/40 border border-green-800/50 px-4 py-3">
-          {okMsg}
-        </p>
-      )}
+      {mode === "bulk" ? (
+        <BulkPayrollImport />
+      ) : (
+        <>
+          {/* Step 1 — pick an employee */}
+          <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-6 mb-5">
+            <label className="block text-neutral-400 text-xs mb-2.5 font-medium uppercase tracking-wide">
+              Employee
+            </label>
 
-      <button
-        onClick={() => void create()}
-        disabled={busy || !resolved || !employer}
-        className="w-full rounded-xl bg-yellow-400 py-3 text-[15px] font-semibold text-black hover:bg-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-      >
-        {busy ? "Creating stream…" : "Create stream"}
-      </button>
-      <p className="mt-3 text-[12px] text-neutral-600 text-center">
-        Streams pay out from your vault balance. Make sure the vault holds at
-        least the total amount.
-      </p>
+            {roster.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                {roster.map((w) => {
+                  const selected = resolved?.walletStellar === w.worker_address;
+                  return (
+                    <button
+                      key={w.worker_address}
+                      onClick={() => pickWorker(w)}
+                      className={`flex items-center justify-between rounded-lg border px-4 py-3 text-left transition-colors ${
+                        selected
+                          ? "border-yellow-400/50 bg-yellow-400/[0.08]"
+                          : "border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05]"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className="font-mono text-[13px] font-bold text-white">
+                          {w.quipay_id ?? w.full_name}
+                        </p>
+                        <p className="truncate text-[12px] text-neutral-500">
+                          {w.email ? `${w.email} · ` : ""}
+                          {w.job_title}
+                        </p>
+                      </div>
+                      {selected && (
+                        <span className="text-[12px] font-semibold text-yellow-400">
+                          Selected
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-[13px] text-neutral-500">
+                No workers yet — add one from Workforce, or enter a QP ID below.
+              </p>
+            )}
+
+            {/* Manual QP ID — for someone not on the roster yet */}
+            <button
+              onClick={() => setShowManual((v) => !v)}
+              className="mt-3 text-[12px] font-semibold text-neutral-500 hover:text-white transition-colors"
+            >
+              {showManual ? "− Hide QP ID entry" : "+ Enter a QP ID instead"}
+            </button>
+            {showManual && (
+              <div className="mt-2 flex gap-2">
+                <input
+                  value={qpId}
+                  onChange={(e) => setQpId(e.target.value)}
+                  placeholder="QP100000042"
+                  className="flex-1 rounded-lg bg-neutral-800 border border-neutral-700 text-white px-3 py-2.5 text-[14px] font-mono placeholder-neutral-600 focus:outline-none focus:border-yellow-400 transition-colors"
+                />
+                <button
+                  onClick={() => void lookup()}
+                  disabled={looking || !qpId.trim()}
+                  className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-4 py-2.5 text-[14px] font-semibold text-white hover:bg-white/[0.08] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  {looking ? "Finding…" : "Find"}
+                </button>
+              </div>
+            )}
+
+            {resolved && (
+              <div className="mt-3 rounded-lg border border-green-500/20 bg-green-500/[0.06] px-4 py-3">
+                <p className="text-[13px] font-semibold text-white">
+                  Paying {resolved.quipayId}
+                  {resolved.email ? (
+                    <span className="text-neutral-400"> · {resolved.email}</span>
+                  ) : null}
+                </p>
+                <p className="mt-0.5 font-mono text-[11px] text-neutral-500 break-all">
+                  {resolved.walletStellar}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Step 2 — amount + duration */}
+          <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] p-6 mb-5">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-neutral-400 text-xs mb-1.5 font-medium uppercase tracking-wide">
+                  Total amount (USDC)
+                </label>
+                <input
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="1000"
+                  className="w-full rounded-lg bg-neutral-800 border border-neutral-700 text-white px-3 py-2.5 text-[14px] placeholder-neutral-600 focus:outline-none focus:border-yellow-400 transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-neutral-400 text-xs mb-1.5 font-medium uppercase tracking-wide">
+                  Duration (days)
+                </label>
+                <input
+                  value={durationDays}
+                  onChange={(e) => setDurationDays(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="30"
+                  className="w-full rounded-lg bg-neutral-800 border border-neutral-700 text-white px-3 py-2.5 text-[14px] placeholder-neutral-600 focus:outline-none focus:border-yellow-400 transition-colors"
+                />
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <p className="mb-4 text-[13px] text-red-400 rounded-xl bg-red-950/40 border border-red-800/50 px-4 py-3">
+              {error}
+            </p>
+          )}
+          {okMsg && (
+            <p className="mb-4 text-[13px] text-green-400 rounded-xl bg-green-950/40 border border-green-800/50 px-4 py-3">
+              {okMsg}
+            </p>
+          )}
+
+          <button
+            onClick={() => void create()}
+            disabled={busy || !resolved || !employer}
+            className="w-full rounded-xl bg-yellow-400 py-3 text-[15px] font-semibold text-black hover:bg-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {busy ? "Creating stream…" : "Create stream"}
+          </button>
+          <p className="mt-3 text-[12px] text-neutral-600 text-center">
+            Streams pay out from your vault balance. Make sure the vault holds at
+            least the total amount.
+          </p>
+        </>
+      )}
     </div>
   );
 }

@@ -430,6 +430,17 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
     [getAccessToken, refetch],
   );
 
+  // ─── batchResolveQpIds ───────────────────────────────────────────────────
+
+  const batchResolve = useCallback(
+    async (
+      qpIds: string[],
+    ): Promise<Record<string, ResolvedWorkerInfo>> => {
+      return batchResolveQpIds(qpIds, getAccessToken);
+    },
+    [getAccessToken],
+  );
+
   return {
     workers,
     pendingRequests,
@@ -442,5 +453,134 @@ export function useWorkforceRegistry(employerAddress: string | undefined) {
     rejectWorker,
     createInvite,
     cancelInvite,
+    batchResolveQpIds: batchResolve,
   };
+}
+
+export interface ResolvedWorkerInfo {
+  qpId: string;
+  walletStellar: string | null;
+  email: string | null;
+  fullName: string | null;
+  jobTitle?: string | null;
+  error?: string | null;
+}
+
+/**
+ * Batch resolves multiple QP IDs against the backend API and employer roster.
+ */
+export async function batchResolveQpIds(
+  qpIds: string[],
+  getAccessToken?: () => Promise<string | null>,
+): Promise<Record<string, ResolvedWorkerInfo>> {
+  const result: Record<string, ResolvedWorkerInfo> = {};
+  const uniqueQpIds = Array.from(
+    new Set(qpIds.map((id) => id.toUpperCase().trim()).filter(Boolean)),
+  );
+
+  if (uniqueQpIds.length === 0) return result;
+
+  let token: string | null = null;
+  if (getAccessToken) {
+    try {
+      token = await getAccessToken();
+    } catch {
+      // non-fatal
+    }
+  }
+
+  // 1. Try checking employer employees roster first
+  const remainingIds = new Set(uniqueQpIds);
+  if (API_BASE && token) {
+    try {
+      const res = await fetch(`${API_BASE}/api/employers/employees`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = (await res.json()) as {
+          employees?: Array<{
+            worker_address: string;
+            quipay_id: string | null;
+            email: string | null;
+            full_name: string;
+            job_title: string;
+          }>;
+        };
+
+        (data.employees ?? []).forEach((emp) => {
+          if (emp.quipay_id) {
+            const normalized = emp.quipay_id.toUpperCase().trim();
+            if (remainingIds.has(normalized)) {
+              result[normalized] = {
+                qpId: normalized,
+                walletStellar: emp.worker_address,
+                email: emp.email,
+                fullName: emp.full_name,
+                jobTitle: emp.job_title,
+              };
+              remainingIds.delete(normalized);
+            }
+          }
+        });
+      }
+    } catch {
+      // non-fatal
+    }
+  }
+
+  // 2. Look up remaining QP IDs in parallel batches of 5
+  const remainingArray = Array.from(remainingIds);
+  const BATCH_SIZE = 5;
+
+  for (let i = 0; i < remainingArray.length; i += BATCH_SIZE) {
+    const chunk = remainingArray.slice(i, i + BATCH_SIZE);
+    await Promise.all(
+      chunk.map(async (id) => {
+        if (!API_BASE) {
+          result[id] = {
+            qpId: id,
+            walletStellar: null,
+            email: null,
+            fullName: null,
+            error: "Backend API not configured for lookup",
+          };
+          return;
+        }
+
+        try {
+          const res = await fetch(`${API_BASE}/api/accounts/lookup/${id}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          const data = await res.json();
+          if (res.ok && data) {
+            result[id] = {
+              qpId: id,
+              walletStellar: data.walletStellar ?? null,
+              email: data.email ?? null,
+              fullName: data.quipayId ?? id,
+              error: data.walletStellar ? null : "No Stellar wallet registered",
+            };
+          } else {
+            result[id] = {
+              qpId: id,
+              walletStellar: null,
+              email: null,
+              fullName: null,
+              error: data.error ?? "QP ID not found",
+            };
+          }
+        } catch (err) {
+          result[id] = {
+            qpId: id,
+            walletStellar: null,
+            email: null,
+            fullName: null,
+            error: err instanceof Error ? err.message : "Lookup failed",
+          };
+        }
+      }),
+    );
+  }
+
+  return result;
 }

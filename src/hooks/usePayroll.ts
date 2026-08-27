@@ -12,12 +12,16 @@ import {
   getStreamById,
   getTokenSymbol,
   ContractStream,
+  buildCreateStreamTx,
+  submitAndAwaitTx,
 } from "../contracts/payroll_stream";
 import { getWorkersByEmployer } from "../contracts/workforce_registry";
 import { rawToUnitNumber } from "../util/stroops";
 import type { SupportedEvmChain } from "../lib/evmAddresses";
 import { useNotification } from "./useNotification";
 import { type StreamEvent, isVaultBalanceLow } from "../lib/notificationRules";
+import { getXlmSacAddress, getTokenAddresses } from "../lib/tokenAddresses";
+import { parseDateToUnixSeconds } from "../lib/csvParser";
 
 /** ---------------- REQUEST DEDUP ---------------- */
 
@@ -486,6 +490,145 @@ export const usePayroll = (employerAddress: string | undefined) => {
     [streams],
   );
 
+  const resolveTokenSac = useCallback((symbol: string): string => {
+    const upper = (symbol || "USDC").toUpperCase().trim();
+    if (upper === "XLM" || upper === "NATIVE") {
+      return getXlmSacAddress();
+    }
+    if (upper === "USDC") {
+      const USDC_ISSUER = import.meta.env.PUBLIC_USDC_ISSUER ?? "";
+      if (USDC_ISSUER) {
+        return new Asset("USDC", USDC_ISSUER).contractId(networkPassphrase);
+      }
+      const usdcAddr = getTokenAddresses().USDC;
+      if (usdcAddr.startsWith("C")) return usdcAddr;
+      return new Asset("USDC", usdcAddr).contractId(networkPassphrase);
+    }
+    if (symbol.startsWith("C") && symbol.length === 56) {
+      return symbol;
+    }
+    return getXlmSacAddress();
+  }, []);
+
+  const createBatchStreams = useCallback(
+    async (
+      items: BatchStreamInputItem[],
+      signXdr: (xdr: string, accountToSign: string) => Promise<string>,
+      onProgress?: (progress: BatchStreamProgress) => void,
+    ): Promise<BatchStreamResultItem[]> => {
+      if (!employerAddress) {
+        throw new Error("Wallet not connected.");
+      }
+
+      const results: BatchStreamResultItem[] = [];
+      const total = items.length;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        onProgress?.({
+          currentIndex: i,
+          total,
+          currentItem: item,
+          results: [...results],
+        });
+
+        try {
+          const tokenSac = resolveTokenSac(item.token);
+          const STROOPS = 1e7;
+          const parsedStart = item.startTs
+            ? { timestamp: item.startTs }
+            : parseDateToUnixSeconds(item.startDate);
+          const parsedEnd = item.endTs
+            ? { timestamp: item.endTs }
+            : parseDateToUnixSeconds(item.endDate);
+
+          const startTs =
+            parsedStart.timestamp || Math.floor(Date.now() / 1000) + 60;
+          const endTs = parsedEnd.timestamp;
+
+          const durationSecs = BigInt(Math.max(1, endTs - startTs));
+          const amountStroops = BigInt(Math.round(item.amount * STROOPS));
+          const rate = amountStroops / durationSecs;
+          if (rate <= 0n) {
+            throw new Error(
+              `Amount ${item.amount} is too small for duration (${durationSecs}s)`,
+            );
+          }
+          const exactAmount = rate * durationSecs;
+
+          const { preparedXdr } = await buildCreateStreamTx({
+            employer: employerAddress,
+            worker: item.workerAddress,
+            token: tokenSac,
+            rate,
+            amount: exactAmount,
+            startTs,
+            endTs,
+          });
+
+          const signed = await signXdr(preparedXdr, employerAddress);
+          const hash = await submitAndAwaitTx(signed);
+
+          const successResult: BatchStreamResultItem = {
+            id: item.id,
+            rowIndex: item.rowIndex,
+            qpId: item.qpId,
+            email: item.email,
+            workerAddress: item.workerAddress,
+            amount: item.amount,
+            token: item.token,
+            status: "success",
+            txHash: hash,
+          };
+          results.push(successResult);
+        } catch (err) {
+          const errorMsg =
+            err instanceof Error ? err.message : "Transaction failed";
+          const errorResult: BatchStreamResultItem = {
+            id: item.id,
+            rowIndex: item.rowIndex,
+            qpId: item.qpId,
+            email: item.email,
+            workerAddress: item.workerAddress,
+            amount: item.amount,
+            token: item.token,
+            status: "error",
+            error: errorMsg,
+          };
+          results.push(errorResult);
+        }
+
+        onProgress?.({
+          currentIndex: i + 1,
+          total,
+          currentItem: item,
+          results: [...results],
+        });
+      }
+
+      const successCount = results.filter((r) => r.status === "success").length;
+
+      addNotification({
+        type: "batch.completed",
+        employerAddress,
+        amount: results
+          .filter((r) => r.status === "success")
+          .reduce((s, r) => s + r.amount, 0),
+        token: "USDC",
+        timestamp: Date.now(),
+        metadata: {
+          successCount,
+          totalCount: total,
+          dedupeKey: `batch_completed:${Date.now()}`,
+        },
+      });
+
+      void refreshData();
+      return results;
+    },
+    [addNotification, employerAddress, refreshData, resolveTokenSac],
+  );
+
   return {
     treasuryBalances,
     totalLiabilities,
@@ -507,5 +650,42 @@ export const usePayroll = (employerAddress: string | undefined) => {
     clearStreamPending,
     crossChainWithdrawals,
     recordCrossChainWithdrawal,
+    createBatchStreams,
   };
 };
+
+export interface BatchStreamInputItem {
+  id: string;
+  rowIndex?: number;
+  email?: string;
+  qpId: string;
+  workerAddress: string;
+  amount: number;
+  token: string;
+  startDate: string;
+  endDate: string;
+  startTs?: number;
+  endTs?: number;
+  durationDays?: number;
+}
+
+export interface BatchStreamResultItem {
+  id: string;
+  rowIndex?: number;
+  qpId: string;
+  email?: string;
+  workerAddress: string;
+  amount: number;
+  token: string;
+  status: "success" | "error";
+  txHash?: string;
+  streamId?: string;
+  error?: string;
+}
+
+export interface BatchStreamProgress {
+  currentIndex: number;
+  total: number;
+  currentItem?: BatchStreamInputItem;
+  results: BatchStreamResultItem[];
+}
