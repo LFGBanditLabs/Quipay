@@ -1,7 +1,13 @@
 import * as React from "react";
 import { Server, Api } from "@stellar/stellar-sdk/rpc";
 import { xdr } from "@stellar/stellar-sdk";
+import { io } from "socket.io-client";
 import { rpcUrl, stellarNetwork } from "../contracts/util";
+import { useAuth } from "./useAuth";
+import { useWallet } from "./useWallet";
+import { type StreamEvent, type StreamEventType } from "../lib/notificationRules";
+
+export type { StreamEvent, StreamEventType };
 
 /**
  * Concatenated `${contractId}:${topic}`
@@ -23,11 +29,6 @@ const server = new Server(rpcUrl, { allowHttp: stellarNetwork === "LOCAL" });
 /**
  * Subscribe to events for a given topic from a given contract, using a library
  * generated with `soroban contract bindings typescript`.
- *
- * Someday such generated libraries will include functions for subscribing to
- * the events the contract emits, but for now you can copy this hook into your
- * React project if you need to subscribe to events, or adapt this logic for
- * non-React use.
  */
 export function useSubscription(
   contractId: string,
@@ -51,7 +52,6 @@ export function useSubscription(
           paging[id].lastLedgerStart = latestLedgerState.sequence;
         }
 
-        // lastLedgerStart is now guaranteed to be a number
         const lastLedger = paging[id].lastLedgerStart;
 
         const requestPromise = server.getEvents(
@@ -124,14 +124,13 @@ export function useSubscription(
               );
             }
           });
-          // Store the cursor from the response for pagination
           if (response.cursor) {
             paging[id].pagingToken = response.cursor;
           }
         }
       } catch (error: unknown) {
         if ((error instanceof Error && error.name === "AbortError") || stop) {
-          return; // Ignore expected cancellations
+          return;
         }
         console.error("Poll Events: error: ", error);
       } finally {
@@ -149,4 +148,73 @@ export function useSubscription(
       controller.abort();
     };
   }, [contractId, topic, onEvent, id, pollInterval]);
+}
+
+/**
+ * Subscribe to stream lifecycle events over WebSocket from the backend.
+ */
+export function useStreamLifecycleSubscription(
+  onEvent: (event: StreamEvent) => void,
+) {
+  const { address } = useWallet();
+  const { authenticated, getAccessToken } = useAuth();
+  const onEventRef = React.useRef(onEvent);
+  onEventRef.current = onEvent;
+
+  React.useEffect(() => {
+    const WS_URL = import.meta.env.PUBLIC_BACKEND_URL;
+    if (!WS_URL || !authenticated) return;
+
+    let socket: ReturnType<typeof io> | null = null;
+    let isCancelled = false;
+
+    const connect = async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token || isCancelled) return;
+
+        socket = io(WS_URL, {
+          path: "/socket.io",
+          query: { token },
+        });
+
+        const eventTypes: StreamEventType[] = [
+          "stream.started",
+          "stream.paused",
+          "stream.resumed",
+          "stream.cancelled",
+          "earnings.milestone",
+          "vault.low_balance",
+          "stream.ending_soon",
+          "worker.joined",
+          "deposit.confirmed",
+          "withdrawal.completed",
+          "batch.completed",
+        ];
+
+        socket.on("stream:event", (event: StreamEvent) => {
+          onEventRef.current(event);
+        });
+
+        eventTypes.forEach((eventType) => {
+          socket?.on(eventType, (payload: Partial<StreamEvent>) => {
+            onEventRef.current({
+              type: eventType,
+              timestamp: payload.timestamp || Date.now(),
+              ...payload,
+            });
+          });
+        });
+      } catch (err) {
+        console.warn("WebSocket lifecycle subscription skipped:", err);
+      }
+    };
+
+    void connect();
+
+    return () => {
+      isCancelled = true;
+      socket?.disconnect();
+    };
+  }, [address, authenticated, getAccessToken]);
 }

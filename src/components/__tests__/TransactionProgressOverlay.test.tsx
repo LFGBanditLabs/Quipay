@@ -41,12 +41,13 @@ describe("TransactionProgressOverlay", () => {
   });
 
   it("renders processing title and all stages when visible", () => {
-    let root = null as unknown as ReturnType<typeof renderer.create>["root"];
+    let testRenderer!: renderer.ReactTestRenderer;
     act(() => {
-      root = renderer.create(
+      testRenderer = renderer.create(
         <TransactionProgressOverlay isVisible stage="signing" />,
-      ).root;
+      );
     });
+    const root = testRenderer.root;
 
     expect(nodeText(root.findByType("h2").children)).toContain(
       "Processing Transaction",
@@ -70,16 +71,17 @@ describe("TransactionProgressOverlay", () => {
 
   it("shows Done button on confirmed stage and calls onDismiss", () => {
     const onDismiss = jest.fn();
-    let root = null as unknown as ReturnType<typeof renderer.create>["root"];
+    let testRenderer!: renderer.ReactTestRenderer;
     act(() => {
-      root = renderer.create(
+      testRenderer = renderer.create(
         <TransactionProgressOverlay
           isVisible
           stage="confirmed"
           onDismiss={onDismiss}
         />,
-      ).root;
+      );
     });
+    const root = testRenderer.root;
 
     const doneButton = root.findByType("button");
     expect(nodeText(doneButton.children)).toBe("Done");

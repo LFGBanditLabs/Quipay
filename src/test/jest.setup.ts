@@ -1,5 +1,13 @@
 import { TextEncoder, TextDecoder } from "util";
 
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const LRUCache = require("lru-cache");
+  if (LRUCache && !LRUCache.LRUCache) {
+    LRUCache.LRUCache = LRUCache;
+  }
+} catch {}
+
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: (query: string) => ({

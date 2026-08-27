@@ -73,10 +73,13 @@ export interface CreateStreamParams {
   metadataHash?: string;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+export const rpcHelpers = {
+  getRpcServer: (): SorobanRpc.Server =>
+    new SorobanRpc.Server(rpcUrl, { allowHttp: true }),
+};
 
-function getRpcServer(): SorobanRpc.Server {
-  return new SorobanRpc.Server(rpcUrl, { allowHttp: true });
+export function getRpcServer(): SorobanRpc.Server {
+  return rpcHelpers.getRpcServer();
 }
 
 /**
@@ -384,7 +387,7 @@ export async function getWithdrawable(
  * Returns the transaction hash on success.
  */
 export async function submitAndAwaitTx(signedTxXdr: string): Promise<string> {
-  const server = getRpcServer();
+  const server = rpcHelpers.getRpcServer();
   const tx = TransactionBuilder.fromXDR(
     signedTxXdr,
     networkPassphrase,
