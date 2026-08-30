@@ -58,12 +58,17 @@ jest.mock("../contracts/util", () => ({
   networkPassphrase: "Test SDF Network ; September 2015",
 }));
 
+jest.mock("../lib/tokenAddresses", () => ({
+  getXlmSacAddress: () => "CXLM",
+}));
+
 // ─── Imports (real module, resolved through the env transform) ────────────────
 
 import {
   SlippageConfigError,
   DEFAULT_MAX_SLIPPAGE_BPS,
   buildBatchCreateStreamsTx,
+  buildCancelStreamTx,
   type BatchStreamEntry,
 } from "../contracts/payroll_stream";
 
@@ -165,5 +170,22 @@ describe("buildBatchCreateStreamsTx — ScVal encoding", () => {
 
     expect(nativeToScValMock).toHaveBeenCalledWith(50, { type: "u32" });
     expect(nativeToScValMock).toHaveBeenCalledWith(200, { type: "u32" });
+  });
+});
+
+describe("buildCancelStreamTx", () => {
+  const employer = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+
+  beforeEach(() => {
+    nativeToScValMock.mockClear();
+  });
+
+  it("builds cancel_stream with only stream id and employer arguments", async () => {
+    await buildCancelStreamTx(BigInt(123), employer);
+
+    expect(nativeToScValMock).toHaveBeenCalledWith(BigInt(123), {
+      type: "u64",
+    });
+    expect(nativeToScValMock).not.toHaveBeenCalledWith(null);
   });
 });

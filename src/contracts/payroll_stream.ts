@@ -36,9 +36,7 @@ import { getXlmSacAddress } from "../lib/tokenAddresses";
 // ─── Contract ID ──────────────────────────────────────────────────────────────
 
 export const PAYROLL_STREAM_CONTRACT_ID: string =
-  (
-    import.meta.env.VITE_PAYROLL_STREAM_CONTRACT_ID as string | undefined
-  )?.trim() ?? "";
+  import.meta.env.VITE_PAYROLL_STREAM_CONTRACT_ID?.trim() ?? "";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -173,7 +171,6 @@ export async function buildCancelStreamTx(
         "cancel_stream",
         nativeToScVal(streamId, { type: "u64" }),
         new Address(employer).toScVal(),
-        nativeToScVal(null), // For the 'to' option in Soroban which is an Option<Address> or something? Wait...
       ),
     )
     .setTimeout(300)
@@ -280,8 +277,7 @@ export async function checkTreasurySolvency(
     return false;
   }
 
-  const result = (response as SorobanRpc.Api.SimulateTransactionSuccessResponse)
-    .result?.retval;
+  const result = response.result?.retval;
   if (!result) return true;
 
   return scValToNative(result) as boolean;
@@ -367,8 +363,7 @@ export async function getWithdrawable(
     return null;
   }
 
-  const result = (response as SorobanRpc.Api.SimulateTransactionSuccessResponse)
-    .result?.retval;
+  const result = response.result?.retval;
   if (!result) return null;
 
   return scValToNative(result) as bigint | null;
@@ -537,9 +532,7 @@ async function simulateContractRead<T>(
     const response = await server.simulateTransaction(tx);
     if (SorobanRpc.Api.isSimulationError(response)) return null;
 
-    const retval = (
-      response as SorobanRpc.Api.SimulateTransactionSuccessResponse
-    ).result?.retval;
+    const retval = response.result?.retval;
     if (!retval) return null;
 
     const native = scValToNative(retval) as T | undefined;
@@ -719,9 +712,7 @@ export async function getTokenSymbol(
       return tokenAddress.slice(0, 6);
     }
 
-    const retval = (
-      response as SorobanRpc.Api.SimulateTransactionSuccessResponse
-    ).result?.retval;
+    const retval = response.result?.retval;
     if (!retval) return tokenAddress.slice(0, 6);
 
     const sym = (scValToNative(retval) as string) || tokenAddress.slice(0, 6);
@@ -808,7 +799,7 @@ export async function getWorkerWithdrawalEvents(
 export class SlippageConfigError extends TypeError {
   constructor(value: number) {
     super(
-      `Invalid maxSlippageBps: ${value}. Must be a non-negative integer between 0 and 9999 (values ≥ 10 000 disable slippage protection).`,
+      `Invalid maxSlippageBps: ${value}. Must be a non-negative integer between 0 and 9999 (values >= 10,000 disable slippage protection).`,
     );
     this.name = "SlippageConfigError";
   }
@@ -834,7 +825,7 @@ export interface BatchStreamEntry {
   cliffTs?: number;
   /**
    * Maximum acceptable slippage in basis points (0–9999).
-   * 100 bps = 1 %. Values ≥ 10 000 disable protection and are rejected.
+   * 100 bps = 1 %. Values >= 10,000 disable protection and are rejected.
    */
   maxSlippageBps: number;
 }
@@ -862,7 +853,7 @@ function validateSlippage(value: number): void {
  * @param employer - The employer's Stellar public key.
  * @param entries  - Batch entries. Each entry **must** include a
  *                   `maxSlippageBps` value (0–9999). The recommended default is
- *                   100 (1 %). Values ≥ 10 000 are rejected at the SDK boundary.
+ *                   100 (1 %). Values >= 10,000 are rejected at the SDK boundary.
  *
  * Returns the base64-encoded prepared XDR ready for signing.
  */
