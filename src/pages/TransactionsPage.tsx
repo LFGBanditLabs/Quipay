@@ -62,7 +62,9 @@ export default function TransactionsPage() {
         setBackendRows(d.withdrawals ?? []);
       } catch (err) {
         setBackendError(
-          err instanceof Error ? err.message : "Failed to load transactions",
+          err instanceof Error
+            ? err.message
+            : "Failed to load transaction history.",
         );
         setBackendRows([]);
       } finally {
@@ -212,6 +214,19 @@ export default function TransactionsPage() {
             All withdrawal transactions across your streams.
           </p>
         </div>
+
+        {backendError && (
+          <div className="mb-6 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-[13px] text-red-200">
+            <p className="font-semibold text-red-100">
+              Could not load backend transaction history.
+            </p>
+            <p className="mt-1 text-red-200/80">{backendError}</p>
+            <p className="mt-1 text-red-200/70">
+              On-chain events are still shown when available; try refreshing the
+              page or check the backend status if this keeps happening.
+            </p>
+          </div>
+        )}
 
         {/* Summary strip */}
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
