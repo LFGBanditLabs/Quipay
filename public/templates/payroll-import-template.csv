@@ -1,0 +1,4 @@
+email,qp_id,amount,token,start_date,end_date
+alice@company.com,QP100000042,5000,USDC,2026-09-01,2027-08-31
+bob@company.com,QP100000043,3500,USDC,2026-09-01,2027-08-31
+charlie@company.com,QP100000044,1200,XLM,2026-09-01,2027-08-31
