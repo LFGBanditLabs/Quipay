@@ -20,8 +20,6 @@ import { rawToUnitNumber } from "../util/stroops";
 import type { SupportedEvmChain } from "../lib/evmAddresses";
 import { useNotification } from "./useNotification";
 import { type StreamEvent, isVaultBalanceLow } from "../lib/notificationRules";
-import { getXlmSacAddress, getTokenAddresses } from "../lib/tokenAddresses";
-import { parseDateToUnixSeconds } from "../lib/csvParser";
 
 /** ---------------- REQUEST DEDUP ---------------- */
 
