@@ -13,7 +13,11 @@ import type {
   MonthlySummary,
   ReportFilter,
 } from "../types/reports";
-import { getCache, setCache } from "../services/offlineService";
+import {
+  DYNAMIC_DATA_CACHE_TTL_MS,
+  getCache,
+  setCache,
+} from "../services/offlineService";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
@@ -191,7 +195,10 @@ export function useTransactionData() {
         }
       } catch {
         // Backend unavailable — try cache
-        const cached = await getCache(`transactions-${address}`);
+        const cached = await getCache<PayrollTransaction[]>(
+          `transactions-${address}`,
+          DYNAMIC_DATA_CACHE_TTL_MS,
+        );
         if (cached) {
           setAllTransactions(cached);
         } else {

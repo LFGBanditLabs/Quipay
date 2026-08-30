@@ -3,6 +3,8 @@ import { openDB, IDBPDatabase } from "idb";
 const DB_NAME = "quipay-offline-db";
 const STORE_NAME = "payroll-cache";
 
+export const DYNAMIC_DATA_CACHE_TTL_MS = 5 * 60_000;
+
 export interface CachedData {
   key: string;
   data: unknown;
@@ -33,10 +35,21 @@ export async function setCache(key: string, data: unknown) {
   });
 }
 
-export async function getCache(key: string) {
+export async function getCache<T = unknown>(
+  key: string,
+  ttl?: number,
+): Promise<T | null> {
   const db = await getDB();
-  const entry = await db.get(STORE_NAME, key);
-  return entry ? entry.data : null;
+  const entry = (await db.get(STORE_NAME, key)) as CachedData | undefined;
+
+  if (!entry) return null;
+
+  if (ttl !== undefined && Date.now() - entry.timestamp > ttl) {
+    await db.delete(STORE_NAME, key);
+    return null;
+  }
+
+  return entry.data as T;
 }
 
 export async function clearCache() {
