@@ -1,105 +1,26 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Bell } from "lucide-react";
-import { useWallet } from "../hooks/useWallet";
-import {
-  usePersistentNotifications,
-  type NotificationType,
-  type PersistentNotification,
-} from "../hooks/usePersistentNotifications";
+import { Bell, CheckCheck, Trash2 } from "lucide-react";
+import { useNotifications } from "../hooks/useNotifications";
+import { NotificationItem } from "./NotificationItem";
 
-/* ── UI Constants ── */
-
-const TYPE_CONFIG: Record<
-  NotificationType,
-  { icon: string; color: string; label: string }
-> = {
-  tx_confirmed: { icon: "✓", color: "#22c55e", label: "Confirmed" },
-  tx_failed: { icon: "✕", color: "#ef4444", label: "Failed" },
-  stream_started: { icon: "▶", color: "#facc15", label: "Stream Started" },
-  stream_completed: { icon: "⏹", color: "#eab308", label: "Stream Completed" },
-  payroll_disbursed: {
-    icon: "💸",
-    color: "#fde047",
-    label: "Payroll Disbursed",
-  },
-};
-
-/* ── Utility ── */
-
-const formatTimeAgo = (timestamp: number): string => {
-  const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-};
-
-/* ── Notification item ── */
-
-const NotificationItem: React.FC<{
-  notification: PersistentNotification;
-  onRead: (id: string) => void;
-}> = ({ notification, onRead }) => {
-  const config = TYPE_CONFIG[notification.type];
-
-  return (
-    <div
-      role="listitem"
-      onClick={() => !notification.read && onRead(notification.id)}
-      className={`relative flex gap-3 px-4 py-3.5 border-b border-white/[0.06] transition-colors cursor-pointer hover:bg-white/[0.03] last:border-0 ${
-        !notification.read ? "bg-yellow-400/[0.03]" : ""
-      }`}
-    >
-      {/* Icon dot */}
-      <div
-        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/[0.05] text-[13px]"
-        style={{ color: config.color }}
-      >
-        {config.icon}
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
-            {config.label}
-          </span>
-          <span className="text-[10px] text-neutral-700 whitespace-nowrap">
-            {formatTimeAgo(notification.timestamp)}
-          </span>
-        </div>
-        <p className="text-[13px] font-medium text-white leading-snug break-words">
-          {notification.message}
-        </p>
-      </div>
-
-      {!notification.read && (
-        <div
-          className="absolute right-4 top-4 h-2 w-2 rounded-full animate-pulse"
-          style={{ backgroundColor: "#facc15" }}
-          title="Unread"
-        />
-      )}
-    </div>
-  );
-};
-
-/* ── Main component ── */
-
-const NotificationCenter: React.FC = () => {
+export const NotificationCenter: React.FC = () => {
   const { t } = useTranslation();
-  const { address } = useWallet();
-  const { notifications, unreadCount, markAsRead, markAllAsRead } =
-    usePersistentNotifications(address);
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    clearNotifications,
+    removeNotification,
+  } = useNotifications();
 
   const [isOpen, setIsOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   const togglePanel = useCallback(() => setIsOpen((prev) => !prev), []);
+  const closePanel = useCallback(() => setIsOpen(false), []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -131,12 +52,12 @@ const NotificationCenter: React.FC = () => {
 
   return (
     <div className="relative inline-block text-left">
-      {/* Bell button */}
+      {/* Bell trigger button */}
       <button
         ref={triggerRef}
         onClick={togglePanel}
         aria-label={t("notifications.aria_bell", "Notification Center")}
-        aria-haspopup="true"
+        aria-haspopup="dialog"
         aria-expanded={isOpen}
         className={`relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
           isOpen
@@ -149,7 +70,7 @@ const NotificationCenter: React.FC = () => {
         />
         {unreadCount > 0 && (
           <span
-            className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-black text-black shadow ring-1 ring-black"
+            className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-black text-black shadow ring-1 ring-black animate-pulse"
             style={{ backgroundColor: "#facc15" }}
           >
             {unreadCount > 9 ? "9+" : unreadCount}
@@ -161,12 +82,12 @@ const NotificationCenter: React.FC = () => {
       {isOpen && (
         <div
           ref={panelRef}
-          role="status"
-          aria-live="polite"
-          className="absolute right-0 z-[100] mt-2 flex max-h-[480px] w-80 sm:w-96 flex-col overflow-hidden rounded-2xl border border-white/[0.1] bg-[#111] shadow-[0_24px_64px_rgba(0,0,0,0.7)]"
+          role="dialog"
+          aria-label={t("notifications.title", "Notifications")}
+          className="absolute right-0 z-[100] mt-2 flex max-h-[500px] w-80 sm:w-96 flex-col overflow-hidden rounded-2xl border border-white/[0.1] bg-[#111] shadow-[0_24px_64px_rgba(0,0,0,0.8)] backdrop-blur-xl"
         >
           {/* Header */}
-          <div className="flex shrink-0 items-center justify-between border-b border-white/[0.07] px-4 py-3.5">
+          <div className="flex shrink-0 items-center justify-between border-b border-white/[0.07] px-4 py-3.5 bg-neutral-900/50">
             <div className="flex items-center gap-2">
               <h3 className="text-[14px] font-bold text-white">
                 {t("notifications.title", "Notifications")}
@@ -176,33 +97,47 @@ const NotificationCenter: React.FC = () => {
                   className="rounded-full px-2 py-0.5 text-[10px] font-black text-black"
                   style={{ backgroundColor: "#facc15" }}
                 >
-                  {unreadCount}
+                  {unreadCount} new
                 </span>
               )}
             </div>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllAsRead}
-                className="text-[12px] font-semibold hover:underline"
-                style={{ color: "#facc15" }}
-              >
-                Mark all read
-              </button>
-            )}
+
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllAsRead}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-yellow-400 hover:text-yellow-300 transition-colors"
+                  title="Mark all as read"
+                >
+                  <CheckCheck className="h-3.5 w-3.5" />
+                  <span>Mark all read</span>
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={clearNotifications}
+                  className="flex items-center gap-1 text-[11px] font-medium text-neutral-500 hover:text-red-400 transition-colors ml-1"
+                  title="Clear all notifications"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Clear</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* List */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto divide-y divide-white/[0.04]">
             {notifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
                 <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.05]">
-                  <Bell className="h-6 w-6 text-neutral-700" />
+                  <Bell className="h-6 w-6 text-neutral-600" />
                 </div>
-                <p className="text-[14px] font-semibold text-neutral-500">
-                  {t("notifications.empty", "No notifications")}
+                <p className="text-[14px] font-semibold text-neutral-400">
+                  {t("notifications.empty", "No notifications yet")}
                 </p>
-                <p className="mt-1 text-[12px] text-neutral-700">
-                  We'll notify you when anything important happens.
+                <p className="mt-1 text-[12px] text-neutral-600 max-w-[220px]">
+                  Real-time payroll updates, stream alerts, and earnings milestones will appear here.
                 </p>
               </div>
             ) : (
@@ -212,6 +147,8 @@ const NotificationCenter: React.FC = () => {
                     key={notif.id}
                     notification={notif}
                     onRead={markAsRead}
+                    onRemove={removeNotification}
+                    onClosePanel={closePanel}
                   />
                 ))}
               </div>
@@ -219,11 +156,13 @@ const NotificationCenter: React.FC = () => {
           </div>
 
           {/* Footer */}
-          <div className="shrink-0 border-t border-white/[0.06] px-4 py-3 text-center">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-800">
-              Auto-clears after 7 days
-            </span>
-          </div>
+          {notifications.length > 0 && (
+            <div className="shrink-0 border-t border-white/[0.06] bg-neutral-950/60 px-4 py-2.5 text-center">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+                Auto-saved · Persists on refresh
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>

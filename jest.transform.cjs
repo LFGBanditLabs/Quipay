@@ -19,10 +19,9 @@ const tsJestTransformer = new TsJestTransformer(TS_JEST_OPTIONS);
 
 module.exports = {
   process(sourceText, sourcePath, ...rest) {
-    const patched = sourceText.replace(
-      /import\.meta\.env\.(\w+)/g,
-      "process.env.$1",
-    );
+    const patched = sourceText
+      .replace(/import\.meta\.env\.(\w+)/g, "process.env.$1")
+      .replace(/import\.meta\.env/g, "(process.env || {})");
     return tsJestTransformer.process(patched, sourcePath, ...rest);
   },
 

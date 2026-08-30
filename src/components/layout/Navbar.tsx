@@ -98,22 +98,25 @@ const Navbar: React.FC = () => {
             {/* Get Started — yellow filled pill (Secondary style from Figma) */}
           </div>
 
-          {/* ── Mobile hamburger ──────────────────────────────────── */}
-          <button
-            onClick={() => setMobileOpen((v) => !v)}
-            aria-label={mobileOpen ? "Close menu" : "Open menu"}
-            className="ml-auto flex md:hidden h-10 w-10 flex-col items-center justify-center gap-[5px] rounded-xl hover:bg-white/[0.06] transition-colors"
-          >
-            <span
-              className={`block h-[1.5px] w-[18px] rounded-full bg-neutral-400 transition-all duration-200 ${mobileOpen ? "translate-y-[6.5px] rotate-45 !bg-white" : ""}`}
-            />
-            <span
-              className={`block h-[1.5px] w-[18px] rounded-full bg-neutral-400 transition-all duration-200 ${mobileOpen ? "opacity-0" : ""}`}
-            />
-            <span
-              className={`block h-[1.5px] w-[18px] rounded-full bg-neutral-400 transition-all duration-200 ${mobileOpen ? "-translate-y-[6.5px] -rotate-45 !bg-white" : ""}`}
-            />
-          </button>
+          {/* ── Mobile actions ──────────────────────────────────── */}
+          <div className="ml-auto flex items-center gap-2 md:hidden">
+            <NotificationCenter />
+            <button
+              onClick={() => setMobileOpen((v) => !v)}
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
+              className="flex h-10 w-10 flex-col items-center justify-center gap-[5px] rounded-xl hover:bg-white/[0.06] transition-colors"
+            >
+              <span
+                className={`block h-[1.5px] w-[18px] rounded-full bg-neutral-400 transition-all duration-200 ${mobileOpen ? "translate-y-[6.5px] rotate-45 !bg-white" : ""}`}
+              />
+              <span
+                className={`block h-[1.5px] w-[18px] rounded-full bg-neutral-400 transition-all duration-200 ${mobileOpen ? "opacity-0" : ""}`}
+              />
+              <span
+                className={`block h-[1.5px] w-[18px] rounded-full bg-neutral-400 transition-all duration-200 ${mobileOpen ? "-translate-y-[6.5px] -rotate-45 !bg-white" : ""}`}
+              />
+            </button>
+          </div>
         </div>
       </header>
 

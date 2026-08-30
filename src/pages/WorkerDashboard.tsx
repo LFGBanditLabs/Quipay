@@ -10,7 +10,7 @@ import {
   WorkerStream,
   WithdrawalRecord,
 } from "../hooks/useStreams";
-import { useNotification } from "../hooks/useNotification";
+import { useNotifications } from "../hooks/useNotifications";
 import {
   buildWithdrawTx,
   submitAndAwaitTx,
@@ -113,7 +113,7 @@ const StreamCard: React.FC<{
 }> = ({ stream, withdrawals, workerAddress, onWithdrawn }) => {
   const { t } = useTranslation();
   const { signXdr } = useStellarSign();
-  const { addNotification, addStreamNotification } = useNotification();
+  const { addNotification, addStreamNotification } = useNotifications();
   const [showTimeline, setShowTimeline] = useState(false);
   const [lastEventAmount, setLastEventAmount] = useState<number | null>(null);
   const [withdrawing, setWithdrawing] = useState(false);
@@ -531,7 +531,7 @@ const WorkerDashboard: React.FC = () => {
   const [withdrawTick, setWithdrawTick] = useState(0);
   const [showCrossChain, setShowCrossChain] = useState(false);
   useBackendTotalWithdrawn(address, withdrawTick);
-  const { addStreamNotification } = useNotification();
+  const { addStreamNotification, triggerMilestoneCheck } = useNotifications();
   const previousStreamStatusesRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
@@ -637,6 +637,12 @@ const WorkerDashboard: React.FC = () => {
   const totalEarned = activeStreams.reduce((s, st) => s + st.totalAmount, 0);
   // claimedAmount comes directly from the contract — always accurate
   const totalWithdrawn = streams.reduce((s, st) => s + st.claimedAmount, 0);
+
+  useEffect(() => {
+    if (totalEarned > 0) {
+      triggerMilestoneCheck(totalEarned);
+    }
+  }, [totalEarned, triggerMilestoneCheck]);
 
   return (
     <>

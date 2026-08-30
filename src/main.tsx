@@ -18,6 +18,23 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WalletProvider } from "./providers/WalletProvider.tsx";
 import { AuthProvider } from "./providers/AuthProvider.tsx";
 import { SharedClockProvider } from "./context/SharedClockContext.tsx";
+import { registerSW } from "virtual:pwa-register";
+
+// Register the service worker for PWA and push notifications
+if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+  registerSW({
+    immediate: true,
+    onRegistered(registration) {
+      if (registration) {
+        console.log("Service worker registered:", registration);
+      }
+    },
+    onRegisterError(error) {
+      console.warn("Service worker registration skipped or failed:", error);
+    },
+  });
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

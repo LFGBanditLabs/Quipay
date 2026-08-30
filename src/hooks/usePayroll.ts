@@ -16,6 +16,8 @@ import {
 import { getWorkersByEmployer } from "../contracts/workforce_registry";
 import { rawToUnitNumber } from "../util/stroops";
 import type { SupportedEvmChain } from "../lib/evmAddresses";
+import { useNotification } from "./useNotification";
+import { type StreamEvent, isVaultBalanceLow } from "../lib/notificationRules";
 
 /** ---------------- REQUEST DEDUP ---------------- */
 
@@ -94,6 +96,7 @@ const DEFAULT_TOKENS = [
 ];
 
 export const usePayroll = (employerAddress: string | undefined) => {
+  const { addNotification } = useNotification();
   const [treasuryBalances, setTreasuryBalances] = useState<TokenBalance[]>([]);
   const [totalLiabilities, setTotalLiabilities] = useState<string>("0");
   const [streams, setStreams] = useState<Stream[]>([]);
@@ -138,13 +141,35 @@ export const usePayroll = (employerAddress: string | undefined) => {
         BigInt(0),
       );
       setTotalLiabilities(totalLiability.toString());
+
+      // Trigger low-balance alert if vault balance < 2 weeks burn rate
+      data.forEach((v: TokenVaultData) => {
+        const balanceNum = Number(v.balance);
+        const liabilityNum = Number(v.liability);
+        if (
+          employerAddress &&
+          liabilityNum > 0 &&
+          isVaultBalanceLow(balanceNum, liabilityNum)
+        ) {
+          addNotification({
+            type: "vault.low_balance",
+            employerAddress,
+            amount: String(balanceNum),
+            token: v.tokenSymbol,
+            timestamp: Date.now(),
+            metadata: {
+              dedupeKey: `vault_low:${employerAddress}:${v.tokenSymbol}:${new Date().toDateString()}`,
+            },
+          });
+        }
+      });
     } catch (error) {
       console.error("Failed to fetch vault data:", error);
       setVaultData([]);
     } finally {
       setIsVaultLoading(false);
     }
-  }, [employerAddress]);
+  }, [addNotification, employerAddress]);
 
   const fetchPayrollSummary = useCallback(async (address: string) => {
     // Payroll summary comes from the backend analytics API.
@@ -269,8 +294,19 @@ export const usePayroll = (employerAddress: string | undefined) => {
         { ...withdrawal, timestamp: Date.now() },
         ...prev,
       ]);
+      addNotification({
+        type: "withdrawal.completed",
+        amount: String(withdrawal.amount),
+        token: "USDC",
+        timestamp: Date.now(),
+        metadata: {
+          destChain: withdrawal.destChain,
+          destAddress: withdrawal.destAddress,
+          txHash: withdrawal.txHash,
+        },
+      });
     },
-    [],
+    [addNotification],
   );
 
   const applyOptimisticStreamStatus = useCallback(
@@ -279,8 +315,27 @@ export const usePayroll = (employerAddress: string | undefined) => {
       status: Stream["status"],
       action: "pause" | "resume" | "cancel",
     ) => {
-      setStreams((prev) =>
-        prev.map((stream) =>
+      setStreams((prev) => {
+        const target = prev.find((s) => s.id === streamId);
+        const actionTypeMap: Record<string, StreamEvent["type"]> = {
+          pause: "stream.paused",
+          resume: "stream.resumed",
+          cancel: "stream.cancelled",
+        };
+        const eventType = actionTypeMap[action];
+        if (eventType) {
+          addNotification({
+            type: eventType,
+            streamId,
+            employerAddress,
+            workerAddress: target?.employeeAddress,
+            amount: target?.totalAmount,
+            token: target?.tokenSymbol || "USDC",
+            timestamp: Date.now(),
+          });
+        }
+
+        return prev.map((stream) =>
           stream.id === streamId
             ? {
                 ...stream,
@@ -288,10 +343,10 @@ export const usePayroll = (employerAddress: string | undefined) => {
                 pendingAction: action,
               }
             : stream,
-        ),
-      );
+        );
+      });
     },
-    [],
+    [addNotification, employerAddress],
   );
 
   const restoreStream = useCallback((snapshot: Stream) => {
@@ -351,7 +406,10 @@ export const usePayroll = (employerAddress: string | undefined) => {
           query: { token },
         });
 
-        socket.on("stream:event", () => {
+        socket.on("stream:event", (event?: StreamEvent) => {
+          if (event && event.type) {
+            addNotification(event);
+          }
           refetch();
         });
       } catch (err) {
@@ -369,7 +427,7 @@ export const usePayroll = (employerAddress: string | undefined) => {
       isCancelled = true;
       socket?.disconnect();
     };
-  }, [authenticated, employerAddress, getAccessToken, refetch]);
+  }, [addNotification, authenticated, employerAddress, getAccessToken, refetch]);
 
   useEffect(() => {
     if (!employerAddress) {

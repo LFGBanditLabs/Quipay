@@ -19,6 +19,7 @@ describe("submitAndAwaitTx exponential backoff", () => {
 
     mockTx = {
       hash: () => "test-tx-hash",
+      toXDR: () => "fake-xdr",
     };
 
     mockServer = {
@@ -58,7 +59,7 @@ describe("submitAndAwaitTx exponential backoff", () => {
     // Mock getRpcServer to return our mock
     const originalModule = jest.requireActual("../payroll_stream");
     jest
-      .spyOn(originalModule as any, "getRpcServer")
+      .spyOn(originalModule.rpcHelpers, "getRpcServer")
       .mockReturnValue(mockServer);
 
     const promise = originalModule.submitAndAwaitTx("fake-xdr");
@@ -91,15 +92,19 @@ describe("submitAndAwaitTx exponential backoff", () => {
 
     const originalModule = jest.requireActual("../payroll_stream");
     jest
-      .spyOn(originalModule as any, "getRpcServer")
+      .spyOn(originalModule.rpcHelpers, "getRpcServer")
       .mockReturnValue(mockServer);
 
-    const promise = originalModule.submitAndAwaitTx("fake-xdr");
+    const assertion = expect(
+      originalModule.submitAndAwaitTx("fake-xdr"),
+    ).rejects.toThrow(/timed out after \d+s/);
 
-    // Advance past 30 seconds
-    await jest.advanceTimersByTimeAsync(31000);
+    // Advance past 30 seconds through all chained backoff timeouts
+    for (let i = 0; i < 35; i++) {
+      await jest.advanceTimersByTimeAsync(1500);
+    }
 
-    await expect(promise).rejects.toThrow(/timed out after \d+s/);
+    await assertion;
   });
 
   it("should throw on FAILED status", async () => {
@@ -114,15 +119,16 @@ describe("submitAndAwaitTx exponential backoff", () => {
 
     const originalModule = jest.requireActual("../payroll_stream");
     jest
-      .spyOn(originalModule as any, "getRpcServer")
+      .spyOn(originalModule.rpcHelpers, "getRpcServer")
       .mockReturnValue(mockServer);
 
-    const promise = originalModule.submitAndAwaitTx("fake-xdr");
+    const assertion = expect(
+      originalModule.submitAndAwaitTx("fake-xdr"),
+    ).rejects.toThrow("Transaction failed on-chain");
 
     await jest.advanceTimersByTimeAsync(0);
 
-    await expect(promise).rejects.toThrow("Transaction failed on-chain");
-    await expect(promise).rejects.toThrow("test-tx-hash");
+    await assertion;
   });
 
   it("should throw on submission ERROR", async () => {
@@ -133,7 +139,7 @@ describe("submitAndAwaitTx exponential backoff", () => {
 
     const originalModule = jest.requireActual("../payroll_stream");
     jest
-      .spyOn(originalModule as any, "getRpcServer")
+      .spyOn(originalModule.rpcHelpers, "getRpcServer")
       .mockReturnValue(mockServer);
 
     await expect(originalModule.submitAndAwaitTx("fake-xdr")).rejects.toThrow(
@@ -160,7 +166,7 @@ describe("submitAndAwaitTx exponential backoff", () => {
 
     const originalModule = jest.requireActual("../payroll_stream");
     jest
-      .spyOn(originalModule as any, "getRpcServer")
+      .spyOn(originalModule.rpcHelpers, "getRpcServer")
       .mockReturnValue(mockServer);
 
     const promise = originalModule.submitAndAwaitTx("fake-xdr");

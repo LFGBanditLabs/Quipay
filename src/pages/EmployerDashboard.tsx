@@ -15,7 +15,8 @@ import {
 } from "../contracts/payroll_stream";
 import { useStellarAccount } from "../hooks/useStellarAccount";
 import { useStellarSign } from "../hooks/useStellarSign";
-import { useNotification } from "../hooks/useNotification";
+import { useNotifications } from "../hooks/useNotifications";
+import { isStreamEndingSoon } from "../lib/notificationRules";
 import { SkeletonRow, StatTileSkeleton } from "../components/Loading";
 import CopyButton from "../components/CopyButton";
 import {
@@ -190,7 +191,7 @@ const StreamRow: React.FC<{
 const EmployerDashboard: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { addNotification } = useNotification();
+  const { addNotification } = useNotifications();
   const { address } = useStellarAccount();
   const { signXdr } = useStellarSign();
 
@@ -203,6 +204,25 @@ const EmployerDashboard: React.FC = () => {
     payrollSummaryError,
     refreshData,
   } = usePayroll(address);
+
+  // Check for active streams ending within 7 days
+  React.useEffect(() => {
+    if (!address || isLoading) return;
+    activeStreams.forEach((stream) => {
+      if (stream.status === "active" && isStreamEndingSoon(stream.endDate, 7)) {
+        addNotification({
+          type: "stream.ending_soon",
+          streamId: stream.id,
+          employerAddress: address,
+          workerAddress: stream.employeeAddress,
+          timestamp: Date.now(),
+          metadata: {
+            dedupeKey: `stream_ending:${stream.id}:${stream.endDate}`,
+          },
+        });
+      }
+    });
+  }, [activeStreams, address, addNotification, isLoading]);
 
   const [streamToCancel, setStreamToCancel] = React.useState<Stream | null>(
     null,
