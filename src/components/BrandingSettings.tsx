@@ -40,7 +40,7 @@ export default function BrandingSettings({
   const fetchBranding = useCallback(async () => {
     setIsLoading(true);
     try {
-      const apiBase = import.meta.env?.VITE_API_BASE_URL || "";
+      const apiBase = import.meta.env.VITE_API_BASE_URL || "";
       const response = await fetch(
         `${apiBase}/api/employers/${employerAddress}/branding`,
         {
@@ -114,7 +114,7 @@ export default function BrandingSettings({
     setErrorMsg("");
 
     try {
-      const apiBase = import.meta.env?.VITE_API_BASE_URL || "";
+      const apiBase = import.meta.env.VITE_API_BASE_URL || "";
 
       // Upload logo if changed
       if (logoFile) {
@@ -176,8 +176,10 @@ export default function BrandingSettings({
   };
 
   const handleDeleteLogo = async () => {
+    setErrorMsg("");
+
     try {
-      const apiBase = import.meta.env?.VITE_API_BASE_URL || "";
+      const apiBase = import.meta.env.VITE_API_BASE_URL || "";
       const response = await fetch(
         `${apiBase}/api/employers/${employerAddress}/branding/logo`,
         {
@@ -190,9 +192,13 @@ export default function BrandingSettings({
         setLogoPreview(null);
         setLogoFile(null);
         setBranding((prev) => ({ ...prev, logoUrl: undefined }));
+        return;
       }
+
+      setErrorMsg("Failed to delete logo. Please try again.");
     } catch (err) {
       console.error("Failed to delete logo:", err);
+      setErrorMsg("Failed to delete logo. Please try again.");
     }
   };
 
