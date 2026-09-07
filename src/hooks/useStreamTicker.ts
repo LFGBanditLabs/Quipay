@@ -3,6 +3,7 @@ import { WorkerStream } from "./useStreams";
 
 /** Stellar uses 7 decimal places (10^7 stroops = 1 token unit). */
 const STROOPS_PER_UNIT = 1e7;
+const ACTIVE_STATUS = 0;
 
 export interface StreamTickSnapshot {
   /** Stream ID */
@@ -35,6 +36,58 @@ export interface StreamTickerResult {
   /** Whether the ticker is currently paused (tab hidden) */
   paused: boolean;
 }
+
+const getAccrualTimestamp = (stream: WorkerStream, nowSec: number): number => {
+  if (stream.status === ACTIVE_STATUS) return nowSec;
+  return stream.closedAt > 0 ? stream.closedAt : nowSec;
+};
+
+export const computeStreamTickerResult = (
+  streams: WorkerStream[],
+  nowSec: number,
+  paused = false,
+): StreamTickerResult => {
+  let totalEarned = 0;
+  let totalFlowRate = 0;
+  let activeCount = 0;
+
+  const snapshots: StreamTickSnapshot[] = streams.map((stream) => {
+    const flowRateUnits = Number(stream.flowRate);
+    const totalAmountUnits = Number(stream.totalAmount);
+    const accrualTimestamp = getAccrualTimestamp(stream, nowSec);
+    const elapsed = Math.max(0, accrualTimestamp - stream.startTime);
+    const earned = Math.min(elapsed * flowRateUnits, totalAmountUnits);
+    const isComplete = earned >= totalAmountUnits;
+    const progress = totalAmountUnits > 0 ? earned / totalAmountUnits : 0;
+    const isActivelyAccruing = stream.status === ACTIVE_STATUS && !isComplete;
+
+    totalEarned += earned;
+
+    if (isActivelyAccruing) {
+      totalFlowRate += flowRateUnits;
+      activeCount += 1;
+    }
+
+    return {
+      id: stream.id,
+      employerName: stream.employerName,
+      tokenSymbol: stream.tokenSymbol,
+      earned,
+      flowRate: flowRateUnits,
+      totalAmount: totalAmountUnits,
+      progress,
+      isComplete,
+    };
+  });
+
+  return {
+    snapshots,
+    totalEarned,
+    totalFlowRate,
+    activeCount,
+    paused,
+  };
+};
 
 /**
  * Client-side real-time ticker for payroll streams.
@@ -69,44 +122,7 @@ export const useStreamTicker = (
 
   const compute = useCallback(() => {
     const nowSec = Date.now() / 1000;
-    let totalEarned = 0;
-    let totalFlowRate = 0;
-    let activeCount = 0;
-
-    const snapshots: StreamTickSnapshot[] = streams.map((stream) => {
-      const flowRateUnits = Number(stream.flowRate);
-      const totalAmountUnits = Number(stream.totalAmount);
-      const elapsed = Math.max(0, nowSec - stream.startTime);
-      const earned = Math.min(elapsed * flowRateUnits, totalAmountUnits);
-      const isComplete = earned >= totalAmountUnits;
-      const progress = totalAmountUnits > 0 ? earned / totalAmountUnits : 0;
-
-      totalEarned += earned;
-
-      if (!isComplete) {
-        totalFlowRate += flowRateUnits;
-        activeCount += 1;
-      }
-
-      return {
-        id: stream.id,
-        employerName: stream.employerName,
-        tokenSymbol: stream.tokenSymbol,
-        earned,
-        flowRate: flowRateUnits,
-        totalAmount: totalAmountUnits,
-        progress,
-        isComplete,
-      };
-    });
-
-    setResult({
-      snapshots,
-      totalEarned,
-      totalFlowRate,
-      activeCount,
-      paused: pausedRef.current,
-    });
+    setResult(computeStreamTickerResult(streams, nowSec, pausedRef.current));
   }, [streams]);
 
   useEffect(() => {
