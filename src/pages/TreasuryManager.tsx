@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { Asset } from "@stellar/stellar-sdk";
 import { useWallet } from "../hooks/useWallet";
 import ChainWallets from "../components/ChainWallets";
 import VaultFunding from "../components/VaultFunding";
@@ -12,13 +13,17 @@ import {
 } from "../contracts/payroll_vault";
 import { submitAndAwaitTx } from "../contracts/payroll_stream";
 import { useNotification } from "../hooks/useNotification";
-import { horizonUrl } from "../contracts/util";
+import { horizonUrl, networkPassphrase } from "../contracts/util";
 import { fmt, STROOPS } from "../util/format";
 import { SeoHelmet } from "../components/seo/SeoHelmet";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const XLM_RESERVE = 1; // keep at least 1 XLM for fees
+const USDC_ISSUER =
+  import.meta.env.PUBLIC_USDC_ISSUER ??
+  "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+const USDC_SAC = new Asset("USDC", USDC_ISSUER).contractId(networkPassphrase);
 
 // ─── Fetch wallet balances from Horizon ──────────────────────────────────────
 
@@ -28,8 +33,6 @@ interface WalletBalances {
 }
 
 async function fetchWalletBalances(address: string): Promise<WalletBalances> {
-  const USDC_ISSUER =
-    "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
   try {
     const res = await fetch(`${horizonUrl}/accounts/${address}`);
     if (!res.ok) return { XLM: 0, USDC: 0 };
@@ -61,7 +64,7 @@ const TOKEN_MAP: Record<string, { address: string; label: string }> = {
     label: "XLM (Native)",
   },
   USDC: {
-    address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+    address: USDC_SAC,
     label: "USDC",
   },
 };
