@@ -1,0 +1,13 @@
+[package]
+name = "cctp-message-transmitter"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = { version = "21.7.6", default-features = false }
+
+[dev-dependencies]
+soroban-sdk = { version = "21.7.6" }

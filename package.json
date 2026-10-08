@@ -7,10 +7,10 @@
     "node": ">=20.19.0"
   },
   "scripts": {
-    "dev": "vite",
-    "start": "concurrently --kill-others-on-fail --names stellar,vite -c gray,green --pad-prefix \"stellar scaffold watch --build-clients\" \"vite\"",
-    "build": "tsc -b && vite build",
-    "build:fast": "vite build",
+    "dev": "node init && vite",
+    "start": "node init && concurrently --kill-others-on-fail --names stellar,vite -c gray,green --pad-prefix \"stellar scaffold watch --build-clients\" \"vite\"",
+    "build": "node init && tsc -b && vite build",
+    "build:fast": "node init && vite build",
     "social:generate": "node scripts/generate-social-previews.mjs",
     "lighthouse": "lighthouse http://127.0.0.1:4173 --quiet --chrome-flags='--headless --no-sandbox' --only-categories=performance,seo --preset=desktop --output html --output json --output-path ./lighthouse-report",
     "preview": "vite preview",
