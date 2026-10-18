@@ -190,8 +190,15 @@ export default function BrandingSettings({
         setLogoPreview(null);
         setLogoFile(null);
         setBranding((prev) => ({ ...prev, logoUrl: undefined }));
+        setErrorMsg("");
+      } else {
+        const message = `Failed to delete logo (${response.status})`;
+        setErrorMsg(message);
+        throw new Error(message);
       }
     } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to delete logo";
+      setErrorMsg(message);
       console.error("Failed to delete logo:", err);
     }
   };
