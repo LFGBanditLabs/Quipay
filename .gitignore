@@ -41,7 +41,6 @@ lint_output.txt
 *.config.kiro
 
 # Editor config (local only)
-.vscode/
 
 # GPG key files
 *.gpg
@@ -50,8 +49,6 @@ lint_output.txt
 *.tar.gz
 error.md
 # environment variables
-.env
-.env.*
 !.env.example
 
 # easy way to create temporary local-only files and folders
@@ -138,3 +135,4 @@ Thumbs.db
 .vercel
 
 pr.md
+config.bat

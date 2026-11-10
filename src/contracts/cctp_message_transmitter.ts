@@ -201,3 +201,95 @@ export async function getMessageHash(txHash: string): Promise<string | null> {
     return null;
   }
 }
+
+// ─── buildReceiveMessageTx ───────────────────────────────────────────────────
+
+/**
+ * Builds a `receive_message` transaction that submits an attested CCTP message to Stellar.
+ * Verifies attestation, enforces replay protection, and transfers USDC to the recipient/payroll vault.
+ *
+ * @param callerAddress - Stellar address submitting the transaction
+ * @param messageHex - Raw CCTP message in hex format
+ * @param attestationHex - ECDSA attestation signature in hex format
+ * @param recipientAddress - Destination recipient Stellar address (payroll vault or worker)
+ * @param amount - Amount of USDC to mint/forward in stroops
+ * @returns Prepared XDR ready for signing
+ */
+export async function buildReceiveMessageTx(
+  callerAddress: string,
+  messageHex: string,
+  attestationHex: string,
+  recipientAddress: string,
+  amount: bigint,
+): Promise<{ preparedXdr: string }> {
+  if (!CCTP_CONTRACT_ID) {
+    throw new Error("VITE_CCTP_MESSAGE_TRANSMITTER_CONTRACT_ID is not set.");
+  }
+
+  const server = getRpcServer();
+  const account = await server.getAccount(callerAddress);
+  const contract = new Contract(CCTP_CONTRACT_ID);
+
+  const cleanMsg = messageHex.startsWith("0x") ? messageHex.slice(2) : messageHex;
+  const cleanAttest = attestationHex.startsWith("0x") ? attestationHex.slice(2) : attestationHex;
+
+  const msgBytes = xdr.ScVal.scvBytes(Buffer.from(cleanMsg, "hex"));
+  const attestBytes = xdr.ScVal.scvBytes(Buffer.from(cleanAttest, "hex"));
+
+  const tx = new TransactionBuilder(account, {
+    fee: "1000000",
+    networkPassphrase,
+  })
+    .addOperation(
+      contract.call(
+        "receive_message",
+        msgBytes,
+        attestBytes,
+        new Address(recipientAddress).toScVal(),
+        nativeToScVal(amount, { type: "i128" }),
+      ),
+    )
+    .setTimeout(300)
+    .build();
+
+  const prepared = await server.prepareTransaction(tx);
+  return { preparedXdr: prepared.toXDR() };
+}
+
+// ─── View Functions ──────────────────────────────────────────────────────────
+
+/**
+ * Checks whether a given message hash has already been processed by the CCTP contract.
+ */
+export async function isMessageProcessed(
+  messageHashHex: string,
+  callerAddress = "GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI",
+): Promise<boolean> {
+  if (!CCTP_CONTRACT_ID) return false;
+
+  try {
+    const server = getRpcServer();
+    const account = await server.getAccount(callerAddress);
+    const contract = new Contract(CCTP_CONTRACT_ID);
+
+    const cleanHash = messageHashHex.startsWith("0x") ? messageHashHex.slice(2) : messageHashHex;
+    const hashBytes = xdr.ScVal.scvBytes(Buffer.from(cleanHash.padEnd(64, "0").slice(0, 64), "hex"));
+
+    const tx = new TransactionBuilder(account, {
+      fee: "100",
+      networkPassphrase,
+    })
+      .addOperation(contract.call("is_message_processed", hashBytes))
+      .setTimeout(30)
+      .build();
+
+    const sim = await server.simulateTransaction(tx);
+    if (SorobanRpc.Api.isSimulationSuccess(sim) && sim.result?.retval) {
+      return sim.result.retval.b() ?? false;
+    }
+  } catch {
+    // Return false on simulation failure
+  }
+  return false;
+}
+
